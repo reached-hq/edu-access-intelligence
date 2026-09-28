@@ -10,6 +10,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-004 | 2026-09-29 | Follow the NYC Mobility repository conventions | Accepted |
 | D-005 | 2026-09-29 | Branch from `main` with short-lived feature branches; no `dev` branch | Provisional |
 | D-006 | 2026-09-29 | One documentation folder per source; publisher documents stay with raw data | Accepted |
+| D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted |
 
 ---
 
@@ -54,3 +55,10 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Decision:** Each source gets a folder, `docs/source_inventory/<source_id>/`, with `README.md` (the inventory card) and `profile.md` (findings with evidence). Publisher documents stay with the raw files in raw storage; the card records their URL, size, and SHA-256. Cross-source work stays in `docs/profiling/`.
 - **Reason:** Keeping everything about one source together makes review easier. Publisher documents arrive with the data, so they are part of the raw delivery, and recording their checksum proves which version the team relied on.
 - **Consequence:** `tests/test_config.py` requires `README.md` for any source past `candidate`, and `profile.md` for any source that is `profiled` or `accepted`.
+
+## D-007: How sources are profiled
+
+- **Problem:** Profiling findings must be reproducible by another engineer, without spending Databricks Free Edition compute on small files.
+- **Decision:** Profile locally with DuckDB (pinned in `requirements-dev.txt`), in a `.py` script per source under `notebooks/profiling/` with `# %%` cells. Each check prints under the finding ID used in that source's `profile.md`. Scripts read raw data from `RAW_DATA_DIR` and verify file checksums before profiling.
+- **Reason:** The DepEd files are about 60,000 rows each, so DuckDB profiles them in seconds on a laptop. DuckDB is in the course's Day 9 tool list and was used in NYC Mobility. Keeping the code next to the findings lets a reviewer rerun every number.
+- **Consequence:** CI cannot run profiling scripts because raw data is not in git. Each PR that changes a profile states that the script was run and the numbers matched. Checks that repeat across sources move into `src/profiling/` (#12).

@@ -1,4 +1,27 @@
 {
-  "registry_status": "empty_no_sources_inventoried",
-  "sources": []
+  "registry_status": "in_progress",
+  "sources": [
+    {
+      "source_id": "deped_enrollment",
+      "name": "DepEd school-level enrollment",
+      "publisher": "Department of Education (DepEd)",
+      "status": "profiled",
+      "source_system": "Learner Information System (LIS), BOSY",
+      "acquisition": "https://www.deped.gov.ph/machine-ready-files/",
+      "format": "zip containing CSV",
+      "school_years_acquired": ["2023-24", "2024-25", "2025-26"],
+      "owner": "hyenalouise"
+    },
+    {
+      "source_id": "deped_facilities",
+      "name": "DepEd school facilities",
+      "publisher": "Department of Education (DepEd)",
+      "status": "profiled",
+      "source_system": "National School Building Inventory (NSBI)",
+      "acquisition": "https://www.deped.gov.ph/machine-ready-files/",
+      "format": "zip containing CSV",
+      "school_years_acquired": ["2023-24"],
+      "owner": "hyenalouise"
+    }
+  ]
 }
