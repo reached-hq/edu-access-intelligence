@@ -6,9 +6,17 @@
 |---|---|
 | Date profiled | 2026-09-29 |
 | Profiled by | @hyenalouise |
-| Tool | DuckDB 1.4.5 (Python), run locally |
-| Files profiled (SHA-256) | See [README.md](README.md#files) |
-| How files were read | All columns as text (`all_varchar`), strict CSV parsing |
+| Tool | DuckDB 1.4.5 (Python), run locally: [`notebooks/profiling/profile_deped.py`](../../../notebooks/profiling/profile_deped.py) |
+| Files profiled (SHA-256) | See [README.md](README.md#files). The script stops if a zip's checksum differs |
+| How files were read | Straight from the original zip, all columns as text (`all_varchar`), strict CSV parsing |
+
+## How to rerun
+
+```bash
+RAW_DATA_DIR=~/Projects/reached-hq/raw-data python notebooks/profiling/profile_deped.py
+```
+
+The same script profiles `deped_enrollment`, because the join (O-2) and learners-per-room (O-8) checks need SY 2023-24 enrollment.
 
 ## Summary
 

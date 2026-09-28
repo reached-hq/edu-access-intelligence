@@ -1,2 +1,3 @@
 # Local and CI checks only. Databricks provides its own runtime.
 pytest==8.4.2
+duckdb==1.4.5
