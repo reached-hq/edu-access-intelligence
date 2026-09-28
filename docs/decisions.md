@@ -9,6 +9,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-003 | 2026-09-29 | Keep higher education in scope during discovery | Provisional |
 | D-004 | 2026-09-29 | Follow the NYC Mobility repository conventions | Accepted |
 | D-005 | 2026-09-29 | Branch from `main` with short-lived feature branches; no `dev` branch | Provisional |
+| D-006 | 2026-09-29 | One documentation folder per source; publisher documents stay with raw data | Accepted |
 
 ---
 
@@ -46,3 +47,10 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Decision:** Use `main` plus short-lived feature branches. `dev` and `prod` exist as Databricks deploy targets, not as branches.
 - **Reason:** Separate deploy targets already isolate environments, so a long-lived `dev` branch mostly adds merge overhead.
 - **Consequence:** CI runs on PRs into `main`. **Provisional:** the team has not yet confirmed this.
+
+## D-006: Where source documentation lives
+
+- **Problem:** Each source produces an inventory card, profiling findings, and publisher documents (for example DepEd's README files and Technical Notes). These need one predictable home.
+- **Decision:** Each source gets a folder, `docs/source_inventory/<source_id>/`, with `README.md` (the inventory card) and `profile.md` (findings with evidence). Publisher documents stay with the raw files in raw storage; the card records their URL, size, and SHA-256. Cross-source work stays in `docs/profiling/`.
+- **Reason:** Keeping everything about one source together makes review easier. Publisher documents arrive with the data, so they are part of the raw delivery, and recording their checksum proves which version the team relied on.
+- **Consequence:** `tests/test_config.py` requires `README.md` for any source past `candidate`, and `profile.md` for any source that is `profiled` or `accepted`.
