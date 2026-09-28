@@ -30,5 +30,5 @@ Can we access it? Are we allowed to use it? Should we use it?
 ## Next step
 
 - [ ] Acquire the file and record its origin
-- [ ] Create a card in `docs/source_inventory/`
-- [ ] Profile it (`docs/profiling/`)
+- [ ] Create `docs/source_inventory/<source_id>/README.md` from the template and add the source to `config/sources.json`
+- [ ] Profile it in `docs/source_inventory/<source_id>/profile.md`

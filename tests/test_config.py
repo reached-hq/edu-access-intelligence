@@ -46,8 +46,20 @@ def test_sources_past_candidate_have_an_inventory_card(repo_root, registry):
     missing = [
         s["source_id"] for s in registry["sources"]
         if s.get("status") not in (None, "candidate")
-        and not (inventory / f"{s.get('source_id')}.md").is_file()
+        and not (inventory / s.get("source_id", "") / "README.md").is_file()
     ]
     assert not missing, (
-        f"Sources beyond 'candidate' need docs/source_inventory/<source_id>.md: {missing}"
+        f"Sources beyond 'candidate' need docs/source_inventory/<source_id>/README.md: {missing}"
+    )
+
+
+def test_profiled_sources_have_a_profile(repo_root, registry):
+    inventory = repo_root / "docs" / "source_inventory"
+    missing = [
+        s["source_id"] for s in registry["sources"]
+        if s.get("status") in ("profiled", "accepted")
+        and not (inventory / s.get("source_id", "") / "profile.md").is_file()
+    ]
+    assert not missing, (
+        f"Profiled or accepted sources need docs/source_inventory/<source_id>/profile.md: {missing}"
     )

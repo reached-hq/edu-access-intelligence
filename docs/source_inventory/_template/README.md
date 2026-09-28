@@ -8,6 +8,7 @@
 |---|---|
 | Source name | |
 | Publisher / agency | |
+| Source system (as stated by the publisher) | |
 | Source URL or acquisition method | |
 | Licensing or access restrictions | |
 | Owner (team member) | |
@@ -15,9 +16,19 @@
 
 ## Files
 
-| File | Format | Size | Row count | SHA-256 |
-|---|---|---|---|---|
-| | | | | |
+Raw files are kept in raw storage, never in git. Record exactly what arrived.
+
+| File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
+|---|---|---|---|---|---|---|
+| | | | | | | |
+
+## Publisher documentation
+
+Documents the publisher provides about this data. Keep them with the raw files; do not commit them.
+
+| Document | URL | SHA-256 | Sections relied on |
+|---|---|---|---|
+| | | | |
 
 ## Coverage
 
@@ -28,6 +39,7 @@
 | Time coverage | |
 | Time basis (school year / calendar year / reference date) | |
 | Update frequency | |
+| Population covered (e.g. public schools only) | |
 
 ## Structure
 
@@ -48,10 +60,12 @@
 
 ## Known quality problems
 
-Label each one **observed** (with evidence) or **suspected** (still to test).
+Summary only; evidence lives in [profile.md](profile.md). Label each one **observed** or **suspected**.
 
 -
 
-## Profiling report
+## Limitations for analysis
 
-Link to `docs/profiling/<source_id>.md` once it exists.
+What this source cannot support, or supports only with caveats.
+
+-
