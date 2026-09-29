@@ -1,5 +1,7 @@
 # Contributing
 
+The rules in short. For the full walkthrough see [docs/workflow.md](docs/workflow.md); for laptop setup see [docs/terminal_setup.md](docs/terminal_setup.md).
+
 ## Workflow
 
 ```
