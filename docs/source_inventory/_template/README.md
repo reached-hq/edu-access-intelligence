@@ -52,6 +52,8 @@ Documents the publisher provides about this data. Keep them with the raw files; 
 | Personally identifiable or sensitive fields | |
 | Provenance fields in the source | |
 
+Column-by-column descriptions, fill rates, and sample values: [data_dictionary.md](data_dictionary.md).
+
 ### Expected vs actual schema
 
 | Column | Expected type | Actual type | Notes |
