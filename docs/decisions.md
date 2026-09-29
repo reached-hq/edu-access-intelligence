@@ -11,6 +11,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-005 | 2026-09-29 | Branch from `main` with short-lived feature branches; no `dev` branch | Provisional |
 | D-006 | 2026-09-29 | One documentation folder per source; publisher documents stay with raw data | Accepted |
 | D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted |
+| D-008 | 2026-09-29 | Develop locally; use Databricks compute only for planned runs | Accepted |
 
 ---
 
@@ -62,3 +63,10 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Decision:** Profile locally with DuckDB (pinned in `requirements-dev.txt`), in a `.py` script per source under `notebooks/profiling/` with `# %%` cells. Each check prints under the finding ID used in that source's `profile.md`. Scripts read raw data from `RAW_DATA_DIR` and verify file checksums before profiling.
 - **Reason:** The DepEd files are about 60,000 rows each, so DuckDB profiles them in seconds on a laptop. DuckDB is in the course's Day 9 tool list and was used in NYC Mobility. Keeping the code next to the findings lets a reviewer rerun every number.
 - **Consequence:** CI cannot run profiling scripts because raw data is not in git. Each PR that changes a profile states that the script was run and the numbers matched. Checks that repeat across sources move into `src/profiling/` (#12).
+
+## D-008: Develop locally, run on Databricks deliberately
+
+- **Problem:** The team shares one Databricks Free Edition workspace with limited compute. Repeated debugging runs, forgotten sessions, and overlapping full runs could exhaust it before the deadline.
+- **Decision:** Profile and develop SQL or PySpark logic on laptops (DuckDB by default; local PySpark optional), then confirm on Databricks once. Full pipeline runs are announced, dashboards get no scheduled refresh during development, and every full run is recorded in `pipeline_runs`. The rules are in `docs/workflow.md`, Part 5.
+- **Reason:** The data is small (about 60,000 rows per file), so laptops handle development easily, and each Databricks run is then a deliberate confirmation rather than trial and error.
+- **Consequence:** Local and Databricks behavior can differ (SQL dialect, no Unity Catalog locally), so logic is not trusted until it has run on Databricks. Setup is longer: every teammate needs a local Python environment (`docs/terminal_setup.md`).

@@ -43,7 +43,7 @@ Folders are added when their phase starts, not before.
 
 ## Setup
 
-<!-- TODO(Phase 2): Databricks workspace, VS Code extension, and storage setup. -->
+Follow [docs/terminal_setup.md](docs/terminal_setup.md) once per laptop, then [docs/workflow.md](docs/workflow.md) for day-to-day work, including where code runs to save Databricks compute.
 
 ## Running the checks locally
 
