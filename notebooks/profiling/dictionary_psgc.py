@@ -1,0 +1,244 @@
+# Generates the source data dictionary for psa_psgc:
+#   docs/source_inventory/psa_psgc/data_dictionary.md
+#
+# Descriptions are copied from the Metadata and Notes sheets inside the PSA
+# workbook. Everything else (how filled a column is, distinct values, samples,
+# ranges) is measured from the PSGC sheet. Output is deterministic, so rerunning
+# on the same file changes nothing.
+#
+#   RAW_DATA_DIR=~/Projects/reached-hq/raw-data python notebooks/profiling/dictionary_psgc.py
+#
+# The workbook is read with the standard library and loaded into DuckDB as text,
+# so no extra packages are needed beyond requirements-dev.txt.
+
+# %% Setup
+import csv
+import hashlib
+import os
+import re
+import sys
+import tempfile
+import zipfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import duckdb
+
+raw_dir = os.environ.get("RAW_DATA_DIR")
+if not raw_dir:
+    sys.exit("Set RAW_DATA_DIR to the folder that contains psa/original/.")
+ORIGINAL = Path(raw_dir).expanduser() / "psa" / "original"
+REPO = Path(__file__).resolve().parents[2]
+
+FILE = "PSGC-2Q-2026-Publication-Datafile.xlsx"
+SHA256 = "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d"
+DATA_SHEET = "PSGC"
+
+M = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+
+
+def column_number(cell_ref):
+    n = 0
+    for ch in re.match(r"[A-Z]+", cell_ref).group():
+        n = n * 26 + ord(ch) - 64
+    return n
+
+
+def column_letter(n):
+    letters = ""
+    while n:
+        n, rem = divmod(n - 1, 26)
+        letters = chr(65 + rem) + letters
+    return letters
+
+
+def read_sheet(path, sheet_name):
+    """Return a list of {column number: text} rows. Blank cells are omitted."""
+    with zipfile.ZipFile(path) as zf:
+        workbook = ET.fromstring(zf.read("xl/workbook.xml"))
+        rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
+        strings = [
+            "".join(t.text or "" for t in si.iter(M + "t"))
+            for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")
+        ]
+        sheet = next(s for s in workbook.find(M + "sheets") if s.get("name") == sheet_name)
+        target = rels[sheet.get(R + "id")].lstrip("/")
+        target = target if target.startswith("xl/") else "xl/" + target
+        rows = []
+        for row in ET.fromstring(zf.read(target)).iter(M + "row"):
+            cells = {}
+            for c in row.findall(M + "c"):
+                v = c.find(M + "v")
+                if c.get("t") == "s" and v is not None:
+                    text = strings[int(v.text)]
+                elif c.get("t") == "inlineStr":
+                    text = "".join(t.text or "" for t in c.iter(M + "t"))
+                else:
+                    text = v.text if v is not None else ""
+                if text != "":
+                    cells[column_number(c.get("r"))] = text
+            rows.append(cells)
+        return rows
+
+
+# %% Verify checksum, load the PSGC sheet as text
+path = ORIGINAL / FILE
+if hashlib.sha256(path.read_bytes()).hexdigest() != SHA256:
+    sys.exit(f"{FILE}: SHA-256 does not match the inventory card. Stop and re-inventory.")
+
+rows = read_sheet(path, DATA_SHEET)
+header, body = rows[0], rows[1:]
+width = max(header)
+names = [
+    re.sub(r"\s+", " ", header.get(i, "")).strip() or f"(no header, column {column_letter(i)})"
+    for i in range(1, width + 1)
+]
+
+workdir = tempfile.TemporaryDirectory()
+csv_path = Path(workdir.name) / "psgc.csv"
+with csv_path.open("w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    writer.writerow(names)
+    for r in body:
+        writer.writerow([r.get(i, "") for i in range(1, width + 1)])
+
+con = duckdb.connect()
+name_list = "[" + ", ".join(f"'{n}'" for n in names) + "]"
+con.execute(f"""CREATE TABLE psgc AS SELECT * FROM read_csv('{csv_path}', all_varchar = true, header = true,
+                names = {name_list}, strict_mode = true)""")
+LEVEL = '"Geographic Level"'
+
+
+# %% Column statistics
+def q(sql):
+    return con.execute(sql).fetchall()
+
+
+def cell(text):
+    return str(text).replace("|", "\\|").replace("\n", " ")
+
+
+def quoted(value):
+    return "(blank)" if value is None else f"`{cell(value)}`"
+
+
+def percent(filled, total):
+    if not total:
+        return "n/a"
+    if filled == total:
+        return "100.0%"
+    p = 100.0 * filled / total
+    return "<0.1%" if 0 < p < 0.1 else f"{min(p, 99.9):.1f}%"
+
+
+def describe(column, where="TRUE"):
+    col = f'"{column}"'
+    total, filled, distinct, digits, numeric = q(f"""
+        SELECT count(*),
+               count(*) FILTER (WHERE {col} IS NOT NULL AND trim({col}) <> ''),
+               count(DISTINCT {col}),
+               count(*) FILTER (WHERE regexp_full_match({col}, '[0-9]+')),
+               count(try_cast({col} AS BIGINT))
+        FROM psgc WHERE {where}""")[0]
+    pct = percent(filled, total)
+    if not filled:
+        return "all blank", pct, "0", "no values"
+    if distinct == filled and digits == filled:
+        kind = "identifier (unique)"
+        sample = ", ".join(quoted(v) for (v,) in q(f"SELECT {col} FROM psgc WHERE {where} AND {col} IS NOT NULL ORDER BY {col} LIMIT 3"))
+    elif numeric and filled - numeric <= 0.01 * filled:
+        kind = "whole number"
+        lo, med, hi, zeros = q(f"""SELECT min(try_cast({col} AS BIGINT)), median(try_cast({col} AS BIGINT)),
+                                          max(try_cast({col} AS BIGINT)), count(*) FILTER (WHERE try_cast({col} AS BIGINT) = 0)
+                                   FROM psgc WHERE {where}""")[0]
+        sample = f"min {lo:,}, median {med:,.0f}, max {hi:,}; zeros: {zeros:,}"
+        odd = q(f"""SELECT {col}, count(*) FROM psgc WHERE {where} AND {col} IS NOT NULL AND trim({col}) <> ''
+                    AND try_cast({col} AS BIGINT) IS NULL GROUP BY 1 ORDER BY 2 DESC, 1""")
+        if odd:
+            kind = "whole number, with non-numbers"
+            sample += "; not a number: " + ", ".join(f"{quoted(v)} {n:,}" for v, n in odd)
+    elif distinct <= 20:
+        kind = "category"
+        sample = ", ".join(f"{quoted(v)} {n:,}" for v, n in q(f"SELECT {col}, count(*) FROM psgc WHERE {where} AND {col} IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1"))
+    else:
+        kind = "text"
+        sample = "most common: " + ", ".join(f"{quoted(v)} {n:,}" for v, n in q(f"SELECT {col}, count(*) FROM psgc WHERE {where} AND {col} IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 3"))
+    return kind, pct, f"{distinct:,}", sample
+
+
+# %% What the workbook's own documentation says, per column (Metadata and Notes sheets)
+UNDOCUMENTED = "**Not in the publisher's documentation (undocumented)**"
+NO_TYPE = "Not stated"
+
+DOCS = {
+    "10-digit PSGC": (NO_TYPE, UNDOCUMENTED, "The Metadata abstract says the PSGC codes four hierarchical levels: region, province, city or municipality, barangay."),
+    "Name": (NO_TYPE, UNDOCUMENTED, ""),
+    "Correspondence Code": (NO_TYPE, UNDOCUMENTED, ""),
+    "Geographic Level": (
+        NO_TYPE,
+        "Legend (Notes E): Reg - Region; Prov - Province; Mun - Municipality; Bgy - Barangay; Dist - District; SubMun - Sub-municipality or Municipal District.",
+        "",
+    ),
+    "Old names": (NO_TYPE, UNDOCUMENTED, ""),
+    "City Class": (NO_TYPE, UNDOCUMENTED, ""),
+    "Income Classification (DOF DO No. 074.2024)": (
+        NO_TYPE,
+        "Income class of provinces, cities, and municipalities under DOF Department Order No. 074.2024 (first general income reclassification, RA 11964). Source: Local Treasury Operations Division, BLGF (Notes B).",
+        "An asterisk marks an LGU downgraded in the reclassification that keeps its current class (RA 11964 s.10). Income ranges per class are listed in Notes B.",
+    ),
+    "Urban / Rural (based on 2020 CPH)": (
+        NO_TYPE,
+        "Urban or rural classification of barangays, based on the 2020 Census of Population and Housing (Notes C).",
+        "All NCR barangays are urban (PSA Board Res. 2017-098). Urban if population is 5,000 or more, or one establishment has 100+ employees, or 5+ establishments have 10+ employees and 5+ facilities exist (PSA Board Res. 2017-100).",
+    ),
+    "2024 Population": (
+        NO_TYPE,
+        "Population count from the 2024 Census of Population (Notes D).",
+        "Counts do not add up to the national total. The census includes 1,708 Filipinos in embassies, consulates, and missions abroad. Footnotes 1/, 2/, 3/ are explained in Notes D.",
+    ),
+    "(no header, column J)": (NO_TYPE, UNDOCUMENTED, "Notes D explains footnote markers 1/, 2/, 3/, which appear in this column."),
+    "Status": (NO_TYPE, UNDOCUMENTED, ""),
+}
+
+# Columns that apply to some geographic levels only: (level label, SQL filter).
+SUBGROUP = {
+    "City Class": ("City", f"{LEVEL} = 'City'"),
+    "Income Classification (DOF DO No. 074.2024)": ("Prov, City, Mun", f"{LEVEL} IN ('Prov', 'City', 'Mun')"),
+    "Urban / Rural (based on 2020 CPH)": ("Bgy", f"{LEVEL} = 'Bgy'"),
+}
+
+# %% psa_psgc dictionary
+total_rows = q("SELECT count(*) FROM psgc")[0][0]
+out_rows = []
+for c in names:
+    kind, pct, distinct, sample = describe(c)
+    if c in SUBGROUP:
+        label, where = SUBGROUP[c]
+        sub_total = q(f"SELECT count(*) FROM psgc WHERE {where}")[0][0]
+        sub_filled = q(f'SELECT count(*) FROM psgc WHERE {where} AND "{c}" IS NOT NULL AND trim("{c}") <> \'\'')[0][0]
+        subgroup = f"{percent(sub_filled, sub_total)} of {sub_total:,} {label} rows"
+    else:
+        subgroup = "n/a"
+    pub_type, desc, notes = DOCS.get(c, (NO_TYPE, UNDOCUMENTED, ""))
+    out_rows.append(f"| `{c}` | {pub_type} | {cell(desc)} | {cell(notes)} | {kind} | {pct} | {subgroup} | {distinct} | {sample} |")
+
+md = f"""# psa_psgc: data dictionary
+
+Generated by [`notebooks/profiling/dictionary_psgc.py`](../../../notebooks/profiling/dictionary_psgc.py). Do not edit by hand; rerun the script instead.
+
+- **Description, publisher type, and publisher notes:** copied from the `Metadata` and `Notes` sheets inside `{FILE}`. The workbook states no data types.
+- **Observed columns:** measured from the `{DATA_SHEET}` sheet of that file ({total_rows:,} data rows), read as text. "Filled" is the share of rows that are not blank.
+- **Filled (applicable level):** some columns apply to certain geographic levels only. This column repeats the fill rate for the rows where the column is expected.
+- **Kinds:** identifier (unique whole numbers), whole number (min, median, max, zeros), category (up to 20 values, all listed), text (the three most common values), all blank.
+
+See [profile.md](profile.md) for findings and [README.md](README.md) for the source card.
+
+| Column | Publisher type | Description (publisher) | Publisher notes | Observed kind | Filled | Filled (applicable level) | Distinct | Samples or range |
+|---|---|---|---|---|---|---|---|---|
+""" + "\n".join(out_rows) + "\n"
+
+(REPO / "docs/source_inventory/psa_psgc/data_dictionary.md").write_text(md, encoding="utf-8")
+print(f"psa_psgc: {len(out_rows)} columns written")
+
+workdir.cleanup()

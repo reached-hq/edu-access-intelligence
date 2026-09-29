@@ -22,6 +22,17 @@
       "format": "zip containing CSV",
       "school_years_acquired": ["2023-24"],
       "owner": "hyenalouise"
+    },
+    {
+      "source_id": "psa_psgc",
+      "name": "PSA Philippine Standard Geographic Code (PSGC)",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "Philippine Standard Geographic Code (PSGC), quarterly publication",
+      "acquisition": "https://psa.gov.ph/classification/psgc",
+      "format": "xlsx",
+      "publication": "2Q 2026 (30 June 2026)",
+      "owner": "maeveylain"
     }
   ]
 }
