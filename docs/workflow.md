@@ -8,7 +8,7 @@ How work moves from an issue to `main`, and where each kind of work runs. For th
 |---|---|---|
 | Pick up an issue, move a card | [Project board](https://github.com/orgs/reached-hq/projects/3) | No |
 | Edit docs, open or review a pull request | GitHub | No |
-| Run SQL on real tables | Databricks (pending #1) | No |
+| Run SQL on real tables | Databricks SQL editor (workspace in [architecture.md](architecture.md#workspace)) | No |
 | Run the tests before pushing | Laptop | Yes |
 | Profile a source | Laptop (DuckDB) | Yes |
 | Develop SQL or PySpark logic on a sample | Laptop (DuckDB or local PySpark) | Yes |
