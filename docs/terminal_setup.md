@@ -349,7 +349,7 @@ We added DuckDB to the project on purpose. Here is the reasoning, so you can exp
 
 ## Part 10: VS Code
 
-**Status:** works now (Mac), except 10.4, which is pending #1. Not yet tested on Windows.
+**Status:** works now (Mac), except 10.4, which is still being checked in #1. Not yet tested on Windows.
 
 ### 10.1 Open the project
 
@@ -381,7 +381,7 @@ It is not in `requirements-dev.txt` because CI does not need it.
 
 ### 10.4 Connect to Databricks
 
-**Status: pending #1.** The workspace host and profile name are not decided yet. The Databricks extension may also expect a `databricks.yml` bundle file in the repository; #1 checks this.
+**Status: pending #1.** Use the `reached-hq` profile from Part 12. The Databricks extension may expect a `databricks.yml` bundle file in the repository; #1 checks this.
 
 Before connecting, read [workflow.md, Part 5](workflow.md#part-5-where-code-runs): every run from the extension uses shared Databricks compute.
 
@@ -430,23 +430,26 @@ Local PySpark has no Unity Catalog and no Delta tables without extra packages. U
 
 ## Part 12: Logging in to Databricks
 
-**Status: pending #1.** The shared workspace is still being set up.
+**Status:** works now (Mac). Not yet tested on Windows.
 
-When it is ready, this part will contain:
+First accept the workspace invitation in your email, then:
 
 ```
-databricks auth login --host <workspace-host> --profile <profile-name>
+databricks auth login --host https://dbc-76bcfddb-1669.cloud.databricks.com --profile reached-hq
 ```
 
-**Always pass `--profile`.** Without it, the CLI uses whichever workspace you logged into last. In NYC Mobility, that sent a deploy to a personal workspace, and the error message blamed a missing warehouse instead.
+A browser opens; sign in and allow access. The terminal prints `Profile reached-hq was successfully saved`.
+
+**Always pass `--profile reached-hq`.** Without it, the CLI uses whichever workspace you logged into last. In NYC Mobility, that sent a deploy to a personal workspace, and the error message blamed a missing warehouse instead.
 
 ### Check
 
 ```
 databricks auth profiles
+databricks catalogs get edu_access --profile reached-hq
 ```
 
-Lists the profile with its host.
+The first lists `reached-hq` with the host above and `Valid: YES`. The second shows the catalog with owner `reached-hq`.
 
 ---
 
@@ -480,4 +483,4 @@ Once per laptop:
 - [ ] `.venv` created and `python -m pytest tests -q` passes (Part 7)
 - [ ] `RAW_DATA_DIR` set and the DepEd profiling script prints `checksum OK` (Part 8)
 - [ ] VS Code runs a `# %%` cell with the `.venv` interpreter (Part 10)
-- [ ] Databricks profile set up (Part 12, pending #1)
+- [ ] `databricks auth profiles` shows `reached-hq` as valid (Part 12)

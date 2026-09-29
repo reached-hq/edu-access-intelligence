@@ -12,6 +12,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-006 | 2026-09-29 | One documentation folder per source; publisher documents stay with raw data | Accepted |
 | D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted |
 | D-008 | 2026-09-29 | Develop locally; use Databricks compute only for planned runs | Accepted |
+| D-009 | 2026-09-29 | Catalog `edu_access` owned by the team group; raw files in a managed volume | Provisional |
 
 ---
 
@@ -70,3 +71,10 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Decision:** Profile and develop SQL or PySpark logic on laptops (DuckDB by default; local PySpark optional), then confirm on Databricks once. Full pipeline runs are announced, dashboards get no scheduled refresh during development, and every full run is recorded in `pipeline_runs`. The rules are in `docs/workflow.md`, Part 5.
 - **Reason:** The data is small (about 60,000 rows per file), so laptops handle development easily, and each Databricks run is then a deliberate confirmation rather than trial and error.
 - **Consequence:** Local and Databricks behavior can differ (SQL dialect, no Unity Catalog locally), so logic is not trusted until it has run on Databricks. Setup is longer: every teammate needs a local Python environment (`docs/terminal_setup.md`).
+
+## D-009: Workspace, catalog, and raw storage
+
+- **Problem:** The team needs one shared place for data in Databricks Free Edition, usable by all six teammates, before ingestion starts.
+- **Decision:** One workspace (`dbc-76bcfddb-1669`) with CLI profile `reached-hq`. Catalog `edu_access`, created through the UI (Free Edition requires Default Storage, which the CLI could not use). The catalog, schemas, and raw volume are owned by the `reached-hq` group, not a person. Raw files go to the managed volume `` edu_access.`00-source`.raw ``. All six teammates are workspace admins.
+- **Reason:** Group ownership means nobody is blocked when one teammate is unavailable. A managed volume needs no credentials, and the data is small (the DepEd downloads are about 3 MB each). Making everyone an admin keeps setup fast for a student team.
+- **Consequence:** Every teammate can change or delete anything in the workspace and the catalog, which is the opposite of least privilege (Day 9); the team accepts that for the capstone. **Provisional:** if the mentor approves the course R2 bucket, an R2-backed volume is added and this entry is updated.

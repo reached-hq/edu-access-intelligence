@@ -186,12 +186,19 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 
 ## Part 6: Databricks
 
-**Status: pending #1.** This part will cover:
+**Status:** workspace, catalog, and CLI profile ready. Git folders and deploying still pending.
 
-- Your own Databricks Git folder, linked to this repository (never share a folder; you will overwrite each other).
-- Notebooks saved in `.py` source format.
-- The catalog, schemas, and storage location.
-- Deploying and running the job (Phase 6).
+| What | Where |
+|---|---|
+| Workspace | https://dbc-76bcfddb-1669.cloud.databricks.com (details in [architecture.md](architecture.md#workspace)) |
+| Catalog | `edu_access`, owned by the `reached-hq` group |
+| Schemas so far | `` `00-source` ``, `` `01-control` ``, `` `02-bronze` ``; later stages are created when they start |
+| Raw files | `/Volumes/edu_access/00-source/raw/<publisher>/` |
+
+- Write every table reference in full, with backticks around the schema: ``edu_access.`02-bronze`.deped_enrollment_raw``.
+- Your own Databricks Git folder, linked to this repository: never share a folder, or you will overwrite each other. **Pending #1:** link your GitHub account in Databricks (User Settings → Linked accounts) first.
+- Notebooks are saved in `.py` source format.
+- Deploying and running the job: Phase 6.
 
 ---
 
