@@ -50,6 +50,8 @@
 | Personally identifiable or sensitive fields | None |
 | Provenance fields in the source | None |
 
+Column-by-column descriptions, fill rates, and sample values: [data_dictionary.md](data_dictionary.md).
+
 ### Expected vs actual schema
 
 | Column group | Expected (README) | Actual | Notes |

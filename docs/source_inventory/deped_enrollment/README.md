@@ -57,6 +57,8 @@ Published years: SY 2017-18 to SY 2025-26. Acquired so far: the three years belo
 | Personally identifiable or sensitive fields | None found. Counts are aggregated per school |
 | Provenance fields in the source | None. School year comes from the file name |
 
+Column-by-column descriptions, fill rates, and sample values: [data_dictionary.md](data_dictionary.md).
+
 ### Expected vs actual schema
 
 | Column group | Expected (README) | Actual | Notes |

@@ -63,3 +63,15 @@ def test_profiled_sources_have_a_profile(repo_root, registry):
     assert not missing, (
         f"Profiled or accepted sources need docs/source_inventory/<source_id>/profile.md: {missing}"
     )
+
+
+def test_profiled_sources_have_a_data_dictionary(repo_root, registry):
+    inventory = repo_root / "docs" / "source_inventory"
+    missing = [
+        s["source_id"] for s in registry["sources"]
+        if s.get("status") in ("profiled", "accepted")
+        and not (inventory / s.get("source_id", "") / "data_dictionary.md").is_file()
+    ]
+    assert not missing, (
+        f"Profiled or accepted sources need docs/source_inventory/<source_id>/data_dictionary.md: {missing}"
+    )
