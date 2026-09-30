@@ -18,7 +18,7 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Enrollment - CHED.csv` | CSV | UTF-8, CRLF | 4,342 | 36 | `6aabc9e14b2abee0dd09c7607815abcd9b75edaf972fd93819610071f4f28c3e` | Local (`raw-data/ched/original/`), pending storage decision (#1) |
+| `Enrollment - CHED.csv` | CSV | UTF-8, CRLF | 4,342 | 36 | `6aabc9e14b2abee0dd09c7607815abcd9b75edaf972fd93819610071f4f28c3e` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
 
 ## Publisher documentation
 

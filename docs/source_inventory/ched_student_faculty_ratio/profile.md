@@ -12,8 +12,10 @@
 
 ## How to rerun
 
+Download the four CSVs and `StatBull2025.pdf` from `/Volumes/edu_access/00-source/raw/` into `<RAW_DATA_DIR>/ched/original/`, then:
+
 ```bash
-RAW_DATA_DIR=~/Documents/GitHub/raw-data python notebooks/profiling/profile_ched.py
+RAW_DATA_DIR=/path/to/raw-data python notebooks/profiling/profile_ched.py
 ```
 
 The same script profiles all four CHED sources.
