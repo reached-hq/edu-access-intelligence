@@ -22,6 +22,50 @@
       "format": "zip containing CSV",
       "school_years_acquired": ["2023-24"],
       "owner": "hyenalouise"
+    },
+    {
+      "source_id": "ched_enrollment",
+      "name": "CHED enrollment by region, sector and sex",
+      "publisher": "Commission on Higher Education (CHED)",
+      "status": "profiled",
+      "source_system": "Higher Education Statistical Bulletin 2020-2025 (OPRKM)",
+      "acquisition": "Table extracted by hand from the bulletin PDF into CSV",
+      "format": "CSV extracted from a PDF table",
+      "school_years_acquired": ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25"],
+      "owner": "Catweyine"
+    },
+    {
+      "source_id": "ched_graduates",
+      "name": "CHED graduates by region, program level and sex",
+      "publisher": "Commission on Higher Education (CHED)",
+      "status": "profiled",
+      "source_system": "Higher Education Statistical Bulletin 2020-2025 (OPRKM)",
+      "acquisition": "Table extracted by hand from the bulletin PDF into CSV",
+      "format": "CSV extracted from a PDF table",
+      "school_years_acquired": ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25"],
+      "owner": "Catweyine"
+    },
+    {
+      "source_id": "ched_school_count",
+      "name": "CHED higher education institutions by region and type",
+      "publisher": "Commission on Higher Education (CHED)",
+      "status": "profiled",
+      "source_system": "Higher Education Statistical Bulletin 2020-2025 (OPRKM)",
+      "acquisition": "Table extracted by hand from the bulletin PDF into CSV",
+      "format": "CSV extracted from a PDF table",
+      "school_years_acquired": ["2023-24"],
+      "owner": "Catweyine"
+    },
+    {
+      "source_id": "ched_student_faculty_ratio",
+      "name": "CHED student-faculty ratio by region",
+      "publisher": "Commission on Higher Education (CHED)",
+      "status": "profiled",
+      "source_system": "Higher Education Statistical Bulletin 2020-2025 (OPRKM)",
+      "acquisition": "Table extracted by hand from the bulletin PDF into CSV",
+      "format": "CSV extracted from a PDF table",
+      "school_years_acquired": ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25"],
+      "owner": "Catweyine"
     }
   ]
 }
