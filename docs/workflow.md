@@ -99,6 +99,19 @@ Commits are signed (see [terminal_setup.md, Part 5](terminal_setup.md#part-5-sig
 
 ## Part 3: Pull requests
 
+### Titles
+
+An issue and its pull request do not share a title. The issue says what needs to happen; the pull request says what this change did. One issue can need several pull requests, and each title should tell them apart.
+
+Both keep the tag from [Issue titles](#issue-titles):
+
+| | Title |
+|---|---|
+| Issue | `[SOURCE] Find, download, and first look: PSGC` |
+| Pull request | `[SOURCE] Add PSGC source card, profile, and data dictionary` |
+
+Write the pull request title from the diff, in the imperative ("Add", "Fix", "Remove"). It becomes the commit title on `main` when the pull request is squash-merged.
+
 ### Linking the issue
 
 The description must mention the issue, or the **PR links an issue** check fails:
