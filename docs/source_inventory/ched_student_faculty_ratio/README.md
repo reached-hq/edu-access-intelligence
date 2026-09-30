@@ -12,7 +12,7 @@
 | Source URL or acquisition method | Bulletin PDF downloaded from https://ched.gov.ph/statistics; Table 39 extracted by hand into CSV |
 | Licensing or access restrictions | Not stated in the bulletin. UNVERIFIED |
 | Owner (team member) | @Catweyine |
-| Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30, BARMM label changed from 15 to 19 on 2026-10-01 to match its PSGC region code |
+| Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30 |
 
 ## Files
 
