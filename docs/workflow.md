@@ -133,6 +133,7 @@ Say what changed and why, what you ran to check it (with counts when data is inv
 |---|---|
 | Repository checks | A test fails: data file committed, `.ipynb` notebook, secret-like text, invalid `config/sources.json`, a source without its documentation folder, or a broken workflow script in `.github/scripts/` |
 | PR links an issue | The description has no `Closes #N` / `Part of #N` |
+| PR has a milestone | The PR has no milestone and none of its linked issues has one to copy. When a linked issue has one, the check copies it onto the PR and passes |
 | PR declares AI help | The **AI help** section does not tick exactly one option, or ticks **AI helped** without all four gates and a note on what the AI did ([CONTRIBUTING.md, Using AI](../CONTRIBUTING.md#using-ai)) |
 
 **When CI runs:** on every pull request, whatever branch it targets, so a stacked pull request is checked before its base merges. The checks block merging only into `main`, where branch protection requires them.

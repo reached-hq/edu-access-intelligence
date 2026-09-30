@@ -146,3 +146,20 @@ def test_review_load_is_balanced():
         for r in reviewers:
             load[r] += 1
     assert set(load.values()) == {2}, load
+
+
+# --- linked_issues --------------------------------------------------------
+
+linked_issues = _load("linked_issues")
+
+
+@pytest.mark.parametrize("body, expected", [
+    ("Closes #23", [23]),
+    ("Part of #3 and related to #8", [3, 8]),
+    ("fixes #5\nResolves #5", [5]),
+    ("See #12 for context", []),
+    ("<!-- Closes #1 -->\nCloses #2", [2]),
+    ("", []),
+])
+def test_linked_issues(body, expected):
+    assert linked_issues.linked_issues(body) == expected

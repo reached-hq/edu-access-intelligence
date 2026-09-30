@@ -6,6 +6,8 @@ What changed and why?
 
 Closes #
 
+The milestone is copied from the issue. If the issue has none, set one on both.
+
 ## Changes
 
 -

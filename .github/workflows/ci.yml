@@ -9,7 +9,7 @@ name: CI
 # inside Databricks.
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened, milestoned, demilestoned]
   push:
     branches: [main]
   workflow_dispatch:
@@ -70,3 +70,41 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: python3 .github/scripts/pr_ai_help.py
+
+  milestone:
+    name: PR has a milestone
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    # Write access only to copy a milestone from the linked issue onto the PR.
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Check the milestone, copying it from the linked issue if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Read the milestone fresh: it may have been set after this run started.
+          current=$(gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER" --jq '.milestone.title // empty')
+          if [ -n "$current" ]; then
+            echo "Milestone: $current"
+            exit 0
+          fi
+          for issue in $(python3 .github/scripts/linked_issues.py); do
+            milestone=$(gh api "repos/$GITHUB_REPOSITORY/issues/$issue" --jq '.milestone.number // empty' 2>/dev/null || true)
+            if [ -n "$milestone" ]; then
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$NUMBER" -F "milestone=$milestone" --silent
+              echo "Copied the milestone from #$issue."
+              exit 0
+            fi
+          done
+          echo "::error::Set a milestone on this PR (sidebar, Milestone). The linked issue has none to copy, so give the issue one too."
+          exit 1
