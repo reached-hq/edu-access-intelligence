@@ -102,3 +102,33 @@ def test_empty_note_fails():
 
 def test_ticks_in_html_comments_are_ignored():
     assert pr_ai_help.problems(_body("<!-- - [x] No AI help -->\n- [ ] No AI help\n- [ ] AI helped"))
+
+
+# --- pr_reviewers ---------------------------------------------------------
+
+pr_reviewers = _load("pr_reviewers")
+REVIEWERS = pr_reviewers.load_table()
+
+
+def test_reviewers_known_author():
+    assert pr_reviewers.reviewers_for("hyenalouise", REVIEWERS) == ["maeveylain", "saraevcldn"]
+
+
+def test_reviewers_unknown_author_gets_none():
+    assert pr_reviewers.reviewers_for("someone-else", REVIEWERS) == []
+
+
+def test_every_author_has_two_other_teammates_as_reviewers():
+    team = set(REVIEWERS)
+    for author, reviewers in REVIEWERS.items():
+        assert len(reviewers) == 2 and len(set(reviewers)) == 2, author
+        assert author not in reviewers, f"{author} reviews their own PRs"
+        assert set(reviewers) <= team, f"{author} has a reviewer outside the team"
+
+
+def test_review_load_is_balanced():
+    load = {person: 0 for person in REVIEWERS}
+    for reviewers in REVIEWERS.values():
+        for r in reviewers:
+            load[r] += 1
+    assert set(load.values()) == {2}, load

@@ -1,12 +1,13 @@
 name: Triage
 
-# Labels issues from their title tag and assigns each pull request to its author.
+# Labels issues from their title tag, assigns each pull request to its author, and
+# requests the author's two reviewers from .github/reviewers.json.
 # Issues are never auto-assigned: assigning yourself is how you claim work.
 on:
   issues:
     types: [opened, edited]
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, ready_for_review]
 
 permissions: {}
 
@@ -42,7 +43,7 @@ jobs:
 
   assign-pr-author:
     name: Assign PR author
-    if: github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot' && toJSON(github.event.pull_request.assignees) == '[]'
+    if: github.event_name == 'pull_request' && github.event.action != 'ready_for_review' && github.event.pull_request.user.type != 'Bot' && toJSON(github.event.pull_request.assignees) == '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -55,3 +56,32 @@ jobs:
           NUMBER: ${{ github.event.pull_request.number }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
         run: gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER/assignees" -f "assignees[]=$AUTHOR" --silent
+
+  request-reviewers:
+    name: Request reviewers
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github
+
+      - name: Request the author's reviewers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          reviewers=$(python3 .github/scripts/pr_reviewers.py "$AUTHOR")
+          if [ -z "$reviewers" ]; then
+            echo "$AUTHOR is not in .github/reviewers.json; request reviewers by hand."
+            exit 0
+          fi
+          args=()
+          for r in ${reviewers//,/ }; do args+=(-f "reviewers[]=$r"); done
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$NUMBER/requested_reviewers" "${args[@]}" --silent
+          echo "Requested $reviewers"

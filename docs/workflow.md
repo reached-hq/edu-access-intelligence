@@ -41,6 +41,17 @@ The repository also runs these automations (`.github/workflows/triage.yml`):
 
 - **Issue labels:** issues opened from the **Source candidate** and **Data issue** templates get `source-candidate` and `data-issue`. Any issue whose title starts with a tag also gets that tag's label (for example `[BRONZE]` → `infra`); the mapping is in `.github/scripts/title_labels.py`. Tags with no clear label (`[FRAME]`, `[DQ]`, `[PROOF]`, `[PRESENT]`) get none. Labels are only added, never removed, so fix a wrong label by hand.
 - **PR assignee:** a pull request with no assignee is assigned to its author when it is opened.
+- **PR reviewers:** when a pull request is opened (or a draft is marked ready for review), both of the author's reviewers are requested. **One approval is enough to merge**, so whichever reviewer gets to it first approves. The table is in `.github/reviewers.json`:
+
+  | PR author | Reviewer 1 | Reviewer 2 |
+  |---|---|---|
+  | Angela (`mafelisilda`) | Ina | Maeve |
+  | Ina (`hyenalouise`) | Maeve | Sara |
+  | Maeve (`maeveylain`) | Sara | Cath |
+  | Sara (`saraevcldn`) | Cath | Angela |
+  | Cath (`catweyine`) | Angela | Ina |
+
+  Everyone reviews for exactly two authors. To change the table, edit `reviewers.json` in a pull request; the tests keep it balanced.
 - **Issues are not auto-assigned.** Assigning yourself is how you claim an issue.
 
 ### Issue titles
