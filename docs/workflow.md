@@ -140,7 +140,7 @@ This is the capstone's core loop: a dataset is not useful until it has been insp
 4. **Do not open raw files in Excel and save them** ([terminal_setup.md, Part 8](terminal_setup.md#part-8-raw-data-and-raw_data_dir)).
 5. **Read the publisher's documentation** (README files, technical notes) before profiling.
 6. **Profile with a script** in `notebooks/profiling/`, reading `RAW_DATA_DIR` and verifying checksums first. See `profile_deped.py` for the pattern: every result prints under a finding ID.
-7. **Document** in `docs/source_inventory/<source_id>/`: copy `_template/`, fill in `README.md` (the card) and `profile.md` (findings with evidence, **observed** vs **suspected**), and generate `data_dictionary.md` with a script (every column: the publisher's description plus observed fill rate and samples). See `dictionary_deped.py` for the pattern.
+7. **Document** in `docs/source_inventory/<source_id>/`: copy `_template/`, fill in `README.md` (the card) and `profile.md` (findings with evidence, **observed** vs **suspected**), and generate `data_dictionary.md` with a script (every column: the publisher's description, the team's labeled interpretation where the publisher is silent, and observed fill rate and samples). See `dictionary_deped.py` for the pattern.
 8. **Register** the source in `config/sources.json`.
 9. **Open a pull request** with the script's output as evidence.
 
@@ -215,7 +215,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 | Signed / Verified commit | A commit signed with your key, which GitHub confirms |
 | Source card | `docs/source_inventory/<source_id>/README.md`: what a source is |
 | Profile | `docs/source_inventory/<source_id>/profile.md`: what we found in it, with evidence |
-| Data dictionary (source) | `docs/source_inventory/<source_id>/data_dictionary.md`: every column with the publisher's description and observed samples; generated, never hand-edited |
+| Data dictionary (source) | `docs/source_inventory/<source_id>/data_dictionary.md`: every column with the publisher's description, the team's labeled interpretation, and observed samples; generated, never hand-edited |
 | Observed / suspected | A finding with evidence / a hypothesis still to test |
 | SHA-256 | A file's fingerprint; any change to the file changes it |
 | `RAW_DATA_DIR` | Environment variable pointing scripts to your `raw-data/` folder |
