@@ -29,7 +29,7 @@
       "publisher": "Commission on Higher Education (CHED)",
       "status": "profiled",
       "source_system": "Higher Education Statistical Bulletin 2020-2025 (OPRKM)",
-      "acquisition": "Table extracted by hand from the bulletin PDF into CSV",
+      "acquisition": "https://ched.gov.ph/statistics",
       "format": "CSV extracted from a PDF table",
       "school_years_acquired": ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25"],
       "owner": "Catweyine"
@@ -40,7 +40,7 @@
       "publisher": "Commission on Higher Education (CHED)",
       "status": "profiled",
       "source_system": "Higher Education Statistical Bulletin 2020-2025 (OPRKM)",
-      "acquisition": "Table extracted by hand from the bulletin PDF into CSV",
+      "acquisition": "https://ched.gov.ph/statistics",
       "format": "CSV extracted from a PDF table",
       "school_years_acquired": ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25"],
       "owner": "Catweyine"
@@ -51,7 +51,7 @@
       "publisher": "Commission on Higher Education (CHED)",
       "status": "profiled",
       "source_system": "Higher Education Statistical Bulletin 2020-2025 (OPRKM)",
-      "acquisition": "Table extracted by hand from the bulletin PDF into CSV",
+      "acquisition": "https://ched.gov.ph/statistics",
       "format": "CSV extracted from a PDF table",
       "school_years_acquired": ["2023-24"],
       "owner": "Catweyine"
@@ -62,7 +62,7 @@
       "publisher": "Commission on Higher Education (CHED)",
       "status": "profiled",
       "source_system": "Higher Education Statistical Bulletin 2020-2025 (OPRKM)",
-      "acquisition": "Table extracted by hand from the bulletin PDF into CSV",
+      "acquisition": "https://ched.gov.ph/statistics",
       "format": "CSV extracted from a PDF table",
       "school_years_acquired": ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25"],
       "owner": "Catweyine"

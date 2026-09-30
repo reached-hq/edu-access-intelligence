@@ -47,5 +47,5 @@ Usable for regional higher-education enrollment by sector and sex, AY 2020-2021 
 
 ## Questions for the publisher or mentor
 
-- What is the bulletin's download URL and reuse terms?
+- What are the bulletin's reuse terms?
 - Why is BARMM blank from 2023-2024?

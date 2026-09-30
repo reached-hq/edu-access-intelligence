@@ -9,7 +9,7 @@
 | Source name | Table 6, "Enrollment by Region, Sector, Sex and Academic Year", Higher Education Statistical Bulletin 2020-2025 |
 | Publisher / agency | Commission on Higher Education (CHED), Office of Planning, Research, and Knowledge Management (OPRKM) |
 | Source system (as stated by the publisher) | Not named. "Consolidated by CHED-OPRKM Knowledge Management Division" from HEI submissions (Table 2 note) |
-| Source URL or acquisition method | Bulletin PDF (download URL UNVERIFIED); Table 6 extracted by hand into CSV |
+| Source URL or acquisition method | Bulletin PDF downloaded from https://ched.gov.ph/statistics; Table 6 extracted by hand into CSV |
 | Licensing or access restrictions | Not stated in the bulletin. UNVERIFIED |
 | Owner (team member) | @Catweyine |
 | Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30 |
@@ -24,7 +24,7 @@
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
-| `StatBull2025.pdf`, Higher Education Statistical Bulletin 2020-2025 | UNVERIFIED | `41e5ed465c713cc23dca7e14c24134d96cd72ae2252ce336c85f8432195f3bf2` | Table 6 (pp. 18-19); Table 2 note on coverage (p. 14) |
+| `StatBull2025.pdf`, Higher Education Statistical Bulletin 2020-2025 | https://ched.gov.ph/statistics | `41e5ed465c713cc23dca7e14c24134d96cd72ae2252ce336c85f8432195f3bf2` | Table 6 (pp. 18-19); Table 2 note on coverage (p. 14) |
 
 ## Coverage
 

@@ -49,5 +49,5 @@ Usable for regional students per faculty member, AY 2020-2021 to 2024-2025. The 
 
 ## Questions for the publisher or mentor
 
-- What is the bulletin's download URL and reuse terms?
+- What are the bulletin's reuse terms?
 - Why is BARMM blank from 2023-2024?

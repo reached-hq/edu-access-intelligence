@@ -45,5 +45,5 @@ One file, one year. The bulletin prints the same table for AY 2020-2021 to 2024-
 
 ## Questions for the publisher or mentor
 
-- What is the bulletin's download URL and reuse terms?
+- What are the bulletin's reuse terms?
 - Do we need the other four years' tables?

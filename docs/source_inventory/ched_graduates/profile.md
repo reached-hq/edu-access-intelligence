@@ -48,6 +48,6 @@ Usable for regional higher-education graduates by program level and sex, AY 2020
 
 ## Questions for the publisher or mentor
 
-- What is the bulletin's download URL and reuse terms?
+- What are the bulletin's reuse terms?
 - Does `-` mean zero?
 - Why is BARMM blank from 2023-2024?
