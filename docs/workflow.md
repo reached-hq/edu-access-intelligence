@@ -37,6 +37,25 @@ These board automations are switched on (board → **⋯** → **Workflows** sho
 - **Item added to project**, **Item closed**, **Item reopened**, **Pull request linked to issue**, **Pull request merged**, **Code review approved**: each sets a card's status.
 - **Auto-close issue**: moving a card to **Done closes the issue**. Only do that when the work is really finished.
 
+The repository also runs these automations (`.github/workflows/triage.yml`):
+
+- **Issue labels:** issues opened from the **Source candidate** and **Data issue** templates get `source-candidate` and `data-issue`. Any issue whose title starts with a tag also gets that tag's label (for example `[BRONZE]` → `infra`); the mapping is in `.github/scripts/title_labels.py`. `[FRAME]` → `framing`, `[DQ]` → `data-quality` (building checks; a problem found in the data is a `data-issue`), `[PROOF]` → `evidence`, `[PRESENT]` → `presentation`. Labels are only added, never removed, so fix a wrong label by hand.
+- **PR assignee:** a pull request with no assignee is assigned to its author when it is opened.
+- **PR reviewers:** when a pull request is opened (or a draft is marked ready for review), both of the author's reviewers are requested. **One approval is enough to merge**, so whichever reviewer gets to it first approves. The table is in `.github/reviewers.json`:
+
+  | PR author | Reviewer 1 | Reviewer 2 |
+  |---|---|---|
+  | Angela (`mafelisilda`) | Ina | Maeve |
+  | Ina (`hyenalouise`) | Maeve | Sara |
+  | Maeve (`maeveylain`) | Sara | Cath |
+  | Sara (`saraevcldn`) | Cath | Angela |
+  | Cath (`catweyine`) | Angela | Ina |
+
+  Everyone reviews for exactly two authors. To change the table, edit `reviewers.json` in a pull request; the tests keep it balanced.
+
+  The workflow also posts a comment that @mentions both reviewers, with the linked issue, the milestone, and what to check before approving. Its opening line and meme rotate by PR number (the pairs are in `.github/scripts/reviewer_comment.py`, the images in `.github/memes/`). If the PR is reopened, the same comment is edited rather than posted again. Drafts get no reviewers and no comment until they are marked ready for review.
+- **Issues are not auto-assigned.** Assigning yourself is how you claim an issue.
+
 ### Issue titles
 
 Every title starts with a tag:
@@ -82,6 +101,19 @@ Commits are signed (see [terminal_setup.md, Part 5](terminal_setup.md#part-5-sig
 
 ## Part 3: Pull requests
 
+### Titles
+
+An issue and its pull request do not share a title. The issue says what needs to happen; the pull request says what this change did. One issue can need several pull requests, and each title should tell them apart.
+
+Tags are for issues only ([Issue titles](#issue-titles)). A pull request title has no tag; the linked issue already carries it.
+
+| | Title |
+|---|---|
+| Issue | `[SOURCE] Find, download, and first look: PSGC` |
+| Pull request | `Add PSGC source card, profile, and data dictionary` |
+
+Write the pull request title from the diff, in the imperative ("Add", "Fix", "Remove").
+
 ### Linking the issue
 
 The description must mention the issue, or the **PR links an issue** check fails:
@@ -101,8 +133,12 @@ Say what changed and why, what you ran to check it (with counts when data is inv
 
 | Check | Fails when |
 |---|---|
-| Repository checks | A test fails: data file committed, `.ipynb` notebook, secret-like text, invalid `config/sources.json`, or a source without its documentation folder |
+| Repository checks | A test fails: data file committed, `.ipynb` notebook, secret-like text, invalid `config/sources.json`, a source without its documentation folder, or a broken workflow script in `.github/scripts/` |
 | PR links an issue | The description has no `Closes #N` / `Part of #N` |
+| PR has a milestone | The PR has no milestone and none of its linked issues has one to copy. When a linked issue has one, the check copies it onto the PR and passes |
+| PR declares AI help | The **AI help** section does not tick exactly one option, or ticks **AI helped** without all four gates and a note on what the AI did ([CONTRIBUTING.md, Using AI](../CONTRIBUTING.md#using-ai)) |
+
+**When CI runs:** on every pull request, whatever branch it targets, so a stacked pull request is checked before its base merges. The checks block merging only into `main`, where branch protection requires them.
 
 **What CI does not cover:** it never touches Databricks and never sees real data (raw data is not in git). A green check means the repository follows its rules, not that the data is right. Data correctness is checked by profiling now and by data-quality checks in Databricks later.
 

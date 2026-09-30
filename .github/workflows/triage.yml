@@ -1,0 +1,118 @@
+name: Triage
+
+# Labels issues from their title tag, assigns each pull request to its author, and
+# requests the author's two reviewers from .github/reviewers.json with an
+# @mention comment.
+# Issues are never auto-assigned: assigning yourself is how you claim work.
+on:
+  issues:
+    types: [opened, edited]
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  label-issue:
+    name: Label issue from title tag
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Add labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ github.event.issue.title }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          labels=$(python3 .github/scripts/title_labels.py "$TITLE")
+          if [ -z "$labels" ]; then
+            echo "No label for this title tag."
+            exit 0
+          fi
+          for label in ${labels//,/ }; do
+            gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER/labels" -f "labels[]=$label" --silent
+            echo "Added $label"
+          done
+
+  assign-pr-author:
+    name: Assign PR author
+    if: github.event_name == 'pull_request' && github.event.action != 'ready_for_review' && github.event.pull_request.user.type != 'Bot' && toJSON(github.event.pull_request.assignees) == '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Assign the author
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER/assignees" -f "assignees[]=$AUTHOR" --silent
+
+  request-reviewers:
+    name: Request reviewers
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github
+
+      - name: Request the author's reviewers
+        id: request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          reviewers=$(python3 .github/scripts/pr_reviewers.py "$AUTHOR")
+          echo "reviewers=$reviewers" >> "$GITHUB_OUTPUT"
+          if [ -z "$reviewers" ]; then
+            echo "$AUTHOR is not in .github/reviewers.json; request reviewers by hand."
+            exit 0
+          fi
+          args=()
+          for r in ${reviewers//,/ }; do args+=(-f "reviewers[]=$r"); done
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$NUMBER/requested_reviewers" "${args[@]}" --silent
+          echo "Requested $reviewers"
+
+      - name: Mention the reviewers in a comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          REVIEWERS: ${{ steps.request.outputs.reviewers }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # The linked issue, and the milestone: the PR's own, else the issue's.
+          export ISSUE=$(python3 .github/scripts/linked_issues.py | cut -d' ' -f1)
+          export MILESTONE=$(gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER" --jq '.milestone.title // empty')
+          if [ -z "$MILESTONE" ] && [ -n "$ISSUE" ]; then
+            MILESTONE=$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE" --jq '.milestone.title // empty' 2>/dev/null || true)
+          fi
+          python3 .github/scripts/reviewer_comment.py > comment.md
+
+          # Edit the earlier comment if there is one, so a reopened PR is not pinged twice.
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- triage:reviewers -->"))) | .id' | head -n 1)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$existing" -F body=@comment.md --silent
+            echo "Updated comment $existing"
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER/comments" -F body=@comment.md --silent
+            echo "Posted the reviewer comment"
+          fi

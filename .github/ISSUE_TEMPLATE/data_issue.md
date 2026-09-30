@@ -2,7 +2,7 @@
 name: Data issue
 about: Report a data-quality problem found in a source or pipeline layer
 title: "Data issue: "
-labels: ""
+labels: "data-issue"
 assignees: ""
 ---
 
