@@ -9,16 +9,16 @@
 | Source name | Philippine Standard Geographic Code (PSGC), 2Q 2026 Publication Datafile |
 | Publisher / agency | Philippine Statistics Authority (PSA), Statistical Classifications Division (SCD), Standards Service |
 | Source system (as stated by the publisher) | PSGC, a systematic classification and coding of geographic areas. Updated from Republic Acts and local ordinances ratified by plebiscite (COMELEC). `Metadata` sheet |
-| Source URL or acquisition method | Manual download from https://psa.gov.ph/classification/psgc |
+| Source URL or acquisition method | Manual download from the landing page https://psa.gov.ph/classification/psgc. Direct file URL: https://psa.gov.ph/system/files/scd/PSGC-2Q-2026-Publication-Datafile.xlsx (from the browser's download record). PSA replaces the quarterly file, so this URL may later serve a newer release; the SHA-256 below identifies the exact file used |
 | Licensing or access restrictions | Access constraints: none. Use constraints: acknowledge the PSA as the source. Distributed without warranty; interpretation and use are the user's responsibility (`Metadata` sheet) |
 | Owner (team member) | @maeveylain |
-| Date acquired | 2026-09-28 |
+| Date acquired | 2026-09-27 23:41 UTC (2026-09-28 07:41 Philippine time; taken from the downloaded file's timestamp). A second download on 2026-09-30 was byte-identical (same SHA-256) |
 
 ## Files
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `PSGC-2Q-2026-Publication-Datafile.xlsx` | xlsx (6 sheets) | n/a (binary workbook; text is Unicode, e.g. "Tañong") | 3,250,889 | 43,768 data rows on sheet `PSGC` (range A1:K43769, 1 header row) | `31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d` | Local |
+| `PSGC-2Q-2026-Publication-Datafile.xlsx` | xlsx (6 sheets) | n/a (binary workbook; text is Unicode, e.g. "Tañong") | 3,250,889 | 43,768 data rows on sheet `PSGC` (range A1:K43769, 1 header row) | `31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d` | Local (`raw-data/psa/original/`). Team copy: pending upload to `/Volumes/edu_access/00-source/raw/psa/` (see docs/architecture.md, Storage) |
 
 Sheets: `Metadata`, `National Summary`, `Prov Sum`, `PSGC` (the data), `Notes`, `Coding Structure` (images only, no cells).
 
@@ -38,7 +38,7 @@ The documentation is inside the workbook. No separate document was downloaded.
 |---|---|
 | Geographic coverage | Philippines (18 regions) |
 | Geographic level | All levels in one table: region, province, city, municipality, barangay, plus 14 sub-municipalities of Manila and 2 special rows (see quality problems) |
-| Time coverage | Administrative structure as of 30 June 2026. Population from the 2024 Census of Population |
+| Time coverage | Administrative structure as of 30 June 2026. Population from the 2024 Census of Population. Our anchor data is DepEd SY 2023-24, so see "Version used and SY 2023-24" below |
 | Time basis | Reference date (30 June 2026). Population: 2024 census. Urban / Rural: 2020 census (CPH) |
 | Update frequency | Quarterly (`Metadata`: "Ongoing (updated quarterly)") |
 | Population covered | All geographic units. Regional populations do not sum to the national total (`Notes` D.2) |
@@ -71,6 +71,27 @@ Column-by-column descriptions, fill rates, and sample values: [data_dictionary.m
 | `2024 Population` | whole number | text | 1 cell is `#N/A` |
 | (no header, column J) | none | text | Footnote text and markers, 19 rows |
 | `Status` | category | text | `Pob.` or `Capital` |
+
+## Version used and SY 2023-24
+
+**Decision:** 2Q 2026 is the master PSGC reference for the project, including SY 2023-24 analysis. No crosswalk is built.
+
+**Why not a release closer to SY 2023-24:** we requested API access to look for `Q3_2023`. The API accepts the request but returns 0 records for `Q3_2023`. The nearest version it serves is `Q4_2023` (43,758 rows). That pull was compared with this file and is kept locally as a check, outside the repository.
+
+**What differs between `Q4_2023` and 2Q 2026** (compared by `10-digit PSGC`):
+
+- **Observed:** 41,903 codes are in both files. 1,855 exist only in `Q4_2023` and 1,865 only in 2Q 2026.
+- **Observed:** almost all changed codes come from two moves. The Negros Island Region (`18`) is new: Negros Occidental, Negros Oriental, and Siquijor left Regions VI and VII (1 region, 3 provinces, 19 cities, 44 municipalities, 1,353 barangays). Sulu moved from BARMM (`19066...`) to Region IX (`09066...`), about 430 codes.
+- **Observed:** the 8 special government units in `Q4_2023` are municipalities in 2Q 2026. Barangay 176 in NCR is split into 176-A to 176-F.
+- **Observed:** 1,853 of the 1,865 new codes have a `Correspondence Code` that matches the same unit in `Q4_2023`. The other 12 have none (11 barangays and the NIR region row).
+- **Observed:** `City Class` and `Urban / Rural` are unchanged on every shared code. `Income Classification` differs on 1,160 units because 2Q 2026 uses DOF DO No. 074.2024.
+- **Observed:** `Q4_2023` has 457 names with broken accents (for example `Santo NiÃ±o`) and no 2024 population for about 1,780 barangays. 2Q 2026 has neither problem. It has no 2015 or 2020 population.
+
+**Rules for using this file with DepEd SY 2023-24** (DepEd data has place names only, and Negros and Sulu were in Regions VI, VII, and BARMM that year):
+
+- Match on province, municipality, and barangay names. **Never use region as a match key.**
+- For SY 2023-24 results by region, use DepEd's own region column, or report at province level. Do not take the region from this file for Negros or Sulu.
+- Record which PSGC version each match used (2Q 2026).
 
 ## Known quality problems
 

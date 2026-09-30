@@ -14,6 +14,7 @@ import sys
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
+from itertools import zip_longest
 from pathlib import Path
 
 import duckdb
@@ -37,15 +38,24 @@ def column_number(cell_ref):
     return n
 
 
+def rich_text(node):
+    """Text of a shared or inline string. Skips phonetic guides (rPh), which also hold <t> elements."""
+    parts = [t.text or "" for t in node.findall(M + "t")]
+    for run in node.findall(M + "r"):
+        parts += [t.text or "" for t in run.findall(M + "t")]
+    return "".join(parts)
+
+
+def sql_string(text):
+    return "'" + str(text).replace("'", "''") + "'"
+
+
 def read_sheet(path, sheet_name):
     """Return a list of {column number: text} rows. Blank cells are omitted."""
     with zipfile.ZipFile(path) as zf:
         workbook = ET.fromstring(zf.read("xl/workbook.xml"))
         rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
-        strings = [
-            "".join(t.text or "" for t in si.iter(M + "t"))
-            for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")
-        ]
+        strings = [rich_text(si) for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")]
         sheet = next(s for s in workbook.find(M + "sheets") if s.get("name") == sheet_name)
         target = rels[sheet.get(R + "id")].lstrip("/")
         target = target if target.startswith("xl/") else "xl/" + target
@@ -57,7 +67,8 @@ def read_sheet(path, sheet_name):
                 if c.get("t") == "s" and v is not None:
                     text = strings[int(v.text)]
                 elif c.get("t") == "inlineStr":
-                    text = "".join(t.text or "" for t in c.iter(M + "t"))
+                    inline = c.find(M + "is")
+                    text = rich_text(inline) if inline is not None else ""
                 else:
                     text = v.text if v is not None else ""
                 if text != "":
@@ -73,7 +84,20 @@ if hashlib.sha256(path.read_bytes()).hexdigest() != SHA256:
 rows = read_sheet(path, "PSGC")
 header, body = rows[0], rows[1:]
 COLS = ["id", "name", "corr", "level", "old_names", "city_class", "income", "urban_rural", "pop", "col_j", "status"]
-assert max(header) == len(COLS)
+# Header text expected at each position (whitespace normalized; "" = no header, column J).
+# COLS renames by position, so a moved or inserted column must stop the run.
+EXPECTED_HEADER = [
+    "10-digit PSGC", "Name", "Correspondence Code", "Geographic Level", "Old names", "City Class",
+    "Income Classification (DOF DO No. 074.2024)", "Urban / Rural (based on 2020 CPH)", "2024 Population", "", "Status",
+]
+found_header = [re.sub(r"\s+", " ", header.get(i, "")).strip() for i in range(1, max(max(header), len(COLS)) + 1)]
+problems = [
+    f"position {i}: expected {want!r}, found {got!r}"
+    for i, (want, got) in enumerate(zip_longest(EXPECTED_HEADER, found_header, fillvalue="(none)"), start=1)
+    if want != got
+]
+if problems:
+    sys.exit(f"{FILE}: the PSGC sheet header changed, so columns cannot be mapped by position:\n  " + "\n  ".join(problems))
 
 workdir = tempfile.TemporaryDirectory()
 csv_path = Path(workdir.name) / "psgc.csv"
@@ -85,7 +109,7 @@ with csv_path.open("w", newline="", encoding="utf-8") as f:
 
 con = duckdb.connect()
 con.execute(f"""CREATE TABLE p AS SELECT * FROM read_csv('{csv_path}', all_varchar = true, header = true,
-                names = [{", ".join(repr(c) for c in COLS)}], strict_mode = true)""")
+                names = [{", ".join(sql_string(c) for c in COLS)}], strict_mode = true)""")
 
 
 def q(sql):
@@ -100,7 +124,8 @@ def show(finding, text):
     print(f"[{finding}] {text}")
 
 
-show("run", f"{FILE}: {len(body):,} data rows; header cells with line breaks: {sum('\n' in v for v in header.values())}")
+line_breaks = sum("\n" in v for v in header.values())
+show("run", f"{FILE}: {len(body):,} data rows; header cells with line breaks: {line_breaks}")
 
 # %% O-1 10-digit code is a clean primary key
 show("O-1", "blank {}, not 10 digits {}, non-numeric {}, duplicates {}, fully duplicated rows {}".format(
@@ -136,9 +161,22 @@ show("O-4", "zero population: {} rows by level: {}".format(
     one("SELECT count(*) FROM p WHERE try_cast(pop AS BIGINT) = 0"),
     q("SELECT coalesce(level, '(blank)'), count(*) FROM p WHERE try_cast(pop AS BIGINT) = 0 GROUP BY 1 ORDER BY 2 DESC, 1")))
 summary = read_sheet(path, "National Summary")
-national = next(r for r in summary if "PHILIPPINES" in r.values())
-nat_values = [v for _, v in sorted(national.items())]
-nat_prov, nat_city, nat_mun, nat_bgy, nat_pop = (int(v) for v in nat_values[nat_values.index("PHILIPPINES") + 1:][:5])
+SUMMARY_LABELS = {"PROV.": "provinces", "CITIES": "cities", "MUN.": "municipalities", "BGY.": "barangays", "POPULATION (2024 POPCEN)": "population"}
+summary_header = next((r for r in summary if "PROV." in {re.sub(r"\s+", " ", v).strip() for v in r.values()}), None)
+national = next((r for r in summary if "PHILIPPINES" in r.values()), None)
+if summary_header is None or national is None:
+    sys.exit(f"{FILE}: the National Summary sheet has no header row with 'PROV.' or no 'PHILIPPINES' row.")
+label_column = {}
+for c, v in summary_header.items():
+    label = SUMMARY_LABELS.get(re.sub(r"\s+", " ", v).strip())
+    if label:
+        label_column[label] = c
+if len(label_column) != len(SUMMARY_LABELS):
+    sys.exit(f"{FILE}: National Summary header labels not found: {sorted(set(SUMMARY_LABELS.values()) - set(label_column))}")
+missing = [name for name, c in label_column.items() if not national.get(c, "").strip().isdigit()]
+if missing:
+    sys.exit(f"{FILE}: National Summary 'PHILIPPINES' row has no whole number under: {missing}")
+nat_prov, nat_city, nat_mun, nat_bgy, nat_pop = (int(national[label_column[k]]) for k in ("provinces", "cities", "municipalities", "barangays", "population"))
 region_sum = one("SELECT sum(try_cast(pop AS BIGINT)) FROM p WHERE level = 'Reg'")
 show("O-4", f"sum of 18 region populations {region_sum:,}; National Summary {nat_pop:,}; difference {nat_pop - region_sum:,} (Notes D.2: 1,708 abroad)")
 

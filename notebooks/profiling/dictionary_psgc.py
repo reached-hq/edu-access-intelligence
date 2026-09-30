@@ -53,15 +53,24 @@ def column_letter(n):
     return letters
 
 
+def rich_text(node):
+    """Text of a shared or inline string. Skips phonetic guides (rPh), which also hold <t> elements."""
+    parts = [t.text or "" for t in node.findall(M + "t")]
+    for run in node.findall(M + "r"):
+        parts += [t.text or "" for t in run.findall(M + "t")]
+    return "".join(parts)
+
+
+def sql_string(text):
+    return "'" + str(text).replace("'", "''") + "'"
+
+
 def read_sheet(path, sheet_name):
     """Return a list of {column number: text} rows. Blank cells are omitted."""
     with zipfile.ZipFile(path) as zf:
         workbook = ET.fromstring(zf.read("xl/workbook.xml"))
         rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
-        strings = [
-            "".join(t.text or "" for t in si.iter(M + "t"))
-            for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")
-        ]
+        strings = [rich_text(si) for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")]
         sheet = next(s for s in workbook.find(M + "sheets") if s.get("name") == sheet_name)
         target = rels[sheet.get(R + "id")].lstrip("/")
         target = target if target.startswith("xl/") else "xl/" + target
@@ -73,7 +82,8 @@ def read_sheet(path, sheet_name):
                 if c.get("t") == "s" and v is not None:
                     text = strings[int(v.text)]
                 elif c.get("t") == "inlineStr":
-                    text = "".join(t.text or "" for t in c.iter(M + "t"))
+                    inline = c.find(M + "is")
+                    text = rich_text(inline) if inline is not None else ""
                 else:
                     text = v.text if v is not None else ""
                 if text != "":
@@ -104,7 +114,7 @@ with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer.writerow([r.get(i, "") for i in range(1, width + 1)])
 
 con = duckdb.connect()
-name_list = "[" + ", ".join(f"'{n}'" for n in names) + "]"
+name_list = "[" + ", ".join(sql_string(n) for n in names) + "]"
 con.execute(f"""CREATE TABLE psgc AS SELECT * FROM read_csv('{csv_path}', all_varchar = true, header = true,
                 names = {name_list}, strict_mode = true)""")
 LEVEL = '"Geographic Level"'
@@ -139,7 +149,7 @@ def describe(column, where="TRUE"):
                count(*) FILTER (WHERE {col} IS NOT NULL AND trim({col}) <> ''),
                count(DISTINCT {col}),
                count(*) FILTER (WHERE regexp_full_match({col}, '[0-9]+')),
-               count(try_cast({col} AS BIGINT))
+               count(*) FILTER (WHERE regexp_full_match(trim({col}), '-?[0-9]+'))
         FROM psgc WHERE {where}""")[0]
     pct = percent(filled, total)
     if not filled:
@@ -147,23 +157,25 @@ def describe(column, where="TRUE"):
     if distinct == filled and digits == filled:
         kind = "identifier (unique)"
         sample = ", ".join(quoted(v) for (v,) in q(f"SELECT {col} FROM psgc WHERE {where} AND {col} IS NOT NULL ORDER BY {col} LIMIT 3"))
-    elif numeric and filled - numeric <= 0.01 * filled:
+    elif numeric == filled:
         kind = "whole number"
         lo, med, hi, zeros = q(f"""SELECT min(try_cast({col} AS BIGINT)), median(try_cast({col} AS BIGINT)),
                                           max(try_cast({col} AS BIGINT)), count(*) FILTER (WHERE try_cast({col} AS BIGINT) = 0)
                                    FROM psgc WHERE {where}""")[0]
         sample = f"min {lo:,}, median {med:,.0f}, max {hi:,}; zeros: {zeros:,}"
-        odd = q(f"""SELECT {col}, count(*) FROM psgc WHERE {where} AND {col} IS NOT NULL AND trim({col}) <> ''
-                    AND try_cast({col} AS BIGINT) IS NULL GROUP BY 1 ORDER BY 2 DESC, 1""")
-        if odd:
-            kind = "whole number, with non-numbers"
-            sample += "; not a number: " + ", ".join(f"{quoted(v)} {n:,}" for v, n in odd)
     elif distinct <= 20:
         kind = "category"
         sample = ", ".join(f"{quoted(v)} {n:,}" for v, n in q(f"SELECT {col}, count(*) FROM psgc WHERE {where} AND {col} IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1"))
     else:
         kind = "text"
         sample = "most common: " + ", ".join(f"{quoted(v)} {n:,}" for v, n in q(f"SELECT {col}, count(*) FROM psgc WHERE {where} AND {col} IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 3"))
+        if numeric and filled - numeric <= 0.01 * filled:
+            lo, med, hi = q(f"""SELECT min(try_cast({col} AS BIGINT)), median(try_cast({col} AS BIGINT)), max(try_cast({col} AS BIGINT))
+                                FROM psgc WHERE {where}""")[0]
+            odd = q(f"""SELECT {col}, count(*) FROM psgc WHERE {where} AND {col} IS NOT NULL AND trim({col}) <> ''
+                        AND NOT regexp_full_match(trim({col}), '-?[0-9]+') GROUP BY 1 ORDER BY 2 DESC, 1""")
+            sample = (f"{numeric:,} of {filled:,} values are whole numbers (min {lo:,}, median {med:,.0f}, max {hi:,}); "
+                      "not a number: " + ", ".join(f"{quoted(v)} {n:,}" for v, n in odd))
     return kind, pct, f"{distinct:,}", sample
 
 
@@ -230,7 +242,7 @@ Generated by [`notebooks/profiling/dictionary_psgc.py`](../../../notebooks/profi
 - **Description, publisher type, and publisher notes:** copied from the `Metadata` and `Notes` sheets inside `{FILE}`. The workbook states no data types.
 - **Observed columns:** measured from the `{DATA_SHEET}` sheet of that file ({total_rows:,} data rows), read as text. "Filled" is the share of rows that are not blank.
 - **Filled (applicable level):** some columns apply to certain geographic levels only. This column repeats the fill rate for the rows where the column is expected.
-- **Kinds:** identifier (unique whole numbers), whole number (min, median, max, zeros), category (up to 20 values, all listed), text (the three most common values), all blank.
+- **Kinds:** identifier (unique whole numbers), whole number (every value is a whole number; min, median, max, zeros), category (up to 20 values, all listed), text (the three most common values; any value that is not a whole number makes a numeric-looking column text, and the exceptions are listed), all blank.
 
 See [profile.md](profile.md) for findings and [README.md](README.md) for the source card.
 
