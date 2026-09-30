@@ -24,3 +24,4 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/profiling/
 |---|---|---|---|---|
 | [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise |
 | [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise |
+| [psa_poverty_stat](psa_poverty_stat/) | PSA city- and municipal-level poverty estimates | PSA | profiled | @maeveylain |

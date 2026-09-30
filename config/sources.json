@@ -22,6 +22,17 @@
       "format": "zip containing CSV",
       "school_years_acquired": ["2023-24"],
       "owner": "hyenalouise"
+    },
+    {
+      "source_id": "psa_poverty_stat",
+      "name": "PSA city- and municipal-level poverty estimates (small area estimates)",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "PSA small area estimates of poverty (national government-funded project)",
+      "acquisition": "https://psa.gov.ph/statistics/poverty-sae/stat-tables",
+      "format": "xlsx",
+      "years": ["2018", "2021", "2023"],
+      "owner": "maeveylain"
     }
   ]
 }
