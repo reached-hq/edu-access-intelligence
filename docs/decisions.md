@@ -56,7 +56,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 ## D-006: Where source documentation lives
 
 - **Problem:** Each source produces an inventory card, profiling findings, and publisher documents (for example DepEd's README files and Technical Notes). These need one predictable home.
-- **Decision:** Each source gets a folder, `docs/source_inventory/<source_id>/`, with `README.md` (the inventory card) and `profile.md` (findings with evidence). Publisher documents stay with the raw files in raw storage; the card records their URL, size, and SHA-256. Cross-source work stays in `docs/profiling/`.
+- **Decision:** Each source gets a folder, `docs/source_inventory/<source_id>/`, with `README.md` (the inventory card) and `profile.md` (findings with evidence). Publisher documents stay with the raw files in raw storage; the card records their URL, size, and SHA-256. Cross-source work stays in `docs/cross_source/`.
 - **Reason:** Keeping everything about one source together makes review easier. Publisher documents arrive with the data, so they are part of the raw delivery, and recording their checksum proves which version the team relied on.
 - **Consequence:** `tests/test_config.py` requires `README.md` for any source past `candidate`, and `profile.md` for any source that is `profiled` or `accepted`.
 

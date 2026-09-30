@@ -15,7 +15,7 @@ A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 The business question comes from two kinds of evidence, collected before any modeling:
 
 1. What education planners need to decide (`docs/stakeholder/`)
-2. What the available datasets can validly support (`docs/source_inventory/`, `docs/profiling/`)
+2. What the available datasets can validly support (`docs/source_inventory/`, `docs/cross_source/`)
 
 Data then moves through the course's layered architecture:
 
