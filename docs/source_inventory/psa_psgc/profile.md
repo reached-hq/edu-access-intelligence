@@ -50,14 +50,15 @@ Hypotheses still to test.
 
 | ID | Suspicion | How to test | Status |
 |---|---|---|---|
-| S-1 | The 38 barangays with `-` urban/rural and no correspondence code are new or split barangays created after the 2020 census (9 of 38 record an old name, e.g. `Muzon` split into East, South, West) | Compare with the previous PSGC quarter and the RA creating each barangay; check the other 29 for creation notes | open |
+| S-1 | The 38 barangays with `-` urban/rural and no correspondense code are new or split barangays created after the 2020 census (9 of 38 record an old name, e.g. `Muzon` split into East, South, West) | Compare with the previous PSGC quarter and the RA creating each barangay; check the other 29 for creation notes | open |
 | S-2 | `Correspondence Code` is the older 9-digit PSGC code kept for continuity | Compare with the PSA page or the prior PSGC publication; ask the publisher | open |
 | S-3 | The Special Geographic Area rows (`19999...`, 8 municipalities) are not in a province, which is why they have no income class or correspondence code | Read the PSA notes on the Special Geographic Area and the Bangsamoro transfer | open |
 | S-4 | DepEd place names will match PSGC names only after trimming, case changes, and parent scoping | Match rates in `docs/profiling/` (cross-source work) | open |
+| S-5 | `Status` `Capital` marks a provincial capital and `Pob.` marks the poblacion of its city or municipality | Check that each province has one `Capital` city or municipality under its code prefix; read the PSA notes or ask the publisher for the definition of `Pob.`; compare `Pob.` barangays with barangays named `Poblacion` (607, O-9) | open |
 
 ## Changes across files or years
 
-Only the 2Q 2026 publication was acquired, so no comparison across quarters is possible. Codes and names change when local government units are created, merged, or renamed, so each quarterly file should be compared with the last before replacing it.
+Only the 2Q 2026 publication is profiled here. It was compared once with the `Q4_2023` version served by the PSA API (about 1,855 codes differ, mostly the Negros Island Region and Sulu); the comparison and its evidence are in [README.md](README.md#version-used-and-sy-2023-24). Codes and names change when local government units are created, merged, or renamed, so each quarterly file should be compared with the last before replacing it.
 
 ## Questions for the publisher or mentor
 

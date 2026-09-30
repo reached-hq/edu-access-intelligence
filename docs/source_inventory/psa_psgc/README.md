@@ -74,14 +74,19 @@ Column-by-column descriptions, fill rates, and sample values: [data_dictionary.m
 
 ## Version used and SY 2023-24
 
-**Decision:** 2Q 2026 is the master PSGC reference for the project, including SY 2023-24 analysis. No crosswalk is built.
+**Decision:** 2Q 2026 is the master PSGC reference for the project, including SY 2023-24 analysis. No crosswalk is built. Recorded as D-012 in [decisions.md](../../decisions.md).
 
 **Why not a release closer to SY 2023-24:** we requested API access to look for `Q3_2023`. The API accepts the request but returns 0 records for `Q3_2023`. The nearest version it serves is `Q4_2023` (43,758 rows). That pull was compared with this file and is kept locally as a check, outside the repository.
+
+**What this file shows on its own (2Q 2026, no comparison needed):**
+
+- **Observed:** codes starting with `18` are the Negros Island Region: 1 region, 3 provinces, 19 cities, 44 municipalities, and 1,353 barangays.
+- **Observed:** 430 codes start with `09066` (Sulu), listed under Region IX (Zamboanga Peninsula). Footnotes b and c on the `National Summary` sheet say the Region IX population includes Sulu and the BARMM population excludes it.
 
 **What differs between `Q4_2023` and 2Q 2026** (compared by `10-digit PSGC`):
 
 - **Observed:** 41,903 codes are in both files. 1,855 exist only in `Q4_2023` and 1,865 only in 2Q 2026.
-- **Observed:** almost all changed codes come from two moves. The Negros Island Region (`18`) is new: Negros Occidental, Negros Oriental, and Siquijor left Regions VI and VII (1 region, 3 provinces, 19 cities, 44 municipalities, 1,353 barangays). Sulu moved from BARMM (`19066...`) to Region IX (`09066...`), about 430 codes.
+- **Observed:** almost all changed codes come from the two moves above. In `Q4_2023` the same units carried Region VI and VII codes (`06...`, `07...`) for Negros and BARMM codes (`19066...`) for Sulu.
 - **Observed:** the 8 special government units in `Q4_2023` are municipalities in 2Q 2026. Barangay 176 in NCR is split into 176-A to 176-F.
 - **Observed:** 1,853 of the 1,865 new codes have a `Correspondence Code` that matches the same unit in `Q4_2023`. The other 12 have none (11 barangays and the NIR region row).
 - **Observed:** `City Class` and `Urban / Rural` are unchanged on every shared code. `Income Classification` differs on 1,160 units because 2Q 2026 uses DOF DO No. 074.2024.
@@ -90,6 +95,8 @@ Column-by-column descriptions, fill rates, and sample values: [data_dictionary.m
 **Rules for using this file with DepEd SY 2023-24** (DepEd data has place names only, and Negros and Sulu were in Regions VI, VII, and BARMM that year):
 
 - Match on province, municipality, and barangay names. **Never use region as a match key.**
+- Match a barangay name only inside its own city or municipality, never across the file. The same barangay name exists in many cities (for example `Barangay 176` in Caloocan, Tondo, and Pasay), so a match outside the parent would be wrong. In 2Q 2026 no barangay name repeats inside the same city or municipality (0 repeats), so a match inside the parent is unique.
+- Matching order for each DepEd place name: (1) exact match on the trimmed current name inside the parent; (2) if none, match on `Old names` inside the same parent; (3) if there is still no match, or more than one, flag it as unmatched or ambiguous and **do not force a match**. Example: `Barangay 176` in Caloocan was split into `176-A` to `176-F`, and all six carry `Barangay 176` in `Old names`, so it is flagged as ambiguous. In 2Q 2026, 33 pairs of (city or municipality, old name) point to more than one barangay (100 barangays).
 - For SY 2023-24 results by region, use DepEd's own region column, or report at province level. Do not take the region from this file for Negros or Sulu.
 - Record which PSGC version each match used (2Q 2026).
 
