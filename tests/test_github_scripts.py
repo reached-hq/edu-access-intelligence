@@ -27,7 +27,11 @@ pr_ai_help = _load("pr_ai_help")
     ("[docs] lowercase tag", ["docs"]),
     ("[DASHBOARD] [AI/BI] Build the dashboard", ["dashboard"]),
     ("[SETUP] [DOCS] Two tags", ["infra", "docs"]),
-    ("[FRAME] No clear label", []),
+    ("[FRAME] Draft candidate questions", ["framing"]),
+    ("[DQ] Add null checks", ["data-quality"]),
+    ("[PROOF] Capture run logs", ["evidence"]),
+    ("[PRESENT] Build the deck", ["presentation"]),
+    ("[UNKNOWN] Not a team tag", []),
     ("No tag at all", []),
     ("Tag later [DOCS] is ignored", []),
 ])
@@ -35,10 +39,20 @@ def test_labels_for(title, expected):
     assert title_labels.labels_for(title) == expected
 
 
+def test_every_workflow_tag_has_a_label():
+    # The tags listed in docs/workflow.md, Issue titles.
+    tags = {"SETUP", "DECISION", "SOURCE", "FRAME", "PROFILE", "BRONZE", "SILVER", "INTEGRATE", "GOLD",
+            "DQ", "DEPLOY", "MONITOR", "OPS", "DASHBOARD", "AI/BI", "DOCS", "PROOF", "PRESENT"}
+    assert tags <= set(title_labels.TAG_LABELS)
+
+
 def test_every_mapped_label_is_a_known_repo_label():
     # Labels created in the repository (gh label list). Adding a mapping to a
     # label that does not exist would make the workflow fail.
-    known = {"infra", "decision", "source-candidate", "research", "dashboard", "docs", "data-issue"}
+    known = {
+        "infra", "decision", "source-candidate", "research", "dashboard", "docs", "data-issue",
+        "framing", "data-quality", "evidence", "presentation",
+    }
     assert set(title_labels.TAG_LABELS.values()) <= known
 
 

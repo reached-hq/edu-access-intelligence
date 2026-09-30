@@ -1,7 +1,7 @@
 """Labels for an issue, read from the tag at the start of its title.
 
-The mapping follows how the team has labeled issues so far. Tags with no clear
-label ([FRAME], [DQ], [PROOF], [PRESENT]) get none; add them by hand.
+The mapping follows how the team has labeled issues so far. Every tag in
+docs/workflow.md (Issue titles) has a label.
 
     python .github/scripts/title_labels.py "[BRONZE] Load sources"   ->  infra
 """
@@ -12,18 +12,22 @@ import sys
 TAG_LABELS = {
     "SETUP": "infra",
     "DECISION": "decision",
+    "FRAME": "framing",
     "SOURCE": "source-candidate",
     "PROFILE": "research",
     "BRONZE": "infra",
     "SILVER": "infra",
     "INTEGRATE": "infra",
     "GOLD": "infra",
+    "DQ": "data-quality",
     "DEPLOY": "infra",
     "MONITOR": "infra",
     "OPS": "infra",
     "DASHBOARD": "dashboard",
     "AI/BI": "dashboard",
     "DOCS": "docs",
+    "PROOF": "evidence",
+    "PRESENT": "presentation",
 }
 
 
