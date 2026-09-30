@@ -52,6 +52,8 @@ The repository also runs these automations (`.github/workflows/triage.yml`):
   | Cath (`catweyine`) | Angela | Ina |
 
   Everyone reviews for exactly two authors. To change the table, edit `reviewers.json` in a pull request; the tests keep it balanced.
+
+  The workflow also posts a comment that @mentions both reviewers, with the linked issue, the milestone, and what to check before approving. Its opening line and meme rotate by PR number (the pairs are in `.github/scripts/reviewer_comment.py`, the images in `.github/memes/`). If the PR is reopened, the same comment is edited rather than posted again. Drafts get no reviewers and no comment until they are marked ready for review.
 - **Issues are not auto-assigned.** Assigning yourself is how you claim an issue.
 
 ### Issue titles

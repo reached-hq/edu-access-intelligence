@@ -163,3 +163,47 @@ linked_issues = _load("linked_issues")
 ])
 def test_linked_issues(body, expected):
     assert linked_issues.linked_issues(body) == expected
+
+
+# --- reviewer_comment -----------------------------------------------------
+
+reviewer_comment = _load("reviewer_comment")
+REVIEWER_PAIR = ["maeveylain", "saraevcldn"]
+
+
+def test_comment_starts_with_marker_and_mentions_both_reviewers():
+    body = reviewer_comment.build(24, "hyenalouise", REVIEWER_PAIR, 23, "01 · Discover")
+    assert body.startswith(reviewer_comment.MARKER)
+    assert "@maeveylain" in body and "@saraevcldn" in body
+    assert "closes #23" in body and "belongs to 01 · Discover" in body
+
+
+def test_opener_and_meme_rotate_by_pr_number():
+    for number in range(10):
+        opener, meme, _ = reviewer_comment.PAIRS[number % len(reviewer_comment.PAIRS)]
+        body = reviewer_comment.build(number, "hyenalouise", REVIEWER_PAIR)
+        assert opener.format(a="@maeveylain", b="@saraevcldn") in body
+        assert meme in body
+
+
+def test_same_pr_always_gets_the_same_comment():
+    assert reviewer_comment.build(7, "x", REVIEWER_PAIR) == reviewer_comment.build(7, "x", REVIEWER_PAIR)
+
+
+def test_comment_without_issue_or_milestone():
+    body = reviewer_comment.build(1, "hyenalouise", REVIEWER_PAIR)
+    assert "isn't linked to an issue yet" in body and "has no milestone yet" in body
+
+
+def test_author_not_in_table_asks_for_a_manual_request():
+    body = reviewer_comment.build(1, "newcomer", [])
+    assert body.startswith(reviewer_comment.MARKER)
+    assert "@newcomer isn't in `.github/reviewers.json`" in body and "<img" not in body
+
+
+def test_every_meme_file_exists():
+    for _, meme, alt in reviewer_comment.PAIRS:
+        path = REPO_ROOT / ".github/memes" / meme
+        assert path.is_file(), meme
+        assert path.stat().st_size < 200_000, f"{meme} is large; resize it to about 360px wide"
+        assert alt
