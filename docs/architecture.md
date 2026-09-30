@@ -36,7 +36,7 @@ See [source_inventory/](source_inventory/).
 | Host | `https://dbc-76bcfddb-1669.cloud.databricks.com` |
 | CLI profile | `reached-hq` (see [terminal_setup.md, Part 12](terminal_setup.md#part-12-logging-in-to-databricks)) |
 | Catalog | `edu_access`: managed, Default Storage, bound to this workspace only (isolated) |
-| Owner of the catalog, schemas, and volume | The `reached-hq` group (all six teammates), so no single account is a bottleneck |
+| Owner of the catalog, schemas, and volume | The `reached-hq` group (all five teammates), so no single account is a bottleneck |
 | SQL warehouse | Serverless Starter Warehouse, 2X-Small, auto-stop 10 minutes |
 | Free Edition limits | Not yet recorded (#1) |
 
