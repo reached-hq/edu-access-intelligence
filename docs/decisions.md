@@ -13,6 +13,8 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted |
 | D-008 | 2026-09-29 | Develop locally; use Databricks compute only for planned runs | Accepted |
 | D-009 | 2026-09-29 | Catalog `edu_access` owned by the team group; raw files in a managed volume | Provisional |
+| D-010 | 2026-09-30 | AI help is allowed but disclosed on every PR, and must pass four gates | Provisional |
+| D-011 | 2026-09-30 | Data dictionaries keep the publisher's words and the team's labeled interpretation in separate columns | Accepted |
 
 ---
 
@@ -74,7 +76,21 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
 ## D-009: Workspace, catalog, and raw storage
 
-- **Problem:** The team needs one shared place for data in Databricks Free Edition, usable by all six teammates, before ingestion starts.
-- **Decision:** One workspace (`dbc-76bcfddb-1669`) with CLI profile `reached-hq`. Catalog `edu_access`, created through the UI (Free Edition requires Default Storage, which the CLI could not use). The catalog, schemas, and raw volume are owned by the `reached-hq` group, not a person. Raw files go to the managed volume `` edu_access.`00-source`.raw ``. All six teammates are workspace admins.
+- **Problem:** The team needs one shared place for data in Databricks Free Edition, usable by all five teammates, before ingestion starts.
+- **Decision:** One workspace (`dbc-76bcfddb-1669`) with CLI profile `reached-hq`. Catalog `edu_access`, created through the UI (Free Edition requires Default Storage, which the CLI could not use). The catalog, schemas, and raw volume are owned by the `reached-hq` group, not a person. Raw files go to the managed volume `` edu_access.`00-source`.raw ``. All five teammates are workspace admins.
 - **Reason:** Group ownership means nobody is blocked when one teammate is unavailable. A managed volume needs no credentials, and the data is small (the DepEd downloads are about 3 MB each). Making everyone an admin keeps setup fast for a student team.
 - **Consequence:** Every teammate can change or delete anything in the workspace and the catalog, which is the opposite of least privilege (Day 9); the team accepts that for the capstone. **Provisional:** if the mentor approves the course R2 bucket, an R2-backed volume is added and this entry is updated.
+
+## D-010: Using AI
+
+- **Problem:** Teammates use AI tools for code, SQL, and documentation. Nothing records when AI helped, so a reviewer cannot tell which statements were checked by a person. AI can produce a column description, a number, or a platform limit that looks right and is wrong, and it can be given data or credentials that should never leave the team.
+- **Decision:** AI help is allowed for all work. Every pull request states whether AI helped and what it did. If it helped, the work must pass four gates (data, AI claims, output, accountability) before the pull request is opened. The rules are in `CONTRIBUTING.md` under **Using AI**, and the pull request template carries an **AI help** block. Issue templates do not: the pull request is where work is reviewed, so that is where AI help is declared.
+- **Reason:** Banning AI would be ignored and unverifiable. Disclosure plus checkable gates keeps the author accountable and tells the reviewer where to look. Stating the gates once in `CONTRIBUTING.md` means a change is made in one place, not in the template.
+- **Consequence:** CI (the **PR declares AI help** check) fails a pull request whose AI help section is not filled in, but it only sees the ticks: disclosure is still an honor system, and a false "No AI help" cannot be detected. The **Accountability** gate carries the weight: work its author cannot explain in review is sent back. Open pull requests from before this decision add the block when next edited. **Provisional:** revisit once the whole team has agreed to it, and if the course publishes its own AI policy.
+
+## D-011: Interpreting undocumented columns
+
+- **Problem:** Publishers often leave columns undocumented (in PSA's PSGC workbook, 6 of 11 columns). The rule "never write a description from guesswork" keeps the dictionary honest, but it leaves those columns blank even when their meaning is well supported by a law, by the data, or by an obvious header. Teammates then either guess silently in later work or are tempted to write a guess into the publisher's column.
+- **Decision:** Add an **Our interpretation** column to every data dictionary. **Description (publisher)** stays the publisher's words only, including documentation given as an image. **Our interpretation** holds the team's reading, and every entry starts with a label, **[other source]**, **[observed]**, or **[assumed]**, followed by its evidence. An [assumed] entry the pipeline relies on needs a suspected finding in `profile.md`. The rules are in `docs/source_inventory/_template/data_dictionary.md`.
+- **Reason:** Separate columns let a reader tell at a glance who said what, which is what planners will question. The labels follow the documented / mentor-validated / assumed tagging from D-001, so the team uses one way of stating how sure it is. Keeping the text in the script keeps the dictionary generated and reproducible (D-007).
+- **Consequence:** Existing dictionaries (`deped_enrollment`, `deped_facilities`) gain the column when their script is next changed; DepEd documents almost every column, so they need few entries. Sources in review, starting with `psa_psgc` (#19), add it before approval. Interpretations can be wrong: the label and evidence make that visible, and they are reviewed like any other claim.
