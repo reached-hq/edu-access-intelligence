@@ -12,13 +12,13 @@
 | Source URL or acquisition method | Manual download from the landing page https://psa.gov.ph/classification/psgc. Direct file URL: https://psa.gov.ph/system/files/scd/PSGC-2Q-2026-Publication-Datafile.xlsx (from the browser's download record). PSA replaces the quarterly file, so this URL may later serve a newer release; the SHA-256 below identifies the exact file used |
 | Licensing or access restrictions | Access constraints: none. Use constraints: acknowledge the PSA as the source. Distributed without warranty; interpretation and use are the user's responsibility (`Metadata` sheet) |
 | Owner (team member) | @maeveylain |
-| Date acquired | 2026-09-27 23:41 UTC (2026-09-28 07:41 Philippine time; taken from the downloaded file's timestamp). A second download on 2026-09-30 was byte-identical (same SHA-256) |
+| Date acquired | 2026-09-27 23:41 UTC (2026-09-28 07:41 Philippine time; taken from the downloaded file's timestamp). 
 
 ## Files
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `PSGC-2Q-2026-Publication-Datafile.xlsx` | xlsx (6 sheets) | n/a (binary workbook; text is Unicode, e.g. "Tañong") | 3,250,889 | 43,768 data rows on sheet `PSGC` (range A1:K43769, 1 header row) | `31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d` | Local (`raw-data/psa/original/`). Team copy: pending upload to `/Volumes/edu_access/00-source/raw/psa/` (see docs/architecture.md, Storage) |
+| `PSGC-2Q-2026-Publication-Datafile.xlsx` | xlsx (6 sheets) | n/a (binary workbook; text is Unicode, e.g. "Tañong") | 3,250,889 | 43,768 data rows on sheet `PSGC` (range A1:K43769, 1 header row) | `31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d` | Team volume: `/Volumes/edu_access/00-source/raw/psa/PSGC-2Q-2026-Publication-Datafile.xlsx` (uploaded 2026-09-30, SHA-256 verified after upload). Local copy for profiling: `raw-data/psa/original/` |
 
 Sheets: `Metadata`, `National Summary`, `Prov Sum`, `PSGC` (the data), `Notes`, `Coding Structure` (images only, no cells).
 
@@ -49,7 +49,7 @@ The documentation is inside the workbook. No separate document was downloaded.
 |---|---|
 | Apparent grain | One row per geographic unit (region, province, city, municipality, sub-municipality or barangay) |
 | Candidate primary key | `10-digit PSGC` (43,768 rows, 43,768 unique, always 10 digits) |
-| Candidate join keys | `10-digit PSGC`. `Name` is not usable: 27,391 distinct in 43,768 rows, and 4,041 barangay names repeat |
+| Candidate join keys | `10-digit PSGC` is the key. `Name` is usable only within its parent (province, then city or municipality, then barangay) after trimming, because names alone are ambiguous: 27,391 distinct in 43,768 rows, and 4,041 barangay names repeat. DepEd sources carry place names only, so this is the path for joining them to PSGC; see O-9 in [profile.md](profile.md) |
 | PSGC available? | This is the PSGC, 2Q 2026. The code appears to be region (2) + province (3) + city or municipality (2) + barangay (3) digits, consistent with sample rows. The `Coding Structure` sheet is only an image. UNVERIFIED against the PSA page |
 | Personally identifiable or sensitive fields | None. Place names only |
 | Provenance fields in the source | `Old names` (former names), `Status` (`Pob.`, `Capital`), publication date on the `Metadata` sheet |
