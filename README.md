@@ -6,9 +6,9 @@ A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 
 **Stakeholders:** education planners (DepEd for basic education, CHED for higher education).
 
-> **Status: Phase 1: repository and environment discovery.**
-> There is no approved business question yet. No dataset has been inspected yet.
-> Nothing in this repository should be read as a finding.
+> **Status: milestone 01 (Discover), moving into 02 (Land).**
+> DepEd enrollment and facilities are profiled; PSGC, CHED, and PSA poverty are in review.
+> There is no approved business question yet, so nothing in this repository should be read as a finding.
 
 ## How this project works
 
@@ -27,15 +27,17 @@ See [docs/architecture.md](docs/architecture.md) and [docs/decisions.md](docs/de
 
 ## Repository layout
 
-Folders are added when their phase starts, not before.
+Every folder exists from the start (D-004). Until its phase begins, a folder holds only a short `README.md` saying what will go there.
 
-| Path | Purpose | Added in |
+| Path | Purpose | Filled in |
 |---|---|---|
 | `config/` | Non-secret configuration and the source registry | Phase 1 |
 | `docs/` | Architecture, decisions, source inventory, and the rest of the engineering docs | Phase 1 |
 | `tests/` | Repository policy and configuration tests, run by CI | Phase 1 |
-| `.github/` | PR and issue templates, CI workflow | Phase 1 |
-| `src/ingestion/`, `src/profiling/` | Download, land, and profile sources | Phases 2–3 |
+| `tests/fixtures/` | Small made-up files for tests; the only place data files may be committed | When a test needs one |
+| `.github/` | PR and issue templates, CI and triage workflows | Phase 1 |
+| `docs/source_inventory/`, `docs/cross_source/`, `docs/stakeholder/` | One folder per source; work that compares sources; planner needs and the business question | Phase 1 |
+| `src/ingestion/`, `src/profiling/` | Land raw files for Bronze; profiling helpers shared by several scripts | Phases 2–3 |
 | `notebooks/` | Profiling and exploration (`.py` source format only) | Phase 3 |
 | `etl/01_control` … `etl/06_analytics` | SQL per pipeline stage, each with `90_validate_*` checks | Phase 6 onward |
 | `dashboards/` | Exported Databricks dashboards | Phase 9 onward |

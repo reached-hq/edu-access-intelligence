@@ -44,7 +44,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Problem:** The repository needs a structure the team can work in immediately.
 - **Decision:** Reuse the NYC Mobility conventions: `etl/NN_layer/` with `90_validate_*` files, `config/` for non-secret settings, the same documentation set, the same PR and issue templates, and the same CI/CD approach.
 - **Reason:** The team has already built and defended this structure. A familiar convention is lower risk than a new one.
-- **Consequence:** Folders are created only when their phase starts. The capstone adds `docs/source_inventory/`, `docs/profiling/`, `docs/stakeholder/`, and `docs/limitations.md`.
+- **Consequence:** The full folder layout exists from the start, with a placeholder `README.md` in each folder until its phase begins (changed 2026-10-01, so the whole pipeline shape is visible). The capstone adds `docs/source_inventory/`, `docs/cross_source/`, `docs/stakeholder/`, and `docs/limitations.md`. Cross-source analysis lives in `docs/cross_source/`, not `docs/profiling/`, so it is not confused with the scripts in `notebooks/profiling/`.
 
 ## D-005: Branching model
 
