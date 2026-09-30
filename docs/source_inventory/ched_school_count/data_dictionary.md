@@ -15,11 +15,11 @@ See [profile.md](profile.md) for the findings behind these numbers, and [README.
 
 | Column | Publisher type | Description (publisher) | Publisher notes | Observed kind | Filled | Distinct | Samples or range |
 |---|---|---|---|---|---|---|---|
-| `Region` | CHED | Region |  | category | 100.0% | 17 | `01 - Ilocos Region` 1, `02 - Cagayan Valley` 1, `03 - Central Luzon` 1, `04 - CALABARZON` 1, `05 - Bicol Region` 1, `06 - Western Visayas` 1, `07 - Central Visayas` 1, `08 - Eastern Visayas` 1, `09 - Zamboanga Peninsula` 1, `10 - Northern Mindanao` 1, `11 - Davao Region` 1, `12 - Soccsksargen` 1, `13 - Nat. Capital Region` 1, `14 - Cordillera Adm. Region` 1, `15 - Bangsamoro Autonomous  Region in Muslim Mindanao` 1, `16 - Caraga` 1, `17 - MIMAROPA` 1 |
-| `Public Main` | CHED | PUBLIC › SUCs › Main |  | whole number | 100.0% | 8 | min 4, median 6, max 12; zeros: 0 |
-| `Public SUCs` | CHED | PUBLIC › SUCs › Satellite Campus* |  | whole number | 100.0% | 13 | min 8, median 24, max 58; zeros: 0 |
-| `Public LUCs` | CHED | PUBLIC › LUCs |  | whole number | 82.4% | 11 | min 1, median 9, max 25; zeros: 0 |
-| `Public Other` | CHED | PUBLIC › Other Gov't Schools |  | whole number | 23.5% | 3 | min 1, median 2.5, max 7; zeros: 0 |
-| `Public Total` | CHED | PUBLIC › TOTAL (Public) › Including Satellite Campus |  | whole number | 100.0% | 17 | min 16, median 39, max 82; zeros: 0 |
-| `Private HEIs` | CHED | PRIVATE › Private HEIs |  | whole number | 100.0% | 14 | min 31, median 80, max 282; zeros: 0 |
-| `Total` | CHED | GRAND TOTAL › Including Satellite Campus |  | whole number | 100.0% | 15 | min 52, median 107, max 363; zeros: 0 |
+| `Region` | Not Stated | Region |  | category | 100.0% | 17 | `01 - Ilocos Region` 1, `02 - Cagayan Valley` 1, `03 - Central Luzon` 1, `04 - CALABARZON` 1, `05 - Bicol Region` 1, `06 - Western Visayas` 1, `07 - Central Visayas` 1, `08 - Eastern Visayas` 1, `09 - Zamboanga Peninsula` 1, `10 - Northern Mindanao` 1, `11 - Davao Region` 1, `12 - Soccsksargen` 1, `13 - Nat. Capital Region` 1, `14 - Cordillera Adm. Region` 1, `15 - Bangsamoro Autonomous  Region in Muslim Mindanao` 1, `16 - Caraga` 1, `17 - MIMAROPA` 1 |
+| `Public Main` | Not Stated | PUBLIC › SUCs › Main |  | whole number | 100.0% | 8 | min 4, median 6, max 12; zeros: 0 |
+| `Public SUCs` | Not Stated | PUBLIC › SUCs › Satellite Campus* |  | whole number | 100.0% | 13 | min 8, median 24, max 58; zeros: 0 |
+| `Public LUCs` | Not Stated | PUBLIC › LUCs |  | whole number | 82.4% | 11 | min 1, median 9, max 25; zeros: 0 |
+| `Public Other` | Not Stated | PUBLIC › Other Gov't Schools |  | whole number | 23.5% | 3 | min 1, median 2.5, max 7; zeros: 0 |
+| `Public Total` | Not Stated | PUBLIC › TOTAL (Public) › Including Satellite Campus |  | whole number | 100.0% | 17 | min 16, median 39, max 82; zeros: 0 |
+| `Private HEIs` | Not Stated | PRIVATE › Private HEIs |  | whole number | 100.0% | 14 | min 31, median 80, max 282; zeros: 0 |
+| `Total` | Not Stated | GRAND TOTAL › Including Satellite Campus |  | whole number | 100.0% | 15 | min 52, median 107, max 363; zeros: 0 |

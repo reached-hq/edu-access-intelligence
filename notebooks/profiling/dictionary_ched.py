@@ -134,7 +134,7 @@ def documentation(table, column):
         if table == "ched_graduates" and year == "2022-2023":
             notes = ('"One (1) Baccalaureate graduate in Region VII with unspecified sex in A.Y. 2022–2023 '
                      'is excluded from this disaggregated data."')
-    return "CHED", description, notes
+    return "Not Stated", description, notes
 
 
 # %% Measure each column

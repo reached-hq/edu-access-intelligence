@@ -12,15 +12,15 @@ See [profile.md](profile.md) for the findings behind these numbers, and [README.
 
 | Column | Publisher type | Description (publisher) | Publisher notes | Observed kind | Filled | Distinct | Samples or range |
 |---|---|---|---|---|---|---|---|
-| `Region` | CHED | Region |  | category | 100.0% | 18 | `01 - Ilocos Region` 2, `02 - Cagayan Valley` 2, `03 - Central Luzon` 2, `04 - CALABARZON` 2, `05 - Bicol Region` 2, `06 - Western Visayas` 2, `07 - Central Visayas` 2, `08 - Eastern Visayas` 2, `09 - Zamboanga Peninsula` 2, `10 - Northern Mindanao` 2, `11 - Davao Region` 2, `12 - Soccsksargen` 2, `13 - Nat. Capital Region` 2, `14 - Cordillera Adm. Region` 2, `15 - Bangsamoro Autonomous  Region in Muslim Mindanao` 2, `16 - Caraga` 2, `17 - MIMAROPA` 2, `18 - Negros Island` 2 |
-| `Sector` | CHED | Sector |  | category | 100.0% | 2 | `Private` 18, `Public` 18 |
-| `2020-2021 Male` | CHED | Academic Year › 2020-2021 › Male |  | whole number | 94.4% | 34 | min 11,208, median 37,862.5, max 199,245; zeros: 0 |
-| `2020-2021 Female` | CHED | Academic Year › 2020-2021 › Female |  | whole number | 94.4% | 34 | min 13,566, median 49,028.5, max 218,500; zeros: 0 |
-| `2021-2022 Male` | CHED | Academic Year › 2021-2022 › Male |  | whole number | 91.7% | 33 | min 3,822, median 46,224, max 216,633; zeros: 0 |
-| `2021-2022 Female` | CHED | Academic Year › 2021-2022 › Female |  | whole number | 91.7% | 33 | min 5,573, median 61,993, max 247,254; zeros: 0 |
-| `2022-2023 Male` | CHED | Academic Year › 2022-2023 › Male |  | whole number | 91.7% | 33 | min 4,375, median 53,671, max 249,791; zeros: 0 |
-| `2022-2023 Female` | CHED | Academic Year › 2022-2023 › Female |  | whole number | 91.7% | 33 | min 5,406, median 72,613, max 294,349; zeros: 0 |
-| `2023-2024 Male` | CHED | Academic Year › 2023-2024 › Male | "Eleven (11) students with unspecified sex in Region VII are excluded from this disaggregated data for Academic Year 2023–2024." | whole number | 88.9% | 32 | min 20,948, median 61,891.5, max 242,941; zeros: 0 |
-| `2023-2024 Female` | CHED | Academic Year › 2023-2024 › Female | "Eleven (11) students with unspecified sex in Region VII are excluded from this disaggregated data for Academic Year 2023–2024." | whole number | 88.9% | 32 | min 24,177, median 75,983.5, max 264,136; zeros: 0 |
-| `2024-2025 Male` | CHED | Academic Year › 2024-2025 › Male |  | whole number | 94.4% | 34 | min 24,122, median 58,061.5, max 290,280; zeros: 0 |
-| `2024-2025 Female` | CHED | Academic Year › 2024-2025 › Female |  | whole number | 94.4% | 34 | min 26,813, median 68,858.5, max 323,047; zeros: 0 |
+| `Region` | Not Stated | Region |  | category | 100.0% | 18 | `01 - Ilocos Region` 2, `02 - Cagayan Valley` 2, `03 - Central Luzon` 2, `04 - CALABARZON` 2, `05 - Bicol Region` 2, `06 - Western Visayas` 2, `07 - Central Visayas` 2, `08 - Eastern Visayas` 2, `09 - Zamboanga Peninsula` 2, `10 - Northern Mindanao` 2, `11 - Davao Region` 2, `12 - Soccsksargen` 2, `13 - Nat. Capital Region` 2, `14 - Cordillera Adm. Region` 2, `15 - Bangsamoro Autonomous  Region in Muslim Mindanao` 2, `16 - Caraga` 2, `17 - MIMAROPA` 2, `18 - Negros Island` 2 |
+| `Sector` | Not Stated | Sector |  | category | 100.0% | 2 | `Private` 18, `Public` 18 |
+| `2020-2021 Male` | Not Stated | Academic Year › 2020-2021 › Male |  | whole number | 94.4% | 34 | min 11,208, median 37,862.5, max 199,245; zeros: 0 |
+| `2020-2021 Female` | Not Stated | Academic Year › 2020-2021 › Female |  | whole number | 94.4% | 34 | min 13,566, median 49,028.5, max 218,500; zeros: 0 |
+| `2021-2022 Male` | Not Stated | Academic Year › 2021-2022 › Male |  | whole number | 91.7% | 33 | min 3,822, median 46,224, max 216,633; zeros: 0 |
+| `2021-2022 Female` | Not Stated | Academic Year › 2021-2022 › Female |  | whole number | 91.7% | 33 | min 5,573, median 61,993, max 247,254; zeros: 0 |
+| `2022-2023 Male` | Not Stated | Academic Year › 2022-2023 › Male |  | whole number | 91.7% | 33 | min 4,375, median 53,671, max 249,791; zeros: 0 |
+| `2022-2023 Female` | Not Stated | Academic Year › 2022-2023 › Female |  | whole number | 91.7% | 33 | min 5,406, median 72,613, max 294,349; zeros: 0 |
+| `2023-2024 Male` | Not Stated | Academic Year › 2023-2024 › Male | "Eleven (11) students with unspecified sex in Region VII are excluded from this disaggregated data for Academic Year 2023–2024." | whole number | 88.9% | 32 | min 20,948, median 61,891.5, max 242,941; zeros: 0 |
+| `2023-2024 Female` | Not Stated | Academic Year › 2023-2024 › Female | "Eleven (11) students with unspecified sex in Region VII are excluded from this disaggregated data for Academic Year 2023–2024." | whole number | 88.9% | 32 | min 24,177, median 75,983.5, max 264,136; zeros: 0 |
+| `2024-2025 Male` | Not Stated | Academic Year › 2024-2025 › Male |  | whole number | 94.4% | 34 | min 24,122, median 58,061.5, max 290,280; zeros: 0 |
+| `2024-2025 Female` | Not Stated | Academic Year › 2024-2025 › Female |  | whole number | 94.4% | 34 | min 26,813, median 68,858.5, max 323,047; zeros: 0 |

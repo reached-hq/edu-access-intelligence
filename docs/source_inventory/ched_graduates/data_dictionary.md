@@ -11,15 +11,15 @@ See [profile.md](profile.md) for the findings behind these numbers, and [README.
 
 | Column | Publisher type | Description (publisher) | Publisher notes | Observed kind | Filled | Distinct | Samples or range |
 |---|---|---|---|---|---|---|---|
-| `Region` | CHED | Region |  | category | 100.0% | 18 | `01 - Ilocos Region` 5, `02 - Cagayan Valley` 5, `03 - Central Luzon` 5, `04 - CALABARZON` 5, `05 - Bicol Region` 5, `06 - Western Visayas` 5, `07 - Central Visayas` 5, `08 - Eastern Visayas` 5, `09 - Zamboanga Peninsula` 5, `10 - Northern Mindanao` 5, `11 - Davao Region` 5, `12 - Soccsksargen` 5, `13 - Nat. Capital Region` 5, `14 - Cordillera Adm. Region` 5, `15 - Bangsamoro Autonomous  Region in Muslim Mindanao` 5, `16 - Caraga` 5, `17 - MIMAROPA` 5, `18 - Negros Island` 5 |
-| `Program Level` | CHED | Program Level |  | category | 100.0% | 5 | `Baccalaureate` 18, `Doctorate` 18, `Master` 18, `Post-baccalaureate` 18, `Pre-baccalaureate` 18 |
-| `2020-2021 Male` | CHED | 2020-2021 › Male |  | whole number | 94.4% | 80 | min 1, median 267, max 42,435; zeros: 0 |
-| `2020-2021 Female` | CHED | 2020-2021 › Female |  | whole number | 94.4% | 84 | min 4, median 469, max 48,934; zeros: 0 |
-| `2021-2022 Male` | CHED | 2021-2022 › Male |  | whole number | 93.3% | 77 | min 6, median 195, max 20,814; zeros: 0; `-`: 1 |
-| `2021-2022 Female` | CHED | 2021-2022 › Female |  | whole number | 93.3% | 81 | min 6, median 240, max 22,269; zeros: 0; `-`: 1 |
-| `2022-2023 Male` | CHED | 2022-2023 › Male | "One (1) Baccalaureate graduate in Region VII with unspecified sex in A.Y. 2022–2023 is excluded from this disaggregated data." | whole number | 93.3% | 80 | min 5, median 226, max 44,054; zeros: 0; `-`: 2 |
-| `2022-2023 Female` | CHED | 2022-2023 › Female | "One (1) Baccalaureate graduate in Region VII with unspecified sex in A.Y. 2022–2023 is excluded from this disaggregated data." | whole number | 93.3% | 82 | min 10, median 393, max 60,141; zeros: 0; `-`: 2 |
-| `2023-2024 Male` | CHED | 2023-2024 › Male |  | whole number | 88.9% | 76 | min 5, median 304, max 57,074; zeros: 0; `-`: 1 |
-| `2023-2024 Female` | CHED | 2023-2024 › Female |  | whole number | 88.9% | 80 | min 2, median 586.5, max 68,058; zeros: 0 |
-| `2024-2025 Male` | CHED | 2024-2025 › Male |  | whole number | 92.2% | 79 | min 3, median 286, max 65,257; zeros: 0; `-`: 1 |
-| `2024-2025 Female` | CHED | 2024-2025 › Female |  | whole number | 92.2% | 81 | min 6, median 698, max 57,892; zeros: 0; `-`: 1 |
+| `Region` | Not Stated | Region |  | category | 100.0% | 18 | `01 - Ilocos Region` 5, `02 - Cagayan Valley` 5, `03 - Central Luzon` 5, `04 - CALABARZON` 5, `05 - Bicol Region` 5, `06 - Western Visayas` 5, `07 - Central Visayas` 5, `08 - Eastern Visayas` 5, `09 - Zamboanga Peninsula` 5, `10 - Northern Mindanao` 5, `11 - Davao Region` 5, `12 - Soccsksargen` 5, `13 - Nat. Capital Region` 5, `14 - Cordillera Adm. Region` 5, `15 - Bangsamoro Autonomous  Region in Muslim Mindanao` 5, `16 - Caraga` 5, `17 - MIMAROPA` 5, `18 - Negros Island` 5 |
+| `Program Level` | Not Stated | Program Level |  | category | 100.0% | 5 | `Baccalaureate` 18, `Doctorate` 18, `Master` 18, `Post-baccalaureate` 18, `Pre-baccalaureate` 18 |
+| `2020-2021 Male` | Not Stated | 2020-2021 › Male |  | whole number | 94.4% | 80 | min 1, median 267, max 42,435; zeros: 0 |
+| `2020-2021 Female` | Not Stated | 2020-2021 › Female |  | whole number | 94.4% | 84 | min 4, median 469, max 48,934; zeros: 0 |
+| `2021-2022 Male` | Not Stated | 2021-2022 › Male |  | whole number | 93.3% | 77 | min 6, median 195, max 20,814; zeros: 0; `-`: 1 |
+| `2021-2022 Female` | Not Stated | 2021-2022 › Female |  | whole number | 93.3% | 81 | min 6, median 240, max 22,269; zeros: 0; `-`: 1 |
+| `2022-2023 Male` | Not Stated | 2022-2023 › Male | "One (1) Baccalaureate graduate in Region VII with unspecified sex in A.Y. 2022–2023 is excluded from this disaggregated data." | whole number | 93.3% | 80 | min 5, median 226, max 44,054; zeros: 0; `-`: 2 |
+| `2022-2023 Female` | Not Stated | 2022-2023 › Female | "One (1) Baccalaureate graduate in Region VII with unspecified sex in A.Y. 2022–2023 is excluded from this disaggregated data." | whole number | 93.3% | 82 | min 10, median 393, max 60,141; zeros: 0; `-`: 2 |
+| `2023-2024 Male` | Not Stated | 2023-2024 › Male |  | whole number | 88.9% | 76 | min 5, median 304, max 57,074; zeros: 0; `-`: 1 |
+| `2023-2024 Female` | Not Stated | 2023-2024 › Female |  | whole number | 88.9% | 80 | min 2, median 586.5, max 68,058; zeros: 0 |
+| `2024-2025 Male` | Not Stated | 2024-2025 › Male |  | whole number | 92.2% | 79 | min 3, median 286, max 65,257; zeros: 0; `-`: 1 |
+| `2024-2025 Female` | Not Stated | 2024-2025 › Female |  | whole number | 92.2% | 81 | min 6, median 698, max 57,892; zeros: 0; `-`: 1 |
