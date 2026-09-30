@@ -15,7 +15,7 @@ ISSUE → BRANCH → CHANGE → VALIDATE → COMMIT → PUSH → PULL REQUEST �
    - `docs/9-source-card-deped-enrollment`
    - `chore/3-ci-setup`
 3. **Validate before you commit.** Run `python -m pytest tests -q`. For data changes, also check row counts, duplicates, and rerun safety.
-4. **Open a pull request.** Fill in the template and link the issue (`Closes #14` or `Part of #14`). CI fails if no issue is linked.
+4. **Open a pull request.** Fill in the template and link the issue (`Closes #14` or `Part of #14`). CI fails if no issue is linked, or if the **AI help** section is not filled in (see [Using AI](#using-ai)).
 5. **Review.** At least one teammate who is not the author approves the PR.
 6. **Merge.** Squash-merge, then delete the branch.
 
@@ -51,7 +51,7 @@ Every pull request states whether AI helped with the work in it. If it did, the 
 | **Output** | You checked the result yourself. Where there is something to run, it works, it is safe to rerun, and every result can be traced to its source. |
 | **Accountability** | You can explain every part of the work without the AI, and you answer for it. |
 
-State what the AI did: which tool, and which parts of the work. Reviewers send back any pull request that does not say whether AI helped, or that says AI helped without passing all four gates.
+State what the AI did: which tool, and which parts of the work. CI fails a pull request that does not tick exactly one option, or that ticks **AI helped** without all four gates and a note on what the AI did. CI can only see the ticks, so reviewers still send back work that does not really pass the gates.
 
 This applies to pull requests opened after this rule was merged. Open pull requests add the block the next time they are edited. See D-010 in [docs/decisions.md](docs/decisions.md).
 

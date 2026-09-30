@@ -1,0 +1,57 @@
+name: Triage
+
+# Labels issues from their title tag and assigns each pull request to its author.
+# Issues are never auto-assigned: assigning yourself is how you claim work.
+on:
+  issues:
+    types: [opened, edited]
+  pull_request:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  label-issue:
+    name: Label issue from title tag
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Add labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ github.event.issue.title }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          labels=$(python3 .github/scripts/title_labels.py "$TITLE")
+          if [ -z "$labels" ]; then
+            echo "No label for this title tag."
+            exit 0
+          fi
+          for label in ${labels//,/ }; do
+            gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER/labels" -f "labels[]=$label" --silent
+            echo "Added $label"
+          done
+
+  assign-pr-author:
+    name: Assign PR author
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot' && toJSON(github.event.pull_request.assignees) == '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Assign the author
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: gh api "repos/$GITHUB_REPOSITORY/issues/$NUMBER/assignees" -f "assignees[]=$AUTHOR" --silent

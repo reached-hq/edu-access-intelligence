@@ -2,7 +2,7 @@
 name: Source candidate
 about: Propose a dataset for inventory and profiling
 title: "Source candidate: "
-labels: ""
+labels: "source-candidate"
 assignees: ""
 ---
 

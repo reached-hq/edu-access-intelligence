@@ -52,3 +52,18 @@ jobs:
             echo "::error::Add the issue to the PR description, e.g. 'Closes #24' or 'Part of #49'."
             exit 1
           fi
+
+  ai-help:
+    name: PR declares AI help
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Check the AI help section
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python3 .github/scripts/pr_ai_help.py

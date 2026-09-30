@@ -37,6 +37,12 @@ These board automations are switched on (board → **⋯** → **Workflows** sho
 - **Item added to project**, **Item closed**, **Item reopened**, **Pull request linked to issue**, **Pull request merged**, **Code review approved**: each sets a card's status.
 - **Auto-close issue**: moving a card to **Done closes the issue**. Only do that when the work is really finished.
 
+The repository also runs these automations (`.github/workflows/triage.yml`):
+
+- **Issue labels:** issues opened from the **Source candidate** and **Data issue** templates get `source-candidate` and `data-issue`. Any issue whose title starts with a tag also gets that tag's label (for example `[BRONZE]` → `infra`); the mapping is in `.github/scripts/title_labels.py`. Tags with no clear label (`[FRAME]`, `[DQ]`, `[PROOF]`, `[PRESENT]`) get none. Labels are only added, never removed, so fix a wrong label by hand.
+- **PR assignee:** a pull request with no assignee is assigned to its author when it is opened.
+- **Issues are not auto-assigned.** Assigning yourself is how you claim an issue.
+
 ### Issue titles
 
 Every title starts with a tag:
@@ -101,8 +107,9 @@ Say what changed and why, what you ran to check it (with counts when data is inv
 
 | Check | Fails when |
 |---|---|
-| Repository checks | A test fails: data file committed, `.ipynb` notebook, secret-like text, invalid `config/sources.json`, or a source without its documentation folder |
+| Repository checks | A test fails: data file committed, `.ipynb` notebook, secret-like text, invalid `config/sources.json`, a source without its documentation folder, or a broken workflow script in `.github/scripts/` |
 | PR links an issue | The description has no `Closes #N` / `Part of #N` |
+| PR declares AI help | The **AI help** section does not tick exactly one option, or ticks **AI helped** without all four gates and a note on what the AI did ([CONTRIBUTING.md, Using AI](../CONTRIBUTING.md#using-ai)) |
 
 **What CI does not cover:** it never touches Databricks and never sees real data (raw data is not in git). A green check means the repository follows its rules, not that the data is right. Data correctness is checked by profiling now and by data-quality checks in Databricks later.
 
