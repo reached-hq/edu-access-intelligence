@@ -46,10 +46,10 @@ ORIGINAL = Path(raw_dir).expanduser() / "ched" / "original"
 
 # What arrived, as recorded in the inventory cards.
 FILES = {
-    "ched_enrollment": ("Enrollment - CHED.csv", "6aabc9e14b2abee0dd09c7607815abcd9b75edaf972fd93819610071f4f28c3e"),
-    "ched_graduates": ("Graduate - CHED.csv", "69493789bda42ae9b72a1964d3970a423581a7e28b8825e22570e7e8d5a8f809"),
-    "ched_school_count": ("School Count - CHED.csv", "27aea7e1c552d7c0adb88a521cc73233a643eb337be67b2fa667df673023b2de"),
-    "ched_student_faculty_ratio": ("Student Faculty Ratio - CHED.csv", "bc132836fc86fe36bf4dfb702a5c546f9df8dd7ab05c64e68dc42d30965b25b9"),
+    "ched_enrollment": ("Enrollment - CHED.csv", "4977e3a6bc7c1c91d90fc9e0254847a0241d9e20529956a4b1a49ef8c59781f6"),
+    "ched_graduates": ("Graduate - CHED.csv", "36017b30bc792021b742b2f63e52bd64c4f216b351a0f96ddc5dd10dbff14ac6"),
+    "ched_school_count": ("School Count - CHED.csv", "a6cc097fecc61eacc5d995529eb4fb31d1d3e1dd7114cddee91151254ba9bd58"),
+    "ched_student_faculty_ratio": ("Student Faculty Ratio - CHED.csv", "25ea8e9675ef10a018b2dff721802f6039cc6a1461ac8ef2c1924db09130a924"),
 }
 BULLETIN = ("StatBull2025.pdf", "41e5ed465c713cc23dca7e14c24134d96cd72ae2252ce336c85f8432195f3bf2")
 YEARS = ["2020-2021", "2021-2022", "2022-2023", "2023-2024", "2024-2025"]
@@ -155,7 +155,7 @@ for table, (name, _) in FILES.items():
 
     # O-6: which years each region has data for (wide files only).
     if table != "ched_school_count":
-        for label in ["15 - Bangsamoro", "18 - Negros"]:
+        for label in ["19 - Bangsamoro", "18 - Negros"]:
             present = [y for y in YEARS
                        if q(f"""SELECT count(*) FROM {table} WHERE "Region" LIKE '{label}%'
                                 AND ({' OR '.join(f'"{c}" IS NOT NULL' for c in counts if y in c)})""")[0][0]]

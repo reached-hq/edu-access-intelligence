@@ -12,13 +12,13 @@
 | Source URL or acquisition method | Bulletin PDF downloaded from https://ched.gov.ph/statistics; Table 39 extracted by hand into CSV |
 | Licensing or access restrictions | Not stated in the bulletin. UNVERIFIED |
 | Owner (team member) | @Catweyine |
-| Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30 |
+| Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30, BARMM label changed from 15 to 19 on 2026-10-01 to match its PSGC region code |
 
 ## Files
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Student Faculty Ratio - CHED.csv` | CSV | UTF-8, CRLF | 2,635 | 18 | `bc132836fc86fe36bf4dfb702a5c546f9df8dd7ab05c64e68dc42d30965b25b9` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
+| `Student Faculty Ratio - CHED.csv` | CSV | UTF-8, CRLF | 2,635 | 18 | `25ea8e9675ef10a018b2dff721802f6039cc6a1461ac8ef2c1924db09130a924` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
 
 ## Publisher documentation
 
@@ -63,7 +63,7 @@ Column-by-column descriptions, fill rates, and sample values: [data_dictionary.m
 See [profile.md](profile.md) for evidence.
 
 - **Observed:** BARMM has no values from 2023-2024; Negros Island Region has values in 2024-2025 only. The bulletin has the same blanks.
-- **Observed:** the BARMM region label contains a line break.
+- **Observed:** the BARMM region label contains a line break, and the CSV numbers it `19 - …` (BARMM's PSGC region code) where the bulletin prints `15 - …`.
 
 ## Limitations for analysis
 

@@ -12,13 +12,13 @@
 | Source URL or acquisition method | Bulletin PDF downloaded from https://ched.gov.ph/statistics; table extracted by hand into CSV |
 | Licensing or access restrictions | Not stated in the bulletin. UNVERIFIED |
 | Owner (team member) | @Catweyine |
-| Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30 |
+| Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30, BARMM label changed from 15 to 19 on 2026-10-01 to match its PSGC region code |
 
 ## Files
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `School Count - CHED.csv` | CSV | UTF-8, CRLF | 791 | 17 | `27aea7e1c552d7c0adb88a521cc73233a643eb337be67b2fa667df673023b2de` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
+| `School Count - CHED.csv` | CSV | UTF-8, CRLF | 791 | 17 | `a6cc097fecc61eacc5d995529eb4fb31d1d3e1dd7114cddee91151254ba9bd58` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
 
 ## Publisher documentation
 
@@ -63,7 +63,7 @@ See [profile.md](profile.md) for evidence.
 
 - **Observed:** 16 blank cells, all in `Public LUCs` or `Public Other`; the totals add up only when they count as 0.
 - **Observed:** no Negros Island Region row.
-- **Observed:** the BARMM region label contains a line break.
+- **Observed:** the BARMM region label contains a line break, and the CSV numbers it `19 - …` (BARMM's PSGC region code) where the bulletin prints `15 - …`.
 
 ## Limitations for analysis
 
