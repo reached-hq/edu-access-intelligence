@@ -1,11 +1,14 @@
 name: CI
 
-# Runs on every pull request and every push to main. It has no Databricks
-# credentials by design: CI proves the repository and code behave correctly.
-# Whether the real data is correct is checked by the DQ steps inside Databricks.
+# Runs on every pull request, whatever branch it targets (so stacked pull requests
+# are checked too), and on every push to main. Only checks on pull requests into
+# main block merging (branch protection).
+#
+# It has no Databricks credentials by design: CI proves the repository and code
+# behave correctly. Whether the real data is correct is checked by the DQ steps
+# inside Databricks.
 on:
   pull_request:
-    branches: [main]
     types: [opened, edited, synchronize, reopened]
   push:
     branches: [main]

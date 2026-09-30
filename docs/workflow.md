@@ -135,6 +135,8 @@ Say what changed and why, what you ran to check it (with counts when data is inv
 | PR links an issue | The description has no `Closes #N` / `Part of #N` |
 | PR declares AI help | The **AI help** section does not tick exactly one option, or ticks **AI helped** without all four gates and a note on what the AI did ([CONTRIBUTING.md, Using AI](../CONTRIBUTING.md#using-ai)) |
 
+**When CI runs:** on every pull request, whatever branch it targets, so a stacked pull request is checked before its base merges. The checks block merging only into `main`, where branch protection requires them.
+
 **What CI does not cover:** it never touches Databricks and never sees real data (raw data is not in git). A green check means the repository follows its rules, not that the data is right. Data correctness is checked by profiling now and by data-quality checks in Databricks later.
 
 ### Stacked pull requests
