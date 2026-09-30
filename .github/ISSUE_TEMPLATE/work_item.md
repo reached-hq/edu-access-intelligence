@@ -18,19 +18,6 @@ Link upstream issues and any validation gates this depends on.
 
 What checks or review evidence prove this is done? Include rerun behavior where relevant.
 
-## AI help
-
-Rules: [Using AI](https://github.com/reached-hq/edu-access-intelligence/blob/main/CONTRIBUTING.md#using-ai). Tick one.
-
-- [ ] No AI help
-- [ ] AI helped, and it passed all four gates:
-  - [ ] **Data:** only public or made-up data was shared; no keys, tokens, passwords, credentials, or personal information
-  - [ ] **AI claims:** every fact from the AI was checked against a source I can link
-  - [ ] **Output:** I checked the result myself; where there is something to run, it works, is safe to rerun, and can be traced
-  - [ ] **Accountability:** I can explain every part without the AI and I answer for it
-
-**What the AI did** (leave blank if no AI help):
-
 ## Ownership
 
 Owner:

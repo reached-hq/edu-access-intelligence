@@ -42,7 +42,7 @@ AI tools are allowed for any work in this project: code, SQL, documentation, iss
 
 **What counts as AI help:** any tool that writes or rewrites content for you, including chat assistants, code completion, and AI rewriting of text. Spell-check alone does not count.
 
-Every issue and pull request states whether AI helped. If it did, the work must pass four gates before you submit it:
+Every pull request states whether AI helped with the work in it. If it did, the work must pass four gates before you open the pull request:
 
 | Gate | The rule |
 |---|---|
@@ -51,9 +51,9 @@ Every issue and pull request states whether AI helped. If it did, the work must 
 | **Output** | You checked the result yourself. Where there is something to run, it works, it is safe to rerun, and every result can be traced to its source. |
 | **Accountability** | You can explain every part of the work without the AI, and you answer for it. |
 
-State what the AI did: which tool, and which parts of the work. Teammates send back any issue or pull request that does not say whether AI helped, or that says AI helped without passing all four gates.
+State what the AI did: which tool, and which parts of the work. Reviewers send back any pull request that does not say whether AI helped, or that says AI helped without passing all four gates.
 
-This applies to issues and pull requests opened after this rule was merged. Open pull requests add the block the next time they are edited. See D-010 in [docs/decisions.md](docs/decisions.md).
+This applies to pull requests opened after this rule was merged. Open pull requests add the block the next time they are edited. See D-010 in [docs/decisions.md](docs/decisions.md).
 
 ## Running the checks locally
 

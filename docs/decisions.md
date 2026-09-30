@@ -13,7 +13,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted |
 | D-008 | 2026-09-29 | Develop locally; use Databricks compute only for planned runs | Accepted |
 | D-009 | 2026-09-29 | Catalog `edu_access` owned by the team group; raw files in a managed volume | Provisional |
-| D-010 | 2026-09-30 | AI help is allowed but disclosed on every issue and PR, and must pass four gates | Provisional |
+| D-010 | 2026-09-30 | AI help is allowed but disclosed on every PR, and must pass four gates | Provisional |
 
 ---
 
@@ -83,6 +83,6 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 ## D-010: Using AI
 
 - **Problem:** Teammates use AI tools for code, SQL, and documentation. Nothing records when AI helped, so a reviewer cannot tell which statements were checked by a person. AI can produce a column description, a number, or a platform limit that looks right and is wrong, and it can be given data or credentials that should never leave the team.
-- **Decision:** AI help is allowed for all work. Every issue and pull request states whether AI helped and what it did. If it helped, the work must pass four gates (data, AI claims, output, accountability) before it is submitted. The rules are in `CONTRIBUTING.md` under **Using AI**, and every template carries the same **AI help** block.
-- **Reason:** Banning AI would be ignored and unverifiable. Disclosure plus checkable gates keeps the author accountable and tells the reviewer where to look. Stating the gates once in `CONTRIBUTING.md` means a change is made in one place, not four.
+- **Decision:** AI help is allowed for all work. Every pull request states whether AI helped and what it did. If it helped, the work must pass four gates (data, AI claims, output, accountability) before the pull request is opened. The rules are in `CONTRIBUTING.md` under **Using AI**, and the pull request template carries an **AI help** block. Issue templates do not: the pull request is where work is reviewed, so that is where AI help is declared.
+- **Reason:** Banning AI would be ignored and unverifiable. Disclosure plus checkable gates keeps the author accountable and tells the reviewer where to look. Stating the gates once in `CONTRIBUTING.md` means a change is made in one place, not in the template.
 - **Consequence:** Disclosure is an honor system: CI does not check it, and a false "No AI help" cannot be detected. The **Accountability** gate carries the weight: work its author cannot explain in review is sent back. Open pull requests from before this decision add the block when next edited. **Provisional:** revisit once the whole team has agreed to it, and if the course publishes its own AI policy.
