@@ -18,12 +18,6 @@ Link upstream issues and any validation gates this depends on.
 
 What checks or review evidence prove this is done? Include rerun behavior where relevant.
 
-## Ownership
-
-Owner:
-Reviewer:
-Documents affected:
-
 ## AI help
 
 Rules: [Using AI](https://github.com/reached-hq/edu-access-intelligence/blob/main/CONTRIBUTING.md#using-ai). Tick one.
@@ -36,3 +30,9 @@ Rules: [Using AI](https://github.com/reached-hq/edu-access-intelligence/blob/mai
   - [ ] **Accountability:** I can explain every part without the AI and I answer for it
 
 **What the AI did** (leave blank if no AI help):
+
+## Ownership
+
+Owner:
+Reviewer:
+Documents affected:
