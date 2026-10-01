@@ -18,7 +18,7 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Student Faculty Ratio - CHED.csv` | CSV | UTF-8, CRLF | 2,635 | 18 | `bc132836fc86fe36bf4dfb702a5c546f9df8dd7ab05c64e68dc42d30965b25b9` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
+| `Student Faculty Ratio - CHED.csv` | CSV | UTF-8, CRLF | 2,635 | 18 | `bc132836fc86fe36bf4dfb702a5c546f9df8dd7ab05c64e68dc42d30965b25b9` | Databricks volume `/Volumes/edu_access/00-source/raw/ched/` |
 
 ## Publisher documentation
 

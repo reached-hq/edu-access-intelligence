@@ -18,7 +18,7 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `School Count - CHED.csv` | CSV | UTF-8, CRLF | 791 | 17 | `27aea7e1c552d7c0adb88a521cc73233a643eb337be67b2fa667df673023b2de` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
+| `School Count - CHED.csv` | CSV | UTF-8, CRLF | 791 | 17 | `27aea7e1c552d7c0adb88a521cc73233a643eb337be67b2fa667df673023b2de` | Databricks volume `/Volumes/edu_access/00-source/raw/ched/` |
 
 ## Publisher documentation
 

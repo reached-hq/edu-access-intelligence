@@ -18,7 +18,7 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Graduate - CHED.csv` | CSV | UTF-8, CRLF | 6,952 | 90 | `69493789bda42ae9b72a1964d3970a423581a7e28b8825e22570e7e8d5a8f809` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
+| `Graduate - CHED.csv` | CSV | UTF-8, CRLF | 6,952 | 90 | `69493789bda42ae9b72a1964d3970a423581a7e28b8825e22570e7e8d5a8f809` | Databricks volume `/Volumes/edu_access/00-source/raw/ched/` |
 
 ## Publisher documentation
 
