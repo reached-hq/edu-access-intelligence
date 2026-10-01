@@ -11,7 +11,7 @@
 | Source system (as stated by the publisher) | Not named. "Consolidated by CHED-OPRKM Knowledge Management Division" from HEI submissions (Table 2 note) |
 | Source URL or acquisition method | Bulletin PDF downloaded from https://ched.gov.ph/statistics; Table 6 extracted by hand into CSV |
 | Licensing or access restrictions | Not stated in the bulletin. UNVERIFIED |
-| Owner (team member) | @Catweyine |
+| Owner (team member) | @catweyine |
 | Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30 |
 
 ## Files

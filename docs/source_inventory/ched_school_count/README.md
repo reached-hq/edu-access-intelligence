@@ -11,7 +11,7 @@
 | Source system (as stated by the publisher) | Not named. "Based on the submission of higher education institutions, as compiled by OPRKM-Knowledge Management Division" (table note) |
 | Source URL or acquisition method | Bulletin PDF downloaded from https://ched.gov.ph/statistics; table extracted by hand into CSV |
 | Licensing or access restrictions | Not stated in the bulletin. UNVERIFIED |
-| Owner (team member) | @Catweyine |
+| Owner (team member) | @catweyine |
 | Date acquired | Bulletin 2026-09-29; CSV extracted 2026-09-30 |
 
 ## Files

@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Date profiled | 2026-09-30 |
-| Profiled by | @Catweyine |
+| Profiled by | @catweyine |
 | Tool | DuckDB 1.4.5 (Python), run locally: [`notebooks/profiling/profile_ched.py`](../../../notebooks/profiling/profile_ched.py) |
 | Files profiled (SHA-256) | See [README.md](README.md#files). The script stops if the CSV's or the bulletin's checksum differs |
 | How files were read | All columns as text (`all_varchar`), strict CSV parsing |
