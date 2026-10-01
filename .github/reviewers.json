@@ -1,0 +1,8 @@
+{
+  "_comment": "PR author -> the two teammates asked to review. One approval is enough to merge. Tests in tests/test_github_scripts.py keep this balanced.",
+  "mafelisilda": ["hyenalouise", "maeveylain"],
+  "hyenalouise": ["maeveylain", "saraevcldn"],
+  "maeveylain": ["saraevcldn", "catweyine"],
+  "saraevcldn": ["catweyine", "mafelisilda"],
+  "catweyine": ["mafelisilda", "hyenalouise"]
+}
