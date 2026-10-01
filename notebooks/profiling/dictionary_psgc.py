@@ -127,12 +127,17 @@ def describe(column, where="TRUE"):
     return kind, pct, f"{distinct:,}", sample
 
 
-# %% What the workbook's own documentation says, per column (Metadata and Notes sheets)
+# %% What the workbook's own documentation says, per column (Metadata, Notes, and Coding Structure sheets)
 UNDOCUMENTED = "**Not in the publisher's documentation (undocumented)**"
 NO_TYPE = "Not stated"
 
 DOCS = {
-    "10-digit PSGC": (NO_TYPE, UNDOCUMENTED, "The Metadata abstract says the PSGC codes four hierarchical levels: region, province, city or municipality, barangay."),
+    "10-digit PSGC": (
+        NO_TYPE,
+        "`Coding Structure` sheet (an image): the 10-digit code is region (2 digits) + province or HUC (3 digits) + municipality or city (2 digits) + barangay (3 digits). "
+        "PSGC Revision 1 widened the province code from 2 to 3 digits; the earlier 9-digit code was region (2) + province (2) + municipality or city (2) + barangay (3).",
+        "The Metadata abstract says the PSGC codes four hierarchical levels: region, province, city or municipality, barangay.",
+    ),
     "Name": (NO_TYPE, UNDOCUMENTED, ""),
     "Correspondence Code": (NO_TYPE, UNDOCUMENTED, ""),
     "Geographic Level": (
@@ -165,7 +170,7 @@ DOCS = {
 # Finding IDs (O-n, S-n) refer to docs/source_inventory/psa_psgc/profile.md.
 INTERPRETATION = {
     "10-digit PSGC": (
-        "**[observed]** The code is hierarchical: its first 2 digits identify the region, the first 5 the province, and the first 7 the city or municipality. "
+        "**[observed]** The code is hierarchical, as the `Coding Structure` sheet shows: its first 2 digits identify the region, the first 5 the province, and the first 7 the city or municipality. "
         "0 barangays lack their city or municipality by that prefix, and 0 provinces, cities, or municipalities lack their region (O-10)."
     ),
     "Name": (
@@ -173,8 +178,9 @@ INTERPRETATION = {
     ),
     "Correspondence Code": (
         "**[observed]** 9 digits, unique where filled, blank on 50 rows (O-3). For units with a new code since `Q4_2023`, it holds the `Q4_2023` correspondence code of the same unit "
-        "(1,853 of 1,865; README, Version section), e.g. Negros Occidental `1804500000` carries `064500000`, its earlier code under Region VI. "
-        "**[assumed]** It is the older 9-digit PSGC code kept for continuity (S-2)."
+        "(1,853 of 1,865; X-1, README Version section), e.g. Negros Occidental `1804500000` carries `064500000`, its earlier code under Region VI. "
+        "**[assumed]** It is the older 9-digit PSGC code kept for continuity (S-2). The `Coding Structure` sheet documents that older structure (region 2 + province 2 + municipality or city 2 + barangay 3), "
+        "and the values fit it: for 41,898 of 41,909 barangays, the first 6 digits equal those of their city or municipality (S-2)."
     ),
     "Geographic Level": (
         "**[observed]** The data has six values plus 2 blank rows: `Bgy`, `Mun`, `City`, `Prov`, `Reg`, `SubMun`. `City` (149 rows) is not in the legend, and the legend's `Dist` has no rows (O-2). "

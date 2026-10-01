@@ -16,7 +16,7 @@
 RAW_DATA_DIR=~/Projects/reached-hq/raw-data python notebooks/profiling/profile_psgc.py
 ```
 
-The file must be at `$RAW_DATA_DIR/psa/original/PSGC-2Q-2026-Publication-Datafile.xlsx`. The column statistics in [data_dictionary.md](data_dictionary.md) come from `notebooks/profiling/dictionary_psgc.py`.
+The file must be at `$RAW_DATA_DIR/psa/original/PSGC-2Q-2026-Publication-Datafile.xlsx`. Optional: if `PSGC-Q4_2023-API-all.csv` (the `Q4_2023` pull, see [README.md](README.md#files)) is in the same folder with its recorded SHA-256, the script also reruns the `Q4_2023` comparison under X-1; otherwise it prints `skipped`. The column statistics in [data_dictionary.md](data_dictionary.md) come from `notebooks/profiling/dictionary_psgc.py`.
 
 ## Summary
 
@@ -44,6 +44,14 @@ Each check prints under its ID when the script runs.
 | O-12 | `Status` marks capitals and poblaciones | `Pob.` 2,773 (all barangays); `Capital` 82 (cities 45, municipalities 37) | Only these two values exist | Keep as category; leave blank as blank |
 | O-13 | Two header cells contain line breaks | Headers of `Income Classification` and `Urban / Rural` include `\n` | Column names break naive parsers | Normalize header whitespace when loading |
 
+### Cross-check against Q4_2023 (D-012)
+
+Runs only when `PSGC-Q4_2023-API-all.csv` is in the raw folder. These are the counts quoted in the README Version section.
+
+| ID | Finding | Evidence | Impact | Proposed handling |
+|---|---|---|---|---|
+| X-1 | 2Q 2026 differs from `Q4_2023` mainly because of two moves, the Negros Island Region and Sulu | `Q4_2023` file: 43,758 rows, all `version` = `Q4_2023`. 41,903 codes are in both files, 1,855 only in `Q4_2023`, and 1,865 only in 2Q 2026. 1,420 codes in 2Q 2026 start with `18` (Negros Island Region). 430 codes start with `09066` (Sulu) in 2Q 2026, and 430 start with `19066` in `Q4_2023`. Of the 1,865 codes only in 2Q 2026, 1,853 have a `Correspondence Code` equal to that of a code only in `Q4_2023`, and 12 have none (11 barangays and the NIR region row). `Q4_2023` has 457 names with broken accents and 1,780 barangays with no 2024 population | Region and code for Negros and Sulu differ between SY 2023-24 and 2Q 2026. Name joins inside a parent are not affected by a code change | Use 2Q 2026 as the master reference and build no crosswalk (D-012). Flag renamed or split units as unmatched or ambiguous |
+
 ## Suspected findings
 
 Hypotheses still to test.
@@ -51,14 +59,14 @@ Hypotheses still to test.
 | ID | Suspicion | How to test | Status |
 |---|---|---|---|
 | S-1 | The 38 barangays with `-` urban/rural and no correspondense code are new or split barangays created after the 2020 census (9 of 38 record an old name, e.g. `Muzon` split into East, South, West) | Compare with the previous PSGC quarter and the RA creating each barangay; check the other 29 for creation notes | open |
-| S-2 | `Correspondence Code` is the older 9-digit PSGC code kept for continuity | Compare with the PSA page or the prior PSGC publication; ask the publisher | open |
+| S-2 | `Correspondence Code` is the older 9-digit PSGC code kept for continuity | Evidence so far: (1) for 1,853 of the 1,865 codes that exist only in 2Q 2026, the `Correspondence Code` matches the same unit in `Q4_2023` (X-1, README Version section). (2) The `Coding Structure` sheet documents an earlier 9-digit structure (region 2 + province 2 + municipality or city 2 + barangay 3). For 41,898 of 41,909 barangays the first 6 digits equal their city or municipality's, all 1,648 city, municipality, and sub-municipality codes end in `000`, and no 6-digit prefix is shared by two of them (printed under S-2 by the script). To confirm: ask the publisher. Evidence (1) is rerun by the script under X-1 when `PSGC-Q4_2023-API-all.csv` is in the raw folder | supported, not confirmed |
 | S-3 | The Special Geographic Area rows (`19999...`, 8 municipalities) are not in a province, which is why they have no income class or correspondence code | Read the PSA notes on the Special Geographic Area and the Bangsamoro transfer | open |
 | S-4 | DepEd place names will match PSGC names only after trimming, case changes, and parent scoping | Match rates in `docs/profiling/` (cross-source work) | open |
 | S-5 | `Status` `Capital` marks a provincial capital and `Pob.` marks the poblacion of its city or municipality | Check that each province has one `Capital` city or municipality under its code prefix; read the PSA notes or ask the publisher for the definition of `Pob.`; compare `Pob.` barangays with barangays named `Poblacion` (607, O-9) | open |
 
 ## Changes across files or years
 
-Only the 2Q 2026 publication is profiled here. It was compared once with the `Q4_2023` version served by the PSA API (about 1,855 codes differ, mostly the Negros Island Region and Sulu); the comparison and its evidence are in [README.md](README.md#version-used-and-sy-2023-24). Codes and names change when local government units are created, merged, or renamed, so each quarterly file should be compared with the last before replacing it.
+Only the 2Q 2026 publication is profiled here, and the numbers in the observed findings come from that file alone. The `Q4_2023` version served by the PSA API was used for three things only, with the evidence in [README.md](README.md#version-used-and-sy-2023-24): (1) to count which codes differ (41,903 in both files, 1,855 only in `Q4_2023`, 1,865 only in 2Q 2026); (2) to explain why (the Negros Island Region and Sulu moves, special government units that became municipalities, and Barangay 176 in NCR split into 176-A to 176-F); and (3) as evidence for S-2 (1,853 of the 1,865 new codes carry a `Correspondence Code` matching the same unit in `Q4_2023`). The `Q4_2023` file is recorded in the README (Files), and the script reruns the comparison under X-1 when it is in the raw folder. No crosswalk is built (D-012). Codes and names change when local government units are created, merged, or renamed, so each quarterly file should be compared with the last before replacing it.
 
 ## Questions for the publisher or mentor
 

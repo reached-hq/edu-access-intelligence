@@ -19,8 +19,11 @@
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
 | `PSGC-2Q-2026-Publication-Datafile.xlsx` | xlsx (6 sheets) | n/a (binary workbook; text is Unicode, e.g. "Tañong") | 3,250,889 | 43,768 data rows on sheet `PSGC` (range A1:K43769, 1 header row) | `31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d` | Team volume: `/Volumes/edu_access/00-source/raw/psa/PSGC-2Q-2026-Publication-Datafile.xlsx` (uploaded 2026-09-30, SHA-256 verified after upload). Local copy for profiling: `raw-data/psa/original/` |
+| `PSGC-Q4_2023-API-all.csv` | CSV (PSA PSGC API, version `Q4_2023`, all levels) | UTF-8, no BOM, CRLF line endings. Some names have broken accents (457, e.g. `Santo NiÃ±o`) | 3,627,248 | 43,758 data rows (43,759 lines with the header), 18 columns (`code`, `area_name`, `correspondence_code`, `geographic_level`, ...) | `38a92ceba5120fe10fb45ba23a8f74458ee076829306db795044beeb40715335` | Team volume: `/Volumes/edu_access/00-source/raw/psa/PSGC-Q4_2023-API-all.csv` (uploaded 2026-10-02). Local copy for profiling: `raw-data/psa/original/PSGC-Q4_2023-API-all.csv` |
 
-Sheets: `Metadata`, `National Summary`, `Prov Sum`, `PSGC` (the data), `Notes`, `Coding Structure` (images only, no cells).
+Sheets: `Metadata`, `National Summary`, `Prov Sum`, `PSGC` (the data), `Notes`, `Coding Structure` (one image of the earlier 9-digit and the current 10-digit code structure; no cells).
+
+`PSGC-Q4_2023-API-all.csv` is the `Q4_2023` pull used only for the comparison in [Version used and SY 2023-24](#version-used-and-sy-2023-24); it is not the master reference (D-012). It was downloaded from the PSA PSGC API page https://psa.gov.ph/classifications-api/psgc as `psgc_all.csv` and renamed to `PSGC-Q4_2023-API-all.csv` so the name says the version. Only the name changed; the contents and SHA-256 are the same. The columns match the PSA PSGC API documentation, and every row carries `version` = `Q4_2023`. It was saved on 2026-09-30 at 06:39 UTC (the file's modified time); the exact request time and the API token are not recorded. `profile_psgc.py` verifies its SHA-256 before using it (X-1).
 
 ## Publisher documentation
 
@@ -30,6 +33,7 @@ The documentation is inside the workbook. No separate document was downloaded.
 |---|---|---|---|
 | `Metadata` sheet | inside the workbook above | same as the file | Abstract, process, progress, access and use constraints, disclaimer |
 | `Notes` sheet | inside the workbook above | same as the file | A. General notes; B. Income classification; C. Urban / Rural; D. 2024 Population; E. Geographic Level codes |
+| `Coding Structure` sheet (an image) | inside the workbook above | same as the file | The earlier 9-digit and the current 10-digit code structure (PSGC Revision 1) |
 | `National Summary` sheet | inside the workbook above | same as the file | Counts of provinces, cities, municipalities, barangays and population by region, used to cross-check the `PSGC` sheet |
 
 ## Coverage
@@ -50,7 +54,7 @@ The documentation is inside the workbook. No separate document was downloaded.
 | Apparent grain | One row per geographic unit (region, province, city, municipality, sub-municipality or barangay) |
 | Candidate primary key | `10-digit PSGC` (43,768 rows, 43,768 unique, always 10 digits) |
 | Candidate join keys | `10-digit PSGC` is the key. `Name` is usable only within its parent (province, then city or municipality, then barangay) after trimming, because names alone are ambiguous: 27,391 distinct in 43,768 rows, and 4,041 barangay names repeat. DepEd sources carry place names only, so this is the path for joining them to PSGC; see O-9 in [profile.md](profile.md) |
-| PSGC available? | This is the PSGC, 2Q 2026. The code appears to be region (2) + province (3) + city or municipality (2) + barangay (3) digits, consistent with sample rows. The `Coding Structure` sheet is only an image. UNVERIFIED against the PSA page |
+| PSGC available? | This is the PSGC, 2Q 2026. The `Coding Structure` sheet (an image inside the workbook) documents the 10-digit code as region (2) + province or HUC (3) + city or municipality (2) + barangay (3) digits. This is PSGC Revision 1, which widened the province code from 2 to 3 digits. The same sheet shows the earlier 9-digit code as region (2) + province (2) + municipality or city (2) + barangay (3). Sample rows are consistent with both |
 | Personally identifiable or sensitive fields | None. Place names only |
 | Provenance fields in the source | `Old names` (former names), `Status` (`Pob.`, `Capital`), publication date on the `Metadata` sheet |
 
@@ -76,7 +80,7 @@ Column-by-column descriptions, fill rates, and sample values: [data_dictionary.m
 
 **Decision:** 2Q 2026 is the master PSGC reference for the project, including SY 2023-24 analysis. No crosswalk is built. Recorded as D-012 in [decisions.md](../../decisions.md).
 
-**Why not a release closer to SY 2023-24:** we requested API access to look for `Q3_2023`. The API accepts the request but returns 0 records for `Q3_2023`. The nearest version it serves is `Q4_2023` (43,758 rows). That pull was compared with this file and is kept locally as a check, outside the repository.
+**Why not a release closer to SY 2023-24:** we requested API access to look for `Q3_2023`. The API accepts the request but returns 0 records for `Q3_2023`. The nearest version it serves is `Q4_2023` (43,758 rows). That pull is recorded in [Files](#files) as `PSGC-Q4_2023-API-all.csv`, and `profile_psgc.py` reruns the counts below under X-1 when the file is in the raw folder.
 
 **What this file shows on its own (2Q 2026, no comparison needed):**
 

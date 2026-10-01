@@ -190,4 +190,43 @@ show("O-11", "old names filled {:,}; distinct {:,}; by level: {}".format(
     one("SELECT count(*) FROM p WHERE old_names IS NOT NULL"), one("SELECT count(DISTINCT old_names) FROM p"),
     q("SELECT coalesce(level, '(blank)'), count(*) FROM p WHERE old_names IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1")))
 
+# %% S-2 Correspondence Code fits the earlier 9-digit structure documented on the Coding Structure sheet
+# (region 2 + province 2 + municipality or city 2 + barangay 3 digits)
+pairs, same6 = q("""SELECT count(*), count(*) FILTER (WHERE substr(b.corr, 1, 6) = substr(m.corr, 1, 6))
+                    FROM p b JOIN p m ON m.id = substr(b.id, 1, 7) || '000'
+                    WHERE b.level = 'Bgy' AND b.corr IS NOT NULL AND m.corr IS NOT NULL""")[0]
+show("S-2", f"barangays whose city or municipality has a correspondence code: {pairs:,}; first 6 digits equal the parent's first 6 digits: {same6:,}")
+end000, units = q("SELECT count(*) FILTER (WHERE substr(corr, 7, 3) = '000'), count(*) FROM p WHERE level IN ('City', 'Mun', 'SubMun') AND corr IS NOT NULL")[0]
+bgy_part, bgys = q("SELECT count(*) FILTER (WHERE substr(corr, 7, 3) <> '000'), count(*) FROM p WHERE level = 'Bgy' AND corr IS NOT NULL")[0]
+show("S-2", f"city, municipality, and sub-municipality codes ending in 000: {end000:,} of {units:,}; barangay codes with a last-3-digit part other than 000: {bgy_part:,} of {bgys:,}")
+show("S-2", "6-digit prefixes shared by more than one city, municipality, or sub-municipality: {}".format(one(
+    "SELECT count(*) FROM (SELECT substr(corr, 1, 6) FROM p WHERE level IN ('City', 'Mun', 'SubMun') AND corr IS NOT NULL GROUP BY 1 HAVING count(*) > 1)")))
+
+# %% X-1 Comparison with the Q4_2023 version served by the PSA API (D-012)
+# Reruns the counts in README (Version used and SY 2023-24). Skipped unless PSGC-Q4_2023-API-all.csv, with the
+# SHA-256 recorded in the README, is in the same raw folder.
+Q4_FILE = "PSGC-Q4_2023-API-all.csv"
+Q4_SHA256 = "38a92ceba5120fe10fb45ba23a8f74458ee076829306db795044beeb40715335"
+q4_path = ORIGINAL / Q4_FILE
+if not q4_path.exists():
+    show("X-1", f"skipped: {Q4_FILE} is not in {ORIGINAL}")
+elif hashlib.sha256(q4_path.read_bytes()).hexdigest() != Q4_SHA256:
+    show("X-1", f"skipped: {Q4_FILE} does not match the SHA-256 recorded in the README")
+else:
+    con.execute(f"CREATE TABLE o AS SELECT * FROM read_csv({sql_string(q4_path)}, all_varchar = true, header = true, strict_mode = true)")
+    show("X-1", "{}: {:,} rows; version values: {}".format(Q4_FILE, one("SELECT count(*) FROM o"), [v for (v,) in q("SELECT DISTINCT version FROM o")]))
+    both = one("SELECT count(*) FROM p JOIN o ON o.code = p.id")
+    only_q4 = one("SELECT count(*) FROM o WHERE code NOT IN (SELECT id FROM p)")
+    only_2q = one("SELECT count(*) FROM p WHERE id NOT IN (SELECT code FROM o)")
+    show("X-1", f"codes in both files: {both:,}; only in Q4_2023: {only_q4:,}; only in 2Q 2026: {only_2q:,}")
+    matched = one("SELECT count(*) FROM p WHERE id NOT IN (SELECT code FROM o) AND corr IN (SELECT correspondence_code FROM o WHERE code NOT IN (SELECT id FROM p))")
+    no_corr = q("SELECT coalesce(level, '(blank)'), count(*) FROM p WHERE id NOT IN (SELECT code FROM o) AND corr IS NULL GROUP BY 1 ORDER BY 2 DESC, 1")
+    show("X-1", f"codes only in 2Q 2026 whose correspondence code equals that of a code only in Q4_2023: {matched:,} of {only_2q:,}; with no correspondence code: {no_corr}")
+    show("X-1", "codes starting 18 (Negros Island Region) in 2Q 2026: {:,}; starting 09066 (Sulu) in 2Q 2026: {}; starting 19066 in Q4_2023: {}".format(
+        one("SELECT count(*) FROM p WHERE id LIKE '18%'"), one("SELECT count(*) FROM p WHERE id LIKE '09066%'"), one("SELECT count(*) FROM o WHERE code LIKE '19066%'")))
+    broken = chr(0xC3)  # UTF-8 text read as Latin-1 turns n-tilde into this character followed by another
+    show("X-1", "Q4_2023 names with broken accents: {}; Q4_2023 barangays with no 2024 population: {:,}".format(
+        one(f"SELECT count(*) FROM o WHERE area_name LIKE '%{broken}%'"),
+        one("SELECT count(*) FROM o WHERE geographic_level = 'Bgy' AND (population_2024 IS NULL OR trim(population_2024) = '')")))
+
 workdir.cleanup()
