@@ -20,6 +20,10 @@ from pathlib import Path
 
 import duckdb
 
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+from src.profiling.xlsx import M, column_number, read_sheet, sheet_xml_path
+
 sys.stdout.reconfigure(encoding="utf-8")
 
 raw_dir = os.environ.get("RAW_DATA_DIR")
@@ -34,57 +38,9 @@ FIRST_DATA_ROW = 6
 PSGC_FILE = "PSGC-2Q-2026-Publication-Datafile.xlsx"
 PSGC_SHA256 = "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d"
 
-M = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
-
-
-def column_number(cell_ref):
-    n = 0
-    for ch in re.match(r"[A-Z]+", cell_ref).group():
-        n = n * 26 + ord(ch) - 64
-    return n
-
-
-def rich_text(node):
-    """Text of a shared or inline string. Skips phonetic guides (rPh), which also hold <t> elements."""
-    parts = [t.text or "" for t in node.findall(M + "t")]
-    for run in node.findall(M + "r"):
-        parts += [t.text or "" for t in run.findall(M + "t")]
-    return "".join(parts)
-
 
 def sql_string(text):
     return "'" + str(text).replace("'", "''") + "'"
-
-
-def sheet_xml_path(zf, sheet_name):
-    workbook = ET.fromstring(zf.read("xl/workbook.xml"))
-    rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
-    sheet = next(s for s in workbook.find(M + "sheets") if s.get("name") == sheet_name)
-    target = rels[sheet.get(R + "id")].lstrip("/")
-    return target if target.startswith("xl/") else "xl/" + target
-
-
-def read_sheet(path, sheet_name):
-    """Return a list of (row number, {column number: text}). Blank cells are omitted."""
-    with zipfile.ZipFile(path) as zf:
-        strings = [rich_text(si) for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")]
-        rows = []
-        for row in ET.fromstring(zf.read(sheet_xml_path(zf, sheet_name))).iter(M + "row"):
-            cells = {}
-            for c in row.findall(M + "c"):
-                v = c.find(M + "v")
-                if c.get("t") == "s" and v is not None:
-                    text = strings[int(v.text)]
-                elif c.get("t") == "inlineStr":
-                    inline = c.find(M + "is")
-                    text = rich_text(inline) if inline is not None else ""
-                else:
-                    text = v.text if v is not None else ""
-                if text != "":
-                    cells[column_number(c.get("r"))] = text
-            rows.append((int(row.get("r")), cells))
-        return rows
 
 
 def column_a_cell_types(path, sheet_name):
@@ -190,7 +146,7 @@ show("O-3", "'(Continued)' row: " + str(q("SELECT rn, id, name FROM u WHERE regi
 show("O-3", "province code (first 4 digits of padded id) with more than one label: " + str(q(
     "SELECT substr(id6, 1, 4) AS pc, list(DISTINCT province_label ORDER BY province_label) FROM u GROUP BY 1 HAVING count(DISTINCT province_label) > 1 ORDER BY 1")))
 show("O-3", "label with more than one province code: " + str(q(
-    "SELECT province_label, list(DISTINCT substr(id6, 1, 4) ORDER BY 1) FROM u GROUP BY 1 HAVING count(DISTINCT substr(id6, 1, 4)) > 1 ORDER BY 1")))
+    "SELECT province_label, list(DISTINCT substr(id6, 1, 4) ORDER BY substr(id6, 1, 4)) FROM u GROUP BY 1 HAVING count(DISTINCT substr(id6, 1, 4)) > 1 ORDER BY 1")))
 show("O-3", "rows under the label 'Surigao del Norte' with province code 1668: " + str(q(
     "SELECT rn, id, name FROM u WHERE province_label = 'Surigao del Norte' AND substr(id6, 1, 4) = '1668' ORDER BY rn")))
 show("O-3", "region label vs first two digits of padded id: " + "; ".join(f"{r} {p}:{c}" for r, p, c in q(

@@ -15,20 +15,20 @@
 import csv
 import hashlib
 import os
-import re
 import sys
 import tempfile
-import zipfile
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import duckdb
+
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+from src.profiling.xlsx import read_sheet
 
 raw_dir = os.environ.get("RAW_DATA_DIR")
 if not raw_dir:
     sys.exit("Set RAW_DATA_DIR to the folder that contains psa/original/.")
 ORIGINAL = Path(raw_dir).expanduser() / "psa" / "original"
-REPO = Path(__file__).resolve().parents[2]
 
 FILE = "2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx"
 SHA256 = "303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026"
@@ -36,54 +36,9 @@ DATA_SHEET = "2023_NoHUC_Maguindanao grouped"
 FIRST_DATA_ROW = 6  # rows 1-5 are the title and the merged, multi-level header
 WIDTH = 18  # columns A to R
 
-M = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
-
-
-def column_number(cell_ref):
-    n = 0
-    for ch in re.match(r"[A-Z]+", cell_ref).group():
-        n = n * 26 + ord(ch) - 64
-    return n
-
-
-def rich_text(node):
-    """Text of a shared or inline string. Skips phonetic guides (rPh), which also hold <t> elements."""
-    parts = [t.text or "" for t in node.findall(M + "t")]
-    for run in node.findall(M + "r"):
-        parts += [t.text or "" for t in run.findall(M + "t")]
-    return "".join(parts)
-
 
 def sql_string(text):
     return "'" + str(text).replace("'", "''") + "'"
-
-
-def read_sheet(path, sheet_name):
-    """Return a list of (row number, {column number: text}). Blank cells are omitted."""
-    with zipfile.ZipFile(path) as zf:
-        workbook = ET.fromstring(zf.read("xl/workbook.xml"))
-        rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
-        strings = [rich_text(si) for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")]
-        sheet = next(s for s in workbook.find(M + "sheets") if s.get("name") == sheet_name)
-        target = rels[sheet.get(R + "id")].lstrip("/")
-        target = target if target.startswith("xl/") else "xl/" + target
-        rows = []
-        for row in ET.fromstring(zf.read(target)).iter(M + "row"):
-            cells = {}
-            for c in row.findall(M + "c"):
-                v = c.find(M + "v")
-                if c.get("t") == "s" and v is not None:
-                    text = strings[int(v.text)]
-                elif c.get("t") == "inlineStr":
-                    inline = c.find(M + "is")
-                    text = rich_text(inline) if inline is not None else ""
-                else:
-                    text = v.text if v is not None else ""
-                if text != "":
-                    cells[column_number(c.get("r"))] = text
-            rows.append((int(row.get("r")), cells))
-        return rows
 
 
 # %% Verify checksum, load the sheet as text
@@ -202,7 +157,7 @@ for year in ("2018", "2021", "2023"):
     DOCS[f"Poverty Incidence {year}"] = (
         NO_TYPE,
         f"{PRESS}, section B: \"the proportion of the population with an income below the poverty threshold\".",
-        "The workbook itself does not define this measure or its unit. The poverty threshold is footnoted in the press release, its value is not yet recorded here.",
+        "The workbook itself does not define this measure or its unit. The poverty threshold is footnoted in the press release; its value is not yet recorded here.",
     )
     DOCS[f"Coefficient of Variation {year}"] = (
         NO_TYPE,
