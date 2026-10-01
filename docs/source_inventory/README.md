@@ -24,3 +24,7 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/cross_sour
 |---|---|---|---|---|
 | [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise |
 | [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise |
+| [ched_enrollment](ched_enrollment/) | CHED enrollment by region, sector and sex | CHED | profiled | @catweyine |
+| [ched_graduates](ched_graduates/) | CHED graduates by region, program level and sex | CHED | profiled | @catweyine |
+| [ched_school_count](ched_school_count/) | CHED higher education institutions by region and type | CHED | profiled | @catweyine |
+| [ched_student_faculty_ratio](ched_student_faculty_ratio/) | CHED student-faculty ratio by region | CHED | profiled | @catweyine |
