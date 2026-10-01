@@ -18,7 +18,7 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Enrollment - CHED.csv` | CSV | UTF-8, CRLF | 4,342 | 36 | `4977e3a6bc7c1c91d90fc9e0254847a0241d9e20529956a4b1a49ef8c59781f6` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
+| `Enrollment - CHED.csv` | CSV | UTF-8, CRLF | 4,342 | 36 | `6aabc9e14b2abee0dd09c7607815abcd9b75edaf972fd93819610071f4f28c3e` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
 
 ## Publisher documentation
 
@@ -62,7 +62,7 @@ Column-by-column descriptions, fill rates, and sample values: [data_dictionary.m
 See [profile.md](profile.md) for evidence.
 
 - **Observed:** Bangsamoro (BARMM) has no values from 2023-2024, and only public values in 2021-2022 and 2022-2023; Negros Island Region has values in 2024-2025 only. The bulletin has the same blanks.
-- **Observed:** the BARMM region label contains a line break, and the CSV numbers it `19 - …` (BARMM's PSGC region code) where the bulletin prints `15 - …`.
+- **Observed:** the BARMM region label (`15 - …`, as printed in the bulletin) contains a line break. BARMM's updated PSGC region code is 19.
 - **Observed (bulletin note):** 11 Region VII students with unspecified sex are excluded in 2023-2024.
 
 ## Limitations for analysis

@@ -30,7 +30,7 @@ Usable for regional higher-education enrollment by sector and sex, AY 2020-2021 
 |---|---|---|---|---|
 | O-1 | CSV matches the bulletin | 10 of 10 count columns add up to Table 6's Grand Total row | The hand extraction can be trusted | Keep the check when the CSV is re-extracted |
 | O-2 | `Region` + `Sector` is unique | 36 rows, 0 duplicate keys | Safe primary key | Assert uniqueness in Bronze validation |
-| O-3 | Region labels | 18 labels, the same in all four CHED CSVs; `19 - Bangsamoro Autonomous Region in Muslim Mindanao` contains a line break; the bulletin prints it as `15 - …`; relabeled to match BARMM's PSGC region code | Joins within CHED work on the label; no PSGC code | Replace the line break with a space in Silver; map labels to PSGC in integration |
+| O-3 | Region labels | 18 labels, the same in all four CHED CSVs; `15 - Bangsamoro Autonomous Region in Muslim Mindanao` contains a line break. BARMM's updated PSGC region code is 19 | Joins within CHED work on the label; no PSGC code | Replace the line break with a space in Silver; map labels to PSGC in integration |
 | O-4 | Blank cells | 28 blank cells: BARMM 12, Negros Island Region 16 | Blank is not zero | Keep as null |
 | O-5 | Number format | 332 filled cells, all whole numbers with thousands commas; no `-` | Must remove commas before typing | Strip commas and cast in Silver |
 | O-6 | Regions missing in some years | BARMM has values in 2020-2021 to 2022-2023; Negros Island Region in 2024-2025 only | Regional trends break for these two regions | Report these region-years as not available |

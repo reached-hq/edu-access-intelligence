@@ -18,7 +18,7 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Graduate - CHED.csv` | CSV | UTF-8, CRLF | 6,952 | 90 | `36017b30bc792021b742b2f63e52bd64c4f216b351a0f96ddc5dd10dbff14ac6` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
+| `Graduate - CHED.csv` | CSV | UTF-8, CRLF | 6,952 | 90 | `69493789bda42ae9b72a1964d3970a423581a7e28b8825e22570e7e8d5a8f809` | Databricks volume `/Volumes/edu_access/00-source/raw/` |
 
 ## Publisher documentation
 
@@ -63,7 +63,7 @@ See [profile.md](profile.md) for evidence.
 
 - **Observed:** 9 cells are `-`, all in Post-baccalaureate rows.
 - **Observed:** BARMM has no values from 2023-2024; Negros Island Region has values in 2024-2025 only. The bulletin has the same blanks.
-- **Observed:** the BARMM region label contains a line break, and the CSV numbers it `19 - …` (BARMM's PSGC region code) where the bulletin prints `15 - …`.
+- **Observed:** the BARMM region label (`15 - …`, as printed in the bulletin) contains a line break. BARMM's updated PSGC region code is 19.
 - **Observed (bulletin note):** 1 Region VII graduate with unspecified sex is excluded in 2022-2023.
 - **Suspected:** `-` means zero.
 

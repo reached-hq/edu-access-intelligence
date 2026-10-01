@@ -30,7 +30,7 @@ Usable for counting higher education institutions (including satellite campuses)
 |---|---|---|---|---|
 | O-1 | CSV matches the bulletin | 7 of 7 count columns add up to the table's Total row (113, 437, 143, 13, 706, 1,704, 2,410) | The hand extraction can be trusted | Keep the check when the CSV is re-extracted |
 | O-2 | `Region` is unique | 17 rows, 0 duplicate keys | Safe primary key | Assert uniqueness in Bronze validation |
-| O-3 | Region labels | 17 labels, the same as the other CHED CSVs except no `18 - Negros Island`; `19 - Bangsamoro Autonomous Region in Muslim Mindanao` contains a line break; the bulletin prints it as `15 - …`; relabeled to match BARMM's PSGC region code | Joins within CHED work on the label; no PSGC code | Replace the line break with a space in Silver; map labels to PSGC in integration |
+| O-3 | Region labels | 17 labels, the same as the other CHED CSVs except no `18 - Negros Island`; `15 - Bangsamoro Autonomous Region in Muslim Mindanao` contains a line break. BARMM's updated PSGC region code is 19 | Joins within CHED work on the label; no PSGC code | Replace the line break with a space in Silver; map labels to PSGC in integration |
 | O-4 | Blank cells | 16 blank cells, all in `Public LUCs` (3) or `Public Other` (13) | See O-6 | See O-6 |
 | O-5 | Number format | Whole numbers without commas; no `-` | Casts directly | Cast in Silver |
 | O-6 | Totals add up | In 17 of 17 rows, Main + SUCs + LUCs + Other (blank as 0) = Public Total, and Public Total + Private HEIs = Total | A blank component means none | Treat blank components as 0 in Silver |
