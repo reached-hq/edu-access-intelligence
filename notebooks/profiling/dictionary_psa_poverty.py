@@ -47,15 +47,24 @@ def column_number(cell_ref):
     return n
 
 
+def rich_text(node):
+    """Text of a shared or inline string. Skips phonetic guides (rPh), which also hold <t> elements."""
+    parts = [t.text or "" for t in node.findall(M + "t")]
+    for run in node.findall(M + "r"):
+        parts += [t.text or "" for t in run.findall(M + "t")]
+    return "".join(parts)
+
+
+def sql_string(text):
+    return "'" + str(text).replace("'", "''") + "'"
+
+
 def read_sheet(path, sheet_name):
     """Return a list of (row number, {column number: text}). Blank cells are omitted."""
     with zipfile.ZipFile(path) as zf:
         workbook = ET.fromstring(zf.read("xl/workbook.xml"))
         rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
-        strings = [
-            "".join(t.text or "" for t in si.iter(M + "t"))
-            for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")
-        ]
+        strings = [rich_text(si) for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")]
         sheet = next(s for s in workbook.find(M + "sheets") if s.get("name") == sheet_name)
         target = rels[sheet.get(R + "id")].lstrip("/")
         target = target if target.startswith("xl/") else "xl/" + target
@@ -67,7 +76,8 @@ def read_sheet(path, sheet_name):
                 if c.get("t") == "s" and v is not None:
                     text = strings[int(v.text)]
                 elif c.get("t") == "inlineStr":
-                    text = "".join(t.text or "" for t in c.iter(M + "t"))
+                    inline = c.find(M + "is")
+                    text = rich_text(inline) if inline is not None else ""
                 else:
                     text = v.text if v is not None else ""
                 if text != "":
@@ -109,8 +119,8 @@ with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer.writerow([cells.get(i, "") for i in range(1, WIDTH + 1)])
 
 con = duckdb.connect()
-name_list = "[" + ", ".join(f"'{n}'" for n in names) + "]"
-con.execute(f"""CREATE TABLE sae AS SELECT * FROM read_csv('{csv_path}', all_varchar = true, header = true,
+name_list = "[" + ", ".join(sql_string(n) for n in names) + "]"
+con.execute(f"""CREATE TABLE sae AS SELECT * FROM read_csv({sql_string(csv_path)}, all_varchar = true, header = true,
                 names = {name_list}, strict_mode = true)""")
 
 
@@ -173,7 +183,6 @@ def describe(column):
 # %% What the workbook's own documentation says (title, footnotes, source line)
 UNDOCUMENTED = "**Not in the publisher's documentation (undocumented)**"
 NO_TYPE = "Not stated"
-NOT_DEFINED = "The workbook does not define this measure or its unit."
 
 DOCS = {
     ID: (NO_TYPE, UNDOCUMENTED, "The header reads 'PSGC' over 'ID'. The workbook does not say which PSGC version or how many digits."),
@@ -184,15 +193,76 @@ DOCS = {
         "Footnote 2: Bumbaran, Lanao del Sur was renamed Amai Manabilang (MMA Act No. 316, s. 2014; plebiscite 7 April 2018). Footnote 3: no estimate was generated for Kalayaan, Palawan, a former exclusive military installation.",
     ),
 }
+# The PSA press release for the same estimates (reference number 2026-43, released 6 February 2026)
+# defines two of the measures. Its other mentions of standard errors and intervals define nothing.
+PRESS = "PSA press release 2026-43"
+PRESS_LISTS = "The press release lists standard errors, coefficients of variation, and confidence intervals with the estimates but does not define them."
+
 for year in ("2018", "2021", "2023"):
-    DOCS[f"Poverty Incidence {year}"] = (NO_TYPE, UNDOCUMENTED, "Header only. " + NOT_DEFINED)
-    DOCS[f"Coefficient of Variation {year}"] = (
-        NO_TYPE, UNDOCUMENTED,
-        "Footnote 1: the standard deviation of an estimate is the poverty incidence times the coefficient of variation, divided by 100. " + NOT_DEFINED,
+    DOCS[f"Poverty Incidence {year}"] = (
+        NO_TYPE,
+        f"{PRESS}, section B: \"the proportion of the population with an income below the poverty threshold\".",
+        "The workbook itself does not define this measure or its unit. The poverty threshold is footnoted in the press release, its value is not yet recorded here.",
     )
-    DOCS[f"Standard Error {year}"] = (NO_TYPE, UNDOCUMENTED, "Header only. " + NOT_DEFINED)
+    DOCS[f"Coefficient of Variation {year}"] = (
+        NO_TYPE,
+        f"{PRESS}, section C: the coefficients of variation \"measure the reliability of the generated small area poverty estimates\".",
+        "Workbook footnote 1: the standard deviation of an estimate is the poverty incidence times the coefficient of variation, divided by 100. The unit is not stated.",
+    )
+    DOCS[f"Standard Error {year}"] = (NO_TYPE, UNDOCUMENTED, "Header only. " + PRESS_LISTS)
     for limit in ("Lower Limit", "Upper Limit"):
-        DOCS[f"90% Confidence Interval {limit} {year}"] = (NO_TYPE, UNDOCUMENTED, "Header only. Level (90%) is in the header; the method is not stated.")
+        DOCS[f"90% Confidence Interval {limit} {year}"] = (
+            NO_TYPE, UNDOCUMENTED, "Header only. Level (90%) is in the header; the method is not stated. " + PRESS_LISTS,
+        )
+
+# The team's reading of a column (D-011). Every entry starts with a label and gives its evidence.
+# Finding IDs (O-n, S-n, X-n) refer to docs/source_inventory/psa_poverty_stat/profile.md.
+SE_DIFFERS = {"2018": 6, "2021": 133, "2023": 1}  # SE vs incidence x CV / 100 (O-8)
+CI_SE_DIFFERS = {"2018": 3, "2021": 133, "2023": 0}  # interval half-width / 1.645 vs SE (O-8)
+CALABARZON_NOTE = {"2018": "", "2021": " The 133 exceptions are all in CALABARZON (S-1).", "2023": ""}
+
+
+def all_but(n):
+    return "in every row" if n == 0 else f"in all but {n} row{'s' if n > 1 else ''}"
+
+
+LOWEST_LOWER_LIMIT = {"2018": "Adams (0)", "2021": "Port Area (0)", "2023": "Ivana (-0.0241)"}  # O-7
+
+INTERPRETATION = {
+    ID: (
+        "**[observed]** The six-digit code of a city or municipality: the ID padded to 6 digits plus `000` equals the PSGC 2Q 2026 `Correspondence Code` for all 1,612 unit rows (X-1). "
+        "1,073 IDs have only 5 digits because the cells are stored as numbers, which drops the leading zero (O-2)."
+    ),
+    PROV: (
+        "**[observed]** The region name on the 18 banner rows, and a province or district label on the first row of each group (85 unit rows). The labels are not reliable: one is `(Continued)`, "
+        "and 7 rows sit under `Surigao del Norte` with Surigao del Sur codes (O-3). Take the province from the ID, not from this column."
+    ),
+    MUNI: (
+        "**[observed]** The name of the city, municipality, or sub-municipality. Not unique (114 names on more than one row); 37 carry a former name in parentheses, "
+        "and 61 differ from the PSGC spelling (O-10, X-1). Join on the ID, not the name."
+    ),
+}
+for year in ("2018", "2021", "2023"):
+    INTERPRETATION[f"Poverty Incidence {year}"] = (
+        "**[observed]** Values are on a percent scale, about 1 to 90 across the three years (O-6). The 2023 values reproduce the press release's class counts and highest value exactly (X-2)."
+    )
+    INTERPRETATION[f"Coefficient of Variation {year}"] = (
+        f"**[observed]** Standard error equals incidence times CV divided by 100 (footnote 1), to within 0.05, {all_but(SE_DIFFERS[year])} (O-8), "
+        "so CV is the standard error as a percent of the estimate. Blank only for Kalayaan (O-5)."
+    )
+    INTERPRETATION[f"Standard Error {year}"] = (
+        f"**[observed]** Agrees with incidence times CV divided by 100 (footnote 1), to within 0.05, {all_but(SE_DIFFERS[year])} (O-8)."
+        f"{CALABARZON_NOTE[year]} "
+        "**[assumed]** It is the standard error of the estimate; footnote 1 calls it the standard deviation of an estimate (S-7)."
+    )
+    for limit in ("Lower Limit", "Upper Limit"):
+        text = (
+            f"**[observed]** The estimate is inside its interval in every row, and half the interval width divided by 1.645 matches the standard error {all_but(CI_SE_DIFFERS[year])} (O-7, O-8). "
+        )
+        if limit == "Lower Limit":
+            text += f"The lowest lower limit is {LOWEST_LOWER_LIMIT[year]} (O-7). "
+        text += "**[assumed]** A normal-approximation interval: the estimate plus or minus 1.645 standard errors (S-7)."
+        INTERPRETATION[f"90% Confidence Interval {limit} {year}"] = text
 
 # %% psa_poverty_stat dictionary
 total_rows = q("SELECT count(*) FROM sae")[0][0]
@@ -202,13 +272,14 @@ for c in names:
     kind, pct, distinct, sample = describe(c)
     unit_filled = q(f'SELECT count(*) FROM sae WHERE {UNIT} AND "{c}" IS NOT NULL AND trim("{c}") <> \'\'')[0][0]
     pub_type, desc, notes = DOCS[c]
-    out_rows.append(f"| `{c}` | {pub_type} | {cell(desc)} | {cell(notes)} | {kind} | {pct} | {percent(unit_filled, unit_rows)} | {distinct} | {sample} |")
+    out_rows.append(f"| `{c}` | {pub_type} | {cell(desc)} | {cell(notes)} | {cell(INTERPRETATION.get(c, ''))} | {kind} | {pct} | {percent(unit_filled, unit_rows)} | {distinct} | {sample} |")
 
 md = f"""# psa_poverty_stat: data dictionary
 
 Generated by [`notebooks/profiling/dictionary_psa_poverty.py`](../../../notebooks/profiling/dictionary_psa_poverty.py). Do not edit by hand; rerun the script instead.
 
-- **Description, publisher type, and publisher notes:** the workbook has no data dictionary. The only publisher text is the title (`Annex 1. Statistical Table on 2018, 2021 and 2023 City- and Municipal-Level Poverty Estimates`), three footnotes, and a source line, all inside `{FILE}`. Where they say nothing about a column it is marked undocumented. The workbook states no data types.
+- **Description, publisher type, and publisher notes:** the workbook has no data dictionary. The only publisher text is the title (`Annex 1. Statistical Table on 2018, 2021 and 2023 City- and Municipal-Level Poverty Estimates`), three footnotes, and a source line, all inside `{FILE}`. The PSA press release for the same estimates (reference number 2026-43, released 6 February 2026) also defines poverty incidence and the coefficient of variation, and is cited where it does. Where neither says anything about a column it is marked undocumented. The workbook states no data types.
+- **Our interpretation:** what the team reads a column to mean when the publisher's description is missing or incomplete (D-011). Every entry starts with a label: **[other source]** (documented elsewhere, cited), **[observed]** (shown by the data, with the numbers), or **[assumed]** (a reasonable reading, not yet proven). Blank when the publisher's description is enough.
 - **Column names:** the workbook has a merged, multi-level header (rows 2 to 5). Names here join those levels, for example `Poverty Incidence 2018`. Column A has the header `PSGC` over `ID`.
 - **Observed columns:** measured from the `{DATA_SHEET}` sheet ({total_rows:,} rows between the header and the footnotes: {unit_rows:,} municipality or city rows and {total_rows - unit_rows:,} region banner rows), read as text. "Filled" is the share of those rows that are not blank.
 - **Filled (unit rows):** the same fill rate over only the {unit_rows:,} rows that have an ID. The region banner rows carry only a region name.
@@ -216,8 +287,8 @@ Generated by [`notebooks/profiling/dictionary_psa_poverty.py`](../../../notebook
 
 See [profile.md](profile.md) for findings and [README.md](README.md) for the source card.
 
-| Column | Publisher type | Description (publisher) | Publisher notes | Observed kind | Filled | Filled (unit rows) | Distinct | Samples or range |
-|---|---|---|---|---|---|---|---|---|
+| Column | Publisher type | Description (publisher) | Publisher notes | Our interpretation | Observed kind | Filled | Filled (unit rows) | Distinct | Samples or range |
+|---|---|---|---|---|---|---|---|---|---|
 """ + "\n".join(out_rows) + "\n"
 
 out_dir = REPO / "docs" / "source_inventory" / "psa_poverty_stat"

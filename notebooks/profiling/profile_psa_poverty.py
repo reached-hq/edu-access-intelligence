@@ -45,6 +45,18 @@ def column_number(cell_ref):
     return n
 
 
+def rich_text(node):
+    """Text of a shared or inline string. Skips phonetic guides (rPh), which also hold <t> elements."""
+    parts = [t.text or "" for t in node.findall(M + "t")]
+    for run in node.findall(M + "r"):
+        parts += [t.text or "" for t in run.findall(M + "t")]
+    return "".join(parts)
+
+
+def sql_string(text):
+    return "'" + str(text).replace("'", "''") + "'"
+
+
 def sheet_xml_path(zf, sheet_name):
     workbook = ET.fromstring(zf.read("xl/workbook.xml"))
     rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
@@ -56,10 +68,7 @@ def sheet_xml_path(zf, sheet_name):
 def read_sheet(path, sheet_name):
     """Return a list of (row number, {column number: text}). Blank cells are omitted."""
     with zipfile.ZipFile(path) as zf:
-        strings = [
-            "".join(t.text or "" for t in si.iter(M + "t"))
-            for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")
-        ]
+        strings = [rich_text(si) for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")]
         rows = []
         for row in ET.fromstring(zf.read(sheet_xml_path(zf, sheet_name))).iter(M + "row"):
             cells = {}
@@ -68,7 +77,8 @@ def read_sheet(path, sheet_name):
                 if c.get("t") == "s" and v is not None:
                     text = strings[int(v.text)]
                 elif c.get("t") == "inlineStr":
-                    text = "".join(t.text or "" for t in c.iter(M + "t"))
+                    inline = c.find(M + "is")
+                    text = rich_text(inline) if inline is not None else ""
                 else:
                     text = v.text if v is not None else ""
                 if text != "":
@@ -112,7 +122,7 @@ with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer.writerow([r] + [cells.get(i, "") for i in range(1, len(COLS) + 1)])
 
 con = duckdb.connect()
-con.execute(f"""CREATE TABLE s_raw AS SELECT * FROM read_csv('{csv_path}', all_varchar = true, header = true,
+con.execute(f"""CREATE TABLE s_raw AS SELECT * FROM read_csv({sql_string(csv_path)}, all_varchar = true, header = true,
                 strict_mode = true)""")
 # Unit rows carry an ID. Region banner rows carry only a region name in column B.
 # Region and province are filled down from the banner and label rows.
@@ -149,8 +159,11 @@ show("run", f"{FILE}: {len(body):,} rows between header and footnotes; unit rows
 with zipfile.ZipFile(path) as zf:
     sheet_names = [s.get("name") for s in ET.fromstring(zf.read("xl/workbook.xml")).find(M + "sheets")]
     sheet_xml = zf.read(sheet_xml_path(zf, DATA_SHEET)).decode("utf-8")
-show("O-1", f"sheets: {sheet_names}; dimension {re.search(r'<dimension ref=\"([^\"]+)\"', sheet_xml).group(1)}; "
-     f"merged ranges {re.findall(r'<mergeCell ref=\"([^\"]+)\"', sheet_xml)}; hidden rows {len(re.findall(r'<row [^>]*hidden=', sheet_xml))}; formulas {len(re.findall(r'<f[ >]', sheet_xml))}")
+dimension = re.search(r'<dimension ref="([^"]+)"', sheet_xml).group(1)
+merged_ranges = re.findall(r'<mergeCell ref="([^"]+)"', sheet_xml)
+hidden_rows = len(re.findall(r"<row [^>]*hidden=", sheet_xml))
+formulas = len(re.findall(r"<f[ >]", sheet_xml))
+show("O-1", f"sheets: {sheet_names}; dimension {dimension}; merged ranges {merged_ranges}; hidden rows {hidden_rows}; formulas {formulas}")
 show("O-1", f"title (B1): {sheet_rows[1][2]!r}; data rows {FIRST_DATA_ROW}-{notes_row - 1}; footer rows {notes_row}-{last_row}")
 for r in range(notes_row, last_row + 1):
     if sheet_rows.get(r):
@@ -253,7 +266,7 @@ else:
         writer.writerow(["pid", "pname", "corr", "level", "city_class"])
         for r, cells in read_sheet(psgc_path, "PSGC")[1:]:
             writer.writerow([cells.get(i, "") for i in (1, 2, 3, 4, 6)])
-    con.execute(f"CREATE TABLE g AS SELECT * FROM read_csv('{psgc_csv}', all_varchar = true, header = true, strict_mode = true)")
+    con.execute(f"CREATE TABLE g AS SELECT * FROM read_csv({sql_string(psgc_csv)}, all_varchar = true, header = true, strict_mode = true)")
     con.execute("CREATE TABLE m AS SELECT u.*, g.pid, g.pname, g.level, g.city_class FROM u LEFT JOIN g ON g.corr = u.id6 || '000'")
     show("X-1", "unit rows {:,}; matched to a PSGC Correspondence Code (id padded to 6 digits + '000'): {:,}; matched to more than one: {}; not matched: {}".format(
         one("SELECT count(*) FROM u"), one("SELECT count(*) FROM m WHERE pid IS NOT NULL"),
@@ -276,5 +289,40 @@ else:
         """SELECT p.pname, count(*) FROM m JOIN g p ON p.pid = substr(m.pid, 1, 5) || '00000'
            WHERE m.province_label = 'Surigao del Norte' AND substr(m.id6, 1, 4) = '1668' GROUP BY 1""")))
     show("X-1", "PSGC name for the Bumbaran / Amai Manabilang row: " + str(q("SELECT m.id, m.name, trim(m.pname) FROM m WHERE m.id = '153637'")))
+    show("X-2", "units with a 2023 estimate by PSGC level: {}; press release: 14 sub-municipalities, 114 cities, 1,483 municipalities".format(
+        q("SELECT level, count(*) FROM m WHERE try_cast(pi23 AS DOUBLE) IS NOT NULL GROUP BY 1 ORDER BY 2")))
+
+# %% X-2 Cross-check with the PSA press release 2026-43, released 6 February 2026
+# "881 Cities and Municipalities Recorded Poverty Incidence of 20 Percent or Lower in 2023".
+# Expected values are copied from its Table 1, Figure 1, text, and Table 2.
+CLASS_LIMITS = [(-1, 20), (20, 40), (40, 60), (60, 80), (80, 1000)]  # Levels 1 to 5 (percent)
+PRESS_CLASSES_2023 = [881, 603, 119, 8, 0]
+PRESS_LEVEL_1_2018 = 783
+PRESS_OVER_60 = {"21": 22, "23": 8}
+PRESS_CV_20_SHARE = {"18": 89.4, "21": 94.7, "23": 90.3}
+
+
+def class_counts(y):
+    return [one(f"SELECT count(*) FROM u WHERE try_cast(pi{y} AS DOUBLE) > {lo} AND try_cast(pi{y} AS DOUBLE) <= {hi}") for lo, hi in CLASS_LIMITS]
+
+
+def verdict(ok):
+    return "match" if ok else "DIFFERENT"
+
+
+classes = {y: class_counts(y) for y in ("18", "21", "23")}
+show("X-2", f"units with a 2023 estimate {one('SELECT count(*) FROM u WHERE pi23 IS NOT NULL'):,}; press release 1,611")
+show("X-2", f"2023 classes (Levels 1 to 5) {classes['23']}; press release Table 1 {PRESS_CLASSES_2023}: {verdict(classes['23'] == PRESS_CLASSES_2023)}")
+show("X-2", f"Level 1 in 2018 {classes['18'][0]}; press release {PRESS_LEVEL_1_2018}: {verdict(classes['18'][0] == PRESS_LEVEL_1_2018)}. Classes 2018 {classes['18']}, 2021 {classes['21']}")
+for y, expected in PRESS_OVER_60.items():
+    n = one(f"SELECT count(*) FROM u WHERE try_cast(pi{y} AS DOUBLE) > 60")
+    show("X-2", f"20{y}: units above 60 percent {n}; press release {expected}: {verdict(n == expected)}")
+show("X-2", "2023 units above 60 percent by province code: " + str(q(
+    "SELECT substr(id6, 1, 4), count(*) FROM u WHERE try_cast(pi23 AS DOUBLE) > 60 GROUP BY 1 ORDER BY 1")) + "; press release: Zamboanga del Norte 3, Tawi-Tawi 2, Maguindanao del Sur 2, Abra 1")
+name, pid, top = q("SELECT name, id6, try_cast(pi23 AS DOUBLE) FROM u ORDER BY try_cast(pi23 AS DOUBLE) DESC LIMIT 1")[0]
+show("X-2", f"highest 2023 poverty incidence: {name} ({pid}) {top:.1f}; press release: Siayan, Zamboanga del Norte, 67.8")
+for y, expected in PRESS_CV_20_SHARE.items():
+    share = 100 * one(f"SELECT count(*) FROM u WHERE try_cast(cv{y} AS DOUBLE) <= 20") / one(f"SELECT count(*) FROM u WHERE cv{y} IS NOT NULL")
+    show("X-2", f"20{y}: share with CV of 20 or less {share:.2f}%; press release {expected}: {verdict(abs(share - expected) <= 0.1)} within 0.1")
 
 workdir.cleanup()

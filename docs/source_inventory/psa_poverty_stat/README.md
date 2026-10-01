@@ -9,39 +9,40 @@
 | Source name | Annex 1. Statistical Table on 2018, 2021 and 2023 City- and Municipal-Level Poverty Estimates (file `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx`) |
 | Publisher / agency | Philippine Statistics Authority (PSA) |
 | Source system (as stated by the publisher) | "Source: Philippine Statistics Authority, through a national government-funded project on the generation of the small area estimates of poverty" (footer of the sheet) |
-| Source URL or acquisition method | Manual download from https://psa.gov.ph/statistics/poverty-sae/stat-tables |
-| Licensing or access restrictions | UNVERIFIED. The PSA page returned HTTP 403 to an automated fetch, so terms of use were not read. The workbook states none |
+| Source URL or acquisition method | Manual download from the landing page https://psa.gov.ph/statistics/poverty-sae/stat-tables. Direct file URL: https://psa.gov.ph/sites/default/files/phdsd/2_2023%20SAE_with%20PSGC_noHUC_06Feb2026.xlsx (from the browser's download record). PSA may replace the file at that URL; the SHA-256 below identifies the exact file used. Press release for the same estimates: https://psa.gov.ph/statistics/poverty-sae/node/1684082420 (read in a browser on 2026-10-01) |
+| Licensing or access restrictions | CC BY 4.0 unless otherwise stated: the PSA website footer says all its data and content are licensed under the Creative Commons Attribution 4.0 International License (read 2026-10-01). The workbook states no terms of its own. Acknowledge PSA as the source. |
 | Owner (team member) | @maeveylain |
-| Date acquired | 2026-09-29 |
+| Date acquired | 2026-09-29 10:00 UTC (downloaded file's timestamp) |
 
 ## Files
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` | xlsx (1 sheet) | n/a (binary workbook; text is Unicode) | 369,977 | 1,630 data rows on sheet `2023_NoHUC_Maguindanao grouped` (rows 6 to 1635 of range A1:S1641; 5 header rows, 6 footer rows): 1,612 city or municipality rows and 18 region banner rows | `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026` | Local |
+| `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` | xlsx (1 sheet) | n/a (binary workbook; text is Unicode) | 369,977 | 1,630 data rows on sheet `2023_NoHUC_Maguindanao grouped` (rows 6 to 1635 of range A1:S1641; 5 header rows, 6 footer rows): 1,612 city or municipality rows and 18 region banner rows | `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026` | Local (`raw-data/psa/original/`). Team copy: uploaded to `/Volumes/edu_access/00-source/raw/psa/` (see docs/architecture.md, Storage) |
 
-The file name carries `06Feb2026`, which is probably the date the file was prepared. UNVERIFIED: the publication date on the PSA page was not read.
+The file name carries `06Feb2026`. The PSA press release for these estimates, "881 Cities and Municipalities Recorded Poverty Incidence of 20 Percent or Lower in 2023" (Reference Number 2026-43), is dated 6 February 2026, which matches. The workbook reproduces the press release's figures: for example, 881 of the 1,611 units with a 2023 estimate have poverty incidence of 20 or less, the same count as the headline (`profile.md`, X-2).
 
 ## Publisher documentation
 
-The workbook has no data dictionary or metadata sheet. Its only documentation is the title, three footnotes, and a source line. No separate document was downloaded; the PSA methodology page was not read (HTTP 403).
+The workbook has no data dictionary or metadata sheet. Its own documentation is the title, three footnotes, and a source line. The PSA press release for the same estimates (below) adds a definition, the method, and the data inputs. 
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
 | Title, footnotes and source line on the sheet | inside the workbook above | same as the file | Footnote 1 (standard deviation = poverty incidence x coefficient of variation / 100), footnote 2 (Bumbaran renamed Amai Manabilang), footnote 3 (no estimate for Kalayaan, Palawan) |
+| PSA press release "881 Cities and Municipalities Recorded Poverty Incidence of 20 Percent or Lower in 2023", Reference Number 2026-43, released 6 February 2026 | https://psa.gov.ph/statistics/poverty-sae/node/1684082420 | not applicable (web page, read in a browser on 2026-10-01) | A. Methodology and Coverage; B. Highlights (definition of poverty incidence, Table 1); C. Reliability and Precision (Table 2) |
 
-UNVERIFIED (not in the workbook): the definition of poverty incidence (population or family basis), the poverty threshold, the survey and census inputs, the method behind the confidence interval, and whether the estimates for the three years use the same method.
+The press release defines poverty incidence as the proportion of the population with an income below the poverty threshold (persons, not families), and says the 2023 estimates use Small Area Estimation (Census Empirical Best/Bayes) with the 2020 census, the 2023 Family Income and Expenditure Survey, the January 2024 Labor Force Survey, and other sources. Still UNVERIFIED: the poverty threshold value (footnote 3 of the press release), the method behind the confidence interval and standard error, and whether the 2018 and 2021 estimates use the same method.
 
 ## Coverage
 
 | Field | Value |
 |---|---|
 | Geographic coverage | Philippines, 18 region banner rows (includes Negros Island Region) |
-| Geographic level | City or municipality, one row each, under region and province labels. 14 rows are Manila sub-municipalities. Highly urbanized cities are not in the file (`noHUC` in the file name) |
+| Geographic level | City or municipality, one row each, under region and province labels. 14 rows are Manila sub-municipalities. Highly urbanized cities are not in the file (`noHUC` in the file name). The press release says the 2023 estimates cover the 14 sub-municipalities of Manila, 114 cities, and 1,483 municipalities, and exclude the highly urbanized cities and the Cities of Isabela and Cotabato, whose estimates are in the 2023 Official Poverty Statistics (direct estimation) |
 | Time coverage | 2018, 2021 and 2023 estimates in one wide table |
-| Time basis | UNVERIFIED. The workbook does not say whether these are calendar years or survey reference periods |
+| Time basis | The 2023 estimates use the 2023 Family Income and Expenditure Survey and the January 2024 Labor Force Survey (press release 2026-43). The inputs for 2018 and 2021 are not stated. UNVERIFIED whether the years are calendar years or survey reference periods |
 | Update frequency | UNVERIFIED. Three estimate years so far |
-| Population covered | 1,611 of 1,612 listed units have values. 35 cities and 9 municipalities in PSGC 2Q 2026 are not in the file (see `profile.md`, X-1) |
+| Population covered | 1,611 of 1,612 listed units have values. In PSGC 2Q 2026, 35 cities are not in the file (33 highly urbanized cities, Isabela, and Cotabato; explained by the press release) and 9 municipalities are not (Pateros and 8 Special Geographic Area municipalities; not explained). See `profile.md`, X-1 and S-2 |
 
 ## Structure
 
@@ -49,7 +50,7 @@ UNVERIFIED (not in the workbook): the definition of poverty incidence (populatio
 |---|---|
 | Apparent grain | One row per city or municipality (wide: five measures for each of three years). Region banner rows carry only a region name |
 | Candidate primary key | `PSGC ID` (1,612 unit rows, 1,612 unique). Stored as a number, so leading zeros are lost |
-| Candidate join keys | `PSGC ID` left-padded to 6 digits, plus `000`, equals the PSGC 2Q 2026 `Correspondence Code` for all 1,612 rows (checked in `profile.md`, X-1). Names are not usable: 1,397 distinct in 1,612 rows, and 61 differ from the PSGC spelling |
+| Candidate join keys | `PSGC ID` left-padded to 6 digits, plus `000`, equals the PSGC 2Q 2026 `Correspondence Code` for all 1,612 rows (checked in `profile.md`, X-1). Join on the ID; names are for display and review only. Names alone are ambiguous (1,397 distinct in 1,612 rows) and 61 differ from the PSGC spelling. To attach these values to a DepEd place name, go through the PSGC code, and match the name only inside its parent |
 | PSGC available? | Yes, but as a 5- or 6-digit ID, not the 10-digit PSGC. It equals the first six digits of the older 9-digit PSGC, so it identifies the city or municipality only. Province, region and city are derived from the padded ID prefix. The PSGC version is not stated |
 | Personally identifiable or sensitive fields | None. Area-level estimates |
 | Provenance fields in the source | Title, three footnotes and a source line. No per-row provenance |
