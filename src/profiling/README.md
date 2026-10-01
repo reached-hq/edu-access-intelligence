@@ -16,6 +16,6 @@ sys.path.insert(0, str(REPO))
 from src.profiling.xlsx import read_sheet
 ```
 
-Tests import it the same way as `python -m pytest tests -q` runs from the repository root.
+Tests import `src.profiling.xlsx` directly, without that `sys.path` line, because `python -m pytest tests -q` run from the repository root already puts the repository root on the Python path.
 
 Add a helper here when a second script needs it, and keep it free of source-specific names.

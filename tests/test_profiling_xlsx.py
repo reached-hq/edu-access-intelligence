@@ -91,6 +91,34 @@ def test_read_sheet_works_without_a_shared_strings_part(tmp_path):
     assert read_sheet(path, "Data") == [(1, {2: "7"})]
 
 
+def test_read_sheet_counts_position_when_a_row_or_cell_has_no_reference(tmp_path):
+    sheet = (
+        f'<worksheet xmlns="{NS}"><sheetData>'
+        "<row><c><v>1</v></c><c><v>2</v></c></row>"
+        '<row r="5"><c r="C5"><v>3</v></c><c><v>4</v></c></row>'
+        "<row><c><v>5</v></c></row>"
+        "</sheetData></worksheet>"
+    )
+    path = build_xlsx(tmp_path / "no_refs.xlsx", [("Data", sheet)])
+    assert read_sheet(path, "Data") == [(1, {1: "1", 2: "2"}), (5, {3: "3", 4: "4"}), (6, {1: "5"})]
+
+
+def test_read_sheet_handles_missing_cell_reference_attributes(tmp_path):
+    sheet = f'<worksheet xmlns="{NS}"><sheetData><row r="1"><c><v>100</v></c><c><v>200</v></c></row></sheetData></worksheet>'
+    path = build_xlsx(tmp_path / "no_r_attr.xlsx", [("Data", sheet)])
+    assert read_sheet(path, "Data") == [(1, {1: "100", 2: "200"})]
+
+
+def test_read_sheet_gives_booleans_and_errors_as_stored(tmp_path):
+    sheet = (
+        f'<worksheet xmlns="{NS}"><sheetData>'
+        '<row r="1"><c r="A1" t="b"><v>1</v></c><c r="B1" t="e"><v>#N/A</v></c></row>'
+        "</sheetData></worksheet>"
+    )
+    path = build_xlsx(tmp_path / "types.xlsx", [("Data", sheet)])
+    assert read_sheet(path, "Data") == [(1, {1: "1", 2: "#N/A"})]
+
+
 def test_read_sheet_names_the_available_sheets_when_the_sheet_is_missing(workbook):
     with pytest.raises(ValueError) as error:
         read_sheet(workbook, "Missing")

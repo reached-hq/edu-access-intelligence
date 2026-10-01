@@ -64,6 +64,10 @@ def read_sheet(path, sheet_name):
 
     Values are read as text, exactly as stored: a number cell gives its stored digits
     (leading zeros that Excel dropped stay dropped), and dates give their serial number.
+    A TRUE or FALSE cell gives "1" or "0", and an error cell gives its text, such as "#N/A".
+
+    The row and cell reference (the r attribute) is optional in the xlsx format. A row or
+    cell without one counts as the one after the previous row or cell.
     """
     with zipfile.ZipFile(path) as zf:
         sheet_xml = zf.read(sheet_xml_path(zf, sheet_name))
@@ -75,9 +79,14 @@ def read_sheet(path, sheet_name):
             strings = [rich_text(si) for si in ET.fromstring(shared).findall(M + "si")]
 
     rows = []
+    row_number = 0
     for row in ET.fromstring(sheet_xml).iter(M + "row"):
+        row_number = int(row.get("r", row_number + 1))
         cells = {}
+        column = 0
         for c in row.findall(M + "c"):
+            ref = c.get("r")
+            column = column_number(ref) if ref else column + 1
             v = c.find(M + "v")
             if c.get("t") == "s" and v is not None:
                 text = strings[int(v.text)]
@@ -87,6 +96,6 @@ def read_sheet(path, sheet_name):
             else:
                 text = (v.text or "") if v is not None else ""
             if text != "":
-                cells[column_number(c.get("r"))] = text
-        rows.append((int(row.get("r")), cells))
+                cells[column] = text
+        rows.append((row_number, cells))
     return rows

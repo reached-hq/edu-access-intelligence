@@ -65,7 +65,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Problem:** Profiling findings must be reproducible by another engineer, without spending Databricks Free Edition compute on small files.
 - **Decision:** Profile locally with DuckDB (pinned in `requirements-dev.txt`), in a `.py` script per source under `notebooks/profiling/` with `# %%` cells. Each check prints under the finding ID used in that source's `profile.md`. Scripts read raw data from `RAW_DATA_DIR` and verify file checksums before profiling.
 - **Reason:** The DepEd files are about 60,000 rows each, so DuckDB profiles them in seconds on a laptop. DuckDB is in the course's Day 9 tool list and was used in NYC Mobility. Keeping the code next to the findings lets a reviewer rerun every number.
-- **Consequence:** CI cannot run profiling scripts because raw data is not in git. Each PR that changes a profile states that the script was run and the numbers matched. Checks that repeat across sources move into `src/profiling/` once a second source repeats them. The xlsx reader was the first (`src/profiling/xlsx.py`, #33).
+- **Consequence:** CI cannot run profiling scripts because raw data is not in git. Each PR that changes a profile states that the script was run and the numbers matched. Checks that repeat across sources move into `src/profiling/` once a second source repeats them. The xlsx reader was the first (`src/profiling/xlsx.py`, #33, added 2026-10-01).
 
 ## D-008: Develop locally, run on Databricks deliberately
 
