@@ -3,7 +3,7 @@
 #
 #   RAW_DATA_DIR=~/Projects/reached-hq/raw-data python notebooks/profiling/profile_psgc.py
 #
-# The workbook loading repeats dictionary_psgc.py on purpose for now (D-007).
+# The xlsx reader is shared with the other profiling scripts: src/profiling/xlsx.py (D-007).
 
 # %% Setup
 import csv
@@ -12,12 +12,14 @@ import os
 import re
 import sys
 import tempfile
-import zipfile
-import xml.etree.ElementTree as ET
 from itertools import zip_longest
 from pathlib import Path
 
 import duckdb
+
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+from src.profiling.xlsx import read_sheet
 
 raw_dir = os.environ.get("RAW_DATA_DIR")
 if not raw_dir:
@@ -27,61 +29,16 @@ ORIGINAL = Path(raw_dir).expanduser() / "psa" / "original"
 FILE = "PSGC-2Q-2026-Publication-Datafile.xlsx"
 SHA256 = "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d"
 
-M = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
-
-
-def column_number(cell_ref):
-    n = 0
-    for ch in re.match(r"[A-Z]+", cell_ref).group():
-        n = n * 26 + ord(ch) - 64
-    return n
-
-
-def rich_text(node):
-    """Text of a shared or inline string. Skips phonetic guides (rPh), which also hold <t> elements."""
-    parts = [t.text or "" for t in node.findall(M + "t")]
-    for run in node.findall(M + "r"):
-        parts += [t.text or "" for t in run.findall(M + "t")]
-    return "".join(parts)
-
 
 def sql_string(text):
     return "'" + str(text).replace("'", "''") + "'"
-
-
-def read_sheet(path, sheet_name):
-    """Return a list of {column number: text} rows. Blank cells are omitted."""
-    with zipfile.ZipFile(path) as zf:
-        workbook = ET.fromstring(zf.read("xl/workbook.xml"))
-        rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
-        strings = [rich_text(si) for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")]
-        sheet = next(s for s in workbook.find(M + "sheets") if s.get("name") == sheet_name)
-        target = rels[sheet.get(R + "id")].lstrip("/")
-        target = target if target.startswith("xl/") else "xl/" + target
-        rows = []
-        for row in ET.fromstring(zf.read(target)).iter(M + "row"):
-            cells = {}
-            for c in row.findall(M + "c"):
-                v = c.find(M + "v")
-                if c.get("t") == "s" and v is not None:
-                    text = strings[int(v.text)]
-                elif c.get("t") == "inlineStr":
-                    inline = c.find(M + "is")
-                    text = rich_text(inline) if inline is not None else ""
-                else:
-                    text = v.text if v is not None else ""
-                if text != "":
-                    cells[column_number(c.get("r"))] = text
-            rows.append(cells)
-        return rows
 
 
 path = ORIGINAL / FILE
 if hashlib.sha256(path.read_bytes()).hexdigest() != SHA256:
     sys.exit(f"{FILE}: SHA-256 does not match the inventory card. Stop and re-inventory.")
 
-rows = read_sheet(path, "PSGC")
+rows = [cells for _, cells in read_sheet(path, "PSGC")]
 header, body = rows[0], rows[1:]
 COLS = ["id", "name", "corr", "level", "old_names", "city_class", "income", "urban_rural", "pop", "col_j", "status"]
 # Header text expected at each position (whitespace normalized; "" = no header, column J).
@@ -160,7 +117,7 @@ show("O-4", "not a whole number: " + str(q("SELECT id, name, pop FROM p WHERE tr
 show("O-4", "zero population: {} rows by level: {}".format(
     one("SELECT count(*) FROM p WHERE try_cast(pop AS BIGINT) = 0"),
     q("SELECT coalesce(level, '(blank)'), count(*) FROM p WHERE try_cast(pop AS BIGINT) = 0 GROUP BY 1 ORDER BY 2 DESC, 1")))
-summary = read_sheet(path, "National Summary")
+summary = [cells for _, cells in read_sheet(path, "National Summary")]
 SUMMARY_LABELS = {"PROV.": "provinces", "CITIES": "cities", "MUN.": "municipalities", "BGY.": "barangays", "POPULATION (2024 POPCEN)": "population"}
 summary_header = next((r for r in summary if "PROV." in {re.sub(r"\s+", " ", v).strip() for v in r.values()}), None)
 national = next((r for r in summary if "PHILIPPINES" in r.values()), None)

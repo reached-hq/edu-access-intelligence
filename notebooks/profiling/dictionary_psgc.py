@@ -18,78 +18,26 @@ import os
 import re
 import sys
 import tempfile
-import zipfile
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import duckdb
+
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+from src.profiling.xlsx import column_letter, read_sheet
 
 raw_dir = os.environ.get("RAW_DATA_DIR")
 if not raw_dir:
     sys.exit("Set RAW_DATA_DIR to the folder that contains psa/original/.")
 ORIGINAL = Path(raw_dir).expanduser() / "psa" / "original"
-REPO = Path(__file__).resolve().parents[2]
 
 FILE = "PSGC-2Q-2026-Publication-Datafile.xlsx"
 SHA256 = "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d"
 DATA_SHEET = "PSGC"
 
-M = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
-
-
-def column_number(cell_ref):
-    n = 0
-    for ch in re.match(r"[A-Z]+", cell_ref).group():
-        n = n * 26 + ord(ch) - 64
-    return n
-
-
-def column_letter(n):
-    letters = ""
-    while n:
-        n, rem = divmod(n - 1, 26)
-        letters = chr(65 + rem) + letters
-    return letters
-
-
-def rich_text(node):
-    """Text of a shared or inline string. Skips phonetic guides (rPh), which also hold <t> elements."""
-    parts = [t.text or "" for t in node.findall(M + "t")]
-    for run in node.findall(M + "r"):
-        parts += [t.text or "" for t in run.findall(M + "t")]
-    return "".join(parts)
-
 
 def sql_string(text):
     return "'" + str(text).replace("'", "''") + "'"
-
-
-def read_sheet(path, sheet_name):
-    """Return a list of {column number: text} rows. Blank cells are omitted."""
-    with zipfile.ZipFile(path) as zf:
-        workbook = ET.fromstring(zf.read("xl/workbook.xml"))
-        rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
-        strings = [rich_text(si) for si in ET.fromstring(zf.read("xl/sharedStrings.xml")).findall(M + "si")]
-        sheet = next(s for s in workbook.find(M + "sheets") if s.get("name") == sheet_name)
-        target = rels[sheet.get(R + "id")].lstrip("/")
-        target = target if target.startswith("xl/") else "xl/" + target
-        rows = []
-        for row in ET.fromstring(zf.read(target)).iter(M + "row"):
-            cells = {}
-            for c in row.findall(M + "c"):
-                v = c.find(M + "v")
-                if c.get("t") == "s" and v is not None:
-                    text = strings[int(v.text)]
-                elif c.get("t") == "inlineStr":
-                    inline = c.find(M + "is")
-                    text = rich_text(inline) if inline is not None else ""
-                else:
-                    text = v.text if v is not None else ""
-                if text != "":
-                    cells[column_number(c.get("r"))] = text
-            rows.append(cells)
-        return rows
 
 
 # %% Verify checksum, load the PSGC sheet as text
@@ -97,7 +45,7 @@ path = ORIGINAL / FILE
 if hashlib.sha256(path.read_bytes()).hexdigest() != SHA256:
     sys.exit(f"{FILE}: SHA-256 does not match the inventory card. Stop and re-inventory.")
 
-rows = read_sheet(path, DATA_SHEET)
+rows = [cells for _, cells in read_sheet(path, DATA_SHEET)]
 header, body = rows[0], rows[1:]
 width = max(header)
 names = [
