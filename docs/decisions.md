@@ -44,7 +44,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Problem:** The repository needs a structure the team can work in immediately.
 - **Decision:** Reuse the NYC Mobility conventions: `etl/NN_layer/` with `90_validate_*` files, `config/` for non-secret settings, the same documentation set, the same PR and issue templates, and the same CI/CD approach.
 - **Reason:** The team has already built and defended this structure. A familiar convention is lower risk than a new one.
-- **Consequence:** Folders are created only when their phase starts. The capstone adds `docs/source_inventory/`, `docs/profiling/`, `docs/stakeholder/`, and `docs/limitations.md`.
+- **Consequence:** The full folder layout exists from the start, with a placeholder `README.md` in each folder until its phase begins (changed 2026-10-01, so the whole pipeline shape is visible). The capstone adds `docs/source_inventory/`, `docs/cross_source/`, `docs/stakeholder/`, and `docs/limitations.md`. Cross-source analysis lives in `docs/cross_source/`, not `docs/profiling/`, so it is not confused with the scripts in `notebooks/profiling/`.
 
 ## D-005: Branching model
 
@@ -56,7 +56,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 ## D-006: Where source documentation lives
 
 - **Problem:** Each source produces an inventory card, profiling findings, and publisher documents (for example DepEd's README files and Technical Notes). These need one predictable home.
-- **Decision:** Each source gets a folder, `docs/source_inventory/<source_id>/`, with `README.md` (the inventory card) and `profile.md` (findings with evidence). Publisher documents stay with the raw files in raw storage; the card records their URL, size, and SHA-256. Cross-source work stays in `docs/profiling/`.
+- **Decision:** Each source gets a folder, `docs/source_inventory/<source_id>/`, with `README.md` (the inventory card) and `profile.md` (findings with evidence). Publisher documents stay with the raw files in raw storage; the card records their URL, size, and SHA-256. Cross-source work stays in `docs/cross_source/`.
 - **Reason:** Keeping everything about one source together makes review easier. Publisher documents arrive with the data, so they are part of the raw delivery, and recording their checksum proves which version the team relied on.
 - **Consequence:** `tests/test_config.py` requires `README.md` for any source past `candidate`, and `profile.md` for any source that is `profiled` or `accepted`.
 
