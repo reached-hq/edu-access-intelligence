@@ -9,10 +9,10 @@
 | Source name | Total Population by Province, City, Municipality, and Barangay as of 01 July 2024 |
 | Publisher / agency | Philippine Statistics Authority (PSA) |
 | Source system (as stated by the publisher) | 2024 Census of Population (2024 POPCEN), published as regional population-count workbooks |
-| Source URL or acquisition method | Manual download of all regional workbooks from [PSA Population and Housing](https://psa.gov.ph/statistics/population-and-housing/node/1684077791). Browser download metadata confirms this page as the referrer and `https://psa.gov.ph/system/files/phcd/<filename>` as each direct URL |
+| Source URL or acquisition method | Manual download of all regional workbooks from [PSA Population and Housing](https://psa.gov.ph/statistics/population-and-housing/node/1684077791).|
 | Licensing or access restrictions | Public download. No license or reuse terms were found in the workbooks. Reuse terms remain **UNVERIFIED** |
 | Owner (team member) | @mafelisilda |
-| Date acquired | 2026-10-02 10:24–10:25 UTC (18:24–18:25 Philippine time), from downloaded-file timestamps |
+| Date acquired | 2026-10-02 10:24–10:25 UTC (18:24–18:25 Philippine time) |
 
 ## Files
 
@@ -20,24 +20,24 @@ Raw files are kept outside git. Counts below are normalized barangay rows from v
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `NCR_2.xlsx` | XLSX, 17 visible sheets | n/a | 94,875 | 1,715 | `9a336a2548ac3b41a84fa982a5915d8d1d0d467669449e2257e602130e97d773` | Local Downloads staging; governed raw-storage upload pending |
-| `CAR_0.xlsx` | XLSX, 7 visible sheets | n/a | 60,032 | 1,178 | `dea26637d31269e6de78b41823af0485443c8de3d0d66168d16b6becba9057a2` | Local Downloads staging; governed raw-storage upload pending |
-| `Region I_1.xlsx` | XLSX, 4 visible sheets | n/a | 97,629 | 3,267 | `0e08d47b19f719f91354a7d021aebea0fa87fbc6b45eb4e1558b42e070bd0944` | Local Downloads staging; governed raw-storage upload pending |
-| `Region II_1.xlsx` | XLSX, 5 visible sheets | n/a | 77,435 | 2,311 | `bcc8f0608d5f88ce464fb20db1bbb9c266fd0c309dece6bb646ac74a8bdbd314` | Local Downloads staging; governed raw-storage upload pending |
-| `Region III_1.xlsx` | XLSX, 9 visible sheets | n/a | 108,189 | 3,105 | `e159e508be3bfce8e655f81b63a83513dfb7a0b8de7b7f64a0d96ccca4b82afc` | Local Downloads staging; governed raw-storage upload pending |
-| `CALABARZON_0.xlsx` | XLSX, 6 visible sheets | n/a | 121,151 | 3,993 | `463dd9f7b5c72ddc57dca2080940b740b56af04d5b98ce43560480f8c517cde3` | Local Downloads staging; governed raw-storage upload pending |
-| `MIMAROPA_1.xlsx` | XLSX, 6 visible sheets | n/a | 60,568 | 1,460 | `2c310dce1199ef06f9c82e9391a0ea0674ceea54568c8beea0ecc963ec5e4aad` | Local Downloads staging; governed raw-storage upload pending |
-| `Region V_1.xlsx` | XLSX, 6 visible sheets | n/a | 105,223 | 3,471 | `bfaff9fd7303c9c8ed694313293712b947c844cbdc35b23917d0c11f23bedddd` | Local Downloads staging; governed raw-storage upload pending |
-| `Region VI_1.xlsx` | XLSX, 6 visible sheets | n/a | 103,902 | 3,389 | `55364452f3329ca73b8eb6afb32a49ba5910eea8f47a1f7d10bd09bf83479958` | Local Downloads staging; governed raw-storage upload pending |
-| `Region VII_1.xlsx` | XLSX, 5 visible sheets | n/a | 77,354 | 2,312 | `5d139e888b98152a04e3d4c09c113d3b858a8bc5449f11c238e4906817e029b4` | Local Downloads staging; governed raw-storage upload pending |
-| `Region VIII_0.xlsx` | XLSX, 7 visible sheets | n/a | 127,884 | 4,365 | `0c7d1cf30fe54b30f2b4a34cdde049bb87ff8999a65bf5c8163ad11207bffd8d` | Local Downloads staging; governed raw-storage upload pending |
-| `NIR_0.xlsx` | XLSX, 4 visible sheets | n/a | 53,614 | 1,353 | `2e68254acb31e46b374cdf5dfca6dac405d86911ab759938383d7378d53cb4dd` | Local Downloads staging; governed raw-storage upload pending |
-| `Region IX_1.xlsx` | XLSX, 5 visible sheets | n/a | 67,641 | 1,904 | `bd54fbdc780b8c530b41b78fe56fc28b5e9a61d478498e420320f5a5b81eec15` | Local Downloads staging; governed raw-storage upload pending |
-| `Region X_0.xlsx` | XLSX, 7 visible sheets | n/a | 78,117 | 2,022 | `e45d6ad39666353e2b31563483fb7da33d8e027f1ba89f16adf73c5a36b593cd` | Local Downloads staging; governed raw-storage upload pending |
-| `Region XI_1.xlsx` | XLSX, 6 visible sheets | n/a | 52,986 | 1,162 | `b5870cfd30b134f6db0cbfe1ec57e08bdf2587ae92cb1133731d37956e51efb4` | Local Downloads staging; governed raw-storage upload pending |
-| `Region XII_1.xlsx` | XLSX, 5 visible sheets | n/a | 50,184 | 1,097 | `7e54ed1874d1db871a6e35c0051ba7cb31ce28bf4a6c2c39e9f56efedeaf77e9` | Local Downloads staging; governed raw-storage upload pending |
-| `Caraga_0.xlsx` | XLSX, 6 visible sheets | n/a | 57,464 | 1,312 | `df1d4cd93d6433ca05e6ffd94fbc2f9cd3d46f3cdc964504296fea5c16eb6f8d` | Local Downloads staging; governed raw-storage upload pending |
-| `BARMM_1.xlsx` | XLSX, 7 visible sheets | n/a | 192,601 | 2,595 | `c7111b353ec133c7cc8cfe558f03d893b1e24a36d1bf57159cb44624752132a9` | Local Downloads staging; governed raw-storage upload pending |
+| `NCR_2.xlsx` | XLSX, 17 visible sheets | n/a | 94,875 | 1,715 | `9a336a2548ac3b41a84fa982a5915d8d1d0d467669449e2257e602130e97d773` | Local; governed raw-storage upload pending |
+| `CAR_0.xlsx` | XLSX, 7 visible sheets | n/a | 60,032 | 1,178 | `dea26637d31269e6de78b41823af0485443c8de3d0d66168d16b6becba9057a2` | Local; governed raw-storage upload pending |
+| `Region I_1.xlsx` | XLSX, 4 visible sheets | n/a | 97,629 | 3,267 | `0e08d47b19f719f91354a7d021aebea0fa87fbc6b45eb4e1558b42e070bd0944` | Local; governed raw-storage upload pending |
+| `Region II_1.xlsx` | XLSX, 5 visible sheets | n/a | 77,435 | 2,311 | `bcc8f0608d5f88ce464fb20db1bbb9c266fd0c309dece6bb646ac74a8bdbd314` | Local; governed raw-storage upload pending |
+| `Region III_1.xlsx` | XLSX, 9 visible sheets | n/a | 108,189 | 3,105 | `e159e508be3bfce8e655f81b63a83513dfb7a0b8de7b7f64a0d96ccca4b82afc` | Local; governed raw-storage upload pending |
+| `CALABARZON_0.xlsx` | XLSX, 6 visible sheets | n/a | 121,151 | 3,993 | `463dd9f7b5c72ddc57dca2080940b740b56af04d5b98ce43560480f8c517cde3` | Local; governed raw-storage upload pending |
+| `MIMAROPA_1.xlsx` | XLSX, 6 visible sheets | n/a | 60,568 | 1,460 | `2c310dce1199ef06f9c82e9391a0ea0674ceea54568c8beea0ecc963ec5e4aad` | Local; governed raw-storage upload pending |
+| `Region V_1.xlsx` | XLSX, 6 visible sheets | n/a | 105,223 | 3,471 | `bfaff9fd7303c9c8ed694313293712b947c844cbdc35b23917d0c11f23bedddd` | Local; governed raw-storage upload pending |
+| `Region VI_1.xlsx` | XLSX, 6 visible sheets | n/a | 103,902 | 3,389 | `55364452f3329ca73b8eb6afb32a49ba5910eea8f47a1f7d10bd09bf83479958` | Local; governed raw-storage upload pending |
+| `Region VII_1.xlsx` | XLSX, 5 visible sheets | n/a | 77,354 | 2,312 | `5d139e888b98152a04e3d4c09c113d3b858a8bc5449f11c238e4906817e029b4` | Local; governed raw-storage upload pending |
+| `Region VIII_0.xlsx` | XLSX, 7 visible sheets | n/a | 127,884 | 4,365 | `0c7d1cf30fe54b30f2b4a34cdde049bb87ff8999a65bf5c8163ad11207bffd8d` | Local; governed raw-storage upload pending |
+| `NIR_0.xlsx` | XLSX, 4 visible sheets | n/a | 53,614 | 1,353 | `2e68254acb31e46b374cdf5dfca6dac405d86911ab759938383d7378d53cb4dd` | Local; governed raw-storage upload pending |
+| `Region IX_1.xlsx` | XLSX, 5 visible sheets | n/a | 67,641 | 1,904 | `bd54fbdc780b8c530b41b78fe56fc28b5e9a61d478498e420320f5a5b81eec15` | Local; governed raw-storage upload pending |
+| `Region X_0.xlsx` | XLSX, 7 visible sheets | n/a | 78,117 | 2,022 | `e45d6ad39666353e2b31563483fb7da33d8e027f1ba89f16adf73c5a36b593cd` | Local; governed raw-storage upload pending |
+| `Region XI_1.xlsx` | XLSX, 6 visible sheets | n/a | 52,986 | 1,162 | `b5870cfd30b134f6db0cbfe1ec57e08bdf2587ae92cb1133731d37956e51efb4` | Local; governed raw-storage upload pending |
+| `Region XII_1.xlsx` | XLSX, 5 visible sheets | n/a | 50,184 | 1,097 | `7e54ed1874d1db871a6e35c0051ba7cb31ce28bf4a6c2c39e9f56efedeaf77e9` | Local; governed raw-storage upload pending |
+| `Caraga_0.xlsx` | XLSX, 6 visible sheets | n/a | 57,464 | 1,312 | `df1d4cd93d6433ca05e6ffd94fbc2f9cd3d46f3cdc964504296fea5c16eb6f8d` | Local; governed raw-storage upload pending |
+| `BARMM_1.xlsx` | XLSX, 7 visible sheets | n/a | 192,601 | 2,595 | `c7111b353ec133c7cc8cfe558f03d893b1e24a36d1bf57159cb44624752132a9` | Local; governed raw-storage upload pending |
 
 ## Publisher documentation
 
@@ -55,7 +55,7 @@ Raw files are kept outside git. Counts below are normalized barangay rows from v
 | Geographic level | Barangay, nested within city, municipality, sub-municipality, or sheet-level parent; province and parent totals are also published |
 | Time coverage | One census reference date: 01 July 2024 |
 | Time basis | Census reference date |
-| Update frequency | Census-based release; update frequency is **UNVERIFIED** from the supplied files |
+| Update frequency | Census-based release |
 | Population covered | 112,729,484 national population. Geographic workbook totals sum to 112,727,776 because the national count includes 1,708 Filipinos in embassies, consulates, and missions abroad who are not assigned to a Philippine geographic unit (PSA PSGC Notes D.2) |
 
 ## Structure
@@ -84,8 +84,6 @@ Column-by-column descriptions, fill rates, and sample values: [data_dictionary.m
 ## Lineage and dependencies
 
 PSA census collection and processing → regional XLSX publication on the PSA Population and Housing page → checksum-verified immutable raw storage → visible-sheet extraction with file, sheet, and row lineage → hierarchy reconstruction and parent-total reconciliation → normalized barangay population table → PSGC-scoped geographic integration → downstream accessibility denominators and population coverage indicators.
-
-`psa_psgc` is a required downstream reference for stable codes, but it is newer than the population reference date. Crosswalking must preserve the 01 July 2024 source geography, record the PSGC version used, and flag renamed, split, transferred, unmatched, or ambiguous units rather than forcing a match.
 
 ## Known quality problems
 
