@@ -22,6 +22,17 @@
       "format": "zip containing CSV",
       "school_years_acquired": ["2023-24"],
       "owner": "hyenalouise"
+    },
+    {
+      "source_id": "deped_personnel",
+      "name": "DepEd school-level personnel",
+      "publisher": "Department of Education (DepEd)",
+      "status": "profiled",
+      "source_system": "Basic Education Information System (BEIS)",
+      "acquisition": "https://www.deped.gov.ph/machine-ready-files/",
+      "format": "zip containing CSV and Markdown documentation",
+      "school_years_acquired": ["2023-24"],
+      "owner": "mafelisilda"
     }
   ]
 }

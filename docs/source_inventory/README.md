@@ -24,3 +24,4 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/profiling/
 |---|---|---|---|---|
 | [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise |
 | [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise |
+| [deped_personnel](deped_personnel/) | DepEd school-level personnel | DepEd | profiled | @mafelisilda |
