@@ -88,6 +88,17 @@
       "format": "18 regional xlsx workbooks",
       "publication": "Population as of 01 July 2024",
       "owner": "mafelisilda"
+    },
+    {
+      "source_id": "psa_population_per_age_group",
+      "name": "PSA 2024 household population by age group",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "PSA OpenSTAT, 2024 Census of Population",
+      "acquisition": "https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/?tablelist=true",
+      "format": "CSV",
+      "publication": "2024 Census of Population",
+      "owner": "mafelisilda"
     }
   ]
 }
