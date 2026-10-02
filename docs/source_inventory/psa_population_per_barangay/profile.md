@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Date profiled | 2026-10-02 |
-| Profiled by | @mafelisilda with Codex assistance |
+| Profiled by | @mafelisilda |
 | Tool | Python standard library and shared XLSX reader: [`notebooks/profiling/profile_psa_population_per_barangay.py`](../../../notebooks/profiling/profile_psa_population_per_barangay.py) |
 | Files profiled (SHA-256) | All 18 checksums in [README.md](README.md#files); the script stops on a missing file or mismatch |
 | How files were read | XLSX XML read as text with `src/profiling/xlsx.py`; only sheets marked visible were parsed; source file, sheet, and Excel row retained; population required to contain digits only |
