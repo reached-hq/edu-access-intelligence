@@ -42,8 +42,9 @@ Raw files are kept in raw storage, never in git. Row count excludes the header r
 |---|---|---|---|
 | Metadata JSON for each table (13 files, `<file>_metadata.json`, 851 to 1,119 bytes) | `https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/3S/C10/<TABLE_ID>.px` (GET) | Listed per file in `SHA256SUMS.txt`, and checked by the profiling script | Table title, dimension names, category codes and labels. The metadata has no notes, units, sources, footnotes, or definitions |
 | OpenSTAT API directory | https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/3S/C10 | Live web resource; checksum not captured | Table IDs in this folder |
+| FLEMMS 2024 documentation (PSA Data Archive, catalog 334, `PHL-PSA-FLEMMS-2024-V3.0`), `ddi-documentation-english-334.pdf`, 71 pages, 177,662 bytes; stored in `/Volumes/edu_access/00-source/raw/psa/flemms/` | https://psada.psa.gov.ph/catalog/334/pdf-documentation | `0f7f20f7e75302385419521b521b77cbe520294cfa1b0eaf8b45901b00256598` | Producers (p. 7: revision of the basic and functional literacy definitions), questionnaires (p. 9: Form 2 changed from one 2019 questionnaire for ages 10 to 64 into three 2024 questionnaires for ages 5 to 9, 10 to 64, and 65 and over), data collection dates (p. 10), and the `BLITERATE` and `FLITERATE` variables (p. 67). Covers the literacy tables 10.13 and 10.14 only |
 
-No methodology, definition, footnote, or release note is delivered with the tables. The `a` marker in the literacy tables (O-3) is not explained anywhere in what was downloaded.
+No methodology, definition, footnote, or release note is delivered with the tables; for the literacy tables, the FLEMMS 2024 documentation above was obtained separately. The `a` marker in the literacy tables (O-3) is not explained anywhere in what was downloaded.
 
 ## Coverage
 
