@@ -118,6 +118,18 @@ for row in body:
 close_checks = [check for check in reconciliation if abs(check[4]) <= 0.02]
 material_differences = [check for check in reconciliation if abs(check[4]) > 0.02]
 
+# Compare each province's total-minus-components gap with the city-road value of
+# the city published in its own row, surface by surface.
+rows_by_area = {row[1]: row for row in body}
+city_gaps = []
+for province, city in (("Lanao del Sur", "Marawi City"), ("Basilan", "Lamitan City")):
+    for total_column in range(2, 6):
+        total = clean_number(rows_by_area[province].get(total_column, ""))
+        components = [clean_number(rows_by_area[province].get(total_column + offset, "")) for offset in (4, 8, 12, 16)]
+        gap = round(total - sum(components), 2) if total is not None and None not in components else None
+        city_value = clean_number(rows_by_area[city].get(total_column + 16, ""))
+        city_gaps.append((province, header[total_column].split(":")[-1].strip(), gap, city, city_value))
+
 # A single published component larger than its total is impossible whatever the
 # blank or `-` cells mean, so check it even where the full reconciliation is skipped.
 component_over_total = [
@@ -148,8 +160,9 @@ print(
     f"within 0.02 km={len(close_checks)}; differences above 0.02 km={material_differences}"
 )
 print(f"[{SOURCE_ID} O-8] components above their total by more than 0.02 km={component_over_total}")
+print(f"[{SOURCE_ID} O-5] province gap vs separate city-road value (province, surface, gap, city, city value)={city_gaps}")
 print(
-    f"[{SOURCE_ID} O-5] labels={keys}; workbook supplies no reference date, "
+    f"[{SOURCE_ID} areas] labels={keys}; workbook supplies no reference date, "
     "PSGC, geometry, endpoints, travel speeds, source note, or missing-marker definition"
 )
 

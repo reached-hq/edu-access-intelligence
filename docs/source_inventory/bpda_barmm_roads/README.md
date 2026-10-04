@@ -74,7 +74,7 @@ Unstated originating agency/system -> BPDA Bangsamoro Ecological Profile Google 
 - **Observed:** 48 of 180 measure cells are not numeric: 41 are physically blank and 7 contain `-`. Their meanings are not documented, so neither form is converted to zero.
 - **Observed:** 28 numeric cells contain explicit zeroes. The file does not say whether a zero means measured zero, not applicable, or no reported road length; zeroes remain distinct from blanks and `-`.
 - **Observed:** only 20 total/component combinations have all five required numeric values. Sixteen reconcile within 0.02 km. Four have larger differences: Lanao del Sur concrete 70.56 km and earth 4.91 km; Basilan concrete 2.65 km and earth 1.10 km.
-- **Observed:** the four larger differences numerically match the separately published Lamitan City or Marawi City road values exactly, except Lanao del Sur concrete differs from Marawi City's value by 0.02 km. The workbook does not explain whether province totals include those cities.
+- **Observed:** the four larger differences numerically match the separately published Lamitan City or Marawi City road values exactly, except Lanao del Sur concrete differs from Marawi City's value by 0.02 km. The workbook does not explain whether province totals include those cities. The pattern does not hold for road opening: Marawi City has 0.08 km, but Lanao del Sur's road-opening total equals its components exactly.
 - **Observed:** Cotabato City's city-road road-opening length (43.04 km) is larger than its overall road-opening total (42.04 km), exactly 1.00 km more. No reading of the `-` barangay cell can reconcile this.
 - **Observed:** the geography is historical and mixed. It is not directly compatible with a current PSGC province table.
 
