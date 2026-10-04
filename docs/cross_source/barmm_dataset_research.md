@@ -43,6 +43,30 @@ None of these sources supports a claim that distance, crowding, or teacher load 
 
 Thirteen OpenSTAT tables, including the FLEMMS tables, were downloaded from the API on 2026-10-04 with SHA-256 checksums. They are kept locally outside git and are not yet in the raw volume or given a source card.
 
+## How the sources join
+
+### Keys
+
+- **School ID.** DepEd enrollment (SY 2023-24 to 2025-26), facilities (SY 2023-24), personnel ([#40](https://github.com/reached-hq/edu-access-intelligence/pull/40), SY 2023-24), and the school-level ELLNA and NAT Grade 6 files ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49), [#50](https://github.com/reached-hq/edu-access-intelligence/pull/50), SY 2023-24) all carry `school_id`. Facilities and personnel each match all 60,167 SY 2023-24 enrollment IDs one-to-one. No BPDA source has a school ID, and MBHTE project names cannot be matched to schools without manual review.
+- **PSGC code.** PSGC 2Q 2026 is the master geography ([D-012](../decisions.md#d-012-which-psgc-version-to-use)). The COD-AB boundaries ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)) carry administrative codes: 1,500 of 1,642 municipality codes (91.35%) match PSGC 2Q 2026 exactly, and the rest need a crosswalk before use.
+- **Names only.** DepEd location fields, all four BPDA workbooks, the PSA barangay population ([#41](https://github.com/reached-hq/edu-access-intelligence/pull/41)), and the OpenSTAT tables have place names but no codes. They join to PSGC only by name matching.
+- **Coordinates.** OSM school points and roads ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) join to the boundaries spatially, not by key.
+
+### Geography versions
+
+The sources describe BARMM at different dates, so the same name can mean a different area:
+
+- **BPDA workbooks:** pre-2024 geography. Sulu is inside BARMM, Maguindanao is either one province or two school divisions (I and II), and the Special Geographic Area is one row. The Education workbook uses school divisions, which are not local government units.
+- **PSA barangay population ([#41](https://github.com/reached-hq/edu-access-intelligence/pull/41)):** 1 July 2024 geography, still with Sulu under BARMM.
+- **COD-AB boundaries ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)):** valid 2025-02-13.
+- **PSGC 2Q 2026:** Sulu is under Region IX, and Maguindanao is split into del Norte and del Sur.
+
+A direct name match from the BPDA labels to PSGC 2Q 2026 is therefore expected to fail for Sulu, Maguindanao, the numbered divisions, and SGA. The match rates that #8 asks for have not been computed for the BARMM sources yet.
+
+### Timing
+
+The DepEd anchor is SY 2023-24. The BPDA Education rates cover SY 2018-19 to 2020-21, two of which overlap COVID-19 disruption; Social Infrastructure and Roads are mostly undated; MBHTE projects were monitored in April 2024. BPDA values therefore cannot be joined to DepEd records as same-year predictors. They can sit beside the school-level results as historical regional context.
+
 ## Distance-specific acquisition design
 
 A usable distance model needs three linked layers:
