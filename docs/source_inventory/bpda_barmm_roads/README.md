@@ -20,13 +20,13 @@ Raw files are kept outside git. Row count refers to the data sheet and excludes 
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `BARMM_Roads.xlsx` | XLSX, two worksheets | n/a | 216,818 | 9 | `5e36f1c36db08617d511d900a9052bc58b73f521d00e9b1712a4ab841cf63cc9` | `raw-data/bpda/original/`; governed raw-storage upload pending |
+| `BARMM_Roads.xlsx` | XLSX, two worksheets | n/a | 216,818 | 9 | `5e36f1c36db08617d511d900a9052bc58b73f521d00e9b1712a4ab841cf63cc9` | Databricks volume `/Volumes/edu_access/00-source/raw/bpda/` |
 
 ## Publisher documentation
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
-| Bangsamoro Knowledge Portal: BARMM Infrastructure | https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/infrastructure | Live web resource; checksum not captured | Publisher, dataset title, placement in the Bangsamoro Ecological Profile, download link |
+| Bangsamoro Knowledge Portal: BARMM Infrastructure (HTML snapshot `BPDA_Infrastructure_page_2026-10-04.html`, 214,951 bytes, saved 2026-10-04 Philippine time; stored in `/Volumes/edu_access/00-source/raw/bpda/`; shared with `bpda_barmm_social_infrastructure`) | https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/infrastructure | `24807e66d0c5f2a313fab4b06b795a6cc3843d49a7dee03764714abc260b1999` | Publisher, dataset title, placement in the Bangsamoro Ecological Profile, download link (the snapshot contains the same Google Sheet ID as the direct export). No license or reuse terms appear on the page |
 | Workbook headers | Inside the inventoried file | File checksum above | Exact road classes, surface types, unit, and reporting-area labels |
 
 No reference date, methodology, data-source note, geographic definition, or release note accompanies the workbook.
