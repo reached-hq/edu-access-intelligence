@@ -73,7 +73,7 @@ Column-by-column descriptions, fill rates, and ranges: [data_dictionary.md](data
 
 | Column or structure | Expected type | Actual type | Notes |
 |---|---|---|---|
-| Geography | Region code or name | Text with a `..` prefix for regions | 35 distinct labels for 20 keys; `NIR` and `Unknown` have no prefix |
+| Geography | Region code or name | Text with a `..` prefix for regions | 35 distinct labels for 20 keys (the Philippines, 18 regions, and Unknown); `NIR` and `Unknown` have no prefix |
 | Category columns (level, type) | Category | Text | Match the metadata categories |
 | Value columns | Number | Text; numbers or `..`, `...`, `a` | Header combines group and year (e.g. `Male 2019-2020`) |
 | Missing values | One documented marker | Three undocumented markers | `..` (teachers), `...` (NAT, literacy), `a` (literacy) |
