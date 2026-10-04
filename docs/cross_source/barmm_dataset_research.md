@@ -25,8 +25,21 @@ Each source has one status:
 3. **DepEd school-level data stays the anchor.** Enrollment, facilities, and personnel join one-to-one on `school_id`. No BPDA source has a school ID.
 4. **BARMM learning outcomes exist only at region level.** OpenSTAT NAT and FLEMMS literacy tables give regional figures. The school-level ELLNA ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49)) and NAT Grade 6 ([`deped_nat_gr6`](../source_inventory/deped_nat_gr6/)) files cover only CAR and Regions I, III, VIII, and IX.
 5. **Distance analysis needs official school coordinates.** OSM ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) has 3,572 school points nationwide, far from a complete school list.
+6. **The DepEd anchor covers BARMM, so BARMM can be included on purpose.** Its 2,603 public schools are in enrollment, facilities, and personnel; 93.3% have classroom counts and 99.2% have teachers counted, against 99.0% and 99.6% elsewhere ([#57](https://github.com/reached-hq/edu-access-intelligence/pull/57), B-7).
 
 None of these sources supports a claim that distance, crowding, or teacher load *caused* poor learning outcomes. That would need predictors and outcomes joined at the same school and year.
+
+## Recommendation: include BARMM, with stated limits
+
+This is a recommendation for the team, not yet a decision. If agreed, it should be recorded in `decisions.md`.
+
+BARMM can be analyzed with the same DepEd indicators as the rest of the country: school availability, classroom pressure, and teacher pressure all have near-complete coverage there ([#57](https://github.com/reached-hq/edu-access-intelligence/pull/57), B-7). Excluding it would drop 2,603 public schools that the data does support. We would include it on purpose and state these limits wherever BARMM results appear:
+
+- 174 BARMM public schools (6.7%) have no classroom counts and are left out of the classroom ratio, compared with 1.0% elsewhere.
+- BARMM has no school-level NAT or ELLNA results, so learning outcomes stay at region level.
+- Sulu is in BARMM for SY 2023-24 but under Region IX in PSGC 2Q 2026, so regional totals must say which map they use.
+- Only 7 of the 112 Special Geographic Area schools match a barangay in PSGC 2Q 2026, so barangay results there are incomplete.
+- The BPDA workbooks are historical background only; they cannot be joined to DepEd year for year.
 
 ## Source status
 
