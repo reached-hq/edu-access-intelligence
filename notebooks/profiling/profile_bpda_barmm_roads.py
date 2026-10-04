@@ -11,6 +11,7 @@ dictionary. The raw workbook is read as received and is never modified.
 
 import hashlib
 import os
+import re
 import statistics
 import sys
 import zipfile
@@ -142,9 +143,16 @@ for province, city in (("Lanao del Sur", "Marawi City"), ("Basilan", "Lamitan Ci
     for total_column in range(2, 6):
         total = clean_number(rows_by_area[province].get(total_column, ""))
         components = [clean_number(rows_by_area[province].get(total_column + offset, "")) for offset in (4, 8, 12, 16)]
-        gap = round(total - sum(components), 2) if total is not None and None not in components else None
+        gap = round(total - sum(components), 2) + 0.0 if total is not None and None not in components else None
         city_value = clean_number(rows_by_area[city].get(total_column + 16, ""))
         city_gaps.append((province, header[total_column].split(":")[-1].strip(), gap, city, city_value))
+
+routing_headers = [
+    header[column] for column in range(1, 22)
+    if re.search(r"geometr|segment|endpoint|coordinat|latitude|longitude|route|speed|travel|ferry|season", header[column], re.IGNORECASE)
+]
+dated_headers = [header[column] for column in range(1, 22) if re.search(r"\b(19|20)\d{2}\b|as of", header[column])]
+chart_cells = [cells for _, cells in read_sheet(path, "Charts BARMM Roads") if cells]
 
 # A single published component larger than its total is impossible whatever the
 # blank or `-` cells mean, so check it even where the full reconciliation is skipped.
@@ -175,16 +183,17 @@ print(
     f"[{SOURCE_ID} O-4] complete total/component checks={len(reconciliation)}; "
     f"within 0.02 km={len(close_checks)}; differences above 0.02 km={material_differences}"
 )
+print(f"[{SOURCE_ID} O-5] province gap vs separate city-road value (province, surface, gap, city, city value)={city_gaps}")
+print(f"[{SOURCE_ID} O-6] headers naming geometry, segments, endpoints, routes, speeds, or travel time={routing_headers}")
+print(
+    f"[{SOURCE_ID} O-7] headers with a year or date={dated_headers}; "
+    f"chart sheet non-empty rows={chart_cells}; labels={keys}"
+)
+print(f"[{SOURCE_ID} O-8] components above their total by more than 0.02 km={component_over_total}")
 print(f"[{SOURCE_ID} S-2] totals with a `-` component, gap if `-` is read as zero={dash_as_zero}")
 print(
     f"[{SOURCE_ID} S-3] explicit zeroes={zero_count}; in City Roads columns of province or SGA rows="
     f"{zeroes_in_city_columns_of_non_city_rows}"
-)
-print(f"[{SOURCE_ID} O-8] components above their total by more than 0.02 km={component_over_total}")
-print(f"[{SOURCE_ID} O-5] province gap vs separate city-road value (province, surface, gap, city, city value)={city_gaps}")
-print(
-    f"[{SOURCE_ID} areas] labels={keys}; workbook supplies no reference date, "
-    "PSGC, geometry, endpoints, travel speeds, source note, or missing-marker definition"
 )
 
 dictionary_rows = []
