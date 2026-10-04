@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Date profiled | 2026-10-04 |
-| Profiled by | @hyenalouise, with AI-assisted checks reviewed by the author |
+| Profiled by | @hyenalouise |
 | Tool | `notebooks/profiling/profile_bpda_barmm_education.py`, standard-library XLSX reader |
 | Files profiled (SHA-256) | `BARMM_Education.xlsx` — `5f08cb21ab1abaa2e13277eea429293782c3984447f7217bacce08c1eb44eeca` |
 | How files were read | All cells read as stored text from XLSX XML; checksum and exact shape checked first |
