@@ -20,13 +20,13 @@ Raw files are kept outside git. Row count excludes the header and empty formatte
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `BARMM_Social_Infrastructure.xlsx` | XLSX, one worksheet | n/a | 31,251 | 9 | `6af9c99e33d820f99eb554326eb126cf6a2cdb30945e8f11088a0b26197391d3` | `raw-data/bpda/original/`; governed raw-storage upload pending |
+| `BARMM_Social_Infrastructure.xlsx` | XLSX, one worksheet | n/a | 31,251 | 9 | `6af9c99e33d820f99eb554326eb126cf6a2cdb30945e8f11088a0b26197391d3` | Databricks volume `/Volumes/edu_access/00-source/raw/bpda/` |
 
 ## Publisher documentation
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
-| Bangsamoro Knowledge Portal: Infrastructure Development in BARMM | https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/infrastructure | Live web resource; checksum not captured | Publisher, dataset title, placement in the Bangsamoro Ecological Profile, download link |
+| Bangsamoro Knowledge Portal: Infrastructure Development in BARMM (HTML snapshot `BPDA_Infrastructure_page_2026-10-04.html`, 214,951 bytes, saved 2026-10-04 Philippine time; stored in `/Volumes/edu_access/00-source/raw/bpda/`) | https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/infrastructure | `24807e66d0c5f2a313fab4b06b795a6cc3843d49a7dee03764714abc260b1999` | Publisher, dataset title, placement in the Bangsamoro Ecological Profile, download link (the snapshot contains the same Google Sheet ID as the direct export). No license or reuse terms appear on the page |
 | Workbook header | Inside the inventoried file | File checksum above | Exact measure names, the few stated reference periods, and units |
 
 No methodology, source note, geographic definition, dash-marker definition, or release note accompanies the workbook.
