@@ -28,6 +28,7 @@ Raw files are kept outside git. Row count excludes the title and header records.
 |---|---|---|---|
 | PSA OpenSTAT 2024 population table listing | https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/?tablelist=true | Live web resource; checksum not captured | Publisher, table title, table selection, and source system |
 | OpenSTAT API metadata for table `0201A6DPAG0.px` | https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/1A/PO_2024/0201A6DPAG0.px | Live JSON resource; checksum not captured | Exact table title; age-group, geography, and sex dimensions; category labels; 10-digit geographic codes |
+| PSA OpenSTAT 2024 population, land area, and density table `0221A6DLPD0.px` | https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/ | Live web resource; checksum not captured | Publisher footnote defining `*` as province population excluding HUC counts |
 | CSV title and header | Inside the inventoried file | File checksum above | Delivered title, column names, and exported layout |
 
 ## Coverage
@@ -79,7 +80,7 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** the six affected region-by-age child sums do not reconcile to published region totals, while all national totals reconcile to the 18 region totals.
 - **Observed:** 38 rows across `City of Las Piñas` and `City of Parañaque` contain `U+FFFD` in place of `ñ`; the original characters cannot be reconstructed from this file alone.
 - **Observed:** the CSV omits the 10-digit geographic codes available in the table API, making names and footnote-bearing labels the only delivered join material.
-- **Observed:** 25 geographic labels include asterisks, slash-number footnote markers, or both, but no footnote legend is included in the CSV or API metadata inspected.
+- **Observed:** 25 geographic labels include asterisks, slash-number footnote markers, or both. A companion official PSA 2024 table defines `*` as province population excluding separately reported HUC counts. The marker is absent from Agusan del Norte in this file even though Butuan is listed separately.
 - **Observed:** leading periods encode geographic display hierarchy rather than being part of the place name.
 - **Suspected:** the affected `Both Sexes` values may reflect a table-generation or export alignment defect. No correction is applied without publisher confirmation.
 
@@ -88,7 +89,7 @@ Summary only; evidence lives in [profile.md](profile.md).
 - Do not use the affected lower-level `Both Sexes` counts for the two oldest age groups until corrected or verified. Male and female columns may be aggregated separately only if the limitation is disclosed.
 - This is one census snapshot and does not support trend analysis without comparable releases.
 - The table does not include barangays, cities other than listed HUCs and special cases, household identifiers, institutional population, or uncertainty measures.
-- Geographic codes, footnote definitions, and release-version details are absent from the downloaded CSV.
+- Geographic codes, footnote definitions, and release-version details are absent from the downloaded CSV. The related official table supplies the general asterisk definition, but not why its application differs for Agusan del Norte.
 - Household population must not be described as total population without reconciling the definitional difference.
 
 ## Recommended controls and monitoring
@@ -99,4 +100,4 @@ Summary only; evidence lives in [profile.md](profile.md).
 - Retrieve and retain API geographic codes and category codes with the raw export; record retrieval timestamp and API table ID.
 - Preserve raw labels, including footnote markers and replacement characters, alongside separately cleaned matching fields.
 - Alert when replacement-character counts, footnote-bearing labels, mismatch counts, or mismatch locations change.
-- Seek PSA confirmation or a corrected export for the 38 inconsistent rows and a machine-readable legend for all geographic footnotes.
+- Seek PSA confirmation or a corrected export for the 38 inconsistent rows and confirmation of the omitted Agusan del Norte asterisk.

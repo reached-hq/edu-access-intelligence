@@ -1,7 +1,8 @@
-"""Profile all regional PSA 2024 population-by-barangay workbooks.
+r"""Profile all regional PSA 2024 population-by-barangay workbooks.
 
-Run with:
-    PSA_POPULATION_DIR=/path/to/regional/workbooks python notebooks/profiling/profile_psa_population_per_barangay.py
+Run in PowerShell with:
+    $env:RAW_DATA_DIR = "C:\path\to\raw-data"
+    python notebooks\profiling\profile_psa_population_per_barangay.py
 """
 
 import hashlib
@@ -14,7 +15,10 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
+import duckdb
 
+
+# %% setup
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 from src.profiling.xlsx import read_sheet
@@ -40,9 +44,10 @@ FILES = {
     "Caraga_0.xlsx": ("Caraga", "df1d4cd93d6433ca05e6ffd94fbc2f9cd3d46f3cdc964504296fea5c16eb6f8d"),
     "BARMM_1.xlsx": ("BARMM", "c7111b353ec133c7cc8cfe558f03d893b1e24a36d1bf57159cb44624752132a9"),
 }
-SOURCE_DIR = Path(os.environ.get("PSA_POPULATION_DIR", "")).expanduser()
-if not os.environ.get("PSA_POPULATION_DIR"):
-    sys.exit("Set PSA_POPULATION_DIR to the folder containing all 18 regional workbooks.")
+raw_dir = os.environ.get("RAW_DATA_DIR")
+if not raw_dir:
+    sys.exit("Set RAW_DATA_DIR to the folder that contains psa/original/.")
+SOURCE_DIR = Path(raw_dir).expanduser() / "psa" / "original"
 
 MAIN = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
@@ -62,19 +67,30 @@ def cleaned_name(value):
 
 
 def data_rows(path, sheet):
+    source_rows = list(read_sheet(path, sheet))
+    numeric_row_numbers = [
+        row_number for row_number, cells in source_rows
+        if cells.get(2, "") and re.fullmatch(r"\d+", cells.get(4, ""))
+    ]
+    if not numeric_row_numbers:
+        return [], []
+    first_data_row = min(numeric_row_numbers)
     rows = []
-    for row_number, cells in read_sheet(path, sheet):
+    invalid_population_rows = []
+    for row_number, cells in source_rows:
         name = cells.get(2, "")
         population = cells.get(4, "")
         if name and re.fullmatch(r"\d+", population):
             rows.append({"source_row": row_number, "source_name": name, "name": cleaned_name(name), "population": int(population)})
-    return rows
+        elif name and row_number >= first_data_row:
+            invalid_population_rows.append((path.name, sheet, row_number, name, population))
+    return rows, invalid_population_rows
 
 
 def parse_sheet(path, region, sheet):
-    rows = data_rows(path, sheet)
+    rows, invalid_population_rows = data_rows(path, sheet)
     if not rows:
-        return [], [], None
+        return [], [], None, invalid_population_rows
     sheet_total = {**rows[0], "region": region, "sheet": sheet, "file": path.name}
     grouped = len(rows) > 1 and rows[1]["source_row"] - rows[0]["source_row"] > 1
     parent = sheet_total["name"]
@@ -97,7 +113,7 @@ def parse_sheet(path, region, sheet):
                 "file": path.name,
             })
         previous_row = row["source_row"]
-    return parents, barangays, sheet_total
+    return parents, barangays, sheet_total, invalid_population_rows
 
 
 all_parents = []
@@ -105,6 +121,8 @@ all_barangays = []
 sheet_totals = []
 hidden_sheets = []
 file_metrics = []
+invalid_population_rows = []
+# %% verify and parse every workbook
 for filename, (region, expected_hash) in FILES.items():
     path = SOURCE_DIR / filename
     if not path.exists():
@@ -120,7 +138,8 @@ for filename, (region, expected_hash) in FILES.items():
             hidden_sheets.append((filename, sheet, state))
             continue
         visible_count += 1
-        parents, barangays, sheet_total = parse_sheet(path, region, sheet)
+        parents, barangays, sheet_total, invalid_rows = parse_sheet(path, region, sheet)
+        invalid_population_rows.extend(invalid_rows)
         if sheet_total is None:
             continue
         all_parents.extend(parents)
@@ -130,7 +149,31 @@ for filename, (region, expected_hash) in FILES.items():
         region_total += sheet_total["population"]
     file_metrics.append((filename, region, path.stat().st_size, visible_count, len(region_barangays), region_total))
 
+print(f"[O-5] named data rows with blank or non-integer population={len(invalid_population_rows)}")
+if invalid_population_rows:
+    print("[O-5] affected rows=", invalid_population_rows[:20])
+    sys.exit("Stop: named data rows with blank or non-integer populations would otherwise be dropped.")
 
+# %% load normalized barangay records into DuckDB
+con = duckdb.connect()
+con.execute("""CREATE TABLE barangays (
+    region VARCHAR, source_file VARCHAR, source_sheet VARCHAR, source_row BIGINT,
+    parent_area VARCHAR, barangay VARCHAR, source_name VARCHAR, total_population BIGINT
+)""")
+con.executemany(
+    "INSERT INTO barangays VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [
+        (row["region"], row["file"], row["sheet"], row["source_row"], row["parent_area"], row["name"], row["source_name"], row["population"])
+        for row in all_barangays
+    ],
+)
+
+
+def one(sql):
+    return con.execute(sql).fetchone()[0]
+
+
+# %% compute findings and reconciliation controls
 parent_groups = {}
 for row in all_barangays:
     key = (row["file"], row["sheet"], row["parent_area"])
@@ -161,47 +204,68 @@ for total in sheet_totals:
     if total["population"] != actual:
         sheet_mismatches.append((key, total["population"], actual, actual - total["population"]))
 
-keys = [(row["region"], row["sheet"].strip(), row["parent_area"], row["name"]) for row in all_barangays]
-full_rows = [(row["file"], row["sheet"], row["source_row"], row["source_name"], row["population"]) for row in all_barangays]
 populations = [row["population"] for row in all_barangays]
 trailing_names = sum(row["source_name"] != row["source_name"].rstrip() for row in all_barangays)
 name_counts = Counter(row["name"] for row in all_barangays)
 repeated_names = sum(count > 1 for count in name_counts.values())
 rows_with_repeated_names = sum(count for count in name_counts.values() if count > 1)
-duplicate_keys = len(keys) - len(set(keys))
-duplicate_rows = len(full_rows) - len(set(full_rows))
-zero_population = sum(value == 0 for value in populations)
+duplicate_keys = one("""SELECT coalesce(sum(row_count - 1), 0) FROM (
+    SELECT count(*) AS row_count FROM barangays GROUP BY region, trim(source_sheet), parent_area, barangay
+)""")
+duplicate_rows = one("SELECT count(*) - (SELECT count(*) FROM (SELECT DISTINCT * FROM barangays)) FROM barangays")
+zero_population = one("SELECT count(*) FROM barangays WHERE total_population = 0")
 national_total = sum(total["population"] for total in sheet_totals)
 zero_rows = [(row["region"], row["sheet"], row["parent_area"], row["name"]) for row in all_barangays if row["population"] == 0]
 largest_rows = sorted(all_barangays, key=lambda row: row["population"], reverse=True)[:5]
 
-print(f"files={len(FILES)} visible_sheets={len(sheet_totals)} hidden_sheets={len(hidden_sheets)}")
-print(f"barangays={len(all_barangays):,} parent_areas={len(parent_groups):,} duplicate_keys={duplicate_keys} duplicate_rows={duplicate_rows}")
-print(f"population_min={min(populations):,} median={statistics.median(populations):,.0f} max={max(populations):,} zeros={zero_population}")
-print(f"national_total_from_sheet_totals={national_total:,}")
-print(f"parent_total_mismatches={len(parent_mismatches)} sheet_total_mismatches={len(sheet_mismatches)}")
-print(f"barangay_names_with_trailing_space={trailing_names:,}")
-print(f"repeated_barangay_names={repeated_names:,} rows_with_repeated_names={rows_with_repeated_names:,}")
-print("hidden_sheets=", hidden_sheets)
-print("file_metrics=", file_metrics)
-print("zero_population_rows=", zero_rows)
-print("largest_barangays=", [(row["region"], row["sheet"], row["parent_area"], row["name"], row["population"]) for row in largest_rows])
-print("parent_mismatches=", parent_mismatches[:20])
-print("sheet_mismatches=", sheet_mismatches[:20])
+print(f"[O-1] files={len(FILES)} checksums verified; visible_sheets={len(sheet_totals)}")
+print(f"[O-2] barangays={len(all_barangays):,} parent_areas={len(parent_groups):,} duplicate_keys={duplicate_keys} duplicate_rows={duplicate_rows}")
+print(f"[O-3] hidden_sheets={len(hidden_sheets)} details={hidden_sheets}")
+print(f"[O-4] parent_total_mismatches={len(parent_mismatches)} sheet_total_mismatches={len(sheet_mismatches)}")
+print(f"[O-5] population_min={min(populations):,} median={statistics.median(populations):,.0f} max={max(populations):,} zeros={zero_population}")
+print(f"[O-6] national_total_from_sheet_totals={national_total:,}")
+print(f"[O-8] barangay_names_with_trailing_space={trailing_names:,} repeated_names={repeated_names:,} rows_with_repeated_names={rows_with_repeated_names:,}")
+print(f"[O-10] zero_population_rows={zero_rows}")
+print("[O-11] largest_barangays=", [(row["region"], row["sheet"], row["parent_area"], row["name"], row["population"]) for row in largest_rows])
+print("[O-4] parent_mismatches=", parent_mismatches[:20])
+print("[O-4] sheet_mismatches=", sheet_mismatches[:20])
+print("[O-1] file_metrics=", file_metrics)
 
 
 def percent(value, total):
     return f"{100 * value / total:.1f}%" if total else "n/a"
 
 
+def field_metrics(field):
+    filled, distinct = con.execute(
+        f"SELECT count({field}), count(DISTINCT {field}) FROM barangays"
+    ).fetchone()
+    return percent(filled, len(all_barangays)), f"{distinct:,}"
+
+
+def samples(field, count=3):
+    values = [row[0] for row in con.execute(f"SELECT DISTINCT {field} FROM barangays ORDER BY {field} LIMIT {count}").fetchall()]
+    return ", ".join(f"`{value}`" for value in values)
+
+
+region_filled, region_distinct = field_metrics("region")
+file_filled, file_distinct = field_metrics("source_file")
+sheet_filled, sheet_distinct = field_metrics("source_sheet")
+row_filled, row_distinct = field_metrics("source_row")
+parent_filled, parent_distinct = field_metrics("parent_area")
+barangay_filled, barangay_distinct = field_metrics("barangay")
+population_filled, population_distinct = field_metrics("total_population")
+source_row_min, source_row_max = con.execute("SELECT min(source_row), max(source_row) FROM barangays").fetchone()
+
+# %% generate the data dictionary from measured values
 dictionary_rows = [
-    ("region", "Not stated", "**Not in the publisher's documentation (undocumented)**", "Derived lineage field based on the publisher's regional file grouping.", "[observed] One of 18 complete regional file groups.", "category", "100.0%", "18", "NCR, CAR, Region I, CALABARZON, NIR, BARMM"),
-    ("source_file", "Not stated", "**Not in the publisher's documentation (undocumented)**", "Derived lineage field, not an original workbook column.", "[observed] Exact workbook name received; each file checksum is verified before reading.", "category", "100.0%", "18", "`NCR_2.xlsx`, `Region I_1.xlsx`, `BARMM_1.xlsx`"),
-    ("source_sheet", "Not stated", "**Not in the publisher's documentation (undocumented)**", "Derived lineage field, not an original workbook column.", "[observed] Visible worksheet containing the published row. Hidden calculation sheets are excluded and listed in profile finding O-3.", "category", "100.0%", str(len(sheet_totals)), "`Abra`, `City of Manila`, `Sulu`"),
-    ("source_row", "Not stated", "**Not in the publisher's documentation (undocumented)**", "Derived lineage field, not an original workbook column.", "[observed] Original Excel row number, retained for reproducible trace-back.", "whole number", "100.0%", "varies by sheet", "min 7, maximum varies by sheet"),
-    ("parent_area", "Not stated", "Province, City, Municipality, and Barangay", "The workbook combines geographic levels in one hierarchy column.", "[observed] Nearest published city, municipality, sub-municipality, or sheet-level parent total preceding the barangay row.", "text", "100.0%", f"{len(set(row['parent_area'] for row in all_barangays)):,}", "Examples: `CITY OF BAGUIO`, `BANGUED`, `Tondo I/II`"),
-    ("barangay", "Not stated", "Province, City, Municipality, and Barangay", "The workbook combines geographic levels in one hierarchy column.", "[observed] A populated hierarchy row below its parent total. The parser preserves source text and uses a whitespace-normalized value for keys.", "text", "100.0%", f"{len(set(row['name'] for row in all_barangays)):,}", "Examples: `Poblacion`, `Barangay 1`, `San Isidro`"),
-    ("total_population", "Not stated", "Total Population", "Workbook title states the count is as of 01 July 2024.", f"[observed] Every barangay value is a nonnegative whole number; {zero_population} values are zero.", "whole number", "100.0%", f"{len(set(populations)):,}", f"min {min(populations):,}, median {statistics.median(populations):,.0f}, max {max(populations):,}; zeros: {zero_population:,}"),
+    ("region", "Not stated", "**Not in the publisher's documentation (undocumented)**", "Derived lineage field based on the publisher's regional file grouping.", f"[observed] One of {region_distinct} regional file groups.", "category", region_filled, region_distinct, samples("region")),
+    ("source_file", "Not stated", "**Not in the publisher's documentation (undocumented)**", "Derived lineage field, not an original workbook column.", "[observed] Exact workbook name received; each file checksum is verified before reading.", "category", file_filled, file_distinct, samples("source_file")),
+    ("source_sheet", "Not stated", "**Not in the publisher's documentation (undocumented)**", "Derived lineage field, not an original workbook column.", "[observed] Visible worksheet containing the published row. Hidden calculation sheets are excluded and listed in profile finding O-3.", "category", sheet_filled, sheet_distinct, samples("source_sheet")),
+    ("source_row", "Not stated", "**Not in the publisher's documentation (undocumented)**", "Derived lineage field, not an original workbook column.", "[observed] Original Excel row number, retained for reproducible trace-back.", "whole number", row_filled, row_distinct, f"min {source_row_min:,}, max {source_row_max:,}"),
+    ("parent_area", "Not stated", "Province, City, Municipality, and Barangay", "The workbook combines geographic levels in one hierarchy column.", "[observed] Nearest published city, municipality, sub-municipality, or sheet-level parent total preceding the barangay row.", "text", parent_filled, parent_distinct, samples("parent_area")),
+    ("barangay", "Not stated", "Province, City, Municipality, and Barangay", "The workbook combines geographic levels in one hierarchy column.", "[observed] A populated hierarchy row below its parent total. The parser preserves source text and uses a whitespace-normalized value for keys.", "text", barangay_filled, barangay_distinct, samples("barangay")),
+    ("total_population", "Not stated", "Total Population", "Workbook title states the count is as of 01 July 2024.", f"[observed] Every barangay value is a nonnegative whole number; {zero_population} values are zero.", "whole number", population_filled, population_distinct, f"min {min(populations):,}, median {statistics.median(populations):,.0f}, max {max(populations):,}; zeros: {zero_population:,}"),
 ]
 
 dictionary = """# psa_population_per_barangay: data dictionary

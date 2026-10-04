@@ -6,16 +6,18 @@
 |---|---|
 | Date profiled | 2026-10-02 |
 | Profiled by | @mafelisilda |
-| Tool | Python standard library and shared XLSX reader: [`notebooks/profiling/profile_psa_population_per_barangay.py`](../../../notebooks/profiling/profile_psa_population_per_barangay.py) |
+| Tool | DuckDB, Python, and shared XLSX reader: [`notebooks/profiling/profile_psa_population_per_barangay.py`](../../../notebooks/profiling/profile_psa_population_per_barangay.py) |
 | Files profiled (SHA-256) | All 18 checksums in [README.md](README.md#files); the script stops on a missing file or mismatch |
-| How files were read | XLSX XML read as text with `src/profiling/xlsx.py`; only sheets marked visible were parsed; source file, sheet, and Excel row retained; population required to contain digits only |
+| How files were read | XLSX XML read as text with `src/profiling/xlsx.py`; only sheets marked visible were parsed; source file, sheet, and Excel row retained; normalized rows loaded into DuckDB; named data rows with blank or non-integer populations counted before parsing |
 
 ## How to rerun
 
 ```powershell
-$env:PSA_POPULATION_DIR = "<folder-containing-the-18-workbooks>"
+$env:RAW_DATA_DIR = "C:\path\to\raw-data"
 python notebooks\profiling\profile_psa_population_per_barangay.py
 ```
+
+Place all 18 workbooks directly in `$env:RAW_DATA_DIR\psa\original\`.
 
 ## Summary
 
@@ -29,7 +31,7 @@ Usable as a complete barangay-level population snapshot for 01 July 2024 after p
 | O-2 | Complete barangay extraction | 42,011 barangay rows across 118 visible sheets and 1,655 parent areas | Supports national barangay-level analysis | Assert file, sheet, parent, and row counts on refresh |
 | O-3 | Six hidden non-publication sheets were excluded | `NCR_2.xlsx`: `Table B`; `CAR_0.xlsx`: `Sheet9`; `BARMM_1.xlsx`: four `Table C_*` sheets. Workbook state is `hidden`; calculation sheets include check columns and `#REF!` values | Reading every sheet would duplicate or contaminate published rows | Exclude only explicit hidden sheets and log them |
 | O-4 | Candidate key and rows are unique | 0 duplicate normalized `(region, sheet, parent_area, barangay)` keys and 0 duplicate lineage rows | Safe normalized grain | Enforce uniqueness before loading Silver |
-| O-5 | Barangay populations are complete whole numbers | 42,011 of 42,011 populated; 0 non-integers; 0 negatives; min 0, median 1,424, max 215,035 | Safe numeric typing, subject to zero review | Cast only after text validation; retain raw values |
+| O-5 | Barangay populations are complete whole numbers | 42,011 of 42,011 populated; 0 named data rows have blank or non-integer populations; 0 negatives; min 0, median 1,424, max 215,035 | Safe numeric typing, subject to zero review | Count named rows before filtering; stop and report file, sheet, and Excel row when population is blank or non-integer; cast only after validation |
 | O-6 | All published totals reconcile | 0 of 1,655 parent totals mismatch their barangay sums; 0 of 118 sheet totals mismatch their child sums | Strong evidence that hierarchy parsing is complete | Make both reconciliations blocking controls |
 | O-7 | Geographic totals reconcile to the documented national exception | Sheet totals sum to 112,727,776. PSA's national figure is 112,729,484; the difference is 1,708, matching PSGC Notes D.2 for Filipinos in embassies, consulates, and missions abroad | Regional shares must use a clearly defined denominator | Document whether the national or geographically assigned total is used |
 | O-8 | Names require cleaning and parent scoping | 2,775 barangay labels end in whitespace. 4,004 names repeat and cover 20,136 rows, but the scoped candidate key has 0 duplicates | Name-only joins can silently misassign population | Preserve raw names; trim matching fields; match only within parent geography |

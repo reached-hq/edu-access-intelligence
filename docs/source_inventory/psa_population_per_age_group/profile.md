@@ -6,16 +6,18 @@
 |---|---|
 | Date profiled | 2026-10-02 |
 | Profiled by | @mafelisilda |
-| Tool | Python standard library: [`notebooks/profiling/profile_psa_population_per_age_group.py`](../../../notebooks/profiling/profile_psa_population_per_age_group.py) |
+| Tool | DuckDB and Python: [`notebooks/profiling/profile_psa_population_per_age_group.py`](../../../notebooks/profiling/profile_psa_population_per_age_group.py) |
 | Files profiled (SHA-256) | `ce797046a055f870c30f5a2ce6d42b4bdc8f14f4dd8145269f450372c6c93ad6` |
-| How files were read | CSV parsed as UTF-8 text; title and five-column header validated; population cells converted to integers only after parsing; source row retained in memory for traceability |
+| How files were read | Title validated as UTF-8 text; five delivered columns loaded into DuckDB as text; header validated; population cells converted to integers only after parsing; source row retained in memory for traceability |
 
 ## How to rerun
 
 ```powershell
-$env:PSA_POPULATION_AGE_GROUP_FILE = "C:\path\to\Household Population by Age-Group Region, Province, and Highly Urbanized City- Philippines, 2024 Census of Population.csv"
+$env:RAW_DATA_DIR = "C:\path\to\raw-data"
 python notebooks\profiling\profile_psa_population_per_age_group.py
 ```
+
+Place the inventoried CSV directly in `$env:RAW_DATA_DIR\psa\original\`.
 
 ## Summary
 
@@ -36,7 +38,7 @@ Usable for national and regional 2024 household-population analysis by age group
 | O-9 | Six region-child checks fail | Lower-level `Both Sexes` sums fail for Regions V, X, and XI in both `80 - 84` and `85 and over`; all other region-child age-sex checks reconcile | Confirms the defect is localized below region level | Make region-child reconciliation mandatory and publish exceptions |
 | O-10 | Geographic text contains irreversible replacement characters | 38 rows and 2 distinct labels contain `U+FFFD`: `City of Las Piñas` and `City of Parañaque` are damaged in every age group | Exact name matching and presentation are impaired | Recover labels and codes from API metadata, while preserving raw CSV text |
 | O-11 | Geographic codes are lost in CSV export | API metadata supplies one 10-digit code for each of 137 geographic labels; the CSV contains labels only | Name-only joins are less stable and footnote markers complicate matching | Ingest API codes or maintain a checksum-versioned crosswalk |
-| O-12 | Footnote markers are present without their legend | 25 distinct labels contain `*`, `**`, or numbered slash markers; neither the CSV nor API metadata inspected supplies explanations | Regional membership and boundary exceptions may be misread | Obtain and retain the PSA legend; never strip markers before raw preservation |
+| O-12 | The asterisk denotes province counts that exclude separately reported HUCs, but the marker is inconsistently applied | 25 labels contain `*`, `**`, or numbered slash markers. A companion official PSA 2024 table defines `*` as "Population counts for the provinces exclude the counts of Highly Urbanized Cities." The age-group file has 14 labels with one asterisk. `Agusan del Norte` has no asterisk even though `City of Butuan` is a separate row | Marker-only parsing could incorrectly treat Agusan del Norte as including Butuan or create double counting in PSGC joins | Treat every separately listed HUC as outside its province row regardless of marker presence; preserve raw labels and join using API codes and hierarchy |
 | O-13 | No direct personal information is present | Columns contain aggregate age group, geography, and population counts only | Low privacy risk | Classify as Public |
 
 ## Suspected findings
@@ -45,8 +47,7 @@ Usable for national and regional 2024 household-population analysis by age group
 |---|---|---|---|
 | S-1 | The 38 sex-total failures result from a PSA table-generation or export alignment defect | Compare the CSV with a fresh API JSON-stat or CSV response, PSA publication tables, and any correction notice; request publisher confirmation | open |
 | S-2 | The `Both Sexes` values for `80 - 84` in the 19 affected geographies may include a broader oldest-age grouping | Obtain the underlying crosstab or methodology and compare its age-bin definitions; do not infer a correction from arithmetic alone | open |
-| S-3 | The footnotes explain boundary or regional-assignment exceptions relevant to PSGC joins | Locate the publisher's footnote legend or request it from PSA, then test every marked label against a dated PSGC edition | open |
-| S-4 | The API's 10-digit geographic codes correspond to a specific PSGC edition | Compare all 137 codes and labels with dated PSGC releases and confirm the effective date with PSA | open |
+| S-3 | The API's 10-digit geographic codes correspond to a specific PSGC edition | Compare all 137 codes and labels with dated PSGC releases and confirm the effective date with PSA | open |
 
 ## Changes across files or years
 
@@ -66,7 +67,7 @@ The 2024 OpenSTAT API metadata showed the table updated on 2026-09-22, seven day
 ## Questions for the publisher or mentor
 
 - Can PSA confirm or correct the 38 lower-level `Both Sexes` values in the two oldest age groups?
-- What do the 25 embedded geographic footnote markers mean?
+- Can PSA confirm why the age-group table omits `*` from Agusan del Norte even though Butuan is reported separately?
 - Which PSGC edition or geographic effective date governs the API's 10-digit codes?
 - What exact census reference date and household-population definition should accompany this table?
 - Is there a revision history or correction-notice endpoint for OpenSTAT table `0201A6DPAG0.px`?
