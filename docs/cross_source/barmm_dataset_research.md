@@ -86,7 +86,7 @@ The candidate layers are dated differently: the OSM extract is from 2026-09-28, 
 
 These statements come from landing pages, catalogs, or teammates' cards and were not checked against data for this memo:
 
-- **MBHTE BEMIS:** the public page timed out or redirected during retrieval, so its datasets and downloads are unconfirmed.
+- **MBHTE BEMIS:** on 2026-10-04 the reports page first returned a Cloudflare timeout (error 524) and then `404 Not Found`, and the site's home page also returned `404 Not Found`. The page may have moved, so its datasets and downloads are unconfirmed.
 - **PSA 2024 FLEMMS public-use file:** the variables, province/HUC domains, and weights are taken from the PSA catalog page; the file was not accessed.
 - **DepEd FOI geospatial school list:** the FOI request page was seen; the released file was not inspected.
 - **Teammates' sources:** the OSM school count ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)), the COD-AB code match rate ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)), the ELLNA and NAT Grade 6 region coverage ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49), [#50](https://github.com/reached-hq/edu-access-intelligence/pull/50)), and the 60,167 school-ID matches ([#40](https://github.com/reached-hq/edu-access-intelligence/pull/40)) come from their source cards and were not re-run here.
