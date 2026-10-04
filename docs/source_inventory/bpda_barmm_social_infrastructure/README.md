@@ -80,6 +80,7 @@ Unstated originating ministries/systems -> BPDA Bangsamoro Ecological Profile Go
 - **Observed:** classroom measures count **classroom buildings**, not rooms, seats, capacity, utilization, or condition.
 - **Observed:** no PSGC or other geographic code is supplied; the geography is historical and mixed-level.
 - **Observed:** `Number of SUCs and Elementary Schools` is ambiguous and cannot be interpreted safely from the header alone.
+- **Observed:** private elementary and private secondary school counts are identical in 5 of 9 rows (Maguindanao 88, Lanao del Sur 57, Basilan 13, Sulu 15, Tawi-Tawi 18). The other four rows differ. At least one column is probably a copy error, so both are excluded until BPDA confirms them.
 
 ## Limitations for analysis
 
@@ -89,6 +90,7 @@ Unstated originating ministries/systems -> BPDA Bangsamoro Ecological Profile Go
 - It cannot support teacher workload because it has no teacher or personnel counts.
 - Measures with unspecified reference periods must not be combined into a same-year model.
 - Dashes must not be converted to zero without publisher confirmation.
+- Private elementary and private secondary school counts must not be used until BPDA confirms which values are correct.
 - Non-education fields are out of project scope but remain documented because they arrived in the same source file.
 
 ## Recommended controls and monitoring

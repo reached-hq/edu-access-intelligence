@@ -89,6 +89,9 @@ for row in body:
     if None not in (total, with_pto, traditional):
         madrasah_checks.append((row[1], int(total), int(with_pto + traditional), total == with_pto + traditional))
 
+private_pairs = [(row[1], clean_number(row.get(6, "")), clean_number(row.get(17, ""))) for row in body]
+private_same = [area for area, elementary, secondary in private_pairs if elementary == secondary]
+
 print(
     f"[{SOURCE_ID} run] {FILENAME}: checksum OK; sheets={sheets}; data rows={len(body)}; "
     f"columns={len(header)}; empty formatted rows={len(rows) - len(nonempty)}"
@@ -116,6 +119,11 @@ print(
     f"[{SOURCE_ID} O-8] workbook has no title row, source note, definitions, PSGC, "
     "dash-marker definition, region total, or release date"
 )
+print(
+    f"[{SOURCE_ID} O-10] private elementary equals private secondary in {len(private_same)} of {len(body)} rows "
+    f"({private_same}); "
+    f"pairs={[(area, int(e), int(s)) for area, e, s in private_pairs]}"
+)
 
 dictionary_rows = []
 for column in range(1, 34):
@@ -142,6 +150,8 @@ for column in range(1, 34):
     interpretation = "**[observed]** Filled numeric values are whole counts; `-` is retained as missing because the publisher does not define it."
     if column == 13:
         interpretation = "**[assumed]** The header is ambiguous; exclude this field until BPDA confirms what is counted."
+    if column in (6, 17):
+        interpretation += " **[observed]** Private elementary and private secondary are equal in 5 of 9 rows (profile O-10); do not use either until BPDA confirms them."
     if column in (8, 9, 19, 20):
         interpretation += " **[observed]** The header says classroom building, not classroom or seat."
     sample = (
