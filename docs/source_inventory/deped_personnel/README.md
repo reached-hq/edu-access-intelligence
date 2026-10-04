@@ -36,7 +36,7 @@
 | Geographic level | School |
 | Time coverage | SY 2023-24 only |
 | Time basis | School year |
-| Update frequency | Annual for BEIS data collection (Technical Notes p. 3)delivery remain unverified |
+| Update frequency | Annual for BEIS data collection (Technical Notes p. 3); publication schedule and delivery timing remain unverified |
 | Population covered | Personnel actually working in public schools, not authorized plantilla positions in DBM's PSIPOP/GMIS (Technical Notes p. 12). |
 
 ## Structure
@@ -69,7 +69,8 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** blanks are ambiguous between not applicable and unavailable, and the file uses both blank and zero. Blanks must not be converted to zero.
 - **Observed:** `shs_master_teacher_iv` is entirely blank despite being included in the schema.
 - **Observed:** 1,090 of 7,741 populated `shs_total_school_principal` values are one greater than the sum of the four documented grade components.
-- **Observed:** four locally funded fields have maxima of 5,000, 7,435, 20,104, and 27,573 at a single school level. These magnitudes are implausible for school-level headcounts and indicate likely source-entry or scaling errors.
+- **Observed:** a repeatable review rule identifies seven high-impact locally funded support-role values across six schools. Six values exceed the corresponding school's total learner count; the seventh is 500 SHS administrative aides at a school with 9,759 learners. The raw values are retained and their validity remains unconfirmed.
+- **Suspected:** the two exact values of 999 may be sentinel or entry values, but no reviewed publisher documentation confirms that interpretation.
 - **Observed:** no negative or non-whole-number personnel values, duplicate keys, or duplicate rows were found.
 - **Suspected:** zero may mean a confirmed absence while blank may combine not applicable and not reported, but the publisher documents only the ambiguity of blanks.
 

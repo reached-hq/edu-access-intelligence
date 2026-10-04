@@ -6,21 +6,20 @@
 |---|---|
 | Date profiled | 2026-10-02 |
 | Profiled by | @mafelisilda |
-| Tool | Python standard library, run locally: [`notebooks/profiling/profile_deped_personnel.py`](../../../notebooks/profiling/profile_deped_personnel.py) |
+| Tool | Python and DuckDB, run locally: [`notebooks/profiling/profile_deped_personnel.py`](../../../notebooks/profiling/profile_deped_personnel.py) |
 | Files profiled (SHA-256) | `personnel_2023-24.csv`: `5d0dd4a244fc13401787d32f84f21ab5af295bf808f037a3f762efff7d6ed6c5`; official ZIP `README.md`: `e2aecfdb0a94d748e75d9d3b2846012185ba68533be0ce66b964bd7ae81afb93` |
-| How files were read | CSV columns read as UTF-8 text with strict checksum verification; whitespace trimmed only for profiling; blanks retained as missing, not zero |
+| How files were read | CSV members read from checksum-verified ZIP archives as UTF-8 text; all columns loaded as text in DuckDB; whitespace trimmed only for profiling; blanks retained as missing, not zero |
 | Official-source verification | Official ZIP: `9d1e5adfc33d67244f0d1a796f1b8b1930f5704eadf9f901008da68d7764a817`; both ZIP members are byte-identical to the supplied files |
 | Additional documentation reviewed | [School Characteristics Technical Notes](https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf), SHA-256 `a0cb8728a4b175e6eba493fa0d06146c10db9064bc3c71807162fd9266f39cbc` |
 
 ## How to rerun
 
 ```powershell
-$env:DEPED_PERSONNEL_DIR = "<folder-containing-personnel-csv-and-readme>"
-$env:DEPED_ENROLLMENT_CSV = "<path-to-enrollment_2023-24.csv>"
+$env:RAW_DATA_DIR = "<raw-data-root>"
 python notebooks/profiling/profile_deped_personnel.py
 ```
 
-The enrollment input is optional for dictionary generation and required to reproduce finding O-2.
+Place `School-Personnel-in-SY-2023-2024.zip` and `Enrollment-in-SY-2023-2024.zip` under `$env:RAW_DATA_DIR\deped\original\`. Both archives are required because the same-year enrollment cross-check supports O-2 and the O-9 review rule. The script verifies the inventoried checksums before profiling and never modifies the archives.
 
 ## Summary
 
@@ -37,8 +36,8 @@ Usable for SY 2023-24 public-school staffing analysis after outlier quarantine a
 | O-5 | Level applicability is internally consistent | 0 filled ES, JHS, or SHS measure cells occur where the corresponding `offers_*` flag is false | Offering flags can support applicability validation | Keep this as a load-time assertion |
 | O-6 | Numeric domains are structurally valid | Across 321 personnel columns, 0 non-whole-number cells and 0 negative cells | Values can be typed as nullable integers | Cast after validation; retain raw text in Bronze |
 | O-7 | One documented field is entirely blank | `shs_master_teacher_iv`: 0 filled values among 60,167 rows and among 12,793 SHS-offering schools | The role cannot be analyzed | Alert on all-blank columns |
-| O-8 | The SHS principal total is not a simple sum of documented components | Of 7,741 populated `shs_total_school_principal` rows, 6,651 equal the sum of grades I–IV and 1,090 are exactly one greater | Recomputed totals would disagree with the publisher field | Retain both values; flag discrepancies; seek the total's business rule |
-| O-9 | Extreme locally funded counts indicate likely accuracy errors | Maxima: `es_learning_support_aide_other_funding` 5,000; `jhs_administrative_aide_other_funding` 7,435; `shs_administrative_aide_lgu_funding` 20,104; `shs_administrative_assistant_lgu_funding` 27,573. Nationally funded maxima are far lower, led by `jhs_teacher_i` at 330 | A few values can dominate sums and ratios | Quarantine extreme records pending source confirmation; monitor robust percentiles and maxima |
+| O-8 | The SHS principal total does not always equal the sum of its four documented grade fields | Of 7,741 rows with a reported `shs_total_school_principal`, 6,651 match the sum of grades I–IV. The remaining 1,090 totals are each exactly one higher than that sum | Recomputed totals would disagree with the publisher field | Retain both values; flag discrepancies; seek the total's business rule |
+| O-9 | Seven high-impact locally funded support-role values require review | The repeatable rule flags a value when it is at least 500 and either exceeds the same school's total enrollment or belongs to a locally funded support role. It identifies seven fields in six schools: 27,573 and 20,104 at school `340654`; 7,435 at `303499`; 5,000 at `131838`; 999 at `314109`; 999 at `134494`; and 500 at `303950`. The first six exceed their schools' total enrollment; the 500 is an unusually large locally funded administrative-aide count at a school with 9,759 learners | These values can dominate sums and ratios, but the source alone cannot establish whether they are valid | Retain the raw values; quarantine the six affected school rows from derived staffing measures pending confirmation; record both fields on school `340654` as one row-level case with two field-level reasons; rerun the rule each year |
 | O-10 | Documentation covers all 327 delivered columns | 159 columns are individually listed and 168 follow the documented `LEVEL_ROLE_FUNDING-SOURCE` convention | Column meaning and BEIS lineage are traceable, but extraction metadata remain absent | Generate convention-based descriptions and preserve documentation checksums |
 | O-11 | No direct personal data is present | Fields contain school identifiers, school categories, offering flags, and aggregate counts only | Low privacy risk relative to person-level personnel data | Classify as public aggregate institutional data, pending license verification |
 | O-12 | BEIS is the upstream personnel source | Technical Notes p. 1 states that BEIS collects school-level personnel data; pp. 2–3 identify profile forms and school heads as the responsible encoders starting SY 2023-24 | Lineage and accuracy risk are now attributable to a named source and collection process | Record `BEIS` in provenance; retain extract and load metadata |
@@ -50,7 +49,7 @@ Usable for SY 2023-24 public-school staffing analysis after outlier quarantine a
 | ID | Suspicion | How to test | Status |
 |---|---|---|---|
 | S-1 | Blank and zero carry different operational meanings, but blanks combine not-applicable and unavailable cases | Obtain DepEd's extraction rules and compare a sample with source-system records | open |
-| S-2 | Extreme locally funded values are data-entry, misplaced-decimal, or unit errors | Verify the source records and compare with adjacent school years or jurisdiction totals | open |
+| S-2 | The seven O-9 values, including both exact `999` values, may be data-entry, misplaced-decimal, aggregation, or unit errors | Verify all seven values against source records and compare with adjacent school years or jurisdiction totals. Do not interpret `999` as a sentinel unless DepEd confirms it | open |
 | S-3 | `shs_total_school_principal` includes a principal category not represented by the four grade fields | Obtain the total's calculation rule and inspect the 1,090 discrepant schools against source records | open |
 | S-4 | The one public school with every personnel measure blank is an incomplete report rather than a true zero-staff school | Cross-check its enrollment, operating status, and source submission status | open |
 

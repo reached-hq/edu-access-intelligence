@@ -1,37 +1,69 @@
 """Profile DepEd personnel data and generate its source data dictionary.
 
 Run with:
-    DEPED_PERSONNEL_DIR=/path/to/School-Personnel-in-SY-2023-2024 python notebooks/profiling/profile_deped_personnel.py
+    RAW_DATA_DIR=/path/to/raw-data python notebooks/profiling/profile_deped_personnel.py
+
+RAW_DATA_DIR must contain deped/original/ with the two archives in FILES.
 """
 
-import csv
+# %% setup
 import hashlib
 import os
 import re
 import sys
+import tempfile
+import zipfile
 from collections import Counter
 from pathlib import Path
 
+import duckdb
 
-SOURCE_SHA256 = "5d0dd4a244fc13401787d32f84f21ab5af295bf808f037a3f762efff7d6ed6c5"
-README_SHA256 = "e2aecfdb0a94d748e75d9d3b2846012185ba68533be0ce66b964bd7ae81afb93"
+
 REPO = Path(__file__).resolve().parents[2]
-source_dir = os.environ.get("DEPED_PERSONNEL_DIR")
-if not source_dir:
-    sys.exit("Set DEPED_PERSONNEL_DIR to the folder containing personnel_2023-24.csv and README.md.")
-SOURCE_DIR = Path(source_dir).expanduser()
-CSV_PATH = SOURCE_DIR / "personnel_2023-24.csv"
-README_PATH = SOURCE_DIR / "README.md"
+raw_dir = os.environ.get("RAW_DATA_DIR")
+if not raw_dir:
+    sys.exit("Set RAW_DATA_DIR to the folder that contains deped/original/.")
+ORIGINAL = Path(raw_dir).expanduser() / "deped" / "original"
+FILES = {
+    "personnel": {
+        "zip": "School-Personnel-in-SY-2023-2024.zip",
+        "zip_sha256": "9d1e5adfc33d67244f0d1a796f1b8b1930f5704eadf9f901008da68d7764a817",
+        "csv": "personnel_2023-24.csv",
+        "csv_sha256": "5d0dd4a244fc13401787d32f84f21ab5af295bf808f037a3f762efff7d6ed6c5",
+    },
+    "enrollment": {
+        "zip": "Enrollment-in-SY-2023-2024.zip",
+        "zip_sha256": "a10f4d0f9082919c13b3a091774c8231c99c95b1b1872310714107013b77dbbb",
+        "csv": "enrollment_2023-24.csv",
+    },
+}
 
 
-def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+con = duckdb.connect()
+workdir = tempfile.TemporaryDirectory()
+readme_text = ""
+for table, spec in FILES.items():
+    zip_path = ORIGINAL / spec["zip"]
+    if not zip_path.is_file():
+        sys.exit(f"Missing required archive: {zip_path}")
+    actual = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    if actual != spec["zip_sha256"]:
+        sys.exit(f"{spec['zip']}: SHA-256 {actual} does not match {spec['zip_sha256']}. Stop and re-inventory.")
+    with zipfile.ZipFile(zip_path) as archive:
+        csv_member = next(name for name in archive.namelist() if name.endswith("/" + spec["csv"]))
+        csv_data = archive.read(csv_member)
+        if table == "personnel":
+            readme_member = next(name for name in archive.namelist() if name.endswith("/README.md"))
+            readme_text = archive.read(readme_member).decode("utf-8")
+            if hashlib.sha256(csv_data).hexdigest() != spec["csv_sha256"]:
+                sys.exit(f"{spec['csv']}: checksum does not match the inventory card. Stop and re-inventory.")
+    csv_path = Path(workdir.name) / spec["csv"]
+    csv_path.write_bytes(csv_data)
+    con.read_csv(str(csv_path), all_varchar=True, header=True, strict_mode=True).create_view(table)
 
 
-for path, expected in ((CSV_PATH, SOURCE_SHA256), (README_PATH, README_SHA256)):
-    actual = digest(path)
-    if actual != expected:
-        sys.exit(f"{path.name}: SHA-256 {actual} does not match {expected}. Stop and re-inventory.")
+def query(sql):
+    return con.execute(sql).fetchall()
 
 
 def readme_variables(text):
@@ -95,25 +127,22 @@ def whole_number(value):
     return bool(re.fullmatch(r"-?\d+(?:\.0+)?", value.strip()))
 
 
-readme_text = README_PATH.read_text(encoding="utf-8")
+# %% generate the data dictionary
 documentation = readme_variables(readme_text)
-with CSV_PATH.open(encoding="utf-8", newline="") as handle:
-    reader = csv.DictReader(handle)
-    columns = reader.fieldnames
-    counts = {column: Counter() for column in columns}
-    applicable_rows = Counter()
-    applicable_filled = Counter()
-    rows = []
-    for row in reader:
-        rows.append(row)
-        for column in columns:
-            value = row[column].strip()
+columns = [row[0] for row in query("DESCRIBE personnel")]
+rows = [dict(zip(columns, (value or "" for value in values))) for values in query("SELECT * FROM personnel")]
+counts = {column: Counter() for column in columns}
+applicable_rows = Counter()
+applicable_filled = Counter()
+for row in rows:
+    for column in columns:
+        value = row[column].strip()
+        if value:
+            counts[column][value] += 1
+        if applicable(column, row):
+            applicable_rows[column] += 1
             if value:
-                counts[column][value] += 1
-            if applicable(column, row):
-                applicable_rows[column] += 1
-                if value:
-                    applicable_filled[column] += 1
+                applicable_filled[column] += 1
 
 row_count = len(rows)
 identifier_columns = {"school_id"}
@@ -239,44 +268,57 @@ largest_maxima = sorted(
 )[:10]
 
 readme_documented = sum(column in documentation or generated_documentation(column)[1] != "**Not in DepEd's README (undocumented)**" for column in columns)
-join_metrics = "not run"
-enrollment_path = os.environ.get("DEPED_ENROLLMENT_CSV")
-if enrollment_path:
-    with Path(enrollment_path).expanduser().open(encoding="utf-8", newline="") as handle:
-        enrollment = {row["school_id"]: row for row in csv.DictReader(handle)}
-    personnel = {row["school_id"]: row for row in rows}
-    shared = personnel.keys() & enrollment.keys()
-    identity_columns = ["sector", "school_management", "offers_es", "offers_jhs", "offers_shs"]
-    join_metrics = {
-        "shared": len(shared),
-        "personnel_only": len(personnel.keys() - enrollment.keys()),
-        "enrollment_only": len(enrollment.keys() - personnel.keys()),
-        "identity_value_mismatches": {column: sum(personnel[key][column] != enrollment[key][column] for key in shared) for column in identity_columns},
-    }
-summary = {
-    "rows": row_count,
-    "columns": len(columns),
-    "duplicate_ids": duplicate_ids,
-    "duplicate_rows": duplicate_rows,
-    "invalid_ids": invalid_ids,
-    "non_numeric_measure_cells": non_numeric,
-    "negative_measure_cells": negative,
-    "all_blank_columns": all_blank,
-    "outside_level_filled_cells": outside_level,
-    "measure_cells": measure_cells,
-    "filled_measure_cells": filled_measure_cells,
-    "zero_measure_cells": zero_measure_cells,
-    "nonzero_measure_cells": nonzero_measure_cells,
-    "rows_without_measures_by_sector": rows_without_measures,
-    "sector_measure_coverage": sector_measure_coverage,
-    "shs_principal_total_checked": principal_checked,
-    "shs_principal_total_mismatches": principal_mismatches,
-    "shs_principal_total_difference_counts": principal_differences,
-    "largest_column_maxima": largest_maxima,
-    "readme_documented_columns": readme_documented,
-    "enrollment_join": join_metrics,
-    "sectors": counts["sector"],
-    "management": counts["school_management"],
+
+# %% cross-check personnel against same-year enrollment and identify review records
+enrollment_columns = [row[0] for row in query("DESCRIBE enrollment")]
+enrollment_rows = [dict(zip(enrollment_columns, (value or "" for value in values))) for values in query("SELECT * FROM enrollment")]
+enrollment = {row["school_id"]: row for row in enrollment_rows}
+personnel = {row["school_id"]: row for row in rows}
+shared = personnel.keys() & enrollment.keys()
+identity_columns = ["sector", "school_management", "offers_es", "offers_jhs", "offers_shs"]
+join_metrics = {
+    "shared": len(shared),
+    "personnel_only": len(personnel.keys() - enrollment.keys()),
+    "enrollment_only": len(enrollment.keys() - personnel.keys()),
+    "identity_value_mismatches": {column: sum(personnel[key][column] != enrollment[key][column] for key in shared) for column in identity_columns},
 }
-print(summary)
+learner_columns = [column for column in enrollment_columns if column.endswith(("_male", "_female"))]
+review_cells = []
+for school_id in shared:
+    learner_total = sum(numeric_value(enrollment[school_id][column]) for column in learner_columns if enrollment[school_id][column].strip())
+    for column in measure_columns:
+        value = personnel[school_id][column].strip()
+        if not value:
+            continue
+        count = numeric_value(value)
+        is_locally_funded_support_role = column.endswith(tuple(FUNDING)) and any(role in column for role in ROLES)
+        reasons = []
+        if count >= 500 and count > learner_total:
+            reasons.append("personnel count exceeds total learners")
+        if is_locally_funded_support_role and count >= 500:
+            reasons.append("locally funded support-role count is at least 500")
+        if reasons:
+            review_cells.append((school_id, enrollment[school_id]["school_name"], enrollment[school_id]["region"], column, count, learner_total, reasons))
+review_school_ids = sorted({row[0] for row in review_cells})
+
+
+def show(finding, text):
+    print(f"[{finding}] {text}")
+
+
+# %% reproduce documented findings
+show("O-1", f"rows={row_count:,} columns={len(columns)} duplicate_ids={duplicate_ids} duplicate_rows={duplicate_rows} invalid_ids={invalid_ids}")
+show("O-2", f"enrollment_join={join_metrics}")
+show("O-3", f"sector_measure_coverage={sector_measure_coverage}")
+show("O-4", f"measure_cells={measure_cells:,} filled={filled_measure_cells:,} zero={zero_measure_cells:,} nonzero={nonzero_measure_cells:,}")
+show("O-5", f"outside_level_filled_cells={outside_level}")
+show("O-6", f"non_numeric_measure_cells={non_numeric} negative_measure_cells={negative}")
+show("O-7", f"all_blank_columns={all_blank}")
+show("O-8", f"checked={principal_checked:,} mismatches={principal_mismatches:,} differences={principal_differences}")
+show("O-9", f"review_cells={len(review_cells)} review_schools={len(review_school_ids)} details={review_cells}")
+show("O-10", f"documented_columns={readme_documented} delivered_columns={len(columns)}")
+show("O-11", "no direct personal data fields observed")
+show("O-12", "BEIS lineage is documented in the reviewed Technical Notes")
+show("O-13", "working-personnel scope is documented in the reviewed Technical Notes")
+show("O-14", "annex consolidation requirement is documented in the reviewed Technical Notes")
 print(f"wrote {output} with {len(columns)} columns")

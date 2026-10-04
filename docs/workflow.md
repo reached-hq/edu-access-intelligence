@@ -8,7 +8,7 @@ How work moves from an issue to `main`, and where each kind of work runs. For th
 |---|---|---|
 | Pick up an issue, move a card | [Project board](https://github.com/orgs/reached-hq/projects/3) | No |
 | Edit docs, open or review a pull request | GitHub | No |
-| Run SQL on real tables | Databricks (pending #1) | No |
+| Run SQL on real tables | Databricks SQL editor (workspace in [architecture.md](architecture.md#workspace)) | No |
 | Run the tests before pushing | Laptop | Yes |
 | Profile a source | Laptop (DuckDB) | Yes |
 | Develop SQL or PySpark logic on a sample | Laptop (DuckDB or local PySpark) | Yes |
@@ -36,6 +36,25 @@ These board automations are switched on (board → **⋯** → **Workflows** sho
 - **Auto-add to project**: issues from the repository that match the board's filter are added when they are created or edited.
 - **Item added to project**, **Item closed**, **Item reopened**, **Pull request linked to issue**, **Pull request merged**, **Code review approved**: each sets a card's status.
 - **Auto-close issue**: moving a card to **Done closes the issue**. Only do that when the work is really finished.
+
+The repository also runs these automations (`.github/workflows/triage.yml`):
+
+- **Issue labels:** issues opened from the **Source candidate** and **Data issue** templates get `source-candidate` and `data-issue`. Any issue whose title starts with a tag also gets that tag's label (for example `[BRONZE]` → `infra`); the mapping is in `.github/scripts/title_labels.py`. `[FRAME]` → `framing`, `[DQ]` → `data-quality` (building checks; a problem found in the data is a `data-issue`), `[PROOF]` → `evidence`, `[PRESENT]` → `presentation`. Labels are only added, never removed, so fix a wrong label by hand.
+- **PR assignee:** a pull request with no assignee is assigned to its author when it is opened.
+- **PR reviewers:** when a pull request is opened (or a draft is marked ready for review), both of the author's reviewers are requested. **One approval is enough to merge**, so whichever reviewer gets to it first approves. The table is in `.github/reviewers.json`:
+
+  | PR author | Reviewer 1 | Reviewer 2 |
+  |---|---|---|
+  | Angela (`mafelisilda`) | Ina | Maeve |
+  | Ina (`hyenalouise`) | Maeve | Sara |
+  | Maeve (`maeveylain`) | Sara | Cath |
+  | Sara (`saraevcldn`) | Cath | Angela |
+  | Cath (`catweyine`) | Angela | Ina |
+
+  Everyone reviews for exactly two authors. To change the table, edit `reviewers.json` in a pull request; the tests keep it balanced.
+
+  The workflow also posts a comment that @mentions both reviewers, with the linked issue, the milestone, and what to check before approving. Its opening line and meme rotate by PR number (the pairs are in `.github/scripts/reviewer_comment.py`, the images in `.github/memes/`). If the PR is reopened, the same comment is edited rather than posted again. Drafts get no reviewers and no comment until they are marked ready for review.
+- **Issues are not auto-assigned.** Assigning yourself is how you claim an issue.
 
 ### Issue titles
 
@@ -82,6 +101,19 @@ Commits are signed (see [terminal_setup.md, Part 5](terminal_setup.md#part-5-sig
 
 ## Part 3: Pull requests
 
+### Titles
+
+An issue and its pull request do not share a title. The issue says what needs to happen; the pull request says what this change did. One issue can need several pull requests, and each title should tell them apart.
+
+Tags are for issues only ([Issue titles](#issue-titles)). A pull request title has no tag; the linked issue already carries it.
+
+| | Title |
+|---|---|
+| Issue | `[SOURCE] Find, download, and first look: PSGC` |
+| Pull request | `Add PSGC source card, profile, and data dictionary` |
+
+Write the pull request title from the diff, in the imperative ("Add", "Fix", "Remove").
+
 ### Linking the issue
 
 The description must mention the issue, or the **PR links an issue** check fails:
@@ -101,8 +133,12 @@ Say what changed and why, what you ran to check it (with counts when data is inv
 
 | Check | Fails when |
 |---|---|
-| Repository checks | A test fails: data file committed, `.ipynb` notebook, secret-like text, invalid `config/sources.json`, or a source without its documentation folder |
+| Repository checks | A test fails: data file committed, `.ipynb` notebook, secret-like text, invalid `config/sources.json`, a source without its documentation folder, or a broken workflow script in `.github/scripts/` |
 | PR links an issue | The description has no `Closes #N` / `Part of #N` |
+| PR has a milestone | The PR has no milestone and none of its linked issues has one to copy. When a linked issue has one, the check copies it onto the PR and passes |
+| PR declares AI help | The **AI help** section does not tick exactly one option, or ticks **AI helped** without all four gates and a note on what the AI did ([CONTRIBUTING.md, Using AI](../CONTRIBUTING.md#using-ai)) |
+
+**When CI runs:** on every pull request, whatever branch it targets, so a stacked pull request is checked before its base merges. The checks block merging only into `main`, where branch protection requires them.
 
 **What CI does not cover:** it never touches Databricks and never sees real data (raw data is not in git). A green check means the repository follows its rules, not that the data is right. Data correctness is checked by profiling now and by data-quality checks in Databricks later.
 
@@ -140,7 +176,7 @@ This is the capstone's core loop: a dataset is not useful until it has been insp
 4. **Do not open raw files in Excel and save them** ([terminal_setup.md, Part 8](terminal_setup.md#part-8-raw-data-and-raw_data_dir)).
 5. **Read the publisher's documentation** (README files, technical notes) before profiling.
 6. **Profile with a script** in `notebooks/profiling/`, reading `RAW_DATA_DIR` and verifying checksums first. See `profile_deped.py` for the pattern: every result prints under a finding ID.
-7. **Document** in `docs/source_inventory/<source_id>/`: copy `_template/`, fill in `README.md` (the card) and `profile.md` (findings with evidence, **observed** vs **suspected**), and generate `data_dictionary.md` with a script (every column: the publisher's description plus observed fill rate and samples). See `dictionary_deped.py` for the pattern.
+7. **Document** in `docs/source_inventory/<source_id>/`: copy `_template/`, fill in `README.md` (the card) and `profile.md` (findings with evidence, **observed** vs **suspected**), and generate `data_dictionary.md` with a script (every column: the publisher's description, the team's labeled interpretation where the publisher is silent, and observed fill rate and samples). See `dictionary_deped.py` for the pattern.
 8. **Register** the source in `config/sources.json`.
 9. **Open a pull request** with the script's output as evidence.
 
@@ -215,7 +251,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 | Signed / Verified commit | A commit signed with your key, which GitHub confirms |
 | Source card | `docs/source_inventory/<source_id>/README.md`: what a source is |
 | Profile | `docs/source_inventory/<source_id>/profile.md`: what we found in it, with evidence |
-| Data dictionary (source) | `docs/source_inventory/<source_id>/data_dictionary.md`: every column with the publisher's description and observed samples; generated, never hand-edited |
+| Data dictionary (source) | `docs/source_inventory/<source_id>/data_dictionary.md`: every column with the publisher's description, the team's labeled interpretation, and observed samples; generated, never hand-edited |
 | Observed / suspected | A finding with evidence / a hypothesis still to test |
 | SHA-256 | A file's fingerprint; any change to the file changes it |
 | `RAW_DATA_DIR` | Environment variable pointing scripts to your `raw-data/` folder |
