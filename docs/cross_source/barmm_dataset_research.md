@@ -34,16 +34,6 @@ The project should not claim that distance, crowding, or teacher load *caused* p
 | B | [DepEd geospatial-school FOI example](https://www.foi.gov.ph/agencies/deped/schools-in-the-philippines-geospatial-database/) | Demonstrates that DepEd can release a geospatial school list through a formal request | School; request-specific | A formal request could supply the coordinates needed for distance | **Prepare an MBHTE/DepEd request** specifying school ID, name, level, status, barangay/PSGC, latitude, longitude, coordinate method/date, and permission to reuse |
 | C | [BPDA BARMM Roads](../source_inventory/bpda_barmm_roads/) ([publisher page](https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/infrastructure)) | Road length by surface and administrative road type | 9 broad reporting areas; date not stated in workbook | Describes road conditions but contains no geometry, endpoints, routes, or travel speeds. Four province totals differ from their components by the separate Lamitan City or Marawi City values, and Cotabato City's road-opening component (43.04 km) exceeds its total (42.04 km) | **Profiled. Reject for distance computation.** May be used only as aggregate regional context |
 
-## What is still missing for the proposed story
-
-| Story claim or analytical need | Minimum defensible data | Current state |
-|---|---|---|
-| A child lives far from school | School coordinates plus child/community origin or barangay centroid, matched geography, and a routable network | Official school coordinates are missing. OSM ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) offers partial school points and road lines; barangay polygons ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)) and 2024 barangay population ([#41](https://github.com/reached-hq/edu-access-intelligence/pull/41)) can supply origins. Straight-line distance alone is insufficient for islands and disconnected roads |
-| A classroom is crowded | Learners and usable classrooms/seats at the same school, level, and school year | Existing sources have enrollment and facilities, but the BPDA file counts classroom **buildings**, not rooms or seats |
-| A teacher serves too many learners | Learner and teacher counts at the same school, level, position scope, and school year | DepEd personnel ([#40](https://github.com/reached-hq/edu-access-intelligence/pull/40)) has school-level counts for SY 2023-24; it still needs to be joined to enrollment at the same school and year |
-| Access conditions relate to poor learning | School-level NAT/ELLNA or another outcome joined to the same school/year predictors, with appropriate controls | School-level ELLNA ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49)) and NAT Grade 6 ([#50](https://github.com/reached-hq/edu-access-intelligence/pull/50)) cover no BARMM schools, so BARMM has only regional outcome aggregates; causal language is not yet supported |
-| BARMM differs from the national picture | Comparable region-level official indicators and method notes | PSA OpenSTAT NAT, teacher/school counts, and FLEMMS can supply the benchmark |
-
 ## Distance-specific acquisition design
 
 A usable distance model needs three linked layers:
@@ -53,15 +43,3 @@ A usable distance model needs three linked layers:
 3. **Network:** routable road/ferry/walking graph with surface or impedance attributes and a clear license. Candidate: OSM roads ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)), with assumed speeds by road class because most records have no speed limit.
 
 Calculate both straight-line distance (quality-control baseline) and network travel distance/time. In BARMM, water crossings, islands, seasonal accessibility, and missing road links can make straight-line distance materially misleading. Every result should retain routing status (`routed`, `no route`, `off-network`, or `coordinate missing`) rather than silently dropping unreachable places.
-
-## Immediate follow-up requests
-
-- Ask MBHTE/BEMIS for a current school master list and codebook with school ID, name, sector, level, status, division, province, municipality, barangay/PSGC, latitude, longitude, coordinate method/date, enrollment, usable classrooms/seats, and teachers by school year.
-- Ask BPDA for the definitions, dates, originating ministry/system, and license for all four profiled workbooks, and specifically:
-  - what `-`, blank cells, and zeroes mean in the social infrastructure and roads tables;
-  - why Lamitan City's net enrolment is above 100% and Marawi City's SY 2019-20 cohort survival is exactly 100%;
-  - which of the private elementary and private secondary school columns is correct;
-  - whether Cotabato City road opening is 42.04 km or 43.04 km, and whether province road totals include Lamitan City and Marawi City;
-  - whether the two Tipo-Tipo ES repair rows are one project, and the complete MBHTE project register with IDs and selection rules.
-- Coordinate with @mafelisilda, who is profiling the DepEd personnel, ELLNA, NAT Grade 6, and PSA population sources ([#40](https://github.com/reached-hq/edu-access-intelligence/pull/40), [#41](https://github.com/reached-hq/edu-access-intelligence/pull/41), [#49](https://github.com/reached-hq/edu-access-intelligence/pull/49), [#50](https://github.com/reached-hq/edu-access-intelligence/pull/50)), before profiling the OpenSTAT tables.
-- Decide whether PSA FLEMMS microdata adds enough value to justify restricted-data handling; otherwise use its published regional/provincial aggregates.
