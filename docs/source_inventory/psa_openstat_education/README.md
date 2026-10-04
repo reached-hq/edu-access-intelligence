@@ -93,7 +93,7 @@ Evidence lives in [profile.md](profile.md).
 - **Observed:** three undocumented missing markers: `..` for Senior High School teachers before SY 2016-17, `...` for empty NIR, Unknown, and NCR NAT cells and for NIR literacy before 2024, and `a` for Eastern Visayas literacy in 2013.
 - **Observed:** four elementary net enrolment rates are above 100% (Region III and Region X, SY 2019-20).
 - **Observed:** the school and teacher tables have 17 regions and no Negros Island Region; Negros is inside Regions VI and VII.
-- **Observed:** national functional literacy falls from 91.6% (2019) to 70.8% (2024). The tables carry no note, but the FLEMMS 2024 documentation says PSA revised the basic and functional literacy definitions and replaced the test for 2024 (S-1).
+- **Observed:** national functional literacy falls from 91.6% (2019) to 70.8% (2024). The tables carry no note, but the FLEMMS 2024 Technical Notes show PSA changed both definitions and the test for 2024 (PSA Board Resolution No. 13, Series of 2024); 2019 also counted high school or junior high school completers as functionally literate (O-9).
 
 ## Limitations for analysis
 
@@ -101,7 +101,7 @@ Evidence lives in [profile.md](profile.md).
 - Most tables end at SY 2022-23, so only the school counts (Table 10.10) share a year with the DepEd SY 2023-24 anchor.
 - Table 10.10 repeats DepEd's own SY 2023-24 school counts exactly (X-1), so it confirms the enrollment file but adds no independent evidence.
 - NAT years are not consecutive and differ by grade, and only three of the five learning areas plus the overall score are published.
-- Literacy 2024 must not be compared with 2019 or 2013 as a trend: PSA revised the definitions and the test for 2024 (S-1).
+- Literacy 2024 must not be compared with 2019 or 2013 as a trend: PSA changed the definitions, the test, and the sampling design for 2024 (O-9).
 
 ## Recommended controls and monitoring
 

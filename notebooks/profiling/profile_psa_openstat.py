@@ -266,10 +266,10 @@ show("X-1", "Philippines: " + "; ".join(f"{level} {kind} {o:,} vs {d:,}" for g, 
 years = sorted({c["year"] for c in tables["table_10_11_public_school_teachers"]["cells"]})
 show("X-2", f"table_10_11 latest school year {years[-1]}; DepEd personnel (#40) is SY 2023-24, so the two do not share a year")
 
-# %% S-1 FLEMMS 2024 drop
+# %% O-9 FLEMMS 2024 drop (the definition change is documented in the FLEMMS 2024 Technical Notes, not checked here)
 for stem in ("table_10_13_basic_literacy", "table_10_14_functional_literacy"):
     vals = {c["year"]: c["value"] for c in tables[stem]["cells"] if c["geo"] == "PH" and c["group"] == "Both Sexes"}
-    show("S-1", f"{stem}: Philippines 2019 {vals['2019']} -> 2024 {vals['2024']}; change {number(vals['2024']) - number(vals['2019']):+.1f} points")
+    show("O-9", f"{stem}: Philippines 2019 {vals['2019']} -> 2024 {vals['2024']}; change {number(vals['2024']) - number(vals['2019']):+.1f} points")
 
 # %% Data dictionary
 lines = []

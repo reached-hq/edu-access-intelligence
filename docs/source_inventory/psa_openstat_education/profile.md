@@ -32,8 +32,9 @@ Usable as a regional benchmark. The tables are small, complete against their met
 | O-4 | Values are in range, with four net enrolment rates above 100% | Counts are non-negative whole numbers (schools 68 to 51,250; teachers 393 to 511,866). Rates and NAT scores are 0 to 100 except four elementary net enrolment rates: Region III total, male, and female in SY 2019-20 (100.02 to 100.03) and Region X male in SY 2019-20 (100.10) | A net enrolment rate cannot exceed 100% by definition, so the denominator or the age data is off for those cells | Keep and flag; do not cap |
 | O-5 | Totals reconcile exactly | Table 10.10: Total = Public + Private in 270 of 270 cells. Regions sum to the Philippines in 45 of 45 cells for both Table 10.10 and Table 10.11 | Internally consistent counts | Keep as a Bronze check |
 | O-6 | Year ranges differ by table | School counts SY 2019-20 to 2023-24; teachers SY 2004-05 to 2022-23; net enrolment SY 2019-20 (kindergarten, elementary) or 2018-19 (JHS, SHS) to 2022-23; cohort survival SY 2018-19 to 2022-23; NAT Grade 6 SY 2016-17, 2017-18, 2021-22; Grade 10 SY 2017-18, 2019-20, 2022-23; Grade 12 SY 2017-18, 2018-19, 2022-23; literacy 2013, 2019, 2024 | Only the school counts reach SY 2023-24; NAT years are not a series | Store years per table; never assume a shared range |
-| O-7 | Literacy levels for the Philippines and BARMM | Basic literacy: Philippines 96.5, 96.5, 90.0; BARMM 86.1, 83.2, 81.0 (2013, 2019, 2024). Functional literacy: Philippines 90.3, 91.6, 70.8; BARMM 72.1, 71.6, 64.7 | BARMM is below the national rate in every year; the 2024 national drop is large, and PSA revised the definitions and the test for 2024 (S-1) | Report levels per year; do not report 2019 to 2024 as a change |
+| O-7 | Literacy levels for the Philippines and BARMM | Basic literacy: Philippines 96.5, 96.5, 90.0; BARMM 86.1, 83.2, 81.0 (2013, 2019, 2024). Functional literacy: Philippines 90.3, 91.6, 70.8; BARMM 72.1, 71.6, 64.7 | BARMM is below the national rate in every year; the 2024 national drop is large, and PSA changed the definitions and the test for 2024 (O-9) | Report levels per year; do not report 2019 to 2024 as a change |
 | O-8 | The school-year tables use 17 regions | No Negros Island Region in the school, teacher, net enrolment, cohort survival, and NAT Grade 12 tables. NIR appears with values only in the 2024 literacy columns, and as empty rows in NAT Grades 6 and 10 | Regional series are on the pre-NIR map, like DepEd SY 2023-24 | Use the 17-region map for school-year data |
+| O-9 | PSA changed the literacy definitions and test for 2024 | FLEMMS 2024 Technical Notes: the revised definitions were approved by PSA Board Resolution No. 13, Series of 2024 (p. 1). Basic literate: 2019 "can read and write", reported by a proxy respondent; 2024 "can read, write, and compute", tested on each person with cue cards and self-administered forms. Functionally literate: 2019 also counted anyone who finished high school (old curriculum) or junior high school; 2024 "can read, write, compute, and comprehend". The sampling frame (2013 master sample to 2023 geo-enabled master sample) and the design domain (regional to provincial/HUC) also changed (p. 3) | The 2019 to 2024 fall in functional literacy (-20.8 points) mostly reflects the new definition, not a measured decline | Report 2024 literacy as a level; never as a change from 2013 or 2019 |
 
 ## Cross-checks with other sources
 
@@ -46,7 +47,7 @@ Usable as a regional benchmark. The tables are small, complete against their met
 
 | ID | Suspicion | How to test | Status |
 |---|---|---|---|
-| S-1 | The 2024 literacy figures were measured differently from 2019 (national functional literacy -20.8 points, basic -6.5) | The FLEMMS 2024 documentation (see [README](README.md#publisher-documentation)) lists the DepEd Literacy Coordinating Council and EDCOM 2 as giving "technical assistance in the revision of definitions of basic and functional literacy" (p. 7), and says Form 2 changed from one questionnaire for ages 10 to 64 in 2019 to three for ages 5 to 9, 10 to 64, and 65 and over in 2024 (p. 9). The exact 2024 definitions are in the FLEMMS 2024 Technical Notes, which were not obtained | supported |
+| S-1 | The 2024 literacy figures were measured differently from 2019 (national functional literacy -20.8 points, basic -6.5) | Confirmed by the FLEMMS 2024 Technical Notes and documentation; see O-9 | confirmed (O-9) |
 | S-2 | `a` marks Eastern Visayas 2013 as not collected or not published, and `...` marks a region or year with no data | Find the footnotes on the OpenSTAT web tables or the PSA publication behind each table | open |
 | S-3 | The `Unknown` NAT rows hold learners or schools without a region, but no values are published | Ask PSA or DepEd what `Unknown` covers | open |
 
@@ -59,7 +60,7 @@ Usable as a regional benchmark. The tables are small, complete against their met
 ## Questions for the publisher or mentor
 
 - What do `..`, `...`, and `a` mean in these tables?
-- What are the exact 2024 basic and functional literacy definitions (FLEMMS 2024 Technical Notes), and does Table 10.13 use the 10-and-over or the 5-and-over population for 2024?
+- Does Table 10.13 use the 10-and-over or the 5-and-over population for 2024? Its title says 10 and over; the Technical Notes compute the 2024 basic literacy rate for 5 and over (p. 1), and the public-use file has literacy levels for both (`llevel10over`, `llevel5over`).
 - Which source and reference date does each table use (DepEd LIS, BEIS, NAT)?
 - Why do four elementary net enrolment rates exceed 100% in SY 2019-20?
 - What does the `Unknown` region in the NAT tables contain?
