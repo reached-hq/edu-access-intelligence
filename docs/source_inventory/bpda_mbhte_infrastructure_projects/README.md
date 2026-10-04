@@ -10,7 +10,7 @@
 | Publisher / agency | Bangsamoro Planning and Development Authority (BPDA), Bangsamoro Knowledge Portal |
 | Source system (as stated by the publisher) | BPDA Monitoring and Evaluation, MBHTE M&E open data |
 | Source URL or acquisition method | Public XLSX download from the [Bangsamoro Knowledge Portal](https://knowledge.bpda.bangsamoro.gov.ph/open-data/bpda-monitoring-and-evaluation/mbhte-m-and-e); [direct export](https://docs.google.com/spreadsheets/d/1f43vvtNPMIlpiVsUsnseOpvZUUrpII64vCjpy1erJmA/export?format=xlsx) |
-| Licensing or access restrictions | Public download. No license or reuse terms were found in the workbook; reuse terms remain **UNVERIFIED** |
+| Licensing or access restrictions | Public download. No license or reuse terms were found on the landing page or in the workbook; reuse terms remain **UNVERIFIED** |
 | Owner (team member) | @hyenalouise |
 | Date acquired | 2026-10-04 (Philippine time) |
 

@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Date profiled | 2026-10-04 |
-| Profiled by | @hyenalouise with AI-assisted checks; human review required before PR |
+| Profiled by | @hyenalouise |
 | Tool | `notebooks/profiling/profile_bpda_mbhte_infrastructure_projects.py`, standard-library XLSX reader |
 | Files profiled (SHA-256) | `BARMM_MBHTE_Infrastructure_Projects.xlsx` — `9a21113c97a773bdbeba66d23cb7855b563ff91bfa8f320268b6c0b687fee734` |
 | How files were read | All cells read as stored text from XLSX XML; checksum, worksheet names, workbook date system, and exact shape checked first |
