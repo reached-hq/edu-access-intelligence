@@ -29,6 +29,7 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/cross_sour
 | [bpda_barmm_education](bpda_barmm_education/) | BARMM education performance indicators | BPDA | profiled | @hyenalouise |
 | [bpda_barmm_social_infrastructure](bpda_barmm_social_infrastructure/) | BARMM social infrastructure | BPDA | profiled | @hyenalouise |
 | [bpda_barmm_roads](bpda_barmm_roads/) | BARMM road length by surface and administrative class | BPDA | profiled | @hyenalouise |
+| [bpda_mbhte_infrastructure_projects](bpda_mbhte_infrastructure_projects/) | Monitored MBHTE infrastructure projects | BPDA | profiled | @hyenalouise |
 | [ched_enrollment](ched_enrollment/) | CHED enrollment by region, sector and sex | CHED | profiled | @catweyine |
 | [ched_graduates](ched_graduates/) | CHED graduates by region, program level and sex | CHED | profiled | @catweyine |
 | [ched_school_count](ched_school_count/) | CHED higher education institutions by region and type | CHED | profiled | @catweyine |
