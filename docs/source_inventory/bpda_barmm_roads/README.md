@@ -10,7 +10,7 @@
 | Publisher / agency | Bangsamoro Planning and Development Authority (BPDA), Bangsamoro Knowledge Portal |
 | Source system (as stated by the publisher) | Bangsamoro Ecological Profile, Infrastructure open data |
 | Source URL or acquisition method | Public XLSX download linked under **BARMM Roads** on the [Bangsamoro Knowledge Portal](https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/infrastructure); [direct export](https://docs.google.com/spreadsheets/d/1hYlFU4NuY3odhjDiOrwjiAXurgG8Oj6qFWKlKIcs7bE/export?format=xlsx) |
-| Licensing or access restrictions | Public download. No license or reuse terms were found in the workbook; reuse terms remain **UNVERIFIED** |
+| Licensing or access restrictions | Public download. No license or reuse terms were found on the landing page or in the workbook; reuse terms remain **UNVERIFIED** |
 | Owner (team member) | @hyenalouise |
 | Date acquired | 2026-10-04 (Philippine time) |
 

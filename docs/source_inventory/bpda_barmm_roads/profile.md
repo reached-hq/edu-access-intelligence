@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Date profiled | 2026-10-04 |
-| Profiled by | @hyenalouise with AI-assisted checks; human review required before PR |
+| Profiled by | @hyenalouise |
 | Tool | `notebooks/profiling/profile_bpda_barmm_roads.py`, standard-library XLSX reader |
 | Files profiled (SHA-256) | `BARMM_Roads.xlsx` — `5e36f1c36db08617d511d900a9052bc58b73f521d00e9b1712a4ab841cf63cc9` |
 | How files were read | All cells read as stored text from XLSX XML; checksum, worksheet names, and exact shape checked first |
