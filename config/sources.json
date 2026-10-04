@@ -24,6 +24,17 @@
       "owner": "hyenalouise"
     },
     {
+      "source_id": "bpda_barmm_education",
+      "name": "BPDA BARMM education performance indicators",
+      "publisher": "Bangsamoro Planning and Development Authority (BPDA)",
+      "status": "profiled",
+      "source_system": "Bangsamoro Ecological Profile, Population and Social Services",
+      "acquisition": "https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/population-and-social-services",
+      "format": "xlsx",
+      "school_years_acquired": ["2018-19", "2019-20", "2020-21"],
+      "owner": "hyenalouise"
+    },
+    {
       "source_id": "ched_enrollment",
       "name": "CHED enrollment by region, sector and sex",
       "publisher": "Commission on Higher Education (CHED)",
