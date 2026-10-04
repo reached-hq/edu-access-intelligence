@@ -3,6 +3,7 @@
 import hashlib
 import math
 import os
+import re
 import statistics
 import sys
 import zipfile
@@ -100,6 +101,19 @@ def per_school(row, buildings_column, schools_column):
 
 building_ratios = [(row[1], per_school(row, 8, 7), per_school(row, 19, 18)) for row in body]
 
+EDUCATION_COLUMNS = range(6, 27)
+dated_education = {
+    column: re.search(r"\d{4}-\d{4}|as of \d+", header[column]).group(0)
+    for column in EDUCATION_COLUMNS
+    if re.search(r"\d{4}-\d{4}|as of \d+", header[column])
+}
+typo_headers = [column for column in range(2, 34) if "20222" in header[column]]
+building_headers = [column for column in range(2, 34) if "classroom building" in header[column].lower()]
+capacity_headers = [
+    column for column in range(2, 34)
+    if re.search(r"\bseats?\b|learner|capacity|utili[sz]ation|condition", header[column], re.IGNORECASE)
+]
+
 print(
     f"[{SOURCE_ID} run] {FILENAME}: checksum OK; sheets={sheets}; data rows={len(body)}; "
     f"columns={len(header)}; empty formatted rows={len(rows) - len(nonempty)}"
@@ -121,12 +135,19 @@ print(
     f"reconciled={sum(check[3] for check in madrasah_checks)} of {len(madrasah_checks)}; checks={madrasah_checks}"
 )
 print(f"[{SOURCE_ID} O-5] labels={keys}")
-print(f"[{SOURCE_ID} O-6] header contains 'as of 20222'; 21 education columns have mixed or missing reference periods")
-print(f"[{SOURCE_ID} O-7] classroom measures are labelled classroom buildings, not classrooms or seats")
+print(
+    f"[{SOURCE_ID} O-6] education columns={len(EDUCATION_COLUMNS)}; with a stated period={dated_education}; "
+    f"without one={len(EDUCATION_COLUMNS) - len(dated_education)}; headers containing '20222'={typo_headers}"
+)
+print(
+    f"[{SOURCE_ID} O-7] classroom-building headers={building_headers}; "
+    f"headers naming seats, learners, capacity, utilization, or condition={capacity_headers}"
+)
 print(
     f"[{SOURCE_ID} O-8] workbook has no title row, source note, definitions, PSGC, "
     "dash-marker definition, region total, or release date"
 )
+print(f"[{SOURCE_ID} O-9] physical rows={len(rows)}; non-empty rows={len(nonempty)} (header plus {len(body)} records)")
 print(
     f"[{SOURCE_ID} O-10] private elementary equals private secondary in {len(private_same)} of {len(body)} rows "
     f"({private_same}); "
