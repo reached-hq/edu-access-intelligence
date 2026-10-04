@@ -6,4 +6,4 @@ Not to be confused with `notebooks/profiling/`, which holds the scripts.
 
 ## Contents
 
-- [BARMM dataset research](barmm_dataset_research.md): what the BPDA, PSA, and teammates' sources can and cannot support for BARMM access, crowding, teacher load, outcomes, and distance (part of #8).
+- [BARMM sources: what they support and how they join](barmm_dataset_research.md): status, join keys, timing, and distance design for the BPDA, PSA, and teammates' sources covering BARMM (part of #8).
