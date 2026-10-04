@@ -8,7 +8,7 @@
 |---|---|
 | Source name | PSA OpenSTAT, Education and Literacy (database `3S`, folder `C10`): 13 regional tables |
 | Publisher / agency | Philippine Statistics Authority (PSA) |
-| Source system (as stated by the publisher) | PSA OpenSTAT (PXWeb). The tables name no underlying source. The school counts match DepEd's enrollment file exactly (X-1); the literacy years (2013, 2019, 2024) are the PSA FLEMMS survey years, but that link is not stated in the files |
+| Source system (as stated by the publisher) | PSA OpenSTAT (PXWeb). The tables name no underlying source |
 | Source URL or acquisition method | [OpenSTAT API directory](https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/3S/C10); each table saved as the CSV returned by an empty-selection query to `https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/3S/C10/<TABLE_ID>.px`, plus its metadata JSON |
 | Licensing or access restrictions | Public API. No license or reuse terms appear in the CSVs or the metadata; reuse terms remain **UNVERIFIED** |
 | Owner (team member) | @hyenalouise |
@@ -80,7 +80,7 @@ Column-by-column descriptions, fill rates, and ranges: [data_dictionary.md](data
 
 ## Lineage and dependencies
 
-Unstated originating systems (DepEd for the school counts, shown by X-1; not stated for the rest) -> PSA OpenSTAT PXWeb tables -> API CSV and metadata JSON, saved 2026-10-04 -> checksum-verified raw storage -> long-form normalization with an explicit region map -> regional benchmark next to DepEd school-level data.
+Unstated originating systems (DepEd for the school counts, shown by X-1; the literacy years 2013, 2019, and 2024 match the PSA FLEMMS survey years, but the files do not say so) -> PSA OpenSTAT PXWeb tables -> API CSV and metadata JSON, saved 2026-10-04 -> checksum-verified raw storage -> long-form normalization with an explicit region map -> regional benchmark next to DepEd school-level data.
 
 ## Known quality problems
 
