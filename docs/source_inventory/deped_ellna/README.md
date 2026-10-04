@@ -22,7 +22,7 @@ Raw files are kept outside git. Row count excludes the CSV header.
 |---|---|---|---|---|---|---|
 | `ellna_2023-24_selected.csv` | CSV | UTF-8-compatible ASCII, LF | 728,685 | 5,752 | `a379ccd0cf48bf3ff1174fc76374627bd92f71d31f49fa73e59c9f57b1390dc2` | Local; governed raw-storage upload pending |
 
-The profiled CSV is byte-for-byte identical to the CSV inside the official DepEd ZIP downloaded on 2026-10-03.
+The profiled CSV and included README are byte-for-byte identical to the corresponding members of the official DepEd ZIP downloaded on 2026-10-03. A ZIP stored in shared raw storage may have a different outer checksum if it was repackaged. Treat that as a packaging-lineage difference: verify both member hashes, record the stored ZIP checksum, and replace it with the untouched publisher archive when practical.
 
 ## Publisher documentation
 
@@ -87,6 +87,8 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** MPS fields retain up to 16 decimal places, which implies computational precision beyond an appropriate reporting precision.
 - **Observed:** `overall_mps` differs from the simple mean of the available component MPS values in 5,595 rows. This is consistent with its points-based definition, but the raw numerator, denominator, and component weights are not supplied for independent recalculation.
 - **Observed:** no score is outside 0 to 100, no test-taker count is zero or negative, and there are no duplicate school IDs or full rows.
+- **Observed:** 98 schools covering 3,157 test takers have Numeracy below 1 while English and Filipino are at least 30. The affected schools are concentrated in several divisions; 27 values are exact zero and 71 are nonzero values below 1.
+- **Suspected:** the near-zero Numeracy pattern may be valid performance, inconsistent 0-to-1 versus 0-to-100 scaling, or another encoding issue. The file does not support treating the values as confirmed zeros or missing data.
 - **Observed:** only the filename identifies the school year. The rows contain no assessment date, release version, selection flag, or extraction timestamp.
 - **Suspected:** the compound language labels `Ilokano/Iloko-Pangasinense` and `English/Filipino` may encode different concepts and should not be split or normalized without publisher guidance.
 
@@ -110,4 +112,5 @@ Summary only; evidence lives in [profile.md](profile.md).
 - Join to a versioned DepEd school master by `school_id`; monitor unmatched IDs and region or division disagreements.
 - Suppress or aggregate school-level reporting below an approved minimum test-taker threshold, while retaining source rows in access-controlled analytical storage.
 - Monitor row counts, region and division coverage, language categories, small-n counts, null patterns, score ranges, and duplicate keys on every refresh.
+- Flag the 98 near-zero Numeracy records and exclude them from comparative reporting until DepEd confirms their units and meaning; never convert them to null or rescale them without publisher evidence.
 - Obtain the publisher's school-selection method, release cadence, score calculation inputs, decimal reporting rules, and applicable data-use terms before broader analytical use.

@@ -6,20 +6,22 @@
 |---|---|
 | Date profiled | 2026-10-03 |
 | Profiled by | @mafelisilda |
-| Tool | Python standard library: [`notebooks/profiling/profile_deped_ellna.py`](../../../notebooks/profiling/profile_deped_ellna.py) |
+| Tool | DuckDB and Python: [`notebooks/profiling/profile_deped_ellna.py`](../../../notebooks/profiling/profile_deped_ellna.py) |
 | Files profiled (SHA-256) | `ellna_2023-24_selected.csv`: `a379ccd0cf48bf3ff1174fc76374627bd92f71d31f49fa73e59c9f57b1390dc2` |
-| How files were read | CSV parsed as UTF-8 text; all fields initially retained as text; exact schema and checksum validated before integer and score conversion |
+| How files were read | ZIP members verified independently; CSV loaded into DuckDB as UTF-8 text; all fields initially retained as text; exact schema validated before integer and score conversion |
 
 ## How to rerun
 
 ```powershell
-$env:DEPED_ELLNA_FILE = "C:\path\to\ellna_2023-24_selected.csv"
+$env:RAW_DATA_DIR = "C:\path\to\raw-data"
 python notebooks\profiling\profile_deped_ellna.py
 ```
 
+Place `Early-Language-Literacy-and-Numeracy-Assessment-ELLNA.zip` in `$env:RAW_DATA_DIR\deped\original\`. The script reports an outer-ZIP checksum difference, then independently verifies the CSV and README members. This permits detection of repackaging without accepting changed source content.
+
 ## Summary
 
-Usable as a school-level profile of the selected SY 2023-24 ELLNA results after preserving structural nulls and applying small-n safeguards. The 5,752 rows have unique school identifiers, valid numeric types, no unexpected score nulls, and all scores within 0 to 100. The main limitations are undocumented selection, coverage of only five regions, 1,016 schools with 10 or fewer test takers, and insufficient inputs to independently recalculate `overall_mps`.
+Usable as a school-level profile of the selected SY 2023-24 ELLNA results after preserving structural nulls and applying small-n safeguards. The 5,752 rows have unique school identifiers, valid numeric types, no unexpected score nulls, and all scores within 0 to 100. The main limitations are undocumented selection, coverage of only five regions, 1,016 schools with 10 or fewer test takers, insufficient inputs to independently recalculate `overall_mps`, and a suspected Numeracy scale or encoding anomaly affecting 98 schools.
 
 ## Observed findings
 
@@ -39,6 +41,7 @@ Usable as a school-level profile of the selected SY 2023-24 ELLNA results after 
 | O-12 | Language labels need governance | 9 distinct values; `Ilokano/Iloko-Pangasinense` and `Yakan` each occur once, and `English/Filipino` is a distinct documented non-applicability group | Uncontrolled normalization could change null rules or group meaning | Preserve raw labels and obtain an official controlled vocabulary |
 | O-13 | The file lacks row-level temporal and release provenance | School year and selected status occur in the filename or README, not in the 10 CSV columns; no release version or assessment date is present | Combining deliveries can lose lineage | Add derived lineage columns during ingestion |
 | O-14 | No direct personal identifiers are published, but small cells remain sensitive | Rows contain institutional identifiers and aggregate scores; 26 rows have one test taker | Public availability does not eliminate re-identification or reputational risk | Classify as Public with small-cell safeguards |
+| O-15 | Near-zero Numeracy values form a concentrated, cross-component anomaly | 98 schools covering 3,157 test takers have `numeracy_mps` below 1 while English and Filipino are at least 30. Of these, 27 are exact zero and 71 are nonzero values below 1. The largest clusters are Ifugao (19), Zamboanga del Norte (17), Samar (Western) (12), and Leyte (11). School `106410`, for example, reports 169 test takers, English 86.42, Filipino 84.40, Numeracy 0, and Mother Tongue 0.07 | The pattern may reflect genuine scores, inconsistent percentage scaling, or another encoding issue; the published file alone cannot distinguish them | Retain the published values, flag the 98 rows, and exclude them from Numeracy comparisons until DepEd confirms their meaning |
 
 ## Suspected findings
 
@@ -49,6 +52,7 @@ Usable as a school-level profile of the selected SY 2023-24 ELLNA results after 
 | S-3 | Compound language labels may represent multilingual administration, a combined test form, or a local encoding convention | Request the publisher's language codebook and test-form mapping | open |
 | S-4 | Decimal proficiency boundaries may require rules not stated in the Technical Notes | Ask BEA how values between integer labels, such as 89.5, are categorized and whether MPS is rounded before classification | open |
 | S-5 | Public reporting of rows with one test taker may require suppression despite the source being publicly downloadable | Confirm applicable DepEd disclosure-control and assessment-data-use policies | open |
+| S-6 | The 98 near-zero Numeracy values may use a 0-to-1 scale or another encoding in rows otherwise expressed on a 0-to-100 scale | Ask DepEd BEA to validate the affected school IDs against source scoring records and confirm the unit, missing-value convention, and correction policy | open |
 
 ## Changes across files or years
 
@@ -63,4 +67,5 @@ Only the selected SY 2023-24 CSV was supplied and profiled. The Technical Notes 
 - What do the compound language labels represent, and is there an official controlled vocabulary?
 - Which dated school master should be used to validate `school_id`, region, and division?
 - What minimum test-taker threshold and disclosure-control rules apply to school-level publication?
+- Are the 98 Numeracy values below 1 valid 0-to-100 scores, decimal proportions requiring rescaling, or missing/error values, and should the affected records be corrected?
 - What license, reuse, refresh, correction, and versioning terms govern the machine-ready assessment files?
