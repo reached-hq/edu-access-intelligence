@@ -79,6 +79,7 @@ Unstated originating project-management records -> BPDA monitoring workbook -> p
 - **Observed:** `Repair of Tipo-Tipo ES 6CL` and `REPAIR OF TIPO-TIPO ES3CL` name the same school with the same program, funding year, status, and monitoring date. They may be one project entered twice, so the file holds 16 records but possibly 15 projects.
 - **Observed:** `PROGRAM` and `YEAR FUNDED` are both blank for the final three projects.
 - **Observed:** the file has no project ID, school ID, PSGC, coordinates, cost, funding amount, physical-progress percentage, start date, completion date, or beneficiary count.
+- **Observed:** 10 project names start with `Construction` and 6 with `Repair`; 3 of the 9 `COMPLETED` records are repairs.
 - **Observed:** project names are free text. Classroom counts such as `2CL` or `10CL` appear inside some names but are not supplied as a defined structured field.
 - **Observed:** 983 formatted rows after the populated records are empty; they are excluded from the 16-row count.
 - **Observed:** the workbook contains two dashboard sheets with titles but no additional tabular records.
@@ -91,6 +92,7 @@ Unstated originating project-management records -> BPDA monitoring workbook -> p
 - It cannot support distance analysis because it has no coordinates or geometry.
 - `COMPLETED` is a published status label, not proof of completion date, usable classrooms, occupancy, or service availability.
 - Classroom quantities embedded in project names should not be parsed as authoritative capacity until MBHTE defines `CL` and confirms the names are complete and standardized.
+- Six of the 16 records are repairs, including 3 of the 9 `COMPLETED` records. A completed repair adds no new classrooms, so classroom tokens must never be totalled across construction and repair projects.
 
 ## Recommended controls and monitoring
 

@@ -103,6 +103,11 @@ for row in body:
     same_site[(site_key(row.get(4, "")), row.get(5, ""), row.get(6, ""))].append(row.get(4, ""))
 possible_duplicates = {key: names for key, names in same_site.items() if len(names) > 1}
 
+actions = collections.Counter(
+    (row.get(4, "").upper().split(" ", 1)[0], row.get(8, "")) for row in body
+)
+classroom_tokens = sum(bool(re.search(r"\d+\s*CL\b", row.get(4, "").upper())) for row in body)
+
 print(
     f"[{SOURCE_ID} run] {FILENAME}: checksum OK; sheets={sheets}; "
     f"data rows={len(body)}; columns={len(header)}; empty formatted rows={len(all_rows) - len(nonempty)}"
@@ -135,6 +140,7 @@ print(
     "start date, completion date, source-system identifier, or release date"
 )
 
+print(f"[{SOURCE_ID} O-10] action word by status={dict(sorted(actions.items()))}; names with a classroom token={classroom_tokens}")
 print(f"[{SOURCE_ID} O-9] same site, program, and funding year in more than one row={possible_duplicates}")
 
 interpretations = {

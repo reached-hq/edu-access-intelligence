@@ -27,13 +27,14 @@ Usable only as a small descriptive list of the 16 delivered Basilan monitoring r
 | O-7 | Most records concern buildings | `BUILDING` 15 and `COVERED COURT` 1; `MONITORED BY` is `BPDA` for all 16 | Project type is coarse and does not describe capacity or usability | Use only the two published categories; retain full project name for context |
 | O-8 | Core identifiers and analytical fields are absent | No project ID, school ID, PSGC, coordinates, cost, physical-progress value, start date, completion date, beneficiary count, source-system ID, or release date | Reliable joins, cost analysis, distance analysis, and impact analysis are unsupported | Request a complete project register and codebook before integration |
 | O-9 | Two rows may be the same project | `Repair of Tipo-Tipo ES 6CL` and `REPAIR OF TIPO-TIPO ES3CL` name the same school and share program `TDIF`, funding year 2020, status `COMPLETED`, and monitoring date 2024-04-22. Names are unique only letter for letter (O-1) | The file may hold 15 distinct projects rather than 16, or two separate repairs at one school | Keep both rows; count them as 16 records, not 16 confirmed projects, until BPDA confirms |
+| O-10 | Project names mix new construction and repairs | 10 names start with `Construction` and 6 with `Repair`. Of the 9 `COMPLETED` records, 6 are construction and 3 are repairs; 14 of 16 names carry a classroom token such as `2CL` | A completed repair fixes existing classrooms and adds no new capacity, so classroom tokens cannot be summed as new classrooms | Derive an action field (construction or repair) from the name with the raw name kept; never total classroom tokens across both actions |
 
 ## Suspected findings
 
 | ID | Suspicion | How to test | Status |
 |---|---|---|---|
 | S-1 | The workbook may be a filtered or partial monitoring extract rather than the full MBHTE project inventory | Compare with the source Google Sheet's version history or obtain the official project register and stated selection criteria | open |
-| S-2 | Tokens such as `2CL`, `3CL`, and `10CL` in project names may mean classroom quantities | Obtain the project naming convention and structured scope-of-work fields from MBHTE; do not parse until confirmed | open |
+| S-2 | Tokens such as `2CL`, `3CL`, and `10CL` in project names may mean classroom quantities; for repairs they would be classrooms repaired, not added (O-10) | Obtain the project naming convention and structured scope-of-work fields from MBHTE; do not parse until confirmed | open |
 | S-3 | The final three blank program and funding-year values may share a missing batch or source record | Request the original monitoring forms or project IDs and reconcile against the complete register | open |
 | S-4 | The two Tipo-Tipo ES repair rows may be one project entered twice, or two separate repairs (6 and 3 classrooms) | Ask BPDA for the project IDs and contracts behind both rows | open |
 
