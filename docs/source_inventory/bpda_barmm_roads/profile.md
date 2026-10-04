@@ -25,6 +25,7 @@ Conditionally usable for an undated, descriptive summary of published road lengt
 | O-5 | Larger component gaps align numerically with separate city rows | Basilan gaps equal Lamitan City concrete 2.65 km and earth 1.10 km. Lanao del Sur earth gap equals Marawi City earth 4.91 km; its concrete gap 70.56 km is 0.02 km above Marawi City's 70.54 km | Suggests, but does not prove, that some province totals include separately listed city roads | Record as a suspected scope relationship and request confirmation |
 | O-6 | The source has no usable fields for routing | No segment ID, road name, geometry, endpoint, coordinate, connectivity, speed, travel-time, ferry, or seasonal-access field appears in the 21-column data sheet | Cannot measure a learner's or community's distance to school | Reject for distance calculation; retain only as regional context |
 | O-7 | Time and provenance are absent from the workbook | No reference date, year, source note, methodology, PSGC, boundary vintage, release date, or missing-marker definition appears in the data sheet or headers | Values cannot be aligned reliably with education school years or current boundaries | Treat as undated historical context until BPDA provides documentation |
+| O-8 | One component is larger than its total | Cotabato City `City Roads ... Road Opening` is 43.04 km, but its `Local Road ... Road Opening` total is 42.04 km, exactly 1.00 km less. The barangay component is `-`, so the O-4 reconciliation skips this row, but no reading of `-` can make a 43.04 km component fit in a 42.04 km total | At least one of the two values is wrong, possibly a one-digit entry error | Retain both values and flag; do not use Cotabato City road-opening length until BPDA confirms it |
 
 ## Suspected findings
 
@@ -45,6 +46,7 @@ Conditionally usable for an undated, descriptive summary of published road lengt
 - What is the reference date and originating agency or system for the road inventory?
 - Which geographic boundaries and PSGC version apply to `Maguindanao`, `SGA`, and the city rows?
 - Do Basilan and Lanao del Sur totals include Lamitan City and Marawi City respectively?
+- Is Cotabato City road-opening length 42.04 km (total) or 43.04 km (city roads)?
 - What do physical blanks, `-`, and explicit zeroes mean?
 - Are columns B:E authoritative totals, calculated totals, or independently reported values?
 - What are the exact definitions of provincial, municipal, barangay, city, and `Road Opening`?

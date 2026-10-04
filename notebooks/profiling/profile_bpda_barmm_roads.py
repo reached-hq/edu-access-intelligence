@@ -118,6 +118,17 @@ for row in body:
 close_checks = [check for check in reconciliation if abs(check[4]) <= 0.02]
 material_differences = [check for check in reconciliation if abs(check[4]) > 0.02]
 
+# A single published component larger than its total is impossible whatever the
+# blank or `-` cells mean, so check it even where the full reconciliation is skipped.
+component_over_total = [
+    (row[1], header[total_column + offset], clean_number(row.get(total_column + offset, "")), total)
+    for row in body
+    for total_column in range(2, 6)
+    if (total := clean_number(row.get(total_column, ""))) is not None
+    for offset in (4, 8, 12, 16)
+    if (clean_number(row.get(total_column + offset, "")) or 0) > total + 0.02
+]
+
 print(
     f"[{SOURCE_ID} run] {FILENAME}: checksum OK; sheets={sheets}; "
     f"data rows={len(body)}; columns={len(header)}"
@@ -136,6 +147,7 @@ print(
     f"[{SOURCE_ID} O-4] complete total/component checks={len(reconciliation)}; "
     f"within 0.02 km={len(close_checks)}; differences above 0.02 km={material_differences}"
 )
+print(f"[{SOURCE_ID} O-8] components above their total by more than 0.02 km={component_over_total}")
 print(
     f"[{SOURCE_ID} O-5] labels={keys}; workbook supplies no reference date, "
     "PSGC, geometry, endpoints, travel speeds, source note, or missing-marker definition"
