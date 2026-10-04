@@ -207,7 +207,7 @@ def barangay_candidates(locality):
 raw_schools = q("SELECT school_id, region, province, municipality, barangay FROM enr")
 schools = [(i, r, repair(p), repair(m), repair(b)) for i, r, p, m, b in raw_schools]
 repaired = {(a[2], a[3], a[4]) for a, b in zip(raw_schools, schools) if a[2:] != b[2:]}
-truncated = {s[4] for s in schools if s[4] and len(s[4]) == 40}
+truncated = {s[4] for s in raw_schools if s[4] and len(s[4]) == 40}  # the cap applies to the published text
 pso = [s for s in schools if s[1] == "PSO"]
 schools = [s for s in schools if s[1] != "PSO"]
 show("A-1", f"schools {len(schools) + len(pso):,}; Philippine Schools Overseas excluded {len(pso)}; matched below {len(schools):,}")
@@ -281,7 +281,7 @@ for label, provs in (("Negros and Siquijor", ("NEGROS OCCIDENTAL", "NEGROS ORIEN
 
 show("A-10", f"DepEd place names with mangled characters repaired before matching: {len(repaired)} places, "
      f"{sum(1 for a, b in zip(raw_schools, schools) if a[2:] != b[2:])} schools; barangay names exactly 40 characters long: "
-     f"{len(truncated)} names, {sum(1 for s in schools if s[4] in truncated)} schools")
+     f"{len(truncated)} names, {sum(1 for s in raw_schools if s[4] in truncated)} schools")
 sga = [s for s in schools if s[1] == "BARMM" and s[2] == "NORTH COTABATO"]
 show("A-11", f"BARMM schools filed under NORTH COTABATO (the Special Geographic Area): {len(sga)}; "
      f"localities matched {sum(1 for s in sga if loc_result[(s[2], s[3])][1])}; barangays matched "

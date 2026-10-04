@@ -17,7 +17,7 @@ The unmatched and ambiguous names are listed in [deped_psgc_unmatched.md](deped_
 1. **96.9% of schools match PSGC 2Q 2026 down to barangay** (58,289 of 60,134). Only 69.7% match on exact names at all three levels; the rest need documented rules for how DepEd writes names. 1,845 schools stay unmatched or ambiguous and are listed, not forced.
 2. **Most failures are naming conventions, not missing places.** DepEd adds former names in brackets, leaves out "City" for places that became cities, files independent cities under their geographic province, and groups NCR into four districts that are not PSGC units.
 3. **3,306 matched schools change region between SY 2023-24 and 2Q 2026**, all from the Negros Island Region and Sulu moves, plus 112 Special Geographic Area schools. Region must come from DepEd's own column for SY 2023-24 results.
-4. **DepEd's own place names have two data problems:** 173 names (260 schools) contain mangled characters, and 12 barangay names (23 schools) are exactly 40 characters long, which looks like truncation.
+4. **DepEd's own place names have two data problems:** 173 names (260 schools) contain mangled characters, and 13 barangay names (24 schools) are exactly 40 characters long, which looks like truncation.
 5. **The school ID joins are clean.** Facilities and personnel cover all 60,167 enrollment schools one-to-one with the same sector. Every ELLNA and NAT Grade 6 school is in enrollment, with the same region, and none is in BARMM.
 
 ## A. Place names to PSGC 2Q 2026
@@ -60,9 +60,9 @@ The 33 Philippine Schools Overseas are excluded (A-1).
 ### Data problems in DepEd's place names (A-10)
 
 - **Mangled characters:** 173 place names (260 schools) contain `Ã‘` where `Ñ` belongs, a sign the text was saved in the wrong encoding at some point. They are repaired before matching; the raw values are unchanged.
-- **Possible truncation:** 12 barangay names (23 schools) are exactly 40 characters long, and some end mid-word or with an open bracket (`AURORA HILL PROPER (MALVAR-SGT. FLORESCA`). DepEd appears to cap the field at 40 characters.
+- **Possible truncation:** 13 barangay names (24 schools) are exactly 40 characters long as published, and some end mid-word or with an open bracket (`AURORA HILL PROPER (MALVAR-SGT. FLORESCA`). DepEd appears to cap the field at 40 characters.
 
-These are single-source findings and belong in the [deped_enrollment profile](../source_inventory/deped_enrollment/profile.md) as well.
+Both are also recorded as O-17 and O-18 in the [deped_enrollment profile](../source_inventory/deped_enrollment/profile.md), for all three acquired school years.
 
 ## B. School ID joins
 
