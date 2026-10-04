@@ -24,6 +24,17 @@
       "owner": "hyenalouise"
     },
     {
+      "source_id": "deped_nat_gr6",
+      "name": "DepEd selected school-level NAT Grade 6 results",
+      "publisher": "Department of Education (DepEd)",
+      "status": "profiled",
+      "source_system": "National Achievement Test Grade 6 (NATG6)",
+      "acquisition": "https://www.deped.gov.ph/machine-ready-files/",
+      "format": "zip containing CSV and README",
+      "school_years_acquired": ["2023-24"],
+      "owner": "mafelisilda"
+    },
+    {
       "source_id": "ched_enrollment",
       "name": "CHED enrollment by region, sector and sex",
       "publisher": "Commission on Higher Education (CHED)",
@@ -66,6 +77,17 @@
       "format": "CSV extracted from a PDF table",
       "school_years_acquired": ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25"],
       "owner": "catweyine"
+    },
+    {
+      "source_id": "psa_psgc",
+      "name": "PSA Philippine Standard Geographic Code (PSGC)",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "Philippine Standard Geographic Code (PSGC), quarterly publication",
+      "acquisition": "https://psa.gov.ph/classification/psgc",
+      "format": "xlsx",
+      "publication": "2Q 2026 (30 June 2026)",
+      "owner": "maeveylain"
     },
     {
       "source_id": "psa_poverty_stat",
