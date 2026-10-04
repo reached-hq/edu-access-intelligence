@@ -28,6 +28,7 @@ Conditionally usable for broad historical counts of schools, madaris, classroom 
 | O-8 | Provenance and methodology are absent from the file | No title row, source note, definitions, PSGC, dash semantics, region total, release date, or workbook core properties | Source and measure semantics remain incomplete | Treat as conditional/contextual until BPDA supplies documentation |
 | O-9 | Worksheet contains extensive empty formatting | 1,000 physical rows; only 10 non-empty rows (header plus 9 records) | A row-count based on worksheet extent would be wrong | Drop only wholly empty rows and assert 9 data records |
 | O-10 | Private elementary and private secondary school counts look copied | `Number of Private Elementary Schools, by Province/City, 2019-2021` equals `Number of Private Secondary Schools` in 5 of 9 rows: Maguindanao 88, Lanao del Sur 57, Basilan 13, Sulu 15, Tawi-Tawi 18. The other four rows differ: Cotabato City 39 vs 6, SGA 5 vs 49, Lamitan City 5 vs 39, Marawi City 49 vs 5 | At least one of the two columns is probably wrong, so private school counts cannot be trusted at either level | Retain both raw columns; exclude both from analysis until BPDA confirms the values |
+| O-11 | Four permanent classroom-building counts are far out of line with school counts | Permanent buildings per public school are 2.7 to 5.0 for elementary and 1.2 to 5.7 for secondary in most rows, but Cotabato City elementary is 34.2 (959 / 28), SGA elementary 16.3 (1,383 / 85), Lamitan City secondary 70.1 (491 / 7), and Marawi City secondary 38.4 (269 / 7) | Ranking or comparing areas on these columns would be driven by four suspect values | Retain and flag; do not rank areas on classroom-building counts until BPDA explains the four values |
 
 ## Suspected findings
 
@@ -38,6 +39,7 @@ Conditionally usable for broad historical counts of schools, madaris, classroom 
 | S-3 | `Number of SUCs and Elementary Schools` may be a malformed combined header | Ask BPDA for the original data dictionary and originating field name | open |
 | S-4 | Different columns may originate from different ministries and reporting years | Obtain column-level provenance from BPDA | open |
 | S-5 | The private secondary column may have been pasted from the private elementary column, with the last four rows reordered or partly re-entered | Ask BPDA for the originating MBHTE table for both columns and compare row by row | open |
+| S-6 | The four outlying classroom-building counts may be misplaced values, a different counting unit, or schools and buildings counted under different geographies (for example SGA versus Cotabato City) | Ask BPDA for the originating MBHTE facilities table and school list per area | open |
 
 ## Changes across files or years
 
@@ -50,6 +52,7 @@ Conditionally usable for broad historical counts of schools, madaris, classroom 
 - What does `-` mean in each column: zero, not applicable, not available, or not reported?
 - What is the exact reference date/year and originating ministry/system for every education measure?
 - Does a classroom-building count represent buildings, rooms, or another inventory unit?
+- Why are permanent classroom buildings per public school so high for Cotabato City and SGA (elementary) and Lamitan City and Marawi City (secondary)?
 - What does `Number of SUCs and Elementary Schools` mean?
 - Why are private elementary and private secondary school counts identical for Maguindanao, Lanao del Sur, Basilan, Sulu, and Tawi-Tawi? Which column is correct?
 - Is `as of 20222` intended to be 2022?

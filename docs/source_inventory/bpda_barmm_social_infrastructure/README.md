@@ -81,6 +81,7 @@ Unstated originating ministries/systems -> BPDA Bangsamoro Ecological Profile Go
 - **Observed:** no PSGC or other geographic code is supplied; the geography is historical and mixed-level.
 - **Observed:** `Number of SUCs and Elementary Schools` is ambiguous and cannot be interpreted safely from the header alone.
 - **Observed:** private elementary and private secondary school counts are identical in 5 of 9 rows (Maguindanao 88, Lanao del Sur 57, Basilan 13, Sulu 15, Tawi-Tawi 18). The other four rows differ. At least one column is probably a copy error, so both are excluded until BPDA confirms them.
+- **Observed:** four permanent classroom-building counts are far out of line with school counts: Cotabato City elementary has 34.2 buildings per public school, SGA elementary 16.3, Lamitan City secondary 70.1, and Marawi City secondary 38.4, against 1.2 to 5.7 elsewhere.
 
 ## Limitations for analysis
 
@@ -91,6 +92,7 @@ Unstated originating ministries/systems -> BPDA Bangsamoro Ecological Profile Go
 - Measures with unspecified reference periods must not be combined into a same-year model.
 - Dashes must not be converted to zero without publisher confirmation.
 - Private elementary and private secondary school counts must not be used until BPDA confirms which values are correct.
+- Areas must not be ranked on classroom-building counts until BPDA explains the four outlying values.
 - Non-education fields are out of project scope but remain documented because they arrived in the same source file.
 
 ## Recommended controls and monitoring

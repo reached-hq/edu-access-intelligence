@@ -92,6 +92,14 @@ for row in body:
 private_pairs = [(row[1], clean_number(row.get(6, "")), clean_number(row.get(17, ""))) for row in body]
 private_same = [area for area, elementary, secondary in private_pairs if elementary == secondary]
 
+
+def per_school(row, buildings_column, schools_column):
+    buildings, schools = clean_number(row.get(buildings_column, "")), clean_number(row.get(schools_column, ""))
+    return round(buildings / schools, 1) if buildings is not None and schools else None
+
+
+building_ratios = [(row[1], per_school(row, 8, 7), per_school(row, 19, 18)) for row in body]
+
 print(
     f"[{SOURCE_ID} run] {FILENAME}: checksum OK; sheets={sheets}; data rows={len(body)}; "
     f"columns={len(header)}; empty formatted rows={len(rows) - len(nonempty)}"
@@ -124,6 +132,9 @@ print(
     f"({private_same}); "
     f"pairs={[(area, int(e), int(s)) for area, e, s in private_pairs]}"
 )
+print(
+    f"[{SOURCE_ID} O-11] permanent classroom buildings per public school (elementary, secondary)={building_ratios}"
+)
 
 dictionary_rows = []
 for column in range(1, 34):
@@ -154,6 +165,8 @@ for column in range(1, 34):
         interpretation += " **[observed]** Private elementary and private secondary are equal in 5 of 9 rows (profile O-10); do not use either until BPDA confirms them."
     if column in (8, 9, 19, 20):
         interpretation += " **[observed]** The header says classroom building, not classroom or seat."
+    if column in (8, 19):
+        interpretation += " **[observed]** Four buildings-per-school ratios are outliers (profile O-11)."
     sample = (
         f"min {min(column_numbers):.0f}, median {statistics.median(column_numbers):.0f}, max {max(column_numbers):.0f}"
         if column_numbers
