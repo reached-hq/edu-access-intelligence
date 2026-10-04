@@ -20,13 +20,13 @@ Raw files are kept outside git. Row count excludes the header and empty formatte
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `BARMM_MBHTE_Infrastructure_Projects.xlsx` | XLSX, three worksheets | n/a | 171,657 | 16 | `9a21113c97a773bdbeba66d23cb7855b563ff91bfa8f320268b6c0b687fee734` | `raw-data/bpda/original/`; governed raw-storage upload pending |
+| `BARMM_MBHTE_Infrastructure_Projects.xlsx` | XLSX, three worksheets | n/a | 171,657 | 16 | `9a21113c97a773bdbeba66d23cb7855b563ff91bfa8f320268b6c0b687fee734` | Databricks volume `/Volumes/edu_access/00-source/raw/bpda/` |
 
 ## Publisher documentation
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
-| Bangsamoro Knowledge Portal: MBHTE M&E | https://knowledge.bpda.bangsamoro.gov.ph/open-data/bpda-monitoring-and-evaluation/mbhte-m-and-e | Live web resource; checksum not captured | Publisher, dataset title, monitoring context, and download link |
+| Bangsamoro Knowledge Portal: MBHTE M&E (HTML snapshot `BPDA_MBHTE_ME_page_2026-10-04.html`, 180,436 bytes, saved 2026-10-04 Philippine time; stored in `/Volumes/edu_access/00-source/raw/bpda/`) | https://knowledge.bpda.bangsamoro.gov.ph/open-data/bpda-monitoring-and-evaluation/mbhte-m-and-e | `1ef4655de969ff6ebc9c10bea3a44712cb74a891cd0aa26c4d59507a95cbdbd9` | Publisher, dataset title, monitoring context, and download link (the snapshot contains the same Google Sheet ID as the direct export). No license or reuse terms appear on the page |
 | Workbook headers and dashboard title | Inside the inventoried file | File checksum above | Exact fields, project labels, dates, statuses, and monitoring organization |
 
 No codebook, project-selection rule, project identifier, revision history, or release note accompanies the workbook.
