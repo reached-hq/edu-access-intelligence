@@ -20,9 +20,11 @@ Raw files are kept outside git. Row count excludes the CSV header.
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `ellna_2023-24_selected.csv` | CSV | UTF-8-compatible ASCII, LF | 728,685 | 5,752 | `a379ccd0cf48bf3ff1174fc76374627bd92f71d31f49fa73e59c9f57b1390dc2` | Local; governed raw-storage upload pending |
+| `Early-Language-Literacy-and-Numeracy-Assessment-ELLNA.zip` | Official publisher ZIP | n/a | 181,924 | n/a | `d998d5c1af37c29a3247ae3e7f5d4d9aa3b0f34f94db391f55c1a8f587b7f124` | Direct download from the official DepEd URL on 2026-10-03 |
+| `Early-Language-Literacy-and-Numeracy-Assessment-ELLNA.zip` | Repackaged shared-storage ZIP | n/a | 183,613 | n/a | `5d293e40da87491528388ed87a618212cb2544071328670b680cad346f9edecb` | Team-managed shared raw storage |
+| `ellna_2023-24_selected.csv` | CSV | UTF-8-compatible ASCII, LF | 728,685 | 5,752 | `a379ccd0cf48bf3ff1174fc76374627bd92f71d31f49fa73e59c9f57b1390dc2` | Member of both ZIP packages; shared package retained in team-managed raw storage |
 
-The profiled CSV and included README are byte-for-byte identical to the corresponding members of the official DepEd ZIP downloaded on 2026-10-03. A ZIP stored in shared raw storage may have a different outer checksum if it was repackaged. Treat that as a packaging-lineage difference: verify both member hashes, record the stored ZIP checksum, and replace it with the untouched publisher archive when practical.
+The profiled CSV and included README are byte-for-byte identical to the corresponding members of the official DepEd ZIP downloaded on 2026-10-03. The shared-storage ZIP was repackaged and therefore has a different size and outer checksum. Both package hashes are retained so the packaging-lineage difference remains reproducible after the shared file is replaced. Verify the member hashes before using either package, and replace the shared copy with the untouched publisher archive when practical.
 
 ## Publisher documentation
 

@@ -25,8 +25,10 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/cross_sour
 | [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise |
 | [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise |
 | [deped_ellna](deped_ellna/) | DepEd selected school-level ELLNA results | DepEd | profiled | @mafelisilda |
+| [deped_nat_gr6](deped_nat_gr6/) | DepEd selected school-level NAT Grade 6 results | DepEd | profiled | @mafelisilda |
 | [ched_enrollment](ched_enrollment/) | CHED enrollment by region, sector and sex | CHED | profiled | @catweyine |
 | [ched_graduates](ched_graduates/) | CHED graduates by region, program level and sex | CHED | profiled | @catweyine |
 | [ched_school_count](ched_school_count/) | CHED higher education institutions by region and type | CHED | profiled | @catweyine |
 | [ched_student_faculty_ratio](ched_student_faculty_ratio/) | CHED student-faculty ratio by region | CHED | profiled | @catweyine |
 | [psa_psgc](psa_psgc/) | PSA Philippine Standard Geographic Code (PSGC) | PSA | profiled | @maeveylain |
+| [psa_poverty_stat](psa_poverty_stat/) | PSA city- and municipal-level poverty estimates | PSA | profiled | @maeveylain |
