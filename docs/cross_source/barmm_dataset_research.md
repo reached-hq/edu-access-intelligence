@@ -67,7 +67,7 @@ A direct name match from the BPDA labels to PSGC 2Q 2026 is therefore expected t
 
 The DepEd anchor is SY 2023-24. The BPDA Education rates cover SY 2018-19 to 2020-21, two of which overlap COVID-19 disruption; Social Infrastructure and Roads are mostly undated; MBHTE projects were monitored in April 2024. BPDA values therefore cannot be joined to DepEd records as same-year predictors. They can sit beside the school-level results as historical regional context.
 
-## Distance-specific acquisition design
+## Distance design
 
 A usable distance model needs three linked layers:
 
@@ -76,3 +76,5 @@ A usable distance model needs three linked layers:
 3. **Network:** routable road/ferry/walking graph with surface or impedance attributes and a clear license. Candidate: OSM roads ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)), with assumed speeds by road class because most records have no speed limit.
 
 Calculate both straight-line distance (quality-control baseline) and network travel distance/time. In BARMM, water crossings, islands, seasonal accessibility, and missing road links can make straight-line distance materially misleading. Every result should retain routing status (`routed`, `no route`, `off-network`, or `coordinate missing`) rather than silently dropping unreachable places.
+
+The candidate layers are dated differently: the OSM extract is from 2026-09-28, the COD-AB boundaries are valid 2025-02-13, barangay population is as of 1 July 2024, the PSGC master is 2Q 2026, and the DepEd anchor is SY 2023-24. Each distance result should record the date of every layer it used, and barangays that changed between those dates should be flagged rather than forced to match.
