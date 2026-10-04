@@ -19,6 +19,7 @@ The unmatched and ambiguous names are listed in [deped_psgc_unmatched.md](deped_
 3. **3,306 matched schools change region between SY 2023-24 and 2Q 2026**, all from the Negros Island Region and Sulu moves, plus 112 Special Geographic Area schools. Region must come from DepEd's own column for SY 2023-24 results.
 4. **DepEd's own place names have two data problems:** 173 names (260 schools) contain mangled characters, and 13 barangay names (24 schools) are exactly 40 characters long, which looks like truncation.
 5. **The school ID joins are clean.** Facilities and personnel cover all 60,167 enrollment schools one-to-one with the same sector. Every ELLNA and NAT Grade 6 school is in enrollment, with the same region, and none is in BARMM.
+6. **BARMM is covered by the DepEd anchor.** 93.3% of its public schools have classroom counts and 99.2% have teachers counted, against 99.0% and 99.6% elsewhere (B-7). Its limits are no school-level assessments, the Sulu region change, and the unmatched Special Geographic Area barangays.
 
 ## A. Place names to PSGC 2Q 2026
 
@@ -84,6 +85,16 @@ Both are also recorded as O-17 and O-18 in the [deped_enrollment profile](../sou
 | Region III | 5,194 | 1,364 (26.3%) | 1,786 (34.4%) |
 | Region VIII | 4,466 | 1,962 (43.9%) | 2,027 (45.4%) |
 | Region IX | 2,868 | 792 (27.6%) | 795 (27.7%) |
+
+### BARMM coverage (B-7)
+
+The DepEd anchor covers BARMM's public schools almost as completely as the rest of the country:
+
+- **Schools:** all 2,603 BARMM public schools in SY 2023-24 enrollment are also in facilities and personnel.
+- **Classrooms:** 2,429 (93.3%) have instructional classroom counts, against 99.0% elsewhere. The 174 without them are in Lanao del Sur (56), Maguindanao (51), Sulu (42), Tawi-Tawi (14), Basilan (8), and the Special Geographic Area schools that DepEd files under North Cotabato (3).
+- **Teachers:** 2,583 (99.2%) have at least one teacher counted across the 51 teacher-position columns, against 99.6% elsewhere.
+
+So the availability, classroom, and teacher indicators can be computed for BARMM, with the 174 schools without classroom counts excluded from the classroom ratio and counted. The limits are elsewhere: no school-level NAT or ELLNA results (B-4, B-5), Sulu under Region IX in PSGC 2Q 2026 (A-8, A-9), and only 7 of 112 Special Geographic Area schools matched to a barangay (A-11).
 
 ## Limits
 
