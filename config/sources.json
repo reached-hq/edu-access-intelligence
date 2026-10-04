@@ -57,6 +57,17 @@
       "owner": "hyenalouise"
     },
     {
+      "source_id": "bpda_barmm_roads",
+      "name": "BPDA BARMM road length by surface and administrative class",
+      "publisher": "Bangsamoro Planning and Development Authority (BPDA)",
+      "status": "profiled",
+      "source_system": "Bangsamoro Ecological Profile, Infrastructure",
+      "acquisition": "https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/infrastructure",
+      "format": "xlsx",
+      "coverage": "Nine historical reporting areas; reference date unstated",
+      "owner": "hyenalouise"
+    },
+    {
       "source_id": "ched_enrollment",
       "name": "CHED enrollment by region, sector and sex",
       "publisher": "Commission on Higher Education (CHED)",
