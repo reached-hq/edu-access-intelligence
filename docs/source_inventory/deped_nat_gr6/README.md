@@ -81,9 +81,9 @@ Summary only; evidence lives in [profile.md](profile.md).
 
 - **Observed:** the published file covers only 5 of the 18 current DepEd regional groupings and is explicitly labeled `selected`; no school-selection method or inclusion probability is documented.
 - **Observed:** all 10 columns are complete, all score values fall within 0 to 100, all test-taker counts are positive, and there are no duplicate school IDs or full rows.
-- **Observed:** 333 schools report one test taker and 5,320 report 10 or fewer, creating severe instability and disclosure risk for school-level comparisons.
+- **Observed:** the median school has six test takers; 333 schools report one and 5,320, or 80.2%, report 10 or fewer, creating severe instability and disclosure risk for school-level comparisons.
 - **Observed:** MPS fields retain up to 16 decimal places, which implies computational precision beyond an appropriate reporting precision.
-- **Observed:** `overall_mps` differs from the simple mean of the five subject MPS values in 6,633 rows. This is consistent with its points-based definition, but raw numerator, denominator, and subject weights are unavailable for independent recalculation.
+- **Observed:** `overall_mps` differs slightly from the simple mean of the five subject MPS values in 6,633 rows. The median absolute gap is 0.05 points and the maximum is 0.34 points. This is consistent with its points-based definition, but raw numerator, denominator, and subject weights are unavailable for independent recalculation.
 - **Observed:** only the filename identifies the school year and selected status. Grade, assessment date, sampling weight, release version, and extraction timestamp are absent from the rows.
 - **Suspected:** the school and learner selection represented by the public extract may not support unbiased division or region estimates without sampling weights.
 

@@ -64,6 +64,12 @@ for source_row, row in enumerate(rows, start=2):
 school_ids = [row["school_id"] for row in parsed]
 full_rows = [tuple(row[column] for column in EXPECTED_COLUMNS) for row in rows]
 blank_counts = {column: sum(not row[column].strip() for row in rows) for column in EXPECTED_COLUMNS}
+region_values = sorted(set(row["region"] for row in parsed))
+division_values = sorted(set(row["division"] for row in parsed))
+test_taker_total = sum(row["n_test_takers"] for row in parsed)
+schools_with_one = sum(row["n_test_takers"] == 1 for row in parsed)
+schools_with_ten_or_fewer = sum(row["n_test_takers"] <= 10 for row in parsed)
+small_school_percent = 100 * schools_with_ten_or_fewer / len(parsed)
 unexpected_score_range = [
     (row["source_row"], column, row[column])
     for row in parsed
@@ -74,20 +80,20 @@ division_regions = defaultdict(set)
 for row in parsed:
     division_regions[row["division"]].add(row["region"])
 
-simple_mean_matches = 0
+overall_gaps = []
 for row in parsed:
     simple_mean = sum(row[column] for column in score_columns[:5]) / 5
-    if abs(row["overall_mps"] - simple_mean) <= 1e-12:
-        simple_mean_matches += 1
+    overall_gaps.append(abs(row["overall_mps"] - simple_mean))
+simple_mean_matches = sum(gap <= 1e-12 for gap in overall_gaps)
 
 print(f"rows={len(parsed):,} columns={len(EXPECTED_COLUMNS)}")
 print(f"duplicate_rows={len(full_rows) - len(set(full_rows))} duplicate_school_ids={len(school_ids) - len(set(school_ids))}")
-print(f"regions={len(set(row['region'] for row in parsed))} divisions={len(set(row['division'] for row in parsed))}")
-print(f"test_takers={sum(row['n_test_takers'] for row in parsed):,} min={min(row['n_test_takers'] for row in parsed)} median={statistics.median(row['n_test_takers'] for row in parsed):,.0f} max={max(row['n_test_takers'] for row in parsed)}")
-print(f"schools_with_1_test_taker={sum(row['n_test_takers'] == 1 for row in parsed):,} schools_with_10_or_fewer={sum(row['n_test_takers'] <= 10 for row in parsed):,}")
+print(f"regions={len(region_values)} divisions={len(division_values)}")
+print(f"test_takers={test_taker_total:,} min={min(row['n_test_takers'] for row in parsed)} median={statistics.median(row['n_test_takers'] for row in parsed):,.0f} max={max(row['n_test_takers'] for row in parsed)}")
+print(f"schools_with_1_test_taker={schools_with_one:,} schools_with_10_or_fewer={schools_with_ten_or_fewer:,} ({small_school_percent:.1f}%)")
 print(f"blank_counts={blank_counts}")
 print(f"out_of_range_scores={len(unexpected_score_range)} divisions_in_multiple_regions={sum(len(regions) > 1 for regions in division_regions.values())}")
-print(f"overall_not_simple_subject_mean={len(parsed) - simple_mean_matches:,}")
+print(f"overall_not_simple_subject_mean={len(parsed) - simple_mean_matches:,} median_abs_gap={statistics.median(overall_gaps):.2f} max_abs_gap={max(overall_gaps):.2f}")
 
 
 def filled(column):
@@ -105,26 +111,26 @@ def integer_summary(column):
 
 
 dictionary_rows = [
-    ("school_id", "integer", "6-digit unique school identifier", "Links to other school datasets.", "[observed] Unique and populated in all 6,636 rows. Treat as text in integration so formatting is preserved.", "identifier", filled("school_id"), f"{len(set(school_ids)):,}", f"min {min(school_ids)}, max {max(school_ids)}"),
-    ("region", "string", "Administrative region name", "", "[observed] The selected extract contains 5 regions, not nationwide coverage.", "category", filled("region"), "5", ", ".join(sorted(set(row["region"] for row in parsed)))),
-    ("division", "string", "School division name", "", "[observed] All 44 division labels map to exactly one published region in this file.", "text", filled("division"), "44", "Candon City, Baguio City, Leyte"),
-    ("n_test_takers", "integer", "Number of students who took the test", "", "[observed] School-level sampled-learner count. The selected rows sum to 52,761 test takers; 333 schools have one test taker.", "whole number", filled("n_test_takers"), f"{len(set(row['n_test_takers'] for row in parsed)):,}", integer_summary("n_test_takers")),
+    ("school_id", "integer", "6-digit unique school identifier", "Links to other school datasets.", f"[observed] Unique and populated in all {len(parsed):,} rows. Treat as text in integration so formatting is preserved.", "identifier", filled("school_id"), f"{len(set(school_ids)):,}", f"min {min(school_ids)}, max {max(school_ids)}"),
+    ("region", "string", "Administrative region name", "", f"[observed] The selected extract contains {len(region_values)} regions, not nationwide coverage.", "category", filled("region"), f"{len(region_values):,}", ", ".join(region_values)),
+    ("division", "string", "School division name", "", f"[observed] All {len(division_values)} division labels map to exactly one published region in this file.", "text", filled("division"), f"{len(division_values):,}", ", ".join(division_values[:3])),
+    ("n_test_takers", "integer", "Number of students who took the test", "", f"[observed] School-level sampled-learner count. The selected rows sum to {test_taker_total:,} test takers; {schools_with_one:,} schools have one test taker.", "whole number", filled("n_test_takers"), f"{len(set(row['n_test_takers'] for row in parsed)):,}", integer_summary("n_test_takers")),
     ("filipino_mps", "float", "Mean Percentage Score in Filipino", "Range: 0-100.", "[observed] All values are populated and within the documented range.", "decimal number", filled("filipino_mps"), f"{len(set(row['filipino_mps'] for row in parsed)):,}", numeric_summary("filipino_mps")),
     ("math_mps", "float", "Mean Percentage Score in Mathematics", "Range: 0-100.", "[observed] All values are populated and within the documented range.", "decimal number", filled("math_mps"), f"{len(set(row['math_mps'] for row in parsed)):,}", numeric_summary("math_mps")),
     ("english_mps", "float", "Mean Percentage Score in English", "Range: 0-100.", "[observed] All values are populated and within the documented range.", "decimal number", filled("english_mps"), f"{len(set(row['english_mps'] for row in parsed)):,}", numeric_summary("english_mps")),
     ("science_mps", "float", "Mean Percentage Score in Science", "Range: 0-100.", "[observed] All values are populated and within the documented range.", "decimal number", filled("science_mps"), f"{len(set(row['science_mps'] for row in parsed)):,}", numeric_summary("science_mps")),
     ("araling_panlipunan_mps", "float", "Mean Percentage Score in Araling Panlipunan", "Range: 0-100.", "[observed] All values are populated and within the documented range.", "decimal number", filled("araling_panlipunan_mps"), f"{len(set(row['araling_panlipunan_mps'] for row in parsed)):,}", numeric_summary("araling_panlipunan_mps")),
-    ("overall_mps", "float", "Total points correct over total possible points", "", f"[observed] Populated and in range. It differs from the simple mean of the five subject MPS values in {len(parsed) - simple_mean_matches:,} rows, consistent with the documented points-based calculation.", "decimal number", filled("overall_mps"), f"{len(set(row['overall_mps'] for row in parsed)):,}", numeric_summary("overall_mps")),
+    ("overall_mps", "float", "Total points correct over total possible points", "", f"[observed] Populated and in range. It differs slightly from the simple subject mean in {len(parsed) - simple_mean_matches:,} rows: median absolute gap {statistics.median(overall_gaps):.2f} and maximum {max(overall_gaps):.2f} points. This is consistent with the documented points-based calculation.", "decimal number", filled("overall_mps"), f"{len(set(row['overall_mps'] for row in parsed)):,}", numeric_summary("overall_mps")),
 ]
 
-dictionary = """# deped_nat_gr6: data dictionary
+dictionary = f"""# deped_nat_gr6: data dictionary
 
 Generated by [`notebooks/profiling/profile_deped_nat_gr6.py`](../../../notebooks/profiling/profile_deped_nat_gr6.py). Do not edit by hand; rerun the script instead.
 
 - **Description, publisher type, and publisher notes:** copied from the README distributed inside DepEd's official NAT Grade 6 ZIP archive.
 - **Our interpretation:** measured from the checksum-verified `nat_2023-24_selected.csv`. Every interpretation is labeled and supported by observed evidence.
 - **Observed columns:** all 10 delivered columns, read as text before validated numeric fields are converted.
-- **Filled:** share of 6,636 school rows that are not blank.
+- **Filled:** share of {len(parsed):,} school rows that are not blank.
 
 See [profile.md](profile.md) for findings and [README.md](README.md) for the source card.
 
