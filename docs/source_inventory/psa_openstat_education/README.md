@@ -54,7 +54,7 @@ No methodology, definition, footnote, or release note is delivered with the tabl
 | Time coverage | Varies by table: school counts SY 2019-20 to 2023-24; teachers SY 2004-05 to 2022-23; net enrolment and cohort survival SY 2018-19 or 2019-20 to 2022-23; NAT three non-consecutive school years each, latest SY 2021-22 (Grade 6) or 2022-23 (Grades 10 and 12); literacy 2013, 2019, and 2024 |
 | Time basis | School year, except literacy (survey year) |
 | Update frequency | **UNVERIFIED** |
-| Population covered | Schools: public and private (public includes SUC/LUC, overseas schools excluded; see X-1). Teachers: public schools only. Net enrolment, cohort survival, and NAT: as titled, public and private. Literacy: population 10 and over (basic) or 10 to 64 (functional) |
+| Population covered | Schools: public and private (public includes SUC/LUC, overseas schools excluded; see X-1). Teachers: public schools only. Net enrolment and cohort survival: public and private, as titled. NAT: school coverage not stated. Literacy: population 10 and over (basic) or 10 to 64 (functional) |
 
 ## Structure
 
