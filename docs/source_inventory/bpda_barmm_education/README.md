@@ -20,7 +20,7 @@ Raw files are kept outside git. Row count excludes the header row.
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `BARMM_Education.xlsx` | XLSX, one worksheet | n/a | 7,194 | 10 | `5f08cb21ab1abaa2e13277eea429293782c3984447f7217bacce08c1eb44eeca` | `raw-data/bpda/original/`; governed raw-storage upload pending |
+| `BARMM_Education.xlsx` | XLSX, one worksheet | n/a | 7,194 | 10 | `5f08cb21ab1abaa2e13277eea429293782c3984447f7217bacce08c1eb44eeca` | Databricks volume `/Volumes/edu_access/00-source/raw/bpda/` |
 
 ## Publisher documentation
 
