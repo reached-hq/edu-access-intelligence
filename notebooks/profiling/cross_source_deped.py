@@ -344,3 +344,26 @@ show("B-6", "ELLNA and NAT Grade 6 schools in both files: "
      + str(q("""SELECT e.region, count(*) AS schools, count(l.school_id) AS ellna, count(n.school_id) AS nat
                 FROM enr e LEFT JOIN ellna l USING (school_id) LEFT JOIN nat n USING (school_id)
                 WHERE e.region IN (SELECT DISTINCT region FROM nat) GROUP BY 1 ORDER BY 1""")))
+
+# %% B-7 BARMM coverage in the DepEd anchor (public schools, SY 2023-24)
+# Teacher positions are every personnel column naming a teacher position; the
+# `*_teachers_*` columns are funding breakdowns and are left out. "At least one
+# teacher" does not depend on which positions the team later counts as teachers.
+teacher_cols = [c for (c, *_) in q("DESCRIBE per") if "teacher" in c and "teachers_" not in c]
+teacher_sum = " + ".join(f'coalesce(try_cast(p."{c}" AS DOUBLE), 0)' for c in teacher_cols)
+coverage = q(f"""
+    SELECT CASE WHEN e.region = 'BARMM' THEN 'BARMM' ELSE 'Rest of the Philippines' END AS area,
+           count(*) AS schools,
+           count(*) FILTER (WHERE coalesce(f.es_classrooms_instructional, f.jhs_classrooms_instructional,
+                                           f.shs_classrooms_instructional) IS NOT NULL) AS with_classrooms,
+           count(*) FILTER (WHERE ({teacher_sum}) > 0) AS with_teachers
+    FROM enr e JOIN fac f USING (school_id) JOIN per p USING (school_id)
+    WHERE e.sector = 'Public'
+    GROUP BY 1 ORDER BY 1""")
+show("B-7", f"teacher-position columns used: {len(teacher_cols)}; public schools, with classroom counts, with at least one teacher: "
+     + "; ".join(f"{a} {n:,}, {c:,} ({100 * c / n:.1f}%), {t:,} ({100 * t / n:.1f}%)" for a, n, c, t in coverage))
+show("B-7", "BARMM public schools without classroom counts, by DepEd province: " + str(q("""
+    SELECT e.province, count(*) FROM enr e JOIN fac f USING (school_id)
+    WHERE e.sector = 'Public' AND e.region = 'BARMM'
+      AND coalesce(f.es_classrooms_instructional, f.jhs_classrooms_instructional, f.shs_classrooms_instructional) IS NULL
+    GROUP BY 1 ORDER BY 2 DESC""")))
