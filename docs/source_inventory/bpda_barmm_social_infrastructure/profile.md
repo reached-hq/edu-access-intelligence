@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Date profiled | 2026-10-04 |
-| Profiled by | @hyenalouise with AI-assisted checks; human review required before PR |
+| Profiled by | @hyenalouise |
 | Tool | `notebooks/profiling/profile_bpda_barmm_social_infrastructure.py`, standard-library XLSX reader |
 | Files profiled (SHA-256) | `BARMM_Social_Infrastructure.xlsx` — `6af9c99e33d820f99eb554326eb126cf6a2cdb30945e8f11088a0b26197391d3` |
 | How files were read | All cells read as stored text from XLSX XML; checksum and exact non-empty shape checked first |
@@ -34,7 +34,7 @@ Conditionally usable for broad historical counts of schools, madaris, classroom 
 
 | ID | Suspicion | How to test | Status |
 |---|---|---|---|
-| S-1 | Some `-` markers may mean zero, especially where a total equals the only numeric component | Obtain BPDA's codebook or source worksheet and compare with the originating ministry table | open |
+| S-1 | Some `-` markers may mean zero, especially where a total equals the only numeric component. In both incomplete madrasah rows the total equals the one filled component: Basilan 11 = 11 with PTO + `-` traditional; Lamitan City 3 = 3 with PTO + `-` traditional (O-4) | Obtain BPDA's codebook or source worksheet and compare with the originating ministry table | open |
 | S-2 | `as of 20222` is a typographical error for 2022 | Confirm with BPDA/MBHTE or an archived source table; do not silently correct before confirmation | open |
 | S-3 | `Number of SUCs and Elementary Schools` may be a malformed combined header | Ask BPDA for the original data dictionary and originating field name | open |
 | S-4 | Different columns may originate from different ministries and reporting years | Obtain column-level provenance from BPDA | open |

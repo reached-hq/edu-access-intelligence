@@ -85,10 +85,13 @@ non_integers = sum(not math.isclose(value, round(value)) for value in numbers)
 zeroes = sum(value == 0 for value in numbers)
 
 madrasah_checks = []
+madrasah_incomplete = []
 for row in body:
     total, with_pto, traditional = (clean_number(row.get(column, "")) for column in (14, 15, 16))
     if None not in (total, with_pto, traditional):
         madrasah_checks.append((row[1], int(total), int(with_pto + traditional), total == with_pto + traditional))
+    else:
+        madrasah_incomplete.append((row[1], *(str(row.get(column, "")).strip() for column in (14, 15, 16))))
 
 private_pairs = [(row[1], clean_number(row.get(6, "")), clean_number(row.get(17, ""))) for row in body]
 private_same = [area for area, elementary, secondary in private_pairs if elementary == secondary]
@@ -132,7 +135,8 @@ print(
 )
 print(
     f"[{SOURCE_ID} O-4] complete Private Madrasah Elementary components: "
-    f"reconciled={sum(check[3] for check in madrasah_checks)} of {len(madrasah_checks)}; checks={madrasah_checks}"
+    f"reconciled={sum(check[3] for check in madrasah_checks)} of {len(madrasah_checks)}; checks={madrasah_checks}; "
+    f"incomplete (total, with PTO, traditional)={madrasah_incomplete}"
 )
 print(f"[{SOURCE_ID} O-5] labels={keys}")
 print(

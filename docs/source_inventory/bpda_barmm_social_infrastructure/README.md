@@ -37,7 +37,7 @@ No methodology, source note, geographic definition, dash-marker definition, or r
 |---|---|
 | Geographic coverage | Nine historical BARMM reporting areas: Maguindanao, Lanao del Sur, Basilan, Sulu, Tawi-Tawi, Cotabato City, Special Geographic Area (SGA), Lamitan City, and Marawi City |
 | Geographic level | Mixed provinces, cities, and SGA |
-| Time coverage | Mixed. Private/public elementary schools are labeled 2019-2021; permanent elementary classroom buildings are labeled as of 2022; hospital facilities are labeled 2011-2021. Most education and other measures have no stated reference period |
+| Time coverage | Mixed. Private/public elementary schools are labeled 2019-2021; permanent elementary classroom buildings are labeled as of 2022; hospital, RHU, and BHS facilities are labeled 2011-2021. Most education and other measures have no stated reference period |
 | Time basis | Mixed period and as-of counts; row-level dates are absent |
 | Update frequency | **UNVERIFIED** |
 | Population covered | Education fields cover private/public elementary and secondary schools, private madaris, classroom buildings, selected school facilities, SUCs, and ministry-supervised HEIs. Sector definitions and institutional coverage are **UNVERIFIED** |
