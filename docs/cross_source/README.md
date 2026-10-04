@@ -4,4 +4,7 @@ Work that compares or joins sources, with evidence: for example the DepEd to PSG
 
 Not to be confused with `notebooks/profiling/`, which holds the scripts.
 
-Empty until #8 starts.
+## Contents
+
+- [Coverage matrix](coverage.md): one row per source with geographic key, level, years, grain, join keys, and PSGC match rate (part of #8).
+- [DepEd SY 2023-24: PSGC match and school ID joins](deped_dataset_research.md): how the DepEd anchor joins to PSGC 2Q 2026 and to the other DepEd school files. Unmatched names: [deped_psgc_unmatched.md](deped_psgc_unmatched.md).
