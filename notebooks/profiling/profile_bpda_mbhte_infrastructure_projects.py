@@ -106,6 +106,10 @@ possible_duplicates = {key: names for key, names in same_site.items() if len(nam
 actions = collections.Counter(
     (row.get(4, "").upper().split(" ", 1)[0], row.get(8, "")) for row in body
 )
+missing_field_headers = [
+    header[column] for column in range(1, 11)
+    if re.search(r"\bID\b|CODE|PSGC|LATITUDE|LONGITUDE|COORDINAT|COST|BUDGET|AMOUNT|PROGRESS|START|COMPLET|BENEFICIAR", header[column].upper())
+]
 classroom_tokens = sum(bool(re.search(r"\d+\s*CL\b", row.get(4, "").upper())) for row in body)
 
 print(
@@ -118,30 +122,29 @@ print(
 )
 print(
     f"[{SOURCE_ID} O-2] province={collections.Counter(row.get(1, '') for row in body)}; "
-    f"municipalities={collections.Counter(row.get(2, '') for row in body)}; "
-    f"barangay filled={sum(bool(row.get(3, '')) for row in body)} of {len(body)}"
+    f"municipalities={collections.Counter(row.get(2, '') for row in body)}"
 )
+print(f"[{SOURCE_ID} O-3] barangay filled={sum(bool(row.get(3, '')) for row in body)} of {len(body)}")
 print(
-    f"[{SOURCE_ID} O-3] program={collections.Counter(row.get(5, '') for row in body)}; "
+    f"[{SOURCE_ID} O-4] program={collections.Counter(row.get(5, '') for row in body)}; "
     f"funding year={collections.Counter(years)} plus blanks={sum(not row.get(6, '') for row in body)}"
 )
 print(
-    f"[{SOURCE_ID} O-4] monitoring date={collections.Counter(monitor_dates)}; "
-    f"remarks={collections.Counter(row.get(8, '') for row in body)}"
+    f"[{SOURCE_ID} O-5] monitoring date={collections.Counter(monitor_dates)}; "
+    f"date cells filled={len(monitor_dates)} of {len(body)}"
 )
+print(f"[{SOURCE_ID} O-6] remarks={collections.Counter(row.get(8, '') for row in body)}")
 print(
-    f"[{SOURCE_ID} O-5] project type={collections.Counter(row.get(9, '') for row in body)}; "
+    f"[{SOURCE_ID} O-7] project type={collections.Counter(row.get(9, '') for row in body)}; "
     f"monitored by={collections.Counter(row.get(10, '') for row in body)}"
 )
 print(
-    f"[{SOURCE_ID} O-6] complete columns="
-    f"{[header[c] for c in range(1, 11) if all(row.get(c, '') != '' for row in body)]}; "
-    f"workbook has no project ID, school ID, coordinates, cost, physical-progress measure, "
-    "start date, completion date, source-system identifier, or release date"
+    f"[{SOURCE_ID} O-8] headers naming an ID, code, coordinates, cost, budget, progress, start, completion, "
+    f"or beneficiaries={missing_field_headers}; complete columns="
+    f"{[header[c] for c in range(1, 11) if all(row.get(c, '') != '' for row in body)]}"
 )
-
-print(f"[{SOURCE_ID} O-10] action word by status={dict(sorted(actions.items()))}; names with a classroom token={classroom_tokens}")
 print(f"[{SOURCE_ID} O-9] same site, program, and funding year in more than one row={possible_duplicates}")
+print(f"[{SOURCE_ID} O-10] action word by status={dict(sorted(actions.items()))}; names with a classroom token={classroom_tokens}")
 
 interpretations = {
     1: "**[observed]** Province label; every delivered record is `BASILAN`.",
