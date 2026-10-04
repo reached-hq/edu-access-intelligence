@@ -4,4 +4,6 @@ Work that compares or joins sources, with evidence: for example the DepEd to PSG
 
 Not to be confused with `notebooks/profiling/`, which holds the scripts.
 
-Empty until #8 starts.
+## Contents
+
+- [BARMM dataset research](barmm_dataset_research.md): what the BPDA, PSA, and teammates' sources can and cannot support for BARMM access, crowding, teacher load, outcomes, and distance (part of #8).
