@@ -288,12 +288,18 @@ for stem, t in tables.items():
             continue
         nums = [number(v) for v in raw if v not in MISSING and number(v) is not None]
         markers = collections.Counter(v for v in raw if v in MISSING)
-        kind = {"count": "whole number", "rate": "percent", "score": "mean percentage score"}[t["kind"]]
+        kind = {"count": "whole number", "rate": "percent", "score": "score"}[t["kind"]]
+        unit_note = ("The title states the unit (In Percent); no source or footnote in the API metadata"
+                     if "(In Percent)" in t["meta"]["title"] else "No unit, source, or footnote in the title or API metadata")
+        interp = {
+            "count": "**[observed]** Count for the categories in the row and the school year in the header.",
+            "rate": "**[observed]** Percent for the group and year in the header.",
+            "score": "**[assumed]** Mean percentage score for the subject and school year in the header; the unit is not stated, values run from 26 to 55.",
+        }[t["kind"]]
         sample = (f"min {min(nums):g}, median {statistics.median(nums):g}, max {max(nums):g}" if nums else "no values")
         if markers:
             sample += "; markers " + ", ".join(f"`{m}` {n}" for m, n in sorted(markers.items()))
-        lines.append(f"| `{column}` | Not stated | {column} | No unit, source, or footnote in the API metadata | "
-                     f"**[observed]** {kind.capitalize()} for the group and school year in the header. | {kind} | "
+        lines.append(f"| `{column}` | Not stated | {column} | {unit_note} | {interp} | {kind} | "
                      f"{100 * len(nums) / len(raw):.1f}% | {len(set(nums))} | {sample} |")
 dictionary = f"""# {SOURCE_ID}: data dictionary
 
