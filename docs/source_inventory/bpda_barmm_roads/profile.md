@@ -32,8 +32,8 @@ Conditionally usable for an undated, descriptive summary of published road lengt
 | ID | Suspicion | How to test | Status |
 |---|---|---|---|
 | S-1 | The Basilan total may include Lamitan City, and the Lanao del Sur total may include Marawi City, while the road-class components place those city roads in separate rows. Evidence against: Marawi City's 0.08 km of road opening is not in Lanao del Sur's road-opening gap (0.00), so the pattern does not hold for every surface (O-5) | Obtain BPDA's geographic and aggregation rules, then reconcile source-level totals before and after adding the city rows | open |
-| S-2 | `-` may mean unavailable or not applicable rather than measured zero | Obtain the workbook codebook or a written definition from BPDA | open |
-| S-3 | Some explicit zeroes may represent structural non-applicability for road classes rather than surveyed zero length | Request the collection form and validation rules; compare with the originating roads inventory | open |
+| S-2 | `-` may mean unavailable or not applicable rather than measured zero. Evidence for zero in some cells: in all 3 rows where a total can be checked against components that include `-` (Basilan gravel, Sulu gravel, SGA earth), the total balances exactly if `-` is read as zero. Cotabato City road opening cannot balance under any reading (O-8) | Obtain the workbook codebook or a written definition from BPDA | open |
+| S-3 | Some explicit zeroes may represent structural non-applicability for road classes rather than surveyed zero length. 24 of the 28 zeroes are `City Roads` columns in province or SGA rows | Request the collection form and validation rules; compare with the originating roads inventory | open |
 
 ## Changes across files or years
 

@@ -118,6 +118,22 @@ for row in body:
 close_checks = [check for check in reconciliation if abs(check[4]) <= 0.02]
 material_differences = [check for check in reconciliation if abs(check[4]) > 0.02]
 
+# Where a total is numeric and its components are numeric apart from `-`, test
+# whether the total balances if `-` is read as zero. This is evidence, not a rule.
+dash_as_zero = []
+for row in body:
+    for total_column in range(2, 6):
+        total = clean_number(row.get(total_column, ""))
+        raw_components = [str(row.get(total_column + offset, "")).strip() for offset in (4, 8, 12, 16)]
+        if total is not None and "-" in raw_components and "" not in raw_components:
+            gap = round(total - sum(clean_number(value) or 0 for value in raw_components), 2) + 0.0
+            dash_as_zero.append((row[1], header[total_column].split(":")[-1].strip(), gap))
+
+city_columns = range(18, 22)
+zeroes_in_city_columns_of_non_city_rows = sum(
+    clean_number(row.get(column, "")) == 0 for row in body if "City" not in row[1] for column in city_columns
+)
+
 # Compare each province's total-minus-components gap with the city-road value of
 # the city published in its own row, surface by surface.
 rows_by_area = {row[1]: row for row in body}
@@ -158,6 +174,11 @@ print(f"[{SOURCE_ID} O-3] dash locations={dashes}")
 print(
     f"[{SOURCE_ID} O-4] complete total/component checks={len(reconciliation)}; "
     f"within 0.02 km={len(close_checks)}; differences above 0.02 km={material_differences}"
+)
+print(f"[{SOURCE_ID} S-2] totals with a `-` component, gap if `-` is read as zero={dash_as_zero}")
+print(
+    f"[{SOURCE_ID} S-3] explicit zeroes={zero_count}; in City Roads columns of province or SGA rows="
+    f"{zeroes_in_city_columns_of_non_city_rows}"
 )
 print(f"[{SOURCE_ID} O-8] components above their total by more than 0.02 km={component_over_total}")
 print(f"[{SOURCE_ID} O-5] province gap vs separate city-road value (province, surface, gap, city, city value)={city_gaps}")
