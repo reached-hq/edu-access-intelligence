@@ -69,7 +69,8 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** blanks are ambiguous between not applicable and unavailable, and the file uses both blank and zero. Blanks must not be converted to zero.
 - **Observed:** `shs_master_teacher_iv` is entirely blank despite being included in the schema.
 - **Observed:** 1,090 of 7,741 populated `shs_total_school_principal` values are one greater than the sum of the four documented grade components.
-- **Observed:** a repeatable review rule identifies seven high-impact locally funded support-role values across six schools. Six values exceed the corresponding school's total learner count; the seventh is 500 SHS administrative aides at a school with 9,759 learners. The raw values are retained and their validity remains unconfirmed.
+- **Observed:** a repeatable cross-source rule identifies 11 personnel fields across nine schools where a single personnel count exceeds the school's total same-year enrollment. Six are high-impact locally funded values; five are smaller mismatches involving schools with zero to three reported learners. The raw values are retained and their validity remains unconfirmed.
+- **Observed:** the 500 SHS administrative aides reported at school `303950` do not exceed its 9,759 learners. This value remains a review candidate because it is unusually high within its field, but it is not automatically quarantined by the enrollment consistency rule.
 - **Suspected:** the two exact values of 999 may be sentinel or entry values, but no reviewed publisher documentation confirms that interpretation.
 - **Observed:** no negative or non-whole-number personnel values, duplicate keys, or duplicate rows were found.
 - **Suspected:** zero may mean a confirmed absence while blank may combine not applicable and not reported, but the publisher documents only the ambiguity of blanks.

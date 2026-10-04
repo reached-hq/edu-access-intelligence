@@ -291,14 +291,8 @@ for school_id in shared:
         if not value:
             continue
         count = numeric_value(value)
-        is_locally_funded_support_role = column.endswith(tuple(FUNDING)) and any(role in column for role in ROLES)
-        reasons = []
-        if count >= 500 and count > learner_total:
-            reasons.append("personnel count exceeds total learners")
-        if is_locally_funded_support_role and count >= 500:
-            reasons.append("locally funded support-role count is at least 500")
-        if reasons:
-            review_cells.append((school_id, enrollment[school_id]["school_name"], enrollment[school_id]["region"], column, count, learner_total, reasons))
+        if count > learner_total:
+            review_cells.append((school_id, enrollment[school_id]["school_name"], enrollment[school_id]["region"], column, count, learner_total))
 review_school_ids = sorted({row[0] for row in review_cells})
 
 
