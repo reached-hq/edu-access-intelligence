@@ -26,7 +26,7 @@ Raw files are kept outside git. Row count excludes the header row.
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
-| Bangsamoro Knowledge Portal: BARMM Population and Social Services | https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/population-and-social-services | Live web resource; checksum not captured | Publisher, dataset title, placement in the Bangsamoro Ecological Profile, download link |
+| Bangsamoro Knowledge Portal: BARMM Population and Social Services (HTML snapshot `BPDA_Population_and_Social_Services_page_2026-10-04.html`, 228,264 bytes, saved 2026-10-04 Philippine time; stored in `/Volumes/edu_access/00-source/raw/bpda/`) | https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/population-and-social-services | `d0b2f6d9936df9931debf1ef1fc34743a81a7af4ec0c072fb8e6d05f1ab30882` | Publisher, dataset title, placement in the Bangsamoro Ecological Profile, download link (the snapshot contains the same Google Sheet ID as the direct export). No license or reuse terms appear on the page |
 | Workbook header | Inside the inventoried file | File checksum above | Exact indicator names, education levels, and school years |
 
 No methodology, formulas, definitions, data-source note, or release note accompanies the workbook.
