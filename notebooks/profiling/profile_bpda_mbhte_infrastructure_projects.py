@@ -12,6 +12,7 @@ the raw workbook.
 import collections
 import hashlib
 import os
+import re
 import sys
 import zipfile
 import xml.etree.ElementTree as ET
@@ -90,6 +91,18 @@ project_names = [row.get(4, "") for row in body]
 years = [int(float(row[6])) for row in body if row.get(6, "")]
 monitor_dates = [excel_date(row[7]).isoformat() for row in body if row.get(7, "")]
 
+
+def site_key(name):
+    """School or site named in a project, ignoring case, the action word, and the classroom token."""
+    text = re.sub(r"^(CONSTRUCTION|REPAIR) OF\s+", "", name.upper().strip())
+    return re.sub(r"\s+", " ", re.sub(r"\s*\d+\s*CL\b", "", text)).strip()
+
+
+same_site = collections.defaultdict(list)
+for row in body:
+    same_site[(site_key(row.get(4, "")), row.get(5, ""), row.get(6, ""))].append(row.get(4, ""))
+possible_duplicates = {key: names for key, names in same_site.items() if len(names) > 1}
+
 print(
     f"[{SOURCE_ID} run] {FILENAME}: checksum OK; sheets={sheets}; "
     f"data rows={len(body)}; columns={len(header)}; empty formatted rows={len(all_rows) - len(nonempty)}"
@@ -121,6 +134,8 @@ print(
     f"workbook has no project ID, school ID, coordinates, cost, physical-progress measure, "
     "start date, completion date, source-system identifier, or release date"
 )
+
+print(f"[{SOURCE_ID} O-9] same site, program, and funding year in more than one row={possible_duplicates}")
 
 interpretations = {
     1: "**[observed]** Province label; every delivered record is `BASILAN`.",

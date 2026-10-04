@@ -76,6 +76,7 @@ Unstated originating project-management records -> BPDA monitoring workbook -> p
 
 - **Observed:** the downloaded file contains only 16 Basilan projects and therefore is not evidence of BARMM-wide project coverage.
 - **Observed:** all 16 barangay cells are blank.
+- **Observed:** `Repair of Tipo-Tipo ES 6CL` and `REPAIR OF TIPO-TIPO ES3CL` name the same school with the same program, funding year, status, and monitoring date. They may be one project entered twice, so the file holds 16 records but possibly 15 projects.
 - **Observed:** `PROGRAM` and `YEAR FUNDED` are both blank for the final three projects.
 - **Observed:** the file has no project ID, school ID, PSGC, coordinates, cost, funding amount, physical-progress percentage, start date, completion date, or beneficiary count.
 - **Observed:** project names are free text. Classroom counts such as `2CL` or `10CL` appear inside some names but are not supplied as a defined structured field.

@@ -26,6 +26,7 @@ Usable only as a small descriptive list of the 16 delivered Basilan monitoring r
 | O-6 | Published status distribution is complete | `COMPLETED` 9, `ON GOING` 6, `ABANDONED` 1 | Supports a descriptive status count for these 16 records | Retain exact source wording and monitoring date; do not infer percentage progress |
 | O-7 | Most records concern buildings | `BUILDING` 15 and `COVERED COURT` 1; `MONITORED BY` is `BPDA` for all 16 | Project type is coarse and does not describe capacity or usability | Use only the two published categories; retain full project name for context |
 | O-8 | Core identifiers and analytical fields are absent | No project ID, school ID, PSGC, coordinates, cost, physical-progress value, start date, completion date, beneficiary count, source-system ID, or release date | Reliable joins, cost analysis, distance analysis, and impact analysis are unsupported | Request a complete project register and codebook before integration |
+| O-9 | Two rows may be the same project | `Repair of Tipo-Tipo ES 6CL` and `REPAIR OF TIPO-TIPO ES3CL` name the same school and share program `TDIF`, funding year 2020, status `COMPLETED`, and monitoring date 2024-04-22. Names are unique only letter for letter (O-1) | The file may hold 15 distinct projects rather than 16, or two separate repairs at one school | Keep both rows; count them as 16 records, not 16 confirmed projects, until BPDA confirms |
 
 ## Suspected findings
 
@@ -34,6 +35,7 @@ Usable only as a small descriptive list of the 16 delivered Basilan monitoring r
 | S-1 | The workbook may be a filtered or partial monitoring extract rather than the full MBHTE project inventory | Compare with the source Google Sheet's version history or obtain the official project register and stated selection criteria | open |
 | S-2 | Tokens such as `2CL`, `3CL`, and `10CL` in project names may mean classroom quantities | Obtain the project naming convention and structured scope-of-work fields from MBHTE; do not parse until confirmed | open |
 | S-3 | The final three blank program and funding-year values may share a missing batch or source record | Request the original monitoring forms or project IDs and reconcile against the complete register | open |
+| S-4 | The two Tipo-Tipo ES repair rows may be one project entered twice, or two separate repairs (6 and 3 classrooms) | Ask BPDA for the project IDs and contracts behind both rows | open |
 
 ## Changes across files or years
 
@@ -49,6 +51,7 @@ Usable only as a small descriptive list of the 16 delivered Basilan monitoring r
 - What are the barangay, PSGC, and coordinates for each project?
 - What do GAAB, QRF, SDF, and TDIF mean, and what program and funding year apply to the three blank records?
 - Does `CL` in project names mean classrooms, and is it a planned or delivered quantity?
+- Are `Repair of Tipo-Tipo ES 6CL` and `REPAIR OF TIPO-TIPO ES3CL` one project or two?
 - How are `COMPLETED`, `ON GOING`, and `ABANDONED` defined and validated?
 - Can BPDA provide budget, physical progress, start/completion dates, beneficiary counts, source-system fields, revision history, and reuse license?
 
