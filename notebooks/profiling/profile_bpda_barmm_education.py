@@ -88,6 +88,12 @@ over_100 = [
     for column in range(2, 22)
     if clean_number(row.get(column, "")) is not None and clean_number(row.get(column, "")) > 1
 ]
+at_100 = [
+    (row.get(1, ""), header[column])
+    for row in body
+    for column in range(2, 22)
+    if clean_number(row.get(column, "")) == 1
+]
 
 print(
     f"[{SOURCE_ID} run] {FILENAME}: checksum OK; sheets={sheets}; "
@@ -112,6 +118,7 @@ print(
     f"[{SOURCE_ID} O-6] workbook has no title row, source note, definitions, "
     "PSGC, denominators, region total, or release date"
 )
+print(f"[{SOURCE_ID} O-7] values exactly 100%={at_100}")
 
 dictionary_rows = []
 for column in range(1, 22):

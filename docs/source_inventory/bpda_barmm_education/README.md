@@ -49,7 +49,7 @@ No methodology, formulas, definitions, data-source note, or release note accompa
 | Apparent grain | One wide row per published province / school-division label, with 20 indicator-period columns |
 | Candidate primary key | Raw `Province / School Division`; 10 rows and 0 duplicates |
 | Candidate join keys | Historical reporting-area label plus school year. A governed school-division bridge is required; do not join these labels directly to current PSGC names |
-| PSGC available? Which version? | No codes. The labels reflect historical divisions and geography, include Sulu under BARMM, and predate the Maguindanao province split |
+| PSGC available? Which version? | No codes. The labels reflect historical divisions and geography, include Sulu under BARMM, and predate the Maguindanao province split. PSGC 2Q 2026, the team's master reference ([D-012](../../decisions.md#d-012-which-psgc-version-to-use)), lists Sulu under Region IX and Maguindanao as del Norte and del Sur ([psa_psgc README](../psa_psgc/README.md#version-used-and-sy-2023-24)) |
 | Personally identifiable or sensitive fields | None. Public aggregate rates only. Classification: **Public** |
 | Provenance fields in the source | Worksheet name, row number, exact header, reporting-area label, and school year embedded in each header. No source agency, publication date, revision, or extraction timestamp appears inside the workbook |
 
@@ -73,8 +73,9 @@ Unstated originating agency/system -> BPDA Bangsamoro Ecological Profile Google 
 - **Observed:** the workbook contains no definitions, formulas, numerators, denominators, source note, release date, or region totals.
 - **Observed:** 8 of 200 rate cells are blank. They are all Cotabato City completion and cohort-survival values for SY 2019-2020 and 2020-2021.
 - **Observed:** Lamitan City has elementary net enrolment rates above 100% in all three years: 107.02%, 107.86%, and 101.52%. These values are retained, not clipped.
+- **Observed:** Marawi City cohort-survival rates for SY 2019-2020 are exactly 100% for both elementary and secondary. No other rate cell equals 100%. These values are retained and flagged as possible caps or placeholders.
 - **Observed:** the only geographic identifier is a mixed reporting-area label. No PSGC or school-division code is supplied.
-- **Observed:** the historical labels are incompatible with a direct current-PSGC join: Maguindanao is represented as Divisions I and II, while Sulu is part of the delivered BARMM table.
+- **Observed:** the historical labels are incompatible with a direct current-PSGC join: Maguindanao is represented as Divisions I and II, while Sulu is part of the delivered BARMM table. In PSGC 2Q 2026, Sulu is under Region IX and Maguindanao is split into del Norte and del Sur ([psa_psgc README](../psa_psgc/README.md#version-used-and-sy-2023-24), [psa_psgc profile O-3](../psa_psgc/profile.md)).
 - **Observed:** one header omits a space in `SY2020-2021`; this is a schema-label inconsistency, not a different time period.
 
 ## Limitations for analysis
@@ -89,7 +90,7 @@ Unstated originating agency/system -> BPDA Bangsamoro Ecological Profile Google 
 
 - Fail ingestion if the checksum, one-sheet structure, 21-column header, 10-row roster, or reporting-area key changes without re-inventory.
 - Preserve exact source headers and labels alongside normalized indicator, level, and school-year fields.
-- Keep blanks as null and values above 100% unchanged but flagged.
+- Keep blanks as null and values at or above 100% unchanged but flagged.
 - Build a dated school-division bridge and record match method; never substitute current PSGC regions silently.
-- Obtain MBHTE/BPDA definitions, numerators, denominators, public/private scope, release date, and explanation for the Lamitan values before using the rates as primary evidence.
+- Obtain MBHTE/BPDA definitions, numerators, denominators, public/private scope, release date, and explanations for the Lamitan and Marawi values before using the rates as primary evidence.
 
