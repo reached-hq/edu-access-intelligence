@@ -20,7 +20,7 @@ Each source has one status:
 
 ## Summary
 
-1. **The four BPDA workbooks are historical context, not fact tables.** None has a geographic code, all use pre-2024 geography, and each has flagged values that BPDA has to explain before use.
+1. **The four BPDA workbooks are historical context, not fact tables.** None has a geographic code, the three region-wide workbooks use pre-2024 geography, and each has flagged values that BPDA has to explain before use.
 2. **Two BPDA sources are narrower than their titles suggest.** Roads has no geometry, so it cannot measure distance. The MBHTE projects file holds 16 Basilan records, so it cannot describe BARMM.
 3. **DepEd school-level data stays the anchor.** Enrollment, facilities, and personnel join one-to-one on `school_id`. No BPDA source has a school ID.
 4. **BARMM learning outcomes exist only at region level.** OpenSTAT NAT and FLEMMS literacy tables give regional figures. The school-level ELLNA ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49)) and NAT Grade 6 ([#50](https://github.com/reached-hq/edu-access-intelligence/pull/50)) files cover only CAR and Regions I, III, VIII, and IX.
@@ -57,12 +57,12 @@ Thirteen OpenSTAT tables, including the FLEMMS tables, were downloaded from the 
 
 The sources describe BARMM at different dates, so the same name can mean a different area:
 
-- **BPDA workbooks:** pre-2024 geography. Sulu is inside BARMM, Maguindanao is either one province or two school divisions (I and II), and the Special Geographic Area is one row. The Education workbook uses school divisions, which are not local government units.
+- **BPDA Education, Social Infrastructure, and Roads:** pre-2024 geography. Sulu is inside BARMM, and Maguindanao is either one province or two school divisions (I and II). Social Infrastructure and Roads list the Special Geographic Area as one `SGA` row. The Education workbook uses school divisions, which are not local government units. The MBHTE projects file names only Basilan places.
 - **PSA barangay population ([#41](https://github.com/reached-hq/edu-access-intelligence/pull/41)):** 1 July 2024 geography, still with Sulu under BARMM.
 - **COD-AB boundaries ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)):** valid 2025-02-13.
 - **PSGC 2Q 2026:** Sulu is under Region IX, and Maguindanao is split into del Norte and del Sur.
 
-A direct name match from the BPDA labels to PSGC 2Q 2026 is therefore expected to fail for Sulu, Maguindanao, the numbered divisions, and SGA. The match rates that #8 asks for have not been computed for the BARMM sources yet.
+A direct name match from the BPDA labels to PSGC 2Q 2026 will not work as is. Sulu matches by name but now sits under Region IX; Maguindanao no longer exists as one province; the numbered school divisions have no PSGC unit; and `SGA` has to be expanded to `Special Geographic Area`, which PSGC lists with a blank geographic level (code `1999900000`). The match rates that #8 asks for have not been computed for the BARMM sources yet.
 
 ### Timing
 
