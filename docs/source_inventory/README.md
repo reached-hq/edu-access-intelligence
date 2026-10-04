@@ -31,3 +31,4 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/cross_sour
 | [ched_student_faculty_ratio](ched_student_faculty_ratio/) | CHED student-faculty ratio by region | CHED | profiled | @catweyine |
 | [psa_psgc](psa_psgc/) | PSA Philippine Standard Geographic Code (PSGC) | PSA | profiled | @maeveylain |
 | [psa_poverty_stat](psa_poverty_stat/) | PSA city- and municipal-level poverty estimates | PSA | profiled | @maeveylain |
+| [psa_openstat_education](psa_openstat_education/) | PSA OpenSTAT education and literacy tables | PSA | profiled | @hyenalouise |

@@ -99,6 +99,17 @@
       "format": "xlsx",
       "years": ["2018", "2021", "2023"],
       "owner": "maeveylain"
+    },
+    {
+      "source_id": "psa_openstat_education",
+      "name": "PSA OpenSTAT education and literacy tables (13 regional tables)",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "PSA OpenSTAT (PXWeb), database 3S, folder C10",
+      "acquisition": "https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/3S/C10",
+      "format": "csv and json (API)",
+      "years": "varies by table: SY 2004-05 to 2023-24; literacy 2013, 2019, 2024",
+      "owner": "hyenalouise"
     }
   ]
 }
