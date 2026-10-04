@@ -7,7 +7,7 @@
 This memo compares the sources that can add BARMM-specific evidence on education access, infrastructure, teacher load, learning outcomes, and distance, and states what each can and cannot support. Official government sources were prioritized.
 
 - The four BPDA sources were profiled from checksum-verified files; their findings and evidence are in each source card, not repeated in full here.
-- The BARMM literacy figures and OpenSTAT table IDs were checked against the downloaded OpenSTAT files.
+- The OpenSTAT tables were profiled from checksum-verified files in [#58](https://github.com/reached-hq/edu-access-intelligence/pull/58); the BARMM literacy figures and table IDs here come from that profile.
 - Teammates' sources are described from their open pull requests and were not re-profiled.
 - Claims taken from web pages without inspecting the data are listed under [Not verified](#not-verified).
 
@@ -36,15 +36,15 @@ None of these sources supports a claim that distance, crowding, or teacher load 
 | [BPDA BARMM Social Infrastructure](../source_inventory/bpda_barmm_social_infrastructure/) | Profiled | One row per province, city, or SGA (9) | Mostly undated; some 2019-2022 headers | Area labels; no codes | Public school and madrasah counts only. Private school counts look copied, and classroom-building counts are buildings with four outliers |
 | [BPDA BARMM Roads](../source_inventory/bpda_barmm_roads/) | Profiled | One row per province, city, or SGA (9) | Undated | Area labels; no codes | Regional road-length context only. No geometry, so not usable for distance |
 | [BPDA MBHTE Infrastructure Projects](../source_inventory/bpda_mbhte_infrastructure_projects/) | Profiled | One row per project record (16) | Funded 2020-2022; monitored April 2024 | Province and municipality names; barangay blank | A small Basilan example only. Possibly 15 projects; 6 are repairs |
-| [PSA OpenSTAT FLEMMS Tables 10.13 and 10.14](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__3S__C10/0153E2BLRP0.px/) | Downloaded | Region by sex | 2013, 2019, 2024 | Region names | Regional literacy benchmark. BARMM 2024: basic 81.0%, functional 64.7%. The 2024 method change means 2019 to 2024 is not a like-for-like trend |
-| [PSA OpenSTAT education tables](https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/3S/C10) | Downloaded | Region by school year | Varies by table | Region names | Regional benchmark for enrolment, cohort survival, NAT Grades 6/10/12, teachers, and schools (`0091C2BNAT0`, `0101C2BNAT0`, `0111C2BNAT2`, `0131C2BNTP1`, `0151C2BSCH1`) |
+| [PSA OpenSTAT FLEMMS Tables 10.13 and 10.14](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__3S__C10/0153E2BLRP0.px/) | Profiled ([#58](https://github.com/reached-hq/edu-access-intelligence/pull/58)) | Region by sex | 2013, 2019, 2024 | Region names | Regional literacy benchmark. BARMM 2024: basic 81.0%, functional 64.7%. National functional literacy falls from 91.6% to 70.8% between 2019 and 2024; until the FLEMMS 2024 method is checked, 2019 to 2024 should not be read as a trend |
+| [PSA OpenSTAT education tables](https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/3S/C10) | Profiled ([#58](https://github.com/reached-hq/edu-access-intelligence/pull/58)) | Region by school year | Varies by table; most end at SY 2022-23 | Region names | Regional benchmark for enrolment, cohort survival, NAT Grades 6/10/12, teachers, and schools (`0091C2BNAT0`, `0101C2BNAT0`, `0111C2BNAT2`, `0131C2BNTP1`, `0151C2BSCH1`). The SY 2023-24 school counts equal DepEd's enrollment file in every region, so they confirm the anchor rather than add new evidence |
 | [PSA 2024 FLEMMS public-use file](https://psada.psa.gov.ph/catalog/334) | Candidate | Household and individual | 2024 | Region, province/HUC | Weighted province comparisons, only if PSA approves access; needs secure handling, survey weights, and disclosure controls |
 | [MBHTE BEMIS](https://bemis-mbhte.bangsamoro.gov.ph/pbi/report/landing) | Not inspected | Possibly school or institution | Unknown | Unknown | Strongest candidate for current BARMM school IDs and coordinates; needs a manual export or a request to MBHTE |
 | [DepEd National Inventory Dashboard](https://nid.deped.gov.ph/public-dashboard/region/BARMM/division/Special%20Geographic%20Area%20Division?page=1) | Candidate | School | Current dashboard state; school list matches SY 2024-25 | School ID | A check on school IDs and inventory-submission status only. No export, download, or API link |
 
 The DepEd National Inventory Dashboard was opened on 2026-10-04. Its Special Geographic Area division page lists 116 schools (47 not started, 41 API imported, 28 submitted; 45 projects), and those 116 school IDs are exactly DepEd's 116 public schools in that division in SY 2024-25; SY 2023-24 has 111 of them, and SY 2025-26 adds one (`306532`). The `www.` address fails a certificate check; `nid.deped.gov.ph` works.
 
-Thirteen OpenSTAT tables, including the FLEMMS tables, were downloaded from the API on 2026-10-04 with SHA-256 checksums. They are kept locally outside git and are not yet in the raw volume or given a source card.
+The thirteen OpenSTAT tables, including the FLEMMS tables, are profiled as `psa_openstat_education` in [#58](https://github.com/reached-hq/edu-access-intelligence/pull/58) and stored in `/Volumes/edu_access/00-source/raw/psa/openstat/`.
 
 ## How the sources join
 
