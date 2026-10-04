@@ -9,6 +9,7 @@ This memo compares the sources that can add BARMM-specific evidence on education
 - The four BPDA sources were profiled from checksum-verified files; their findings and evidence are in each source card, not repeated in full here.
 - The BARMM literacy figures and OpenSTAT table IDs were checked against the downloaded OpenSTAT files.
 - Teammates' sources are described from their open pull requests and were not re-profiled.
+- Claims taken from web pages without inspecting the data are listed under [Not verified](#not-verified).
 
 Each source has one status:
 
@@ -78,3 +79,13 @@ A usable distance model needs three linked layers:
 Calculate both straight-line distance (quality-control baseline) and network travel distance/time. In BARMM, water crossings, islands, seasonal accessibility, and missing road links can make straight-line distance materially misleading. Every result should retain routing status (`routed`, `no route`, `off-network`, or `coordinate missing`) rather than silently dropping unreachable places.
 
 The candidate layers are dated differently: the OSM extract is from 2026-09-28, the COD-AB boundaries are valid 2025-02-13, barangay population is as of 1 July 2024, the PSGC master is 2Q 2026, and the DepEd anchor is SY 2023-24. Each distance result should record the date of every layer it used, and barangays that changed between those dates should be flagged rather than forced to match.
+
+## Not verified
+
+These statements come from landing pages, catalogs, or teammates' cards and were not checked against data for this memo:
+
+- **DepEd National Inventory Dashboard:** a search-indexed page showed 116 schools in the Special Geographic Area division. The dashboard itself was not opened or counted.
+- **MBHTE BEMIS:** the public page timed out or redirected during retrieval, so its datasets and downloads are unconfirmed.
+- **PSA 2024 FLEMMS public-use file:** the variables, province/HUC domains, and weights are taken from the PSA catalog page; the file was not accessed.
+- **DepEd FOI geospatial school list:** the FOI request page was seen; the released file was not inspected.
+- **Teammates' sources:** the OSM school count ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)), the COD-AB code match rate ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)), the ELLNA and NAT Grade 6 region coverage ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49), [#50](https://github.com/reached-hq/edu-access-intelligence/pull/50)), and the 60,167 school-ID matches ([#40](https://github.com/reached-hq/edu-access-intelligence/pull/40)) come from their source cards and were not re-run here.
