@@ -12,10 +12,10 @@ Use the two profiled BPDA workbooks as **historical BARMM context**, not as the 
 
 For the analytical model, keep the existing school-level DepEd enrollment/facilities data as the anchor and acquire the missing pieces in this order:
 
-1. **School coordinates and identifiers** from MBHTE BEMIS or a formal DepEd/MBHTE data request.
-2. **Teacher/personnel counts** at school level and matching school year.
-3. **Learning outcomes** from DepEd NAT/ELLNA, with PSA FLEMMS as a population-level outcome/context source.
-4. **Routable roads or travel-time data**, not aggregate road-length totals.
+1. **School coordinates and identifiers** from MBHTE BEMIS or a formal DepEd/MBHTE data request. OSM school points ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) can fill gaps only after matching to DepEd school IDs; the extract has 3,572 school features nationwide, so it is far from a complete school list.
+2. **Teacher/personnel counts** at school level and matching school year. DepEd personnel ([#40](https://github.com/reached-hq/edu-access-intelligence/pull/40)) has one row per school for SY 2023-24 and still needs to be joined to enrollment for the same year.
+3. **Learning outcomes** from DepEd NAT/ELLNA, with PSA FLEMMS as a population-level outcome/context source. The school-level ELLNA ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49)) and NAT Grade 6 ([#50](https://github.com/reached-hq/edu-access-intelligence/pull/50)) files being profiled cover only CAR and Regions I, III, VIII, and IX, so they contain no BARMM schools; BARMM outcomes are available only as regional aggregates for now.
+4. **Routable roads or travel-time data**, not aggregate road-length totals. OSM roads ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) are the candidate network, but most road records have no speed limit, so travel time would need assumed speeds by road class.
 
 The project should not claim that distance, crowding, or teacher load *caused* poor learning performance until predictors and outcomes are joined at a defensible common grain and time.
 
@@ -38,19 +38,19 @@ The project should not claim that distance, crowding, or teacher load *caused* p
 
 | Story claim or analytical need | Minimum defensible data | Current state |
 |---|---|---|
-| A child lives far from school | School coordinates plus child/community origin or barangay centroid, matched geography, and a routable network | Missing school coordinates and a governed routing network; straight-line distance alone is insufficient for islands and disconnected roads |
+| A child lives far from school | School coordinates plus child/community origin or barangay centroid, matched geography, and a routable network | Official school coordinates are missing. OSM ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) offers partial school points and road lines; barangay polygons ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)) and 2024 barangay population ([#41](https://github.com/reached-hq/edu-access-intelligence/pull/41)) can supply origins. Straight-line distance alone is insufficient for islands and disconnected roads |
 | A classroom is crowded | Learners and usable classrooms/seats at the same school, level, and school year | Existing sources have enrollment and facilities, but the BPDA file counts classroom **buildings**, not rooms or seats |
-| A teacher serves too many learners | Learner and teacher counts at the same school, level, position scope, and school year | School-level personnel source still needs to be integrated and date-aligned |
-| Access conditions relate to poor learning | School-level NAT/ELLNA or another outcome joined to the same school/year predictors, with appropriate controls | Candidate outcome sources exist; causal language is not yet supported |
+| A teacher serves too many learners | Learner and teacher counts at the same school, level, position scope, and school year | DepEd personnel ([#40](https://github.com/reached-hq/edu-access-intelligence/pull/40)) has school-level counts for SY 2023-24; it still needs to be joined to enrollment at the same school and year |
+| Access conditions relate to poor learning | School-level NAT/ELLNA or another outcome joined to the same school/year predictors, with appropriate controls | School-level ELLNA ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49)) and NAT Grade 6 ([#50](https://github.com/reached-hq/edu-access-intelligence/pull/50)) cover no BARMM schools, so BARMM has only regional outcome aggregates; causal language is not yet supported |
 | BARMM differs from the national picture | Comparable region-level official indicators and method notes | PSA OpenSTAT NAT, teacher/school counts, and FLEMMS can supply the benchmark |
 
 ## Distance-specific acquisition design
 
 A usable distance model needs three linked layers:
 
-1. **Origins:** barangay centroids, populated places, or anonymized learner communities with a dated PSGC code.
-2. **Destinations:** active school ID, school level, latitude/longitude, and coordinate provenance/date.
-3. **Network:** routable road/ferry/walking graph with surface or impedance attributes and a clear license.
+1. **Origins:** barangay centroids, populated places, or anonymized learner communities with a dated PSGC code. Candidate: centroids of the COD-AB barangay polygons ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38), valid 2025-02-13), weighted by 2024 barangay population ([#41](https://github.com/reached-hq/edu-access-intelligence/pull/41)).
+2. **Destinations:** active school ID, school level, latitude/longitude, and coordinate provenance/date. OSM school points ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) are partial and need matching to DepEd school IDs; an official coordinate list is still needed.
+3. **Network:** routable road/ferry/walking graph with surface or impedance attributes and a clear license. Candidate: OSM roads ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)), with assumed speeds by road class because most records have no speed limit.
 
 Calculate both straight-line distance (quality-control baseline) and network travel distance/time. In BARMM, water crossings, islands, seasonal accessibility, and missing road links can make straight-line distance materially misleading. Every result should retain routing status (`routed`, `no route`, `off-network`, or `coordinate missing`) rather than silently dropping unreachable places.
 
@@ -63,5 +63,5 @@ Calculate both straight-line distance (quality-control baseline) and network tra
   - which of the private elementary and private secondary school columns is correct;
   - whether Cotabato City road opening is 42.04 km or 43.04 km, and whether province road totals include Lamitan City and Marawi City;
   - whether the two Tipo-Tipo ES repair rows are one project, and the complete MBHTE project register with IDs and selection rules.
-- Coordinate with the DepEd/PSA owner before profiling OpenSTAT tables already in her assignment.
+- Coordinate with @mafelisilda, who is profiling the DepEd personnel, ELLNA, NAT Grade 6, and PSA population sources ([#40](https://github.com/reached-hq/edu-access-intelligence/pull/40), [#41](https://github.com/reached-hq/edu-access-intelligence/pull/41), [#49](https://github.com/reached-hq/edu-access-intelligence/pull/49), [#50](https://github.com/reached-hq/edu-access-intelligence/pull/50)), before profiling the OpenSTAT tables.
 - Decide whether PSA FLEMMS microdata adds enough value to justify restricted-data handling; otherwise use its published regional/provincial aggregates.
