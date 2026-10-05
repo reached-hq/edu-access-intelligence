@@ -24,6 +24,17 @@
       "owner": "hyenalouise"
     },
     {
+      "source_id": "deped_ellna",
+      "name": "DepEd selected school-level ELLNA results",
+      "publisher": "Department of Education (DepEd)",
+      "status": "profiled",
+      "source_system": "Early Language, Literacy and Numeracy Assessment (ELLNA)",
+      "acquisition": "https://www.deped.gov.ph/machine-ready-files/",
+      "format": "zip containing CSV and README",
+      "school_years_acquired": ["2023-24"],
+      "owner": "mafelisilda"
+    },
+    {
       "source_id": "deped_nat_gr6",
       "name": "DepEd selected school-level NAT Grade 6 results",
       "publisher": "Department of Education (DepEd)",

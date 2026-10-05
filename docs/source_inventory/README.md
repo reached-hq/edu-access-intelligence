@@ -24,6 +24,7 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/cross_sour
 |---|---|---|---|---|
 | [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise |
 | [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise |
+| [deped_ellna](deped_ellna/) | DepEd selected school-level ELLNA results | DepEd | profiled | @mafelisilda |
 | [deped_nat_gr6](deped_nat_gr6/) | DepEd selected school-level NAT Grade 6 results | DepEd | profiled | @mafelisilda |
 | [bpda_barmm_education](bpda_barmm_education/) | BARMM education performance indicators | BPDA | profiled | @hyenalouise |
 | [bpda_barmm_social_infrastructure](bpda_barmm_social_infrastructure/) | BARMM social infrastructure | BPDA | profiled | @hyenalouise |
