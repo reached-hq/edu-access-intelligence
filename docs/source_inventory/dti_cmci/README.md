@@ -1,4 +1,4 @@
-# cmci: CMCI Capacity of School Services and Education indicators by LGU and year
+# dti_cmci: CMCI Capacity of School Services and Education indicators by LGU and year
 
 **Status:** profiled
 
