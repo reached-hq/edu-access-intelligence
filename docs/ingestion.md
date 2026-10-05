@@ -187,7 +187,7 @@ python -m src.ingestion.cli ddl --source deped_enrollment > etl/02_bronze/01_cre
 
 ## Running on Databricks
 
-**Not done yet.** These are the steps for the one deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
+**In progress.** Run 1 succeeded on 2026-10-06 (see [First Databricks run](#first-databricks-run)); its tables are not yet verified with the queries below, and run 2 is not done. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
 
 1. Raw files. The three enrollment zips are already in `/Volumes/edu_access/00-source/raw/deped/` (checked 2026-10-06: sizes match the source card, and the folder's `SHA256SUMS.txt` lists the approved checksums). The first run hashes every zip itself, so a damaged upload is blocked, not loaded. For a later download, list the folder first, then upload into a new dated folder, never over an existing file:
 
@@ -229,7 +229,16 @@ python -m src.ingestion.cli ddl --source deped_enrollment > etl/02_bronze/01_cre
 
 5. Check the results with the queries below, and record the run in `pipeline_runs` and on #11.
 
-`databricks bundle validate` was run on 2026-10-06 and passed; both commit values resolved to the same SHA. Deploy and run have not been done.
+`databricks bundle validate` was run on 2026-10-06 and passed; both commit values resolved to the same SHA.
+
+### First Databricks run
+
+2026-10-06, `dev`, job `[dev cheimlouise] bronze_ingest`, run `738752819100453`, commit `e681c5b`:
+
+- Loaded 60,167 + 60,129 + 60,204 rows (initial, incremental, incremental), as reported by the job; the task ended `SUCCESS`. This confirms behavior 4 below (zips read from `/Volumes/`) and that the job runs without `__file__` and exits cleanly.
+- It took 39 minutes (2,327 s), against about 7 seconds locally. Each SQL statement and each Python-to-Spark transfer is slow on serverless, and the loader issues dozens of small statements; this is not yet measured per stage.
+- Two problems found and fixed: the first deploy was rejected until the task declared `source: GIT`; and the tables were owned by the account that deployed the job, so nobody else could read them. Ownership of the six objects was moved to `reached-hq`, and every `CREATE` in `etl/` is now followed by `OWNER TO `reached-hq`` (D-009).
+- Not yet done: the validation queries (the SQL warehouse could not start: Free Edition's serverless limit was reached), and run 2.
 
 ### Validation queries (Databricks SQL editor)
 
@@ -269,6 +278,8 @@ SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_enrollment_raw ('delta.columnMap
 4. Python reads the zips from `/Volumes/...` paths on serverless compute.
 
 Also to watch: `createDataFrame` of about 60,000 rows per year on serverless (Spark Connect), whether the job can clone the public repository without a Git credential, and whether the explicit Delta protocol versions in the Bronze DDL are accepted alongside the workspace's default table features.
+
+Unity Catalog makes whoever creates a table its owner, and a `dev` job runs as whoever deployed it, so each object is handed to the team group right after it is created; `tests/test_bundle.py` checks every `CREATE` in `etl/`. Locally the ownership statements are skipped (DuckDB has no owners).
 
 Three runtime differences are imitated locally in `tests/test_databricks_runtime.py`, because each would otherwise surface only on Databricks: a job's Python file runs with `exec` and no `__file__`; it runs inside IPython, which reports even `SystemExit(0)` as a failure, so the command line exits only on failure; and `spark.sql()` runs a `SELECT` only when collected, so the Spark store collects every statement (otherwise the Bronze gate's final check would never run).
 

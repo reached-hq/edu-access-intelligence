@@ -32,6 +32,14 @@ def split_statements(sql):
     return [s.strip() for s in code.split(";") if s.strip()]
 
 
+OWNER_STATEMENT = re.compile(r"^\s*ALTER\s+(TABLE|VIEW|SCHEMA)\s+\S+\s+OWNER\s+TO\b", re.IGNORECASE)
+
+
+def databricks_only(statement):
+    """Ownership is a Unity Catalog concept; DuckDB has no owners, so these statements are skipped locally."""
+    return bool(OWNER_STATEMENT.match(statement))
+
+
 def to_duckdb(statement):
     """Translate our Databricks SQL to DuckDB. Only constructs used in etl/ are handled."""
     statement = statement.replace("`", '"')
@@ -78,6 +86,8 @@ class DuckDBStore:
             self.sql(statement, used)
 
     def sql(self, statement, params=None):
+        if databricks_only(statement):
+            return
         self.con.execute(to_duckdb(statement), params or None)
 
     def query(self, statement, params=None):

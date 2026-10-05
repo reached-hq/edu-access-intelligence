@@ -15,3 +15,6 @@ CREATE TABLE IF NOT EXISTS edu_access.`01-control`.data_quality_results (
   checked_at_utc TIMESTAMP NOT NULL,
   code_revision STRING NOT NULL
 );
+
+-- Owned by the team group, not by whoever ran the job first (D-009).
+ALTER TABLE edu_access.`01-control`.data_quality_results OWNER TO `reached-hq`;

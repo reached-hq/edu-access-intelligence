@@ -13,3 +13,6 @@ FROM (
   WHERE status = 'succeeded'
 ) AS ranked
 WHERE rank_in_year = 1;
+
+-- Owned by the team group, not by whoever ran the job first (D-009).
+ALTER VIEW edu_access.`01-control`.current_batches OWNER TO `reached-hq`;

@@ -6,6 +6,7 @@
 -- version as text. NULL means the column is not in that year's file; ''
 -- means the publisher left it blank.
 CREATE SCHEMA IF NOT EXISTS edu_access.`02-bronze`;
+ALTER SCHEMA edu_access.`02-bronze` OWNER TO `reached-hq`;
 
 CREATE TABLE IF NOT EXISTS edu_access.`02-bronze`.deped_enrollment_raw (
   `source_id` STRING NOT NULL,
@@ -114,3 +115,6 @@ TBLPROPERTIES (
   'delta.minReaderVersion' = '2',
   'delta.minWriterVersion' = '5'
 );
+
+-- Owned by the team group, not by whoever ran the job first (D-009).
+ALTER TABLE edu_access.`02-bronze`.deped_enrollment_raw OWNER TO `reached-hq`;
