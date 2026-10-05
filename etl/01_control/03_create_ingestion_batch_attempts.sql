@@ -23,3 +23,6 @@ CREATE TABLE IF NOT EXISTS edu_access.`01-control`.ingestion_batch_attempts (
   environment STRING NOT NULL,
   code_revision STRING NOT NULL
 );
+
+-- Owned by the team group, not by whoever ran the job first (D-009).
+ALTER TABLE edu_access.`01-control`.ingestion_batch_attempts OWNER TO `reached-hq`;

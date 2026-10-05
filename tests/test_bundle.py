@@ -137,3 +137,30 @@ def test_gate_inserts_name_their_columns(repo_root):
                 head = statement[match.end():statement.index(")", match.end())]
                 names = [c.strip() for c in head.split(",")]
                 assert all(re.fullmatch(r"`?\w+`?", c) for c in names), f"{path.name}: column list holds {names}"
+
+
+CREATES = re.compile(r"CREATE\s+(?:OR\s+REPLACE\s+)?(TABLE|VIEW|SCHEMA)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\S+)", re.IGNORECASE)
+OWNS = re.compile(r"ALTER\s+(TABLE|VIEW|SCHEMA)\s+(\S+)\s+OWNER\s+TO\s+`([^`]+)`", re.IGNORECASE)
+
+
+def test_every_created_object_is_owned_by_the_team_group(repo_root, project):
+    """Unity Catalog makes the creator the owner, and a dev job runs as its deployer: without
+    these statements only one person could read or load the tables (found on the first
+    Databricks run, 2026-10-06). D-009: objects belong to the group."""
+    created = 0
+    for path in sorted(repo_root.glob("etl/*/*.sql")):
+        statements = split_statements(path.read_text(encoding="utf-8"))
+        owned = {(kind.upper(), name): group for s in statements for kind, name, group in OWNS.findall(s)}
+        for s in statements:
+            match = CREATES.match(s)
+            if not match:
+                continue
+            created += 1
+            key = (match.group(1).upper(), match.group(2))
+            assert owned.get(key) == project["owner_group"], f"{path.name}: {key} is not handed to {project['owner_group']}"
+    assert created, "no CREATE statements found"
+
+
+def test_bronze_ddl_uses_the_project_group(project):
+    from src.ingestion.bronze import OWNER_GROUP
+    assert OWNER_GROUP == project["owner_group"]
