@@ -16,7 +16,6 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-010 | 2026-09-30 | AI help is allowed but disclosed on every PR, and must pass four gates | Provisional |
 | D-011 | 2026-09-30 | Data dictionaries keep the publisher's words and the team's labeled interpretation in separate columns | Accepted |
 | D-012 | 2026-09-30 | PSGC 2Q 2026 is the master geographic reference, including for SY 2023-24; no crosswalk | Accepted |
-| D-013 | 2026-10-05 | Merge pull requests with merge commits, not squash | Accepted |
 
 ---
 
@@ -104,10 +103,3 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Decision:** Use the PSGC 2Q 2026 workbook as the one master reference for all school years. No crosswalk to older versions is built. DepEd files carry place names only, so joins use province, municipality, and barangay names inside their parent, never region. For SY 2023-24 results by region, use DepEd's own region column or report at province level.
 - **Reason:** About 1,855 of about 43,760 codes differ from `Q4_2023`, almost all from NIR and Sulu, and name joins are not affected by a code change. `Q4_2023` has 457 names with broken accents and no 2024 population for about 1,780 barangays. 2Q 2026 has neither problem, is PSA's published file, and is already profiled.
 - **Consequence:** Region from PSGC must not be used for Negros or Sulu in SY 2023-24 results. Barangays split or renamed since 2023 (for example Barangay 176 in Caloocan) are flagged as unmatched or ambiguous, not forced. **Revisit** if a source arrives with codes from another PSGC version, or if the team needs code-level history; then build a crosswalk from `Correspondence Code`. Evidence and matching rules: [psa_psgc README](source_inventory/psa_psgc/README.md#version-used-and-sy-2023-24).
-
-## D-013: How pull requests are merged
-
-- **Problem:** Squash merging put one commit per pull request on `main`, which hid the step-by-step history of how each change was built and reviewed.
-- **Decision:** Pull requests are merged with a merge commit; squash and rebase merging are turned off in the repository settings. Branches are still deleted after merging.
-- **Reason:** The team wants each commit kept on `main`, so reviewers and the presentation can trace how a finding or fix came about.
-- **Consequence:** Commit messages become part of `main`'s history, so they should be clear and single-purpose. A pull request based on another pull request's branch no longer needs a rebase after the first one merges.
