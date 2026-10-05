@@ -46,6 +46,17 @@
       "owner": "mafelisilda"
     },
     {
+      "source_id": "deped_personnel",
+      "name": "DepEd school-level personnel",
+      "publisher": "Department of Education (DepEd)",
+      "status": "profiled",
+      "source_system": "Basic Education Information System (BEIS)",
+      "acquisition": "https://www.deped.gov.ph/machine-ready-files/",
+      "format": "zip containing CSV and Markdown documentation",
+      "school_years_acquired": ["2023-24"],
+      "owner": "mafelisilda"
+    },
+    {
       "source_id": "bpda_barmm_education",
       "name": "BPDA BARMM education performance indicators",
       "publisher": "Bangsamoro Planning and Development Authority (BPDA)",
