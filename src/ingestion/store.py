@@ -1,0 +1,120 @@
+"""Where tables live: a thin layer so the same pipeline runs on DuckDB and Databricks.
+
+The SQL in `etl/` is written for Databricks and is the only definition of each
+table. Locally, `DuckDBStore` runs those same files after translating the few
+differences (backticks, STRING, Delta table properties).
+
+A store does five things: run SQL, query, list a table's columns, stage rows
+as a temporary table, and count. Everything else (what to load, MERGE
+statements, checks) is shared, so a local test exercises the logic that runs on
+Databricks.
+
+DuckDB is not Delta. Each write here is its own statement and commit, never a
+multi-table transaction, because Delta commits one table at a time; a test that
+passed only because DuckDB wrapped two tables in one transaction would prove
+nothing about Databricks. What local runs cannot show (Delta column mapping,
+Unity Catalog, volume paths) is listed in docs/decisions.md and confirmed on
+Databricks.
+"""
+
+import datetime
+import json
+import re
+import tempfile
+from pathlib import Path
+
+CATALOG = "edu_access"
+
+
+def split_statements(sql):
+    """Split a SQL file into statements. Our files have no ';' or '--' inside strings."""
+    code = "\n".join(line.split("--", 1)[0] for line in sql.splitlines())
+    return [s.strip() for s in code.split(";") if s.strip()]
+
+
+def to_duckdb(statement):
+    """Translate our Databricks SQL to DuckDB. Only constructs used in etl/ are handled."""
+    statement = statement.replace("`", '"')
+    statement = re.sub(r"(?<![:\w]):([A-Za-z_]\w*)", r"$\1", statement)  # :name parameters
+    statement = re.sub(r"\braise_error\(", "error(", statement)
+    statement = re.sub(r"\bcurrent_timestamp\(\)", "(current_timestamp AT TIME ZONE 'UTC')", statement)
+    statement = re.sub(r"\bSTRING\b", "VARCHAR", statement)
+    statement = re.sub(r"\s+USING\s+DELTA\b", "", statement, flags=re.IGNORECASE)
+    statement = re.sub(r"\s*TBLPROPERTIES\s*\((?:[^()']|'[^']*')*\)", "", statement, flags=re.IGNORECASE)
+    return statement
+
+
+def table_name(schema, table):
+    return f"{CATALOG}.`{schema}`.{table}"
+
+
+def _json_value(value):
+    if isinstance(value, datetime.datetime):
+        return value.isoformat()
+    return value
+
+
+class DuckDBStore:
+    """Local and test store. `path=None` keeps everything in memory."""
+
+    def __init__(self, path=None):
+        import duckdb
+
+        self.con = duckdb.connect()
+        target = str(path) if path else ":memory:"
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+        self.con.execute(f"ATTACH '{target}' AS {CATALOG}")
+        self.con.execute(f"USE {CATALOG}")
+        self._tmp = tempfile.TemporaryDirectory()
+
+    def close(self):
+        self.con.close()
+        self._tmp.cleanup()
+
+    def run_file(self, path, params=None):
+        for statement in split_statements(Path(path).read_text(encoding="utf-8")):
+            used = {k: v for k, v in (params or {}).items() if f":{k}" in statement}
+            self.sql(statement, used)
+
+    def sql(self, statement, params=None):
+        self.con.execute(to_duckdb(statement), params or None)
+
+    def query(self, statement, params=None):
+        return self.con.execute(to_duckdb(statement), params or None).fetchall()
+
+    def records(self, statement, params=None):
+        cursor = self.con.execute(to_duckdb(statement), params or None)
+        names = [d[0] for d in cursor.description]
+        return [dict(zip(names, row)) for row in cursor.fetchall()]
+
+    def columns(self, schema, table):
+        rows = self.con.execute(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_catalog = ? AND table_schema = ? AND table_name = ? ORDER BY ordinal_position",
+            [CATALOG, schema, table],
+        ).fetchall()
+        return [(name, kind) for name, kind in rows]
+
+    def stage(self, name, columns, rows):
+        """Create temporary table `name` with `columns` [(name, type)] holding `rows` (dicts).
+
+        Rows go through newline-delimited JSON, which keeps '' and NULL apart;
+        CSV staging would blur them.
+        """
+        names = [c for c, _ in columns]
+        if not rows:
+            defs = ", ".join(f'"{c}" {kind}' for c, kind in columns)
+            self.con.execute(f"CREATE OR REPLACE TEMP TABLE {name} ({defs})")
+            return name
+        path = Path(self._tmp.name) / f"{name}.json"
+        with open(path, "w", encoding="utf-8") as f:
+            for row in rows:
+                f.write(json.dumps({c: _json_value(row[c]) for c in names}, ensure_ascii=False) + "\n")
+        spec = ", ".join(f"'{c.replace(chr(39), chr(39) * 2)}': '{kind}'" for c, kind in columns)
+        select = ", ".join(f'"{c}"' for c in names)
+        self.con.execute(
+            f"CREATE OR REPLACE TEMP TABLE {name} AS SELECT {select} FROM "
+            f"read_json('{path}', format = 'newline_delimited', columns = {{{spec}}})"
+        )
+        return name

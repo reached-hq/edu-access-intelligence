@@ -8,6 +8,7 @@ The source's name, system, and URL stay in the registry (`config/sources.json`);
 
 | Field | Meaning |
 |---|---|
+| `landing_dir` | Publisher folder under the raw landing root that is searched for deliveries (e.g. `deped`), in any subfolder |
 | `archive_pattern` | Publisher file name, with the school year in it, e.g. `Enrollment-in-SY-2025-2026.zip` |
 | `data_member_pattern` | Name of the one data file inside the archive, matched on the base name because the publisher's folder inside the zip changes between years |
 | `document_members` | Publisher documents that must be in the archive (checksummed, not loaded) |

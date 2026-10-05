@@ -65,6 +65,12 @@ def identify_delivery(config, archive_path):
     delivery = find_delivery(config, digest)
     if delivery:
         return delivery, digest
+    repackaged = _approved_data_member(config, path)
+    if repackaged:
+        raise IngestionError("identify", "repackaged_delivery",
+                             f"{path.name} is a different zip around the approved data file of {repackaged['archive']} "
+                             f"(SY {repackaged['school_year']} v{repackaged['delivery_version']}). Its rows are already "
+                             "identified by that file's SHA-256, so it is skipped.")
     same_name = [d for d in config["deliveries"] if d["archive"] == path.name]
     if same_name:
         approved = ", ".join(f"v{d['delivery_version']} {d['archive_sha256'][:12]}" for d in same_name)
@@ -75,6 +81,17 @@ def identify_delivery(config, archive_path):
     raise IngestionError("identify", "unregistered_delivery",
                          f"{path.name} (SHA-256 {digest}) is not an approved delivery. "
                          "Profile it, then add it to the source config in a pull request.")
+
+
+def _approved_data_member(config, path):
+    """The approved delivery whose data file this unapproved zip contains, if any."""
+    try:
+        members = archive.list_members(path, config["max_uncompressed_bytes"])
+        data_member, _ = archive.resolve_members(members, config["data_member_pattern"], config["document_members"])
+        digest = archive.sha256_bytes(archive.read_member(path, data_member))
+    except IngestionError:
+        return None
+    return next((d for d in config["deliveries"] if d["data_member_sha256"] == digest), None)
 
 
 def prepare_delivery(config, registry_entry, archive_path):
