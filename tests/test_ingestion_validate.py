@@ -332,6 +332,15 @@ def test_source_duplicates_are_kept_and_flagged(tmp_path):
     assert not prepared.failed_checks
 
 
+def test_identifier_format_checks_the_whole_value(tmp_path):
+    config = empty_config()
+    rows = make_rows(columns("v1"))
+    rows[0][0] = "900001\n"  # '$' in a regex also matches before a final newline
+    path = make_delivery(tmp_path, "2023-24", rows=rows)
+    approve(config, path, "2023-24")
+    assert checks_by_name(prepare_delivery(config, registry_entry(), path))["school_id_format"].actual == "1"
+
+
 def test_check_results_hold_counts_not_values(tmp_path):
     config = empty_config()
     path = make_delivery(tmp_path, "2023-24")

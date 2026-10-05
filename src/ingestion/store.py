@@ -147,13 +147,16 @@ class SparkStore:
             self.sql(statement, used)
 
     def sql(self, statement, params=None):
-        return self.spark.sql(statement, args=params or None)
+        """Run a statement to completion. spark.sql() runs a SELECT only when its
+        result is collected, and the Bronze gate ends with a SELECT that raises on
+        FAIL: without collect() the gate would never fail."""
+        self.spark.sql(statement, args=params or None).collect()
 
     def query(self, statement, params=None):
-        return [tuple(r) for r in self.sql(statement, params).collect()]
+        return [tuple(r) for r in self.spark.sql(statement, args=params or None).collect()]
 
     def records(self, statement, params=None):
-        return [r.asDict() for r in self.sql(statement, params).collect()]
+        return [r.asDict() for r in self.spark.sql(statement, args=params or None).collect()]
 
     def columns(self, schema, table):
         fields = self.spark.table(f"{CATALOG}.`{schema}`.{table}").schema.fields
