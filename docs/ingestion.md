@@ -266,7 +266,9 @@ SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_enrollment_raw ('delta.columnMap
 3. The `reached-hq` group's Unity Catalog permissions allow the job to create and write the tables.
 4. Python reads the zips from `/Volumes/...` paths on serverless compute.
 
-Also to watch: `createDataFrame` of about 60,000 rows per year on serverless (Spark Connect), and whether the job can clone the public repository without a Git credential.
+Also to watch: `createDataFrame` of about 60,000 rows per year on serverless (Spark Connect), whether the job can clone the public repository without a Git credential, and whether the explicit Delta protocol versions in the Bronze DDL are accepted alongside the workspace's default table features.
+
+Three runtime differences are imitated locally in `tests/test_databricks_runtime.py`, because each would otherwise surface only on Databricks: a job's Python file runs with `exec` and no `__file__`; it runs inside IPython, which reports even `SystemExit(0)` as a failure, so the command line exits only on failure; and `spark.sql()` runs a `SELECT` only when collected, so the Spark store collects every statement (otherwise the Bronze gate's final check would never run).
 
 ## code_revision
 

@@ -14,14 +14,18 @@ landing folder, unreadable database).
 """
 
 import argparse
+import inspect
 import os
 import sys
 from pathlib import Path
 
-if __package__ in (None, ""):
-    # Run as a file, as a Databricks spark_python_task does, rather than with -m:
-    # put the repository root on the path so `src.ingestion` imports.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Resolved from this file's compiled code, not from __file__: Databricks runs a
+# job's Python file with exec(compile(source, path, "exec")), which defines no
+# __file__ (and no __package__). Putting the repository root on the path lets
+# `src.ingestion` import when the file is run directly rather than with -m.
+REPO_ROOT = Path(inspect.currentframe().f_code.co_filename).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from src.ingestion import bronze, control
 from src.ingestion.contract import load_source_config
@@ -32,7 +36,6 @@ from src.ingestion.pipeline import IngestionRun
 from src.ingestion.revision import resolve_code_revision
 from src.ingestion.store import table_name
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = REPO_ROOT / "local_state" / "edu_access.duckdb"
 
 
@@ -143,4 +146,9 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit_code = main()
+    # Exit only on failure. Databricks runs this file inside IPython, which
+    # reports even SystemExit(0) as a failed task; returning normally is success
+    # everywhere, and a nonzero code still fails the task and the shell.
+    if exit_code != EXIT_OK:
+        sys.exit(exit_code)
