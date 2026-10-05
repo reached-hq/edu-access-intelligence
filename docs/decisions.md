@@ -7,7 +7,6 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-001 | 2026-09-29 | Stakeholder needs come from published documents plus mentor validation | Accepted |
 | D-002 | 2026-09-29 | Use the course deliverables as the baseline until a rubric exists | Provisional |
 | D-003 | 2026-09-29 | Keep higher education in scope during discovery | Provisional |
-| D-004 | 2026-09-29 | Follow the NYC Mobility repository conventions | Accepted |
 | D-005 | 2026-09-29 | Branch from `main` with short-lived feature branches; no `dev` branch | Provisional |
 | D-006 | 2026-09-29 | One documentation folder per source; publisher documents stay with raw data | Accepted |
 | D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted |
@@ -16,6 +15,8 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-010 | 2026-09-30 | AI help is allowed but disclosed on every PR, and must pass four gates | Provisional |
 | D-011 | 2026-09-30 | Data dictionaries keep the publisher's words and the team's labeled interpretation in separate columns | Accepted |
 | D-012 | 2026-09-30 | PSGC 2Q 2026 is the master geographic reference, including for SY 2023-24; no crosswalk | Accepted |
+
+D-004 was withdrawn on 2026-10-05. Its folder and file-naming rules are now described in [architecture.md](architecture.md#file-naming-and-layout). IDs are not reused.
 
 ---
 
@@ -40,16 +41,9 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Reason:** The theme's general question includes it.
 - **Consequence:** More sources to profile, and a different grain (one row per institution rather than per school). **Revisit at the end of Phase 3:** keep it only if the profiled data supports it.
 
-## D-004: Follow the NYC Mobility conventions
-
-- **Problem:** The repository needs a structure the team can work in immediately.
-- **Decision:** Reuse the NYC Mobility conventions: `etl/NN_layer/` with `90_validate_*` files, `config/` for non-secret settings, the same documentation set, the same PR and issue templates, and the same CI/CD approach.
-- **Reason:** The team has already built and defended this structure. A familiar convention is lower risk than a new one.
-- **Consequence:** The full folder layout exists from the start, with a placeholder `README.md` in each folder until its phase begins (changed 2026-10-01, so the whole pipeline shape is visible). The capstone adds `docs/source_inventory/`, `docs/cross_source/`, `docs/stakeholder/`, and `docs/limitations.md`. Cross-source analysis lives in `docs/cross_source/`, not `docs/profiling/`, so it is not confused with the scripts in `notebooks/profiling/`.
-
 ## D-005: Branching model
 
-- **Problem:** NYC Mobility used `main` plus a `dev` branch.
+- **Problem:** A long-lived `dev` branch alongside `main` is a common pattern, but it adds merge overhead for a small team.
 - **Decision:** Use `main` plus short-lived feature branches. `dev` and `prod` exist as Databricks deploy targets, not as branches.
 - **Reason:** Separate deploy targets already isolate environments, so a long-lived `dev` branch mostly adds merge overhead.
 - **Consequence:** CI runs on PRs into `main`. **Provisional:** the team has not yet confirmed this.
@@ -65,7 +59,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
 - **Problem:** Profiling findings must be reproducible by another engineer, without spending Databricks Free Edition compute on small files.
 - **Decision:** Profile locally with DuckDB (pinned in `requirements-dev.txt`), in a `.py` script per source under `notebooks/profiling/` with `# %%` cells. Each check prints under the finding ID used in that source's `profile.md`. Scripts read raw data from `RAW_DATA_DIR` and verify file checksums before profiling.
-- **Reason:** The DepEd files are about 60,000 rows each, so DuckDB profiles them in seconds on a laptop. DuckDB is in the course's Day 9 tool list and was used in NYC Mobility. Keeping the code next to the findings lets a reviewer rerun every number.
+- **Reason:** The DepEd files are about 60,000 rows each, so DuckDB profiles them in seconds on a laptop. DuckDB is in the course's Day 9 tool list. Keeping the code next to the findings lets a reviewer rerun every number.
 - **Consequence:** CI cannot run profiling scripts because raw data is not in git. Each PR that changes a profile states that the script was run and the numbers matched. Checks that repeat across sources move into `src/profiling/` once a second source repeats them. The xlsx reader was the first (`src/profiling/xlsx.py`, #33, added 2026-10-01).
 
 ## D-008: Develop locally, run on Databricks deliberately
