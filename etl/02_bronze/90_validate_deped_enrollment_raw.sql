@@ -9,6 +9,7 @@
 
 -- The same source row twice means a load ran twice without the MERGE guard.
 INSERT INTO edu_access.`01-control`.data_quality_results
+  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'deped_enrollment', 'bronze', 'edu_access.02-bronze.deped_enrollment_raw',
        'no_pipeline_duplicates', CASE WHEN extra = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(extra AS STRING),
        current_timestamp(), :code_revision
@@ -19,6 +20,7 @@ FROM (
 
 -- Every Bronze row must point to a batch the control table knows about.
 INSERT INTO edu_access.`01-control`.data_quality_results
+  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'deped_enrollment', 'bronze', 'edu_access.02-bronze.deped_enrollment_raw',
        'rows_have_a_known_batch', CASE WHEN orphans = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(orphans AS STRING),
        current_timestamp(), :code_revision
@@ -31,6 +33,7 @@ FROM (
 
 -- Every succeeded batch has exactly as many Bronze rows as its file had.
 INSERT INTO edu_access.`01-control`.data_quality_results
+  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'deped_enrollment', 'bronze', 'edu_access.02-bronze.deped_enrollment_raw',
        'succeeded_batches_reconcile', CASE WHEN mismatched = 0 THEN 'PASS' ELSE 'FAIL' END, '0',
        CAST(mismatched AS STRING), current_timestamp(), :code_revision
