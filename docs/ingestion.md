@@ -187,7 +187,7 @@ python -m src.ingestion.cli ddl --source deped_enrollment > etl/02_bronze/01_cre
 
 ## Running on Databricks
 
-**In progress.** Run 1 succeeded on 2026-10-06 (see [First Databricks run](#first-databricks-run)); its tables are not yet verified with the queries below, and run 2 is not done. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
+**In progress.** Run 1 succeeded and was verified on 2026-10-06 (see [First Databricks run](#first-databricks-run)); run 2, the rerun that must skip everything, is not done. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
 
 1. Raw files. The three enrollment zips are already in `/Volumes/edu_access/00-source/raw/deped/` (checked 2026-10-06: sizes match the source card, and the folder's `SHA256SUMS.txt` lists the approved checksums). The first run hashes every zip itself, so a damaged upload is blocked, not loaded. For a later download, list the folder first, then upload into a new dated folder, never over an existing file:
 
@@ -238,7 +238,8 @@ python -m src.ingestion.cli ddl --source deped_enrollment > etl/02_bronze/01_cre
 - Loaded 60,167 + 60,129 + 60,204 rows (initial, incremental, incremental), as reported by the job; the task ended `SUCCESS`. This confirms behavior 4 below (zips read from `/Volumes/`) and that the job runs without `__file__` and exits cleanly.
 - It took 39 minutes (2,327 s), against about 7 seconds locally. Each SQL statement and each Python-to-Spark transfer is slow on serverless, and the loader issues dozens of small statements; this is not yet measured per stage.
 - Two problems found and fixed: the first deploy was rejected until the task declared `source: GIT`; and the tables were owned by the account that deployed the job, so nobody else could read them. Ownership of the six objects was moved to `reached-hq`, and every `CREATE` in `etl/` is now followed by `OWNER TO `reached-hq`` (D-009).
-- Not yet done: the validation queries (the SQL warehouse could not start: Free Edition's serverless limit was reached), and run 2.
+- Verified the same day in a notebook, by a different account in the `reached-hq` group (the SQL warehouse could not start while other serverless compute was running: Free Edition's limit). Every check matched: rows 60,167 / 60,129 / 60,204; 0 pipeline duplicates; 0 rows missing provenance; 0 rows from another commit; 5,203 blank street addresses kept blank in SY 2023-24; the v2-only column NULL in all 120,296 v1-year rows; 595 SY 2025-26 rows with "ñ"; 3 batches succeeded and reconciled; 37 checks recorded, none other than PASS; 1 run succeeded in `dev`. `delta.columnMapping.mode` is `name`. The same numbers as the local load.
+- Not yet done: run 2.
 
 ### Validation queries (Databricks SQL editor)
 
@@ -271,6 +272,8 @@ SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_enrollment_raw ('delta.columnMap
 ```
 
 ### What only the Databricks run can prove (D-017)
+
+Status after run 1: items 1, 3 (after handing the tables to the group), and 4 are confirmed; item 2 is not tested, because nothing failed.
 
 1. Delta accepts `Modified Curricular Offering Classification` with column mapping.
 2. The MERGE and the control writes behave as single-table commits.
