@@ -58,18 +58,22 @@ See [source_inventory/](source_inventory/).
 
 ## Storage
 
-Raw files go to the managed volume `` edu_access.`00-source`.raw ``, keeping original filenames, in one folder per publisher, source, and download date (D-016, provisional until #10):
+Raw files go to the managed volume `` edu_access.`00-source`.raw ``, one folder per publisher, keeping original filenames. A raw file is never overwritten: any later download goes into a dated subfolder (D-016, provisional):
 
 ```
 /Volumes/edu_access/00-source/raw/
 └── deped/
-    └── deped_enrollment/
-        └── 2026-09-28/
-            ├── Enrollment-in-SY-2023-2024.zip
-            └── SHA256SUMS.txt
+    ├── Enrollment-in-SY-2023-2024.zip      first downloads, uploaded 2026-09-30
+    ├── Enrollment-in-SY-2024-2025.zip
+    ├── Enrollment-in-SY-2025-2026.zip
+    ├── SHA256SUMS.txt                      covers every file in this folder
+    ├── ...                                 other DepEd sources
+    └── 2027-08-15/                         a later download (example date)
+        ├── Enrollment-in-SY-2026-2027.zip
+        └── SHA256SUMS.txt
 ```
 
-A dated folder is never changed after upload, so a re-downloaded file sits beside the earlier one instead of replacing it. Ingestion identifies files by SHA-256, not by path (D-014).
+Ingestion identifies files by SHA-256, not by path (D-014).
 
 This is provisional (D-009): if the mentor approves the course R2 bucket, an R2-backed volume is added next to it. Local copies for profiling live outside the repository in `raw-data/` ([terminal_setup.md, Part 8](terminal_setup.md#part-8-raw-data-and-raw_data_dir)).
 
