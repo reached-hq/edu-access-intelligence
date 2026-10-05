@@ -1,7 +1,11 @@
--- Bronze gate for deped_enrollment: runs after every load, over the whole table.
--- Each check writes one row to data_quality_results. The last statement fails
--- on any FAIL recorded for this run (including a batch's own checks), so
--- nothing downstream runs on an unreconciled table.
+-- Bronze gate for deped_enrollment. Generated from config/ingestion/deped_enrollment.json:
+--   python -m src.ingestion.cli gate --source deped_enrollment
+-- Do not edit by hand; tests/test_ingestion_pipeline.py fails if it differs.
+--
+-- Runs after every load, over the whole table. Each check writes one row to
+-- data_quality_results. The last statement fails on any FAIL recorded for this
+-- run (including a batch's own checks), so nothing downstream runs on an
+-- unreconciled table.
 --
 -- Parameters, supplied by the job (or the local CLI):
 --   :run_id         the ingestion run being checked

@@ -3,6 +3,7 @@
     python -m src.ingestion.cli ingest --source deped_enrollment
     python -m src.ingestion.cli status --source deped_enrollment
     python -m src.ingestion.cli ddl    --source deped_enrollment > etl/02_bronze/01_create_deped_enrollment_raw.sql
+    python -m src.ingestion.cli gate   --source deped_enrollment > etl/02_bronze/90_validate_deped_enrollment_raw.sql
 
 Locally the tables live in a DuckDB file (default local_state/edu_access.duckdb,
 git-ignored) and raw files are read from RAW_DATA_DIR. On Databricks the job runs
@@ -107,6 +108,12 @@ def cmd_ddl(args):
     return EXIT_OK
 
 
+def cmd_gate(args):
+    config, _ = load_source_config(REPO_ROOT, args.source)
+    sys.stdout.write(bronze.bronze_gate(config))
+    return EXIT_OK
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m src.ingestion.cli", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -132,6 +139,10 @@ def main(argv=None):
     ddl = sub.add_parser("ddl", help="print the Bronze CREATE TABLE generated from the contract")
     ddl.add_argument("--source", required=True)
     ddl.set_defaults(func=cmd_ddl)
+
+    gate = sub.add_parser("gate", help="print the Bronze gate SQL generated from the contract")
+    gate.add_argument("--source", required=True)
+    gate.set_defaults(func=cmd_gate)
 
     args = parser.parse_args(argv)
     try:
