@@ -12,7 +12,7 @@ Code that checks a raw delivery and turns it into rows for Bronze. Raw files in 
 | `bronze.py` | Bronze columns and DDL from the contract, provenance on every row, the insert-only MERGE, and reconciliation against the file |
 | `control.py` | Writes to the control tables in `etl/01_control/` |
 | `pipeline.py` | One run for one source: discover, decide, validate, load, reconcile, record, then the Bronze gate |
-| `store.py` | Where tables live: `DuckDBStore` locally, running the same `etl/` SQL as Databricks (D-017) |
+| `store.py` | Where tables live: `DuckDBStore` locally and in tests, `SparkStore` on Databricks; both run the same `etl/` SQL (D-017) |
 | `cli.py` | `ingest`, `status`, `ddl` from the command line, with exit codes |
 | `revision.py` | `code_revision`: the commit that produced a row (from the job parameter on Databricks, from git locally, `UNSET` otherwise) |
 | `errors.py` | `IngestionError(stage, code, message)` and the command-line exit codes |
@@ -26,4 +26,4 @@ RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.ingestion.cli ingest -
 python -m src.ingestion.cli status --source deped_enrollment
 ```
 
-Tables go to `local_state/edu_access.duckdb` (git-ignored). Exit codes: 0 loaded or already loaded, 1 a delivery failed or was blocked or the Bronze gate failed, 2 configuration error, 3 environment error. Running on Databricks is not set up yet (#11).
+Tables go to `local_state/edu_access.duckdb` (git-ignored). Exit codes: 0 loaded or already loaded, 1 a delivery failed or was blocked or the Bronze gate failed, 2 configuration error, 3 environment error. On Databricks the `bronze_ingest` job runs `cli.py` with `--backend spark` (see [docs/ingestion.md](../../docs/ingestion.md#running-on-databricks)).

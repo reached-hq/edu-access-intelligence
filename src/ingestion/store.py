@@ -118,3 +118,54 @@ class DuckDBStore:
             f"read_json('{path}', format = 'newline_delimited', columns = {{{spec}}})"
         )
         return name
+
+
+class SparkStore:
+    """Databricks store: the same SQL through Spark, into Unity Catalog Delta tables.
+
+    Not exercised by local tests (no Spark there); it is confirmed by the
+    Databricks run (D-017). Kept to the same five operations as DuckDBStore so
+    there is as little Databricks-only code as possible.
+    """
+
+    TYPES = {
+        "string": "StringType", "int": "IntegerType", "bigint": "LongType",
+        "double": "DoubleType", "timestamp": "TimestampType", "boolean": "BooleanType",
+    }
+
+    def __init__(self, spark):
+        self.spark = spark
+        # Timestamps are written as UTC wall-clock values; make Spark read them that way.
+        self.spark.conf.set("spark.sql.session.timeZone", "UTC")
+
+    def close(self):
+        pass
+
+    def run_file(self, path, params=None):
+        for statement in split_statements(Path(path).read_text(encoding="utf-8")):
+            used = {k: v for k, v in (params or {}).items() if f":{k}" in statement}
+            self.sql(statement, used)
+
+    def sql(self, statement, params=None):
+        return self.spark.sql(statement, args=params or None)
+
+    def query(self, statement, params=None):
+        return [tuple(r) for r in self.sql(statement, params).collect()]
+
+    def records(self, statement, params=None):
+        return [r.asDict() for r in self.sql(statement, params).collect()]
+
+    def columns(self, schema, table):
+        fields = self.spark.table(f"{CATALOG}.`{schema}`.{table}").schema.fields
+        return [(f.name, f.dataType.simpleString()) for f in fields]
+
+    def stage(self, name, columns, rows):
+        from pyspark.sql import types
+
+        schema = types.StructType([
+            types.StructField(c, getattr(types, self.TYPES[kind])(), True) for c, kind in columns
+        ])
+        names = [c for c, _ in columns]
+        frame = self.spark.createDataFrame([tuple(row[c] for c in names) for row in rows], schema)
+        frame.createOrReplaceTempView(name)
+        return name
