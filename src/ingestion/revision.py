@@ -41,7 +41,7 @@ def resolve_code_revision(repo_root, explicit=None, require_commit=False):
         else:
             revision = UNSET
     if require_commit and not COMMIT.match(revision):
-        raise IngestionError("setup", "code_revision_required",
+        raise IngestionError("config", "code_revision_required",
                              f"code_revision {revision!r} is not a full commit SHA. A job run must receive "
                              "--code-revision from the job parameter (default ${bundle.git.commit}); "
                              "deploy from a clean checkout.")

@@ -17,6 +17,10 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-011 | 2026-09-30 | Data dictionaries keep the publisher's words and the team's labeled interpretation in separate columns | Accepted | Every interpretation carries a label and evidence, and is reviewed like any other claim |
 | D-012 | 2026-09-30 | PSGC 2Q 2026 is the master geographic reference, including for SY 2023-24; no crosswalk | Accepted | Region from PSGC is not used for Negros or Sulu in SY 2023-24 results |
 | D-013 | 2026-10-05 | The stakeholders are LGU planners, with students as the focus | Accepted | Results must be trustworthy at barangay level, and higher education leaves scope |
+| D-014 | 2026-10-06 | A raw delivery is identified by its SHA-256 and approved in the source contract | Provisional | A file the contract does not list, or whose checksum differs, is blocked rather than loaded |
+| D-015 | 2026-10-06 | Bronze keeps every delivery; a revised file is a new version, never an overwrite | Provisional | Downstream reads only succeeded batches, and by default the latest version of each school year |
+| D-016 | 2026-10-06 | Raw files land in one folder per source and download date | Provisional | A re-downloaded file never replaces the earlier one in raw storage |
+| D-017 | 2026-10-06 | Local ingestion runs use DuckDB as a stand-in for Delta tables | Provisional | Four Databricks behaviors are proven only by the Databricks confirmation run |
 
 ---
 
@@ -111,3 +115,31 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Decision:** The stakeholders are LGU planners, with students as the focus. The analysis is basic education at city/municipality and barangay level.
 - **Reason:** LGUs take part in local school planning and funding (for example through local school boards), and they need area-level evidence that a national total cannot give; the cited needs are collected under D-001. Keeping students as the focus keeps every measure tied to learners.
 - **Consequence:** Planner needs are drawn from LGU-facing documents (D-001). Results must be trustworthy at barangay level, so place-name matching to PSGC is reported with its match rate. Higher education leaves scope (D-003).
+
+## D-014: How a raw delivery is identified and approved
+
+- **Problem:** DepEd publishes each school year as a new zip, and re-uploads years it has already published (the enrollment files were re-uploaded on 2025-10-15). The files have no `updated_at` or other change field. A pipeline that trusts file names would load a changed file as if it were the old one, or load the same file twice under different names.
+- **Decision:** A delivery is identified by the SHA-256 of the archive, and its rows by the SHA-256 of the data file inside it. Each source has a contract, `config/ingestion/<source_id>.json`, listing the schema versions (exact, ordered column lists) and every approved delivery with its checksums, encoding, schema version, and row count. A delivery is approved by merging its entry in a reviewed pull request; the pipeline never approves anything. A header that matches no schema version stops the load; a new version is added to the contract in a pull request, and Bronze gains the new columns from the contract, never from a file.
+- **Reason:** A checksum is the only change signal these files carry, and it cannot be faked by a rename. Approval in a pull request puts a reviewer between a new file and the tables, which is where the encoding and schema changes of SY 2025-26 were caught (enrollment profile O-6 to O-8).
+- **Consequence:** A file the contract does not list is recorded as `blocked`; a file with an approved name but a different checksum is `blocked` as a possible revision; a re-zipped copy of an approved data file is `skipped`. Each new school year needs a profile update and a contract entry before it loads. `tests/test_ingestion_validate.py` fails if the contract's checksums and row counts are not also on the source card. **Provisional:** the team has not yet reviewed it (#11).
+
+## D-015: Bronze keeps every delivery and every version
+
+- **Problem:** When a publisher revises a school year it has already published, the team must choose between replacing the earlier rows and keeping both. There is no evidence yet of what DepEd's re-uploads change. The pipeline also needs a way to load the same file again without duplicating rows, while keeping rows the publisher itself repeated.
+- **Decision:** Bronze is append-only, one table per source covering all school years. A revised file for a school year is approved as the next `delivery_version` with `supersedes` naming the earlier one, and both stay in Bronze. A Bronze row is identified by `(source_sha256, source_row_number)` and loaded with an insert-only MERGE, so a rerun inserts nothing and publisher duplicates (different row numbers) are all kept and flagged as WARN. Because Delta commits one table at a time, the batch's `succeeded` status in `01-control`.ingestion_batches is written last and acts as the commit marker. Downstream reads `01-control`.current_batches: for each school year, the latest succeeded version.
+- **Reason:** Keeping both versions is reversible and choosing one is not; the history is what lets the team answer "what changed?" when a number moves. The data-file checksum, rather than the archive's, makes a re-zipped copy load nothing; a hash of row content would wrongly merge publisher duplicates.
+- **Consequence:** A revised file that changes one value reloads every row of that school year as a new version (about 60,000 rows), which is acceptable at this size. A load that dies after its MERGE leaves rows that downstream cannot see until a retry reconciles them. **Open:** whether the latest version should always be current, or whether some revisions need review first (decide when the first real revision arrives). **Provisional:** the team has not yet reviewed it (#11).
+
+## D-016: Raw storage layout
+
+- **Problem:** The architecture stored raw files flat, one folder per publisher with original file names. A re-downloaded file with the same name, such as a DepEd re-upload, would overwrite the earlier one, and the earlier bytes would be gone.
+- **Decision:** Raw files go to `/Volumes/edu_access/00-source/raw/<publisher>/<source_id>/<download date, YYYY-MM-DD>/<original file name>`, with a `SHA256SUMS.txt` in each dated folder. A dated folder is never changed after upload.
+- **Reason:** It keeps the original file names (#10), puts each source in its own folder (#10), and lets two versions of one file sit side by side. The ingestion code finds deliveries by searching the publisher folder at any depth and identifies them by checksum (D-014), so it does not depend on the layout.
+- **Consequence:** Each upload creates a new dated folder. Local copies may keep the flat `raw-data/<publisher>/original/` layout used for profiling. Supersedes the flat example in `docs/architecture.md` (Storage) once accepted. **Provisional:** affects #10, which has not started.
+
+## D-017: DuckDB stands in for Delta in local ingestion runs
+
+- **Problem:** Ingestion logic must be tested on every pull request without Databricks credentials (D-008), but local tests can only prove what the local engine can show.
+- **Decision:** Local runs and CI use DuckDB through a thin store (`src/ingestion/store.py`) that runs the same `etl/` SQL files as Databricks, translating backticks, `STRING`, and Delta table properties. Writes are single statements, never a multi-table transaction, to match Delta. Spark/Delta is the store on Databricks.
+- **Reason:** DuckDB is already pinned and used by the team (D-007), supports MERGE, and loads all three enrollment years (about 180,000 rows) in about seven seconds. Local PySpark with Delta needs Java on every laptop and still has no Unity Catalog.
+- **Consequence:** Four behaviors are not proven locally and must be confirmed on Databricks: Delta column mapping for the column name with spaces, single-table commit semantics under a real failure, Unity Catalog permissions, and reading raw files from `/Volumes/` paths. **Provisional:** revisit if the Databricks confirmation run finds a behavior that differs.

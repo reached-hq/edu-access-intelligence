@@ -1,6 +1,7 @@
 {
   "source_id": "deped_enrollment",
   "bronze_table": "deped_enrollment_raw",
+  "landing_dir": "deped",
   "archive_pattern": "^Enrollment-in-SY-(?P<start>[0-9]{4})-(?P<end>[0-9]{4})\\.zip$",
   "data_member_pattern": "^enrollment_(?P<start>[0-9]{4})-(?P<end>[0-9]{2})\\.csv$",
   "document_members": [
