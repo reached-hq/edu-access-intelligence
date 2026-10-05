@@ -21,29 +21,21 @@ The job `bronze_ingest`, deployed with `databricks bundle deploy --target dev --
 | Waiting for compute / working | 35.5 min / 3.6 min | 7.6 min / 1.8 min |
 | Task result | `SUCCESS` | `SUCCESS` |
 
+<img width="1070" height="557" alt="image" src="https://github.com/user-attachments/assets/f8b378f5-dc25-4040-9581-e82074f8de43" />
+
 The waiting time was Free Edition serverless capacity in use elsewhere, not the pipeline: the cluster ID encodes its start time, and `DESCRIBE HISTORY` shows `pipeline_runs` created at 01:57:34, 29 seconds after the cluster started.
 
 ## Results
 
 ### The job's own output
 
-Run 1:
+Run 1: <br>
+<img width="924" height="212" alt="image" src="https://github.com/user-attachments/assets/0389ace7-995e-40a9-bf3a-f5b4759a141f" />
 
-```
-deped_enrollment__2023-24__a10f4d0f9082      load   initial     succeeded inserted= 60167 bronze= 60167
-deped_enrollment__2024-25__fd5dd74a62b8      load   incremental succeeded inserted= 60129 bronze= 60129
-deped_enrollment__2025-26__ab4d7e24b3a4      load   incremental succeeded inserted= 60204 bronze= 60204
-status: succeeded
-```
+<br>
+Run 2:<br>
+<img width="930" height="275" alt="image" src="https://github.com/user-attachments/assets/101e3eb2-3f85-4fd9-ac99-46d1c813a1a3" />
 
-Run 2:
-
-```
-deped_enrollment__2023-24__a10f4d0f9082      skip   initial     skipped   inserted=     0 bronze= 60167
-deped_enrollment__2024-25__fd5dd74a62b8      skip   incremental skipped   inserted=     0 bronze= 60129
-deped_enrollment__2025-26__ab4d7e24b3a4      skip   incremental skipped   inserted=     0 bronze= 60204
-status: succeeded
-```
 
 ### The audit history (checked 02:43)
 
@@ -54,14 +46,8 @@ JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
 ORDER BY r.started_at_utc, a.batch_id
 ```
 
-| started_at_utc | code_revision | batch_id | action | outcome | rows_inserted |
-|---|---|---|---|---|---|
-| 2026-10-05 17:57:45.999 | `e681c5b…` | `deped_enrollment__2023-24__a10f4d0f9082` | load | succeeded | 60,167 |
-| 2026-10-05 17:57:45.999 | `e681c5b…` | `deped_enrollment__2024-25__fd5dd74a62b8` | load | succeeded | 60,129 |
-| 2026-10-05 17:57:45.999 | `e681c5b…` | `deped_enrollment__2025-26__ab4d7e24b3a4` | load | succeeded | 60,204 |
-| 2026-10-05 18:38:43.929 | `d931112…` | `deped_enrollment__2023-24__a10f4d0f9082` | skip | skipped | 0 |
-| 2026-10-05 18:38:43.929 | `d931112…` | `deped_enrollment__2024-25__fd5dd74a62b8` | skip | skipped | 0 |
-| 2026-10-05 18:38:43.929 | `d931112…` | `deped_enrollment__2025-26__ab4d7e24b3a4` | skip | skipped | 0 |
+<img width="1090" height="241" alt="image" src="https://github.com/user-attachments/assets/e8dc440c-fce9-4c7d-a665-7632762f0b1e" />
+
 
 The same three `batch_id`s appear in both runs: identical bytes get an identical identity.
 
@@ -76,9 +62,8 @@ SELECT
   (SELECT COUNT_IF(status <> 'PASS') FROM edu_access.`01-control`.data_quality_results) AS checks_not_pass
 ```
 
-| bronze_rows | duplicates | runs_that_inserted_rows | succeeded_runs | checks_not_pass |
-|---|---|---|---|---|
-| 180,500 | 0 | 1 | 2 | 0 |
+<img width="1093" height="131" alt="image" src="https://github.com/user-attachments/assets/19a04bdc-9905-4ef2-b6c3-fa4a7d225b52" />
+
 
 180,500 is 60,167 + 60,129 + 60,204, the row counts on the source card. Every Bronze row was inserted by run 1; run 2 inserted none.
 
