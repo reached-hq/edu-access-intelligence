@@ -66,6 +66,28 @@
       "format": "CSV extracted from a PDF table",
       "school_years_acquired": ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25"],
       "owner": "catweyine"
-    }
+    },
+    {
+      "source_id": "dti_cmci",
+      "name": "Cities and Municipalities Competitiveness Index (CMCI)",
+      "publisher": "Department of Trade and Industry (DTI)",
+      "status": "profiled",
+      "source_system": "Cities and Municipalities Competitiveness Index (CMCI) portal",
+      "acquisition": "https://cmci.dti.gov.ph/",
+      "format": "CSV",
+      "years_acquired": ["2023", "2024"],
+      "owner": "saraevcldn"
+    },
+    {
+      "source_id": "osm_philippines",
+      "name": "OpenStreetMap Philippines geographic data",
+      "publisher": "OpenStreetMap / Geofabrik",
+      "status": "profiled",
+      "source_system": "Geofabrik OpenStreetMap Philippines extract",
+      "acquisition": "https://download.geofabrik.de/asia/philippines.html",
+      "format": "GeoPackage inside ZIP",
+      "acquired_date": "2026-09-28",
+      "owner": "saraevcldn"
+}
   ]
 }
