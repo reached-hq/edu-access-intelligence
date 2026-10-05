@@ -1,1111 +1,347 @@
-# %%
-"""
-CMCI source profiling
+# Profiles the two CMCI indicator extracts used by the project:
+#   css = Capacity of School Services, edu = Education
+# plus cmci_lgu_list.csv as the reference list of LGUs.
+#
+# Writes docs/source_inventory/cmci/profile.md. Every number in the profile is
+# computed here, so rerunning the script regenerates the evidence. Impact,
+# Proposed handling, the suspected findings and the questions are fixed text
+# in this file: edit them here, not in profile.md.
+#
+# Runs locally with DuckDB. Open it in VS Code to run cell by cell (# %% markers),
+# or run the whole file:
+#   RAW_DATA_DIR=~/Documents/GitHub/raw-data python notebooks/profiling/profile_cmci.py
+#
+# RAW_DATA_DIR (environment or the repo's .env) must contain dti/original/ with
+# the files listed in FILES. In Databricks, with RAW_DATA_DIR unset, the files are read
+# from /Volumes/edu_access/00-source/raw/cmci/. Raw files are read, never modified.
+# Optional: PROFILED_BY (environment or .env) fills the "Profiled by" field.
 
-Purpose:
-- Profile the two CMCI indicators used by the project:
-    1. Capacity of School Services
-    2. Education
-
-Source files:
-    /Volumes/edu_access/00-source/raw/cmci/
-
-Output:
-    docs/source_inventory/cmci/profile.md
-"""
-
-# %%
+# %% Setup
+import hashlib
+import os
+import sys
+from datetime import date
 from pathlib import Path
 
 import duckdb
 
+def find_repo():
+    """Repo root: from this file's location, or by searching upward from the working
+    folder when run cell by cell (VS Code interactive window, notebook), where
+    __file__ does not exist."""
+    try:
+        return Path(__file__).resolve().parents[2]
+    except NameError:
+        here = Path.cwd().resolve()
+        for folder in [here, *here.parents]:
+            if (folder / "config" / "sources.json").exists() or (folder / ".git").exists():
+                return folder
+        sys.exit("Open the repo folder in VS Code (or cd into it) before running cell by cell.")
 
-# %%
-# Paths
-
-# CMCI raw files are stored in the Databricks Volume.
-DATA_DIR = Path("/Volumes/edu_access/00-source/raw/cmci")
-
-# Repository root:
-# notebooks/profiling/profile_cmci.py
-#                    ^          ^
-#                  parent      repo
-REPO = Path.cwd()
-
+REPO = find_repo()
 OUTPUT = REPO / "docs" / "source_inventory" / "cmci" / "profile.md"
 
+def env_value(name):
+    """Read a variable from the environment, else from the repo's git-ignored .env."""
+    if os.environ.get(name):
+        return os.environ[name]
+    env = REPO / ".env"
+    for line in env.read_text(encoding="utf-8").splitlines() if env.exists() else []:
+        key, _, value = line.partition("=")
+        if key.strip() == name and value.strip():
+            return value.strip()
+    return None
 
-# %%
-# Input files
+# Locally: RAW_DATA_DIR/dti/original/ (D-007). In the Databricks workspace there is no
+# local raw-data folder; the same files sit in the source volume, so use it when
+# RAW_DATA_DIR is not set.
+DATABRICKS_VOLUME = Path("/Volumes/edu_access/00-source/raw/cmci")
+raw_dir = env_value("RAW_DATA_DIR")
+if raw_dir:
+    ORIGINAL = Path(raw_dir).expanduser() / "dti" / "original"
+elif DATABRICKS_VOLUME.exists():
+    ORIGINAL = DATABRICKS_VOLUME
+else:
+    sys.exit("Set RAW_DATA_DIR to the folder that contains dti/original/ (or run in Databricks with the source volume).")
+print(f"Reading raw files from {ORIGINAL}")
 
+# What arrived, as recorded in docs/source_inventory/cmci/README.md.
+# Paste each SHA-256 from the inventory card. While a value is still the
+# placeholder, the script prints the real checksum and stops.
+PENDING = "PASTE_SHA256_FROM_README"
 FILES = {
-    "css": DATA_DIR / "cmci_capacity_of_school_services_2023_2024.csv",
-    "edu": DATA_DIR / "cmci_education_2023_2024.csv",
-    "lgu": DATA_DIR / "cmci_lgu_list.csv",
+    "css": ("cmci_capacity_of_school_services_2023_2024.csv", "a9258fede279e1194e53a0ffeefd596df33505e82558e928f3adaee9791214e4"),
+    "edu": ("cmci_education_2023_2024.csv", "6267b77a1043dbcd63f37957ec7c01cc4eb9fcba1bf88ed9c6247c6a8e7de102"),
+    "lgu": ("cmci_lgu_list.csv", "187931b652b0912a5fa176b9743f107d6bb8c020004b132e42b753a1afabbebb"),
 }
-
 EXPECTED_COLUMNS = {
-    "css": [
-        "lgu",
-        "year",
-        "capacity_of_school_services",
-        "status",
-    ],
-    "edu": [
-        "lgu",
-        "year",
-        "education",
-        "status",
-    ],
+    "css": ["lgu", "year", "capacity_of_school_services", "status"],
+    "edu": ["lgu", "year", "education", "status"],
+    "lgu": ["lgu"],
 }
+INDICATORS = {"css": "capacity_of_school_services", "edu": "education"}
+LABEL = {"css": "CSS", "edu": "Education"}
+YEARS = ["2023", "2024"]
 
-EXPECTED_YEARS = ["2023", "2024"]
+con = duckdb.connect()
 
-# CMCI portal contained 1,634 LGUs.
-EXPECTED_LGUS = 1634
-EXPECTED_ROWS = EXPECTED_LGUS * len(EXPECTED_YEARS)
+def q(sql):
+    return con.execute(sql).fetchall()
 
+def columns(table):
+    return [r[0] for r in q(f"DESCRIBE {table}")]
 
-# %%
-# Helper functions
+def num(col, alias=None):
+    """Score as a number; blank text stays NULL, never 0."""
+    ref = f'{alias}."{col}"' if alias else f'"{col}"'
+    return f"try_cast(nullif(trim({ref}), '') AS DOUBLE)"
 
-def sql_escape(value: str) -> str:
-    """Escape a Python string for a DuckDB SQL literal."""
-    return value.replace("'", "''")
+def cell(value):
+    return str(value).replace("|", "/").replace("\n", " ")
 
+def md_table(headers, rows):
+    out = ["| " + " | ".join(headers) + " |", "|" + "---|" * len(headers)]
+    out += ["| " + " | ".join(cell(v) for v in row) + " |" for row in rows]
+    return "\n".join(out)
 
-def load_csv(con, path: Path, table_name: str):
-    """
-    Load a CSV into DuckDB as text.
+def items(values, limit=10):
+    """Short inline list for a table cell."""
+    values = [v if isinstance(v, str) else ", ".join(str(x) for x in v) for v in values]
+    if not values:
+        return "none"
+    shown = "; ".join(values[:limit])
+    return shown + (f"; (+{len(values) - limit} more)" if len(values) > limit else "")
 
-    Values are initially loaded as VARCHAR so that profiling can
-    inspect the raw extracted values before numeric validation.
-    """
+def pair(fn):
+    """'CSS <x>; Education <y>' for a per-indicator value."""
+    return "; ".join(f"{LABEL[t]} {fn(t)}" for t in INDICATORS)
+
+# %% Verify checksums and expected columns, then load every column as text
+# A changed file must stop the run, not silently produce new numbers
+# under the old checksum.
+pending = []
+for key, (name, sha) in FILES.items():
+    path = ORIGINAL / name
     if not path.exists():
-        raise FileNotFoundError(f"Missing CMCI file: {path}")
+        sys.exit(f"Missing file: {path}")
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if sha == PENDING:
+        pending.append((name, actual))
+    elif actual != sha:
+        sys.exit(f"{name}: SHA-256 does not match the inventory card. Stop and re-inventory.")
+if pending:
+    lines = "\n".join(f"  {name}: {actual}" for name, actual in pending)
+    sys.exit(f"No SHA-256 recorded yet for {len(pending)} file(s). Computed:\n{lines}\n"
+             "Add each to the inventory card and to FILES, then run again.")
 
-    escaped_path = sql_escape(str(path))
+for key, (name, _) in FILES.items():
+    con.execute(f"CREATE TABLE {key} AS SELECT * FROM read_csv('{ORIGINAL / name}', "
+                "all_varchar = true, header = true, strict_mode = true)")
+    observed = columns(key)
+    if observed != EXPECTED_COLUMNS[key]:
+        sys.exit(f"{name}: columns changed. Expected {EXPECTED_COLUMNS[key]}, found {observed}.")
+    print(f"{key}: {q(f'SELECT count(*) FROM {key}')[0][0]} rows, columns {observed}, checksum OK")
 
-    con.execute(
-        f"""
-        CREATE OR REPLACE TEMP VIEW {table_name} AS
-        SELECT *
-        FROM read_csv(
-            '{escaped_path}',
-            header = true,
-            all_varchar = true,
-            strict_mode = true
-        )
-        """
+# %% Evidence per indicator
+ev = {}
+n_lgu = q("SELECT count(DISTINCT trim(lgu)) FROM lgu")[0][0]
+expected_set = ("SELECT trim(l.lgu) AS lgu, y.year FROM (SELECT DISTINCT lgu FROM lgu) l "
+                f"CROSS JOIN (SELECT unnest({YEARS}) AS year) y")
+
+for t, col in INDICATORS.items():
+    e = {}
+    v = num(col)
+    e["rows"], distinct = q(f"SELECT count(*), count(DISTINCT (trim(lgu), year)) FROM {t}")[0]
+    e["dupes"] = e["rows"] - distinct
+    e["by_year"] = q(f"SELECT year, count(*), count(DISTINCT trim(lgu)) FROM {t} GROUP BY 1 ORDER BY 1")
+    e["bad_years"] = [y for y, _, _ in e["by_year"] if y not in YEARS]
+    e["missing"] = q(f"SELECT * FROM ({expected_set}) EXCEPT SELECT trim(lgu), year FROM {t} ORDER BY 1, 2")
+    e["extra"] = q(f"SELECT trim(lgu), year FROM {t} EXCEPT SELECT * FROM ({expected_set}) ORDER BY 1, 2")
+    e["statuses"] = q(f"SELECT status, count(*) FROM {t} GROUP BY 1 ORDER BY 1")
+    e["nonvalid"] = q(f"SELECT trim(lgu), year, status FROM {t} WHERE status <> 'valid' ORDER BY 1, 2")
+    e["bad_valid"] = q(f"SELECT count(*) FROM {t} WHERE status = 'valid' AND {v} IS NULL")[0][0]
+    e["bad_other"] = q(f"SELECT count(*) FROM {t} WHERE status <> 'valid' AND nullif(trim(\"{col}\"), '') IS NOT NULL")[0][0]
+    e["stats"] = q(f"""SELECT year,
+                              count(*) FILTER (WHERE status = 'valid'),
+                              count(*) FILTER (WHERE status = 'valid' AND {v} = 0),
+                              min({v}) FILTER (WHERE status = 'valid'),
+                              max({v}) FILTER (WHERE status = 'valid'),
+                              quantile_cont({v}, [0.5, 0.9, 0.99]) FILTER (WHERE status = 'valid')
+                       FROM {t} GROUP BY 1 ORDER BY 1""")
+    e["errors"] = [r[0] for r in q(f"SELECT DISTINCT trim(lgu) FROM {t} WHERE status = 'cmci_server_error' ORDER BY 1")]
+    e["not_in_list"] = [r[0] for r in q(f"SELECT DISTINCT trim(lgu) FROM {t} EXCEPT SELECT trim(lgu) FROM lgu ORDER BY 1")]
+    e["list_not_in"] = [r[0] for r in q(f"SELECT trim(lgu) FROM lgu EXCEPT SELECT DISTINCT trim(lgu) FROM {t} ORDER BY 1")]
+    ev[t] = e
+
+# %% Evidence across indicators and for LGU names
+both_zero = q(f"""SELECT c.year, count(*) FROM css c JOIN edu e ON trim(c.lgu) = trim(e.lgu) AND c.year = e.year
+                  WHERE c.status = 'valid' AND e.status = 'valid'
+                    AND {num('capacity_of_school_services', 'c')} = 0 AND {num('education', 'e')} = 0
+                  GROUP BY 1 ORDER BY 1""")
+css_not_edu = q("SELECT trim(lgu), year FROM css EXCEPT SELECT trim(lgu), year FROM edu ORDER BY 1, 2")
+edu_not_css = q("SELECT trim(lgu), year FROM edu EXCEPT SELECT trim(lgu), year FROM css ORDER BY 1, 2")
+
+name_stats = {}
+for t in ["lgu", "css", "edu"]:
+    names = f"(SELECT DISTINCT lgu FROM {t})"
+    name_stats[t] = (
+        q(f"SELECT count(*) FROM {names}")[0][0],
+        q(f"SELECT count(*) FROM {names} WHERE lgu <> trim(lgu)")[0][0],
+        q(f"SELECT count(*) FROM {names} WHERE lgu LIKE '%''%'")[0][0],
+        q(f"SELECT count(*) FROM {names} WHERE lgu LIKE '%’%'")[0][0],
     )
+suffixed = [r[0] for r in q("SELECT trim(lgu) FROM lgu WHERE lgu LIKE '%(%' ORDER BY 1")]
+base_dupes = q("""SELECT base, count(*) FROM (SELECT trim(regexp_replace(trim(lgu), '\\s*\\([^)]*\\)$', '')) AS base FROM lgu)
+                  GROUP BY 1 HAVING count(*) > 1 ORDER BY 1""")
+apostrophe_errors = {t: [n for n in ev[t]["errors"] if "'" in n or "’" in n] for t in INDICATORS}
 
+# %% Build the profile
+expected_rows = n_lgu * len(YEARS)
+all_clean = all(not e["missing"] and not e["extra"] and not e["dupes"] for e in ev.values())
+zeros_total = {t: sum(r[2] for r in ev[t]["stats"]) for t in INDICATORS}
+nonvalid_total = {t: len(ev[t]["nonvalid"]) for t in INDICATORS}
 
-def scalar(con, query: str):
-    """Return the first value from the first row."""
-    return con.execute(query).fetchone()[0]
-
-
-def rows(con, query: str):
-    """Return all rows from a query."""
-    return con.execute(query).fetchall()
-
-
-def get_columns(con, table_name: str):
-    """Return column names for a DuckDB table/view."""
-    return [
-        row[0]
-        for row in con.execute(
-            f"DESCRIBE {table_name}"
-        ).fetchall()
-    ]
-
-
-def format_table(headers, data):
-    """Create a simple Markdown table."""
-    lines = []
-
-    lines.append("| " + " | ".join(headers) + " |")
-    lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
-
-    for row in data:
-        lines.append(
-            "| "
-            + " | ".join(
-                "" if value is None else str(value)
-                for value in row
-            )
-            + " |"
-        )
-
-    return "\n".join(lines)
-
-
-# %%
-# Check input files
-
-for name, path in FILES.items():
-    if not path.exists():
-        raise FileNotFoundError(
-            f"Missing {name} file:\n{path}"
-        )
-
-print("CMCI input files found.")
-
-for name, path in FILES.items():
-    print(f"- {name}: {path}")
-
-
-# %%
-# Start DuckDB
-
-con = duckdb.connect(database=":memory:")
-
-
-# %%
-# Load source files
-
-load_csv(
-    con,
-    FILES["css"],
-    "css",
+summary = (
+    f"Two CMCI indicators (Capacity of School Services, Education) for {n_lgu:,} LGUs in {', '.join(YEARS)}, "
+    f"one score per LGU, year and indicator. "
+    + ("Both files cover every expected LGU-year with no duplicates. " if all_clean
+       else "Coverage or uniqueness problems were found (O-1, O-2). ")
+    + "LGUs are identified by name only; there is no PSGC code. "
+    + f"Records without a score: {pair(lambda t: nonvalid_total[t])}. "
+    + f"Valid scores of exactly 0: {pair(lambda t: zeros_total[t])}; whether 0 is a real score needs a decision (S-2)."
 )
 
-load_csv(
-    con,
-    FILES["edu"],
-    "edu",
-)
+def ev_grain(t):
+    return f"{ev[t]['rows']:,} rows, {ev[t]['dupes']} duplicate keys"
+
+def ev_coverage(t):
+    e = ev[t]
+    return f"{len(e['missing'])} LGU-years missing, {len(e['extra'])} unexpected, years outside {YEARS}: {e['bad_years'] or 'none'}"
+
+def ev_consistency(t):
+    return f"{ev[t]['bad_valid']} valid rows without a numeric score, {ev[t]['bad_other']} non-valid rows with a score"
+
+def ev_reference(t):
+    e = ev[t]
+    return f"names not in reference list {len(e['not_in_list'])}, reference names not in file {len(e['list_not_in'])}"
+
+def ev_apostrophe(t):
+    return f"{len(apostrophe_errors[t])} of {len(ev[t]['errors'])}"
+
+observed = [
+    ("O-1", "lgu + year is the grain of each file",
+     f"{pair(ev_grain)}; expected {expected_rows:,} rows ({n_lgu:,} LGUs x {len(YEARS)} years)",
+     "Safe primary key if there are 0 duplicates", "Assert uniqueness in Bronze validation"),
+    ("O-2", "Coverage against the expected set (reference list x years)",
+     pair(ev_coverage),
+     "Gaps would break year-over-year comparison", "Keep the check in Bronze validation"),
+    ("O-3", "Records without a score",
+     pair(lambda t: f"{nonvalid_total[t]} ({', '.join(f'{s} {n}' for s, n in ev[t]['statuses'] if s != 'valid') or 'none'}): "
+                    f"{items([f'{n} {y}' for n, y, _ in ev[t]['nonvalid']])}"),
+     "Blank is not zero", "Keep as null with status; never impute 0"),
+    ("O-4", "status and score agree",
+     pair(ev_consistency),
+     "Status can be trusted when both counts are 0", "Filter on status = 'valid' in Silver"),
+    ("O-5", "Exact zeros among valid scores",
+     pair(lambda t: ", ".join(f"{y}: {z} of {n}" for y, n, z, *_ in ev[t]["stats"]))
+     + f"; LGU-years that are 0 in both indicators: {', '.join(f'{y}: {n}' for y, n in both_zero) or 'none'}",
+     "Zero may mean \"no data submitted\" (S-2), which would make the score a missing value",
+     "Keep as reported; flag zeros in Silver until S-2 is resolved"),
+    ("O-6", "Observed scores extend above 1.0",
+    pair(lambda t: "min {} max {}".format(
+     min((r[3] for r in ev[t]["stats"] if r[3] is not None), default=None),
+     max((r[4] for r in ev[t]["stats"] if r[4] is not None), default=None))),
+    "The score should not be interpreted as a percentage or direct count without methodology verification",
+    "Use as contextual information only; do not rescale or interpret the score without methodology verification"),
+    ("O-7", "LGU is a name only",
+     f"Columns are {', '.join(columns('css'))}; reference list columns: {', '.join(columns('lgu'))}; "
+     f"names with a parenthetical suffix: {len(suffixed)} ({items(suffixed, 6)}); "
+     f"base names shared by more than one LGU: {len(base_dupes)} ({items(base_dupes, 6)})",
+     "No PSGC join key; names can collide", "Map names to PSGC in integration with a reviewed crosswalk"),
+    ("O-8", "Name formatting (distinct names / leading-trailing spaces / straight apostrophe / curly apostrophe)",
+     "; ".join(f"{t}: {a} / {b} / {c} / {d}" for t, (a, b, c, d) in name_stats.items()),
+     "Joins on raw names are fragile", "Use normalized names for matching while retaining the original LGU name"),
+    ("O-9", "The two indicators and the reference list agree",
+     f"LGU-years in CSS not Education: {len(css_not_edu)}; in Education not CSS: {len(edu_not_css)}; "
+     + pair(ev_reference),
+     "CSS and Education can be joined on (lgu, year) only if the first two counts are 0", "Join on (lgu, year) in Silver"),
+]
+
+if any(apostrophe_errors.values()):
+    s1_names = items(sorted({n for names in apostrophe_errors.values() for n in names}))
+    s1 = (f"The server errors are extraction failures, not source gaps: {pair(ev_apostrophe)} "
+          f"server-error LGUs have an apostrophe in the name ({s1_names})")
+else:
+    s1 = "The server errors are extraction failures, not source gaps (no apostrophe pattern in this run)"
+
+suspected = [
+    ("S-1", s1, "Re-request with encoded names; check the portal by hand", "open"),
+    ("S-2", "An exact 0 means \"no data submitted\", not a real score of 0",
+     "Compare zero LGUs with the portal and the DTI methodology; check whether zeros cluster by region or LGU class", "open"),
+    ("S-3", "The two years are comparable", "Read the methodology for each edition", "open"),
+    ("S-4", "The score construction or scale may differ by indicator, so levels should not be compared across indicators until the DTI methodology is verified", "Read the DTI methodology and indicator definitions", "open"),
+]
+
+def fmt(x):
+    return "" if x is None else f"{x:.4f}".rstrip("0").rstrip(".")
+
+dist_rows = []
+for t in INDICATORS:
+    for y, n, z, lo, hi, qs in ev[t]["stats"]:
+        p = [fmt(x) for x in qs] if qs else ["", "", ""]
+        dist_rows.append((LABEL[t], y, n, z, fmt(lo), fmt(hi), *p))
+
+profile = f"""# cmci: profile
+
+_Generated by notebooks/profiling/profile_cmci.py. Do not edit by hand; change the script and rerun._
+
+## Run details
+
+| Field | Value |
+|---|---|
+| Date profiled | 2026-10-01 |
+| Profiled by | @saraevcldn |
+| Tool | DuckDB 1.4.5 (Python), run locally: [notebooks/profiling/profile_cmci.py](../../../notebooks/profiling/profile_cmci.py) |
+| Files profiled (SHA-256) | See [README.md](README.md#files). The script stops if any checksum differs |
+| How files were read | All columns as text (all_varchar), strict CSV parsing |
+
+## How to rerun
+
+Download the three CSVs from /Volumes/edu_access/00-source/raw/ into <RAW_DATA_DIR>/dti/original/, then:
+
+```bash
+RAW_DATA_DIR=/path/to/raw-data python notebooks/profiling/profile_cmci.py
+```
 
-load_csv(
-    con,
-    FILES["lgu"],
-    "lgu",
-)
+## Summary
 
-print("CMCI files loaded into DuckDB.")
+{summary}
 
+## Observed findings
 
-# %%
-# O-1. Extracted file structure
+{md_table(["ID", "Finding", "Evidence", "Impact", "Proposed handling"], observed)}
 
-file_rows = []
+## Suspected findings
 
-for key, path in FILES.items():
-    file_rows.append(
-        (
-            key,
-            path.name,
-            str(path),
-            path.stat().st_size,
-        )
-    )
+{md_table(["ID", "Suspicion", "How to test", "Status"], suspected)}
 
+## Score distribution by year (valid records only)
 
-# %%
-# O-2. Schema
+{md_table(["Indicator", "Year", "Valid", "Exact zeros", "Min", "Max", "p50", "p90", "p99"], dist_rows)}
 
-css_columns = get_columns(con, "css")
-edu_columns = get_columns(con, "edu")
-lgu_columns = get_columns(con, "lgu")
+## Changes across files or years
 
+One file per indicator, each covering {', '.join(YEARS)}. Whether the method or the indicator definitions differ between the two editions is not yet verified (S-3).
 
-# %%
-# O-3. Row count and LGU coverage
+## Questions for the publisher or mentor
 
-css_row_count = scalar(
-    con,
-    "SELECT COUNT(*) FROM css",
-)
+- Is a score of 0 a real value, or does it indicate "no data submitted"?
+- Are the missing scores source-side, or could they be caused by portal/extraction behavior (O-3)?
+- What exactly does each score measure, and what is the scoring scale or calculation method?
+- Are the 2023 and 2024 scores directly comparable, or did the methodology or indicator definition change between years?
+- Is there a downloadable official export or documentation for these indicators, and what are the reuse terms? """
 
-edu_row_count = scalar(
-    con,
-    "SELECT COUNT(*) FROM edu",
-)
-
-css_lgu_count = scalar(
-    con,
-    """
-    SELECT COUNT(DISTINCT TRIM(lgu))
-    FROM css
-    WHERE TRIM(lgu) <> ''
-    """,
-)
-
-edu_lgu_count = scalar(
-    con,
-    """
-    SELECT COUNT(DISTINCT TRIM(lgu))
-    FROM edu
-    WHERE TRIM(lgu) <> ''
-    """,
-)
-
-lgu_list_count = scalar(
-    con,
-    """
-    SELECT COUNT(DISTINCT TRIM(lgu))
-    FROM lgu
-    WHERE TRIM(lgu) <> ''
-    """,
-)
-
-
-# %%
-# O-4. Records by year
-
-css_by_year = rows(
-    con,
-    """
-    SELECT
-        year,
-        COUNT(*) AS records,
-        COUNT(DISTINCT lgu) AS distinct_lgus
-    FROM css
-    GROUP BY year
-    ORDER BY year
-    """,
-)
-
-edu_by_year = rows(
-    con,
-    """
-    SELECT
-        year,
-        COUNT(*) AS records,
-        COUNT(DISTINCT lgu) AS distinct_lgus
-    FROM edu
-    GROUP BY year
-    ORDER BY year
-    """,
-)
-
-
-# %%
-# O-5. Duplicate LGU-year records
-
-css_duplicate_groups = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM (
-        SELECT
-            TRIM(lgu) AS lgu,
-            year
-        FROM css
-        GROUP BY TRIM(lgu), year
-        HAVING COUNT(*) > 1
-    )
-    """,
-)
-
-edu_duplicate_groups = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM (
-        SELECT
-            TRIM(lgu) AS lgu,
-            year
-        FROM edu
-        GROUP BY TRIM(lgu), year
-        HAVING COUNT(*) > 1
-    )
-    """,
-)
-
-
-# %%
-# O-6. Status distribution
-
-css_status = rows(
-    con,
-    """
-    SELECT
-        status,
-        COUNT(*) AS records
-    FROM css
-    GROUP BY status
-    ORDER BY status
-    """,
-)
-
-edu_status = rows(
-    con,
-    """
-    SELECT
-        status,
-        COUNT(*) AS records
-    FROM edu
-    GROUP BY status
-    ORDER BY status
-    """,
-)
-
-
-# %%
-# O-7. Score completeness
-
-css_missing_scores = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM css
-    WHERE
-        capacity_of_school_services IS NULL
-        OR TRIM(capacity_of_school_services) = ''
-    """,
-)
-
-edu_missing_scores = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM edu
-    WHERE
-        education IS NULL
-        OR TRIM(education) = ''
-    """,
-)
-
-
-# %%
-# O-8. Numeric validation
-
-css_invalid_numeric = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM css
-    WHERE status = 'valid'
-      AND TRY_CAST(
-            NULLIF(TRIM(capacity_of_school_services), '')
-            AS DOUBLE
-          ) IS NULL
-    """,
-)
-
-edu_invalid_numeric = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM edu
-    WHERE status = 'valid'
-      AND TRY_CAST(
-            NULLIF(TRIM(education), '')
-            AS DOUBLE
-          ) IS NULL
-    """,
-)
-
-
-# %%
-# O-9. Descriptive ranges
-
-css_range = con.execute(
-    """
-    SELECT
-        MIN(
-            TRY_CAST(
-                NULLIF(TRIM(capacity_of_school_services), '')
-                AS DOUBLE
-            )
-        ),
-        MAX(
-            TRY_CAST(
-                NULLIF(TRIM(capacity_of_school_services), '')
-                AS DOUBLE
-            )
-        ),
-        AVG(
-            TRY_CAST(
-                NULLIF(TRIM(capacity_of_school_services), '')
-                AS DOUBLE
-            )
-        )
-    FROM css
-    WHERE status = 'valid'
-    """
-).fetchone()
-
-edu_range = con.execute(
-    """
-    SELECT
-        MIN(
-            TRY_CAST(
-                NULLIF(TRIM(education), '')
-                AS DOUBLE
-            )
-        ),
-        MAX(
-            TRY_CAST(
-                NULLIF(TRIM(education), '')
-                AS DOUBLE
-            )
-        ),
-        AVG(
-            TRY_CAST(
-                NULLIF(TRIM(education), '')
-                AS DOUBLE
-            )
-        )
-    FROM edu
-    WHERE status = 'valid'
-    """
-).fetchone()
-
-
-# %%
-# O-10. Status/value consistency
-
-css_status_value_issues = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM css
-    WHERE
-        (
-            status = 'valid'
-            AND (
-                capacity_of_school_services IS NULL
-                OR TRIM(capacity_of_school_services) = ''
-                OR TRY_CAST(
-                    TRIM(capacity_of_school_services)
-                    AS DOUBLE
-                ) IS NULL
-            )
-        )
-        OR
-        (
-            status <> 'valid'
-            AND capacity_of_school_services IS NOT NULL
-            AND TRIM(capacity_of_school_services) <> ''
-        )
-    """,
-)
-
-edu_status_value_issues = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM edu
-    WHERE
-        (
-            status = 'valid'
-            AND (
-                education IS NULL
-                OR TRIM(education) = ''
-                OR TRY_CAST(
-                    TRIM(education)
-                    AS DOUBLE
-                ) IS NULL
-            )
-        )
-        OR
-        (
-            status <> 'valid'
-            AND education IS NOT NULL
-            AND TRIM(education) <> ''
-        )
-    """,
-)
-
-
-# %%
-# O-11. Non-valid records
-
-css_nonvalid = rows(
-    con,
-    """
-    SELECT
-        lgu,
-        year,
-        capacity_of_school_services,
-        status
-    FROM css
-    WHERE status <> 'valid'
-    ORDER BY lgu, year
-    """,
-)
-
-edu_nonvalid = rows(
-    con,
-    """
-    SELECT
-        lgu,
-        year,
-        education,
-        status
-    FROM edu
-    WHERE status <> 'valid'
-    ORDER BY lgu, year
-    """,
-)
-
-
-# %%
-# O-12. Cross-indicator coverage
-
-css_keys = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM (
-        SELECT DISTINCT
-            TRIM(lgu) AS lgu,
-            year
-        FROM css
-    )
-    """,
-)
-
-edu_keys = scalar(
-    con,
-    """
-    SELECT COUNT(*)
-    FROM (
-        SELECT DISTINCT
-            TRIM(lgu) AS lgu,
-            year
-        FROM edu
-    )
-    """,
-)
-
-
-# %%
-# S-1. LGU-year differences between indicators
-
-css_only = rows(
-    con,
-    """
-    SELECT
-        TRIM(lgu) AS lgu,
-        year
-    FROM css
-
-    EXCEPT
-
-    SELECT
-        TRIM(lgu) AS lgu,
-        year
-    FROM edu
-
-    ORDER BY lgu, year
-    """,
-)
-
-edu_only = rows(
-    con,
-    """
-    SELECT
-        TRIM(lgu) AS lgu,
-        year
-    FROM edu
-
-    EXCEPT
-
-    SELECT
-        TRIM(lgu) AS lgu,
-        year
-    FROM css
-
-    ORDER BY lgu, year
-    """,
-)
-
-
-# %%
-# S-2. Expected LGU-year coverage
-
-css_missing_expected = EXPECTED_ROWS - css_keys
-edu_missing_expected = EXPECTED_ROWS - edu_keys
-
-
-# %%
-# S-3. Compare indicator LGUs against the CMCI LGU list
-
-css_lgu_only = rows(
-    con,
-    """
-    SELECT DISTINCT
-        TRIM(lgu) AS lgu
-    FROM css
-
-    EXCEPT
-
-    SELECT DISTINCT
-        TRIM(lgu) AS lgu
-    FROM lgu
-
-    ORDER BY lgu
-    """,
-)
-
-edu_lgu_only = rows(
-    con,
-    """
-    SELECT DISTINCT
-        TRIM(lgu) AS lgu
-    FROM edu
-
-    EXCEPT
-
-    SELECT DISTINCT
-        TRIM(lgu) AS lgu
-    FROM lgu
-
-    ORDER BY lgu
-    """,
-)
-
-lgu_list_only = rows(
-    con,
-    """
-    SELECT DISTINCT
-        TRIM(lgu) AS lgu
-    FROM lgu
-
-    EXCEPT
-
-    SELECT DISTINCT
-        TRIM(lgu) AS lgu
-    FROM css
-
-    ORDER BY lgu
-    """,
-)
-
-
-# %%
-# Format Markdown tables
-
-file_table = format_table(
-    [
-        "Source",
-        "File",
-        "Path",
-        "File size (bytes)",
-    ],
-    file_rows,
-)
-
-css_schema_table = format_table(
-    ["Column", "Expected"],
-    [
-        (column, "yes")
-        for column in EXPECTED_COLUMNS["css"]
-    ],
-)
-
-edu_schema_table = format_table(
-    ["Column", "Expected"],
-    [
-        (column, "yes")
-        for column in EXPECTED_COLUMNS["edu"]
-    ],
-)
-
-css_year_table = format_table(
-    [
-        "Year",
-        "Records",
-        "Distinct LGUs",
-    ],
-    css_by_year,
-)
-
-edu_year_table = format_table(
-    [
-        "Year",
-        "Records",
-        "Distinct LGUs",
-    ],
-    edu_by_year,
-)
-
-css_status_table = format_table(
-    ["Status", "Records"],
-    css_status,
-)
-
-edu_status_table = format_table(
-    ["Status", "Records"],
-    edu_status,
-)
-
-css_nonvalid_table = format_table(
-    [
-        "LGU",
-        "Year",
-        "Score",
-        "Status",
-    ],
-    css_nonvalid,
-)
-
-edu_nonvalid_table = format_table(
-    [
-        "LGU",
-        "Year",
-        "Score",
-        "Status",
-    ],
-    edu_nonvalid,
-)
-
-css_only_table = format_table(
-    ["LGU", "Year"],
-    css_only,
-)
-
-edu_only_table = format_table(
-    ["LGU", "Year"],
-    edu_only,
-)
-
-css_lgu_only_table = format_table(
-    ["LGU"],
-    css_lgu_only,
-)
-
-edu_lgu_only_table = format_table(
-    ["LGU"],
-    edu_lgu_only,
-)
-
-lgu_list_only_table = format_table(
-    ["LGU"],
-    lgu_list_only,
-)
-
-
-# %%
-# Descriptive range values
-
-css_min, css_max, css_avg = css_range
-edu_min, edu_max, edu_avg = edu_range
-
-css_range_text = (
-    f"min={css_min}, max={css_max}, mean={css_avg}"
-)
-
-edu_range_text = (
-    f"min={edu_min}, max={edu_max}, mean={edu_avg}"
-)
-
-
-# %%
-# Build profile Markdown
-
-profile_md = f"""# CMCI source profile
-
-## Purpose
-
-This profile documents the structure and observed data-quality characteristics
-of the CMCI indicator extracts used by the Education Access Intelligence project.
-
-The profiling covers:
-
-1. Capacity of School Services (`css`)
-2. Education (`edu`)
-
-The CMCI LGU list is also used as a reference for LGU coverage validation.
-
-## Source data location
-
-The raw CMCI files are stored in the Databricks source volume:
-
-`/Volumes/edu_access/00-source/raw/cmci/`
-
-## O-1. Extracted file structure
-
-{file_table}
-
-## O-2. Expected schema
-
-### Capacity of School Services
-
-{css_schema_table}
-
-Observed columns:
-
-`{", ".join(css_columns)}`
-
-### Education
-
-{edu_schema_table}
-
-Observed columns:
-
-`{", ".join(edu_columns)}`
-
-### LGU reference list
-
-Observed columns:
-
-`{", ".join(lgu_columns)}`
-
-## O-3. Row count and LGU coverage
-
-### Capacity of School Services
-
-- Row count: **{css_row_count:,}**
-- Distinct LGUs: **{css_lgu_count:,}**
-- Expected LGUs: **{EXPECTED_LGUS:,}**
-
-### Education
-
-- Row count: **{edu_row_count:,}**
-- Distinct LGUs: **{edu_lgu_count:,}**
-- Expected LGUs: **{EXPECTED_LGUS:,}**
-
-### CMCI LGU reference list
-
-- Distinct LGUs: **{lgu_list_count:,}**
-
-Expected LGU-year combinations:
-
-**{EXPECTED_LGUS:,} LGUs × 2 years = {EXPECTED_ROWS:,} records**
-
-## O-4. Records by year
-
-### Capacity of School Services
-
-{css_year_table}
-
-### Education
-
-{edu_year_table}
-
-## O-5. Duplicate LGU-year records
-
-The expected grain is one indicator value per LGU per year.
-
-### Capacity of School Services
-
-- Duplicate LGU-year groups: **{css_duplicate_groups}**
-
-### Education
-
-- Duplicate LGU-year groups: **{edu_duplicate_groups}**
-
-## O-6. Status distribution
-
-### Capacity of School Services
-
-{css_status_table}
-
-### Education
-
-{edu_status_table}
-
-The `status` field distinguishes valid extracted values from
-server errors and explicit missing values.
-
-## O-7. Score completeness
-
-### Capacity of School Services
-
-- Missing or blank scores: **{css_missing_scores:,}**
-
-### Education
-
-- Missing or blank scores: **{edu_missing_scores:,}**
-
-Missing values are not converted to zero because a missing response does not
-establish that the underlying indicator value is zero.
-
-## O-8. Numeric validation
-
-### Capacity of School Services
-
-- Invalid numeric values among records marked `valid`:
-  **{css_invalid_numeric:,}**
-
-### Education
-
-- Invalid numeric values among records marked `valid`:
-  **{edu_invalid_numeric:,}**
-
-The files were initially loaded as text and numeric conversion was performed
-separately during validation.
-
-## O-9. Descriptive score ranges
-
-### Capacity of School Services
-
-{css_range_text}
-
-### Education
-
-{edu_range_text}
-
-These are descriptive statistics of the extracted CMCI scores. They should not
-be interpreted as direct counts of schools, classrooms, teachers, learners,
-or population.
-
-## O-10. Status/value consistency
-
-### Capacity of School Services
-
-- Status/value consistency issues: **{css_status_value_issues}**
-
-### Education
-
-- Status/value consistency issues: **{edu_status_value_issues}**
-
-## O-11. Non-valid records
-
-### Capacity of School Services
-
-{css_nonvalid_table}
-
-### Education
-
-{edu_nonvalid_table}
-
-Non-valid records are retained rather than replaced with zero.
-
-## O-12. Cross-indicator coverage
-
-Distinct LGU-year keys:
-
-- Capacity of School Services: **{css_keys:,}**
-- Education: **{edu_keys:,}**
-
-## S-1. LGU-year differences between indicators
-
-### Present in CSS but not Education
-
-Count: **{len(css_only)}**
-
-{css_only_table}
-
-### Present in Education but not CSS
-
-Count: **{len(edu_only)}**
-
-{edu_only_table}
-
-## S-2. Expected LGU-year coverage
-
-Expected LGU-year combinations:
-
-**{EXPECTED_ROWS:,}**
-
-### Capacity of School Services
-
-- Missing expected combinations: **{css_missing_expected}**
-
-### Education
-
-- Missing expected combinations: **{edu_missing_expected}**
-
-## S-3. Comparison with CMCI LGU reference list
-
-### CSS LGUs not found in the reference list
-
-Count: **{len(css_lgu_only)}**
-
-{css_lgu_only_table}
-
-### Education LGUs not found in the reference list
-
-Count: **{len(edu_lgu_only)}**
-
-{edu_lgu_only_table}
-
-### LGUs in the reference list but not in CSS
-
-Count: **{len(lgu_list_only)}**
-
-{lgu_list_only_table}
-
-## Analytical limitations
-
-### CMCI is an indicator dataset
-
-The CMCI values are indicator/index measures and are not direct counts of:
-
-- schools
-- classrooms
-- teachers
-- learners
-- population
-
-CMCI should therefore be used as contextual information alongside the
-education supply and population datasets.
-
-### LGU name standardization
-
-The CMCI extracts use LGU names as provided by the portal.
-
-LGU names should be mapped to official PSGC codes before joining with PSA,
-DepEd, CHED, or other geographic datasets.
-
-### Missing/server-error records
-
-CMCI server errors and explicit missing values are retained as non-valid
-records. They should not be interpreted as zero.
-
-### Indicator separation
-
-`Capacity of School Services` and `Education` are kept as separate indicators.
-No combined CMCI education score is created because no verified CMCI formula
-for combining the two indicators was established.
-
-## Reproducibility
-
-Profiling script:
-
-`notebooks/profiling/profile_cmci.py`
-
-Raw source location:
-
-`/Volumes/edu_access/00-source/raw/cmci/`
-
-Output:
-
-`docs/source_inventory/cmci/profile.md`
-"""
-
-
-# %%
-# Write profile
-
-OUTPUT.parent.mkdir(
-    parents=True,
-    exist_ok=True,
-)
-
-OUTPUT.write_text(
-    profile_md,
-    encoding="utf-8",
-)
-
-print(f"Profile written to: {OUTPUT}")
-
-
-# %%
-# Summary
-
-print()
-print("CMCI profiling complete.")
-print()
-
-print(f"CSS rows:        {css_row_count:,}")
-print(f"CSS LGUs:        {css_lgu_count:,}")
-print(f"CSS duplicates:  {css_duplicate_groups:,}")
-print(f"CSS non-valid:   {len(css_nonvalid):,}")
-
-print()
-
-print(f"EDU rows:        {edu_row_count:,}")
-print(f"EDU LGUs:        {edu_lgu_count:,}")
-print(f"EDU duplicates:  {edu_duplicate_groups:,}")
-print(f"EDU non-valid:   {len(edu_nonvalid):,}")
-
-print()
-
-print(f"CMCI LGU list:   {lgu_list_count:,}")
-print(f"Output:          {OUTPUT}")
+# %% Write profile
+OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+OUTPUT.write_text(profile, encoding="utf-8")
+print(f"Profile written to {OUTPUT}")
