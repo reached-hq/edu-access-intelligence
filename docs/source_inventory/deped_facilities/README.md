@@ -78,7 +78,7 @@ See [profile.md](profile.md) for evidence.
 | Schema versions | `v1` (SY 2023-24, 87 columns) |
 | Loaded locally | SY 2023-24, 2026-10-06: 60,167 rows, matching the table above; a second run skipped it. Blanks stay blank: 669 public elementary schools have `es_classrooms_instructional` = `''` (O-4), and none has `'0'` (O-5) |
 | Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; listed in that folder's `SHA256SUMS.txt` |
-| Loaded on Databricks | Not yet |
+| Loaded on Databricks | Yes, 2026-10-06 (`dev`): 60,167 rows loaded and verified; a second run skipped it ([evidence](../../evidence/2026-10-06-deped-facilities-idempotency.md)) |
 
 How a new school year or a revised file is added: [ingestion.md, Runbook](../../ingestion.md#runbook).
 

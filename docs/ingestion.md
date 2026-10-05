@@ -249,6 +249,8 @@ Before step 4, stop other serverless compute: detach notebooks and leave the SQL
 
 Evidence for both runs, with the queries and their results: [evidence/2026-10-06-deped-enrollment-idempotency.md](evidence/2026-10-06-deped-enrollment-idempotency.md).
 
+Facilities, the second source, was loaded and rerun the same day at commit `acec94d`: 60,167 rows, then a skip, with enrollment untouched ([evidence](evidence/2026-10-06-deped-facilities-idempotency.md)). With the SQL warehouse stopped and notebooks detached, the whole job took 3 min 41 s, then 1 min 52 s: it did not wait for capacity.
+
 Times here are Manila time (UTC+8), with UTC in brackets where it helps. Timestamps in the tables are stored in UTC (`*_utc` columns); convert them for display with `from_utc_timestamp(col, 'Asia/Manila')`.
 
 Run 1: 2026-10-06 Manila (2026-10-05 UTC), `dev`, job `[dev cheimlouise] bronze_ingest`, run `738752819100453`, commit `e681c5b` (rebased counterpart `a55e6e9`):
