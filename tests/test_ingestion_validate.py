@@ -1,6 +1,6 @@
 """What a DepEd enrollment delivery must pass before anything reaches Bronze.
 
-Each test builds made-up zips in a temporary folder (tests/fixtures/deped_enrollment.py),
+Each test builds made-up zips in a temporary folder (tests/fixtures/deped.py),
 approves them into a copy of the real contract, and checks that the right
 delivery is accepted and every wrong one is refused with a clear reason.
 """
@@ -11,7 +11,7 @@ import zipfile
 
 import pytest
 
-from fixtures.deped_enrollment import (
+from fixtures.deped import (
     REPO_ROOT, approve, columns, empty_config, make_delivery, make_rows, real_config,
     registry_entry, write_zip,
 )

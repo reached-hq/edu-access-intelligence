@@ -8,15 +8,16 @@ test_idempotency_demonstration walks the whole story in order; the others
 check one behavior each.
 """
 
+import json
 import shutil
 
 import pytest
 
-from fixtures.deped_enrollment import (
+from fixtures.deped import (
     REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows, real_config, write_config,
 )
 from src.ingestion import cli
-from src.ingestion.bronze import bronze_ddl
+from src.ingestion.bronze import bronze_ddl, bronze_gate
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
 from src.ingestion.store import DuckDBStore
@@ -379,11 +380,18 @@ def test_missing_landing_folder_fails_the_run(env):
 
 # --- The committed SQL and the command line --------------------------------------
 
-def test_bronze_ddl_matches_the_contract():
-    committed = (REPO_ROOT / "etl/02_bronze/01_create_deped_enrollment_raw.sql").read_text(encoding="utf-8")
-    assert committed == bronze_ddl(real_config()), (
-        "Regenerate: python -m src.ingestion.cli ddl --source deped_enrollment "
-        "> etl/02_bronze/01_create_deped_enrollment_raw.sql")
+CONTRACTS = sorted((REPO_ROOT / "config" / "ingestion").glob("*.json"))
+
+
+@pytest.mark.parametrize("kind, prefix, generate", [("ddl", "01_create", bronze_ddl), ("gate", "90_validate", bronze_gate)])
+@pytest.mark.parametrize("contract", CONTRACTS, ids=lambda p: p.stem)
+def test_bronze_sql_matches_the_contract(contract, kind, prefix, generate):
+    """The table definition and the gate are generated from each contract, never hand-edited."""
+    config = json.loads(contract.read_text(encoding="utf-8"))
+    path = REPO_ROOT / "etl" / "02_bronze" / f"{prefix}_{config['bronze_table']}.sql"
+    assert path.is_file(), f"missing {path.relative_to(REPO_ROOT)}"
+    assert path.read_text(encoding="utf-8") == generate(config), (
+        f"Regenerate: python -m src.ingestion.cli {kind} --source {config['source_id']} > {path.relative_to(REPO_ROOT)}")
 
 
 def test_cli_blocks_an_unapproved_file(tmp_path, capsys):

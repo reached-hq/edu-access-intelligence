@@ -1,9 +1,12 @@
-"""Made-up DepEd enrollment deliveries for tests.
+"""Made-up DepEd deliveries (zip with one CSV and a README) for tests.
 
 Builds zips shaped like the publisher's (a folder holding the CSV and a
-README.md) from the real column contract, with invented schools (IDs from
-900001) in an invented place. No DepEd record is copied. Zip entries get a fixed
-timestamp, so the same arguments always give the same SHA-256.
+README.md) from a source's real column contract, with invented schools (IDs
+from 900001) in an invented place. No DepEd record is copied. Zip entries get a
+fixed timestamp, so the same arguments always give the same SHA-256.
+
+Every function takes `source_id` (default `deped_enrollment`); add a source to
+NAMES to build its files.
 """
 
 import copy
@@ -15,6 +18,13 @@ from pathlib import Path, PurePosixPath
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXED_TIME = (2026, 1, 1, 0, 0, 0)
 README = b"# Made-up README for tests\n"
+DEFAULT = "deped_enrollment"
+
+# The publisher's names, per source: zip, CSV inside it, and the folder inside the zip.
+NAMES = {
+    "deped_enrollment": ("Enrollment-in-SY-{start}-{end}.zip", "enrollment_{sy}.csv", "Enrollment in SY {start}-{end}"),
+    "deped_facilities": ("School-Facilities-in-SY-{start}-{end}.zip", "facilities_{sy}.csv", "School Facilities in SY {start}-{end}"),
+}
 
 TEXT_VALUES = {
     "school_name": "Test School {i}",
@@ -36,17 +46,17 @@ TEXT_VALUES = {
 }
 
 
-def real_config():
-    return json.loads((REPO_ROOT / "config" / "ingestion" / "deped_enrollment.json").read_text(encoding="utf-8"))
+def real_config(source_id=DEFAULT):
+    return json.loads((REPO_ROOT / "config" / "ingestion" / f"{source_id}.json").read_text(encoding="utf-8"))
 
 
-def registry_entry():
+def registry_entry(source_id=DEFAULT):
     registry = json.loads((REPO_ROOT / "config" / "sources.json").read_text(encoding="utf-8"))
-    return next(s for s in registry["sources"] if s["source_id"] == "deped_enrollment")
+    return next(s for s in registry["sources"] if s["source_id"] == source_id)
 
 
-def columns(schema_version):
-    return list(real_config()["schema_versions"][schema_version]["columns"])
+def columns(schema_version, source_id=DEFAULT):
+    return list(real_config(source_id)["schema_versions"][schema_version]["columns"])
 
 
 def make_rows(header, n_rows=3, first_id=900001):
@@ -73,9 +83,10 @@ def csv_bytes(header, rows, encoding="utf-8", line_ending="\n"):
     return (line_ending.join(lines) + line_ending).encode(encoding)
 
 
-def sy_names(school_year):
+def sy_names(school_year, source_id=DEFAULT):
+    """(zip name, CSV name, folder inside the zip) for a school year such as '2023-24'."""
     start = int(school_year[:4])
-    return f"Enrollment-in-SY-{start}-{start + 1}.zip", f"enrollment_{school_year}.csv"
+    return tuple(n.format(start=start, end=start + 1, sy=school_year) for n in NAMES[source_id])
 
 
 def write_zip(path, members):
@@ -94,13 +105,12 @@ def write_zip(path, members):
 
 def make_delivery(folder, school_year, schema_version="v1", n_rows=3, first_id=900001,
                   encoding="utf-8", line_ending="\n", rows=None, header=None, zip_folder=None,
-                  extra_members=None, archive_name=None):
+                  extra_members=None, archive_name=None, source_id=DEFAULT):
     """Write a publisher-shaped zip into `folder` and return its path."""
-    default_archive, csv_name = sy_names(school_year)
-    header = header or columns(schema_version)
+    default_archive, csv_name, default_folder = sy_names(school_year, source_id)
+    header = header or columns(schema_version, source_id)
     rows = rows if rows is not None else make_rows(header, n_rows, first_id)
-    start = int(school_year[:4])
-    inner = zip_folder if zip_folder is not None else f"Enrollment in SY {start}-{start + 1}"
+    inner = zip_folder if zip_folder is not None else default_folder
     prefix = f"{inner}/" if inner else ""
     members = {
         f"{prefix}{csv_name}": csv_bytes(header, rows, encoding, line_ending),
@@ -135,9 +145,9 @@ def approve(config, archive_path, school_year, schema_version="v1", encoding="ut
     return entry
 
 
-def empty_config():
+def empty_config(source_id=DEFAULT):
     """The real contract with no approved deliveries, for tests to approve fixtures into."""
-    config = copy.deepcopy(real_config())
+    config = copy.deepcopy(real_config(source_id))
     config["deliveries"] = []
     return config
 
@@ -156,5 +166,5 @@ def fake_repo(root, config):
 
 
 def write_config(root, config):
-    path = Path(root) / "config" / "ingestion" / "deped_enrollment.json"
+    path = Path(root) / "config" / "ingestion" / f"{config['source_id']}.json"
     path.write_text(json.dumps(config, indent=2), encoding="utf-8")
