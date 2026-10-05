@@ -30,8 +30,6 @@ The second command was run twice. The landing folder `/Volumes/edu_access/00-sou
 
 <img width="1140" height="313" alt="image" src="https://github.com/user-attachments/assets/e3fca7b7-6d39-44f8-a0f1-ddf55f3fcc14" />
 
-**[Add screenshot here]** `02-run1-task-graph.png`: Run 1 → Graph view. `bronze_deped_enrollment` → `bronze_deped_facilities`, both green.
-
 With no other serverless compute running, the job did not wait for capacity. Compare enrollment's first run, which waited 35.5 minutes for 3.5 minutes of work ([enrollment evidence](2026-10-06-deped-enrollment-idempotency.md)).
 
 ## Results
@@ -57,10 +55,8 @@ JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
 WHERE r.code_revision = 'acec94d5546e9b8043da4e21065e45de1f4337f4'
 ORDER BY r.started_at_utc, a.source_id, a.batch_id
 ```
+<img width="919" height="270" alt="image" src="https://github.com/user-attachments/assets/91615e51-5336-4477-bbf2-5c53588a05d6" />
 
-Expected: 8 rows. In run 1, three `deped_enrollment` rows `skip` with 0 inserted, and one `deped_facilities` row `load` with 60,167. In run 2, three `deped_enrollment` rows `skip` with 0, and one `deped_facilities` row `skip` with 0.
-
-**[Add screenshot here]** `05-attempts-log.png`: the result of this query.
 
 ### 3. Two sources, two Bronze tables, nothing doubled
 
@@ -76,19 +72,16 @@ SELECT 'deped_facilities_raw', COUNT(*),
 FROM edu_access.`02-bronze`.deped_facilities_raw
 ```
 
-Expected: `deped_enrollment_raw | 180500 | 0 | 1` and `deped_facilities_raw | 60167 | 0 | 1`. Each table was written by one run only: enrollment by its first run on 2026-10-06 01:57, facilities by run 1 above.
+<img width="911" height="202" alt="image" src="https://github.com/user-attachments/assets/c36876d8-f39e-4266-88a8-8f6a53587cde" />
 
-**[Add screenshot here]** `06-two-bronze-tables.png`: the result of this query.
 
 ### 4. The Bronze table's write history
 
 ```sql
 DESCRIBE HISTORY edu_access.`02-bronze`.deped_facilities_raw
 ```
+<img width="912" height="204" alt="image" src="https://github.com/user-attachments/assets/ab8ab61e-73de-4db5-9ae7-4413ee7fd062" />
 
-Expected: a `CREATE TABLE` and the load's `MERGE`, both with job run `588715548188592` in the `job` column, and no write from run `75917129933986`.
-
-**[Add screenshot here]** `07-facilities-history.png`: the result of this query, with the `userName` column cropped out (it shows an email address).
 
 ### 5. Every check, in one query (checked 04:34)
 
@@ -137,7 +130,7 @@ All fourteen checks matched:
 | Enrollment runs that inserted rows (still only its first) | 1 | 1 |
 | Checks that are not PASS, both sources | 0 | 0 |
 
-**[Add screenshot here]** `08-fourteen-checks.png`: the result of this query, all `OK`.
+<img width="917" height="395" alt="image" src="https://github.com/user-attachments/assets/5f8f6bab-124f-4274-bde6-8adccd29c27f" />
 
 ### 6. The new table
 
@@ -145,9 +138,7 @@ All fourteen checks matched:
 SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_facilities_raw ('delta.columnMapping.mode')
 ```
 
-Expected: `name`. The table was owned by `reached-hq` from the moment it was created, and has 103 columns: 16 provenance columns and the publisher's 87 (checked with `databricks tables get`).
-
-**[Add screenshot here]** `09-table-details.png`: Catalog → `edu_access` → `02-bronze` → `deped_facilities_raw` → Details, showing the owner `reached-hq`, together with the result of this query.
+<img width="920" height="267" alt="image" src="https://github.com/user-attachments/assets/4a92cc30-e8f0-484e-814b-ef71c93459c9" />
 
 ## Why it holds
 
