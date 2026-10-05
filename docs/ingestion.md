@@ -235,13 +235,17 @@ Before step 4, stop other serverless compute: detach notebooks and leave the SQL
 
 ### First Databricks run
 
-2026-10-06, `dev`, job `[dev cheimlouise] bronze_ingest`, run `738752819100453`, commit `e681c5b`:
+Evidence for both runs, with the queries and their results: [evidence/2026-10-06-deped-enrollment-idempotency.md](evidence/2026-10-06-deped-enrollment-idempotency.md).
+
+Times here are Manila time (UTC+8), with UTC in brackets where it helps. Timestamps in the tables are stored in UTC (`*_utc` columns); convert them for display with `from_utc_timestamp(col, 'Asia/Manila')`.
+
+Run 1: 2026-10-06 Manila (2026-10-05 UTC), `dev`, job `[dev cheimlouise] bronze_ingest`, run `738752819100453`, commit `e681c5b`:
 
 - Loaded 60,167 + 60,129 + 60,204 rows (initial, incremental, incremental), as reported by the job; the task ended `SUCCESS`. This confirms behavior 4 below (zips read from `/Volumes/`) and that the job runs without `__file__` and exits cleanly.
-- It took 39 minutes (2,327 s), against about 7 seconds locally. The run's own timestamps show where: the job started at 17:21:37 UTC, the pipeline wrote its run row at 17:57:46, and the job ended at 18:00:42. The job was waiting for compute: the serverless cluster's ID (`1005-175705-…`) shows it started at 17:57:05, 35.5 minutes after the job, and `DESCRIBE HISTORY` shows `pipeline_runs` created at 17:57:34. Free Edition's serverless capacity was in use elsewhere (the SQL warehouse reported `RESOURCE_EXHAUSTED` at the time), most likely by a notebook. Once it had compute, discovery, loading all 180,500 rows, reconciliation, and the gate took about 3.5 minutes; each small control-table write took 3 to 13 seconds.
+- It took 39 minutes (2,327 s), against about 7 seconds locally. The run's own timestamps show where: the job started at 01:21:37 Manila (17:21:37 UTC), the pipeline wrote its run row at 01:57:46, and the job ended at 02:00:42. The job was waiting for compute: the serverless cluster's ID (`1005-175705-…`) shows it started at 01:57:05 Manila (17:57:05 UTC), 35.5 minutes after the job, and `DESCRIBE HISTORY` shows `pipeline_runs` created at 01:57:34. Free Edition's serverless capacity was in use elsewhere (the SQL warehouse reported `RESOURCE_EXHAUSTED` at the time), most likely by a notebook. Once it had compute, discovery, loading all 180,500 rows, reconciliation, and the gate took about 3.5 minutes; each small control-table write took 3 to 13 seconds.
 - Two problems found and fixed: the first deploy was rejected until the task declared `source: GIT`; and the tables were owned by the account that deployed the job, so nobody else could read them. Ownership of the six objects was moved to `reached-hq`, and every `CREATE` in `etl/` is now followed by `OWNER TO `reached-hq`` (D-009).
 - Verified the same day in a notebook, by a different account in the `reached-hq` group (the SQL warehouse could not start while other serverless compute was running: Free Edition's limit). Every check matched: rows 60,167 / 60,129 / 60,204; 0 pipeline duplicates; 0 rows missing provenance; 0 rows from another commit; 5,203 blank street addresses kept blank in SY 2023-24; the v2-only column NULL in all 120,296 v1-year rows; 595 SY 2025-26 rows with "ñ"; 3 batches succeeded and reconciled; 37 checks recorded, none other than PASS; 1 run succeeded in `dev`. `delta.columnMapping.mode` is `name`. The same numbers as the local load.
-- Run 2, `1088383272500634`, commit `d931112`, the same files: all three batches `skip`, 0 rows inserted, run `succeeded`, task `SUCCESS`, 9.5 minutes, of which 7.6 waiting for compute (cluster started 18:38:04) and 1.8 working. Verified in the tables: the attempts log shows `load` for each file in run 1 and `skip` in run 2; Bronze still has 180,500 rows, 0 pipeline duplicates, and every row from run 1; 2 succeeded runs; no check other than PASS. Every object, and both schemas, still belongs to `reached-hq` after the run re-applied ownership.
+- Run 2, 2026-10-06 02:30 Manila (18:30 UTC), `1088383272500634`, commit `d931112`, the same files: all three batches `skip`, 0 rows inserted, run `succeeded`, task `SUCCESS`, 9.5 minutes, of which 7.6 waiting for compute (cluster started 02:38:04 Manila) and 1.8 working. Verified in the tables: the attempts log shows `load` for each file in run 1 and `skip` in run 2; Bronze still has 180,500 rows, 0 pipeline duplicates, and every row from run 1; 2 succeeded runs; no check other than PASS. Every object, and both schemas, still belongs to `reached-hq` after the run re-applied ownership.
 
 ### Validation queries (Databricks SQL editor)
 
@@ -271,6 +275,31 @@ WHERE run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-contro
 
 -- Column mapping is on (needed for the column name with spaces)
 SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_enrollment_raw ('delta.columnMapping.mode');
+```
+
+All checks in one query, each marked `OK` or `CHECK`. The expected values are for the three approved deliveries after one loading run; replace the commit with the one that loaded them:
+
+```sql
+WITH r AS (SELECT * FROM edu_access.`02-bronze`.deped_enrollment_raw),
+     b AS (SELECT * FROM edu_access.`01-control`.ingestion_batches),
+     q AS (SELECT * FROM edu_access.`01-control`.data_quality_results),
+     p AS (SELECT * FROM edu_access.`01-control`.pipeline_runs),
+checks AS (
+  SELECT 'rows SY 2023-24' AS check_name, '60167' AS expected, CAST(COUNT_IF(school_year = '2023-24') AS STRING) AS actual FROM r
+  UNION ALL SELECT 'rows SY 2024-25', '60129', CAST(COUNT_IF(school_year = '2024-25') AS STRING) FROM r
+  UNION ALL SELECT 'rows SY 2025-26', '60204', CAST(COUNT_IF(school_year = '2025-26') AS STRING) FROM r
+  UNION ALL SELECT 'pipeline duplicates', '0', CAST(COUNT(*) - COUNT(DISTINCT source_sha256, source_row_number) AS STRING) FROM r
+  UNION ALL SELECT 'rows missing provenance', '0', CAST(COUNT_IF(source_sha256 IS NULL OR source_row_number IS NULL OR batch_id IS NULL OR run_id IS NULL OR code_revision IS NULL) AS STRING) FROM r
+  UNION ALL SELECT 'rows from another commit', '0', CAST(COUNT_IF(code_revision <> 'e681c5bb62374e4ec5501f63c54c087f60e2651b') AS STRING) FROM r
+  UNION ALL SELECT 'blank street_address kept blank, SY 2023-24', '5203', CAST(COUNT_IF(school_year = '2023-24' AND street_address = '') AS STRING) FROM r
+  UNION ALL SELECT 'v2-only column NULL in v1 years', '120296', CAST(COUNT_IF(`Modified Curricular Offering Classification` IS NULL) AS STRING) FROM r
+  UNION ALL SELECT 'SY 2025-26 rows with ñ', '595', CAST(COUNT_IF(school_year = '2025-26' AND (barangay LIKE '%ñ%' OR municipality LIKE '%ñ%' OR school_name LIKE '%ñ%')) AS STRING) FROM r
+  UNION ALL SELECT 'batches succeeded and reconciled', '3', CAST(COUNT_IF(status = 'succeeded' AND source_rows = expected_rows AND bronze_rows = source_rows) AS STRING) FROM b
+  UNION ALL SELECT 'checks that are not PASS', '0', CAST(COUNT_IF(status <> 'PASS') AS STRING) FROM q
+  UNION ALL SELECT 'checks recorded', '37', CAST(COUNT(*) AS STRING) FROM q
+  UNION ALL SELECT 'runs succeeded in dev with 3 loads', '1', CAST(COUNT_IF(status = 'succeeded' AND environment = 'dev' AND batches_loaded = 3) AS STRING) FROM p
+)
+SELECT check_name, expected, actual, CASE WHEN expected = actual THEN 'OK' ELSE 'CHECK' END AS result FROM checks;
 ```
 
 ### What only the Databricks run can prove (D-017)
