@@ -48,6 +48,9 @@ resources:
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
+            # Without GIT, Databricks rejects a repository-relative path
+            # ("Invalid python file reference"), even with git_source set.
+            source: GIT
             parameters:
               - ingest
               - --backend

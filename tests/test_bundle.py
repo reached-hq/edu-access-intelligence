@@ -79,6 +79,12 @@ def test_each_task_passes_the_revision_and_target_on(jobs):
             f"{name}/{task['task_key']} must record the deploy target as its environment")
 
 
+def test_python_tasks_read_their_file_from_git(jobs):
+    """Without source: GIT the jobs API rejects a repository-relative python_file (seen on deploy, 2026-10-06)."""
+    for name, task in python_tasks(jobs):
+        assert task["spark_python_task"].get("source") == "GIT", f"{name}/{task['task_key']} needs source: GIT"
+
+
 def test_tasks_load_sources_that_have_a_contract(jobs, repo_root, project):
     for name, task in python_tasks(jobs):
         if task["spark_python_task"]["python_file"] != "src/ingestion/cli.py":
