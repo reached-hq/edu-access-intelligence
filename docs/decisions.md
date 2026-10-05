@@ -19,7 +19,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-013 | 2026-10-05 | The stakeholders are LGU planners, with students as the focus | Accepted | Results must be trustworthy at barangay level, and higher education leaves scope |
 | D-014 | 2026-10-06 | A raw delivery is identified by its SHA-256 and approved in the source contract | Provisional | A file the contract does not list, or whose checksum differs, is blocked rather than loaded |
 | D-015 | 2026-10-06 | Bronze keeps every delivery; a revised file is a new version, never an overwrite | Provisional | Downstream reads only succeeded batches, and by default the latest version of each school year |
-| D-016 | 2026-10-06 | First downloads stay in the publisher folder; any later download goes into a dated subfolder | Provisional | A re-downloaded file never replaces the earlier one in raw storage |
+| D-016 | 2026-10-06 | First downloads stay in the publisher folder; any later download goes into a dated subfolder | Provisional | A raw file is never overwritten, so a re-download sits beside the earlier one |
 | D-017 | 2026-10-06 | Local ingestion runs use DuckDB as a stand-in for Delta tables | Provisional | Four Databricks behaviors are proven only by the Databricks confirmation run |
 
 ---

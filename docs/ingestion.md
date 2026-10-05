@@ -10,7 +10,7 @@ How raw files become Bronze rows, how to add the next delivery, and how to check
 DepEd download page                         (official zip, one per school year)
    │  download by hand; never modify
    ▼
-00 Source   /Volumes/edu_access/00-source/raw/deped/deped_enrollment/<download date>/<original name>.zip
+00 Source   /Volumes/edu_access/00-source/raw/deped/[<download date>/]<original name>.zip
    │  discover → checksum → is it an approved delivery?   (config/ingestion/deped_enrollment.json)
    ▼
 01 Control  pipeline_runs · ingestion_batches · ingestion_batch_attempts · data_quality_results
@@ -32,7 +32,7 @@ Code: `src/ingestion/` ([module list](../src/ingestion/README.md)). SQL: `etl/01
 | What identifies a new delivery? | An archive SHA-256 not seen before |
 | What shows a delivery changed? | The same school year (from the file names) with a different SHA-256 |
 | Has this exact file been processed? | `ingestion_batches.status = 'succeeded'` for its `archive_sha256` |
-| Are previous versions kept? | Yes, in Source (dated folders, D-016) and in Bronze (`delivery_version`, D-015) |
+| Are previous versions kept? | Yes, in Source (never overwritten; later downloads in dated subfolders, D-016) and in Bronze (`delivery_version`, D-015) |
 | Is the delivery valid? | The checks under [Validation](#validation) |
 | Can it be rerun safely? | Yes: a succeeded file is skipped, and a forced rerun inserts nothing |
 | Where did each row come from? | Its provenance columns, joined to `ingestion_batches` and `pipeline_runs` |
@@ -53,20 +53,22 @@ The school year is read from both the archive name (`Enrollment-in-SY-2025-2026.
 
 ## Storage layout
 
-Raw files are kept exactly as downloaded, in a dated folder per download (D-016, provisional until #10):
+Raw files are kept exactly as downloaded and are never overwritten (D-016, provisional). The first downloads are in the publisher folder; any later download goes into a dated subfolder:
 
 ```
 /Volumes/edu_access/00-source/raw/
 └── deped/
-    └── deped_enrollment/
-        └── 2026-09-28/
-            ├── Enrollment-in-SY-2023-2024.zip
-            ├── Enrollment-in-SY-2024-2025.zip
-            ├── Enrollment-in-SY-2025-2026.zip
-            └── SHA256SUMS.txt
+    ├── Enrollment-in-SY-2023-2024.zip      first downloads, uploaded 2026-09-30
+    ├── Enrollment-in-SY-2024-2025.zip
+    ├── Enrollment-in-SY-2025-2026.zip
+    ├── SHA256SUMS.txt                      covers every file in this folder
+    ├── ...                                 other DepEd sources
+    └── 2027-08-15/                         a later download (example date)
+        ├── Enrollment-in-SY-2026-2027.zip
+        └── SHA256SUMS.txt
 ```
 
-A dated folder is never changed after upload. A re-download goes into a new dated folder, so two versions of a file sit side by side. The pipeline searches `raw/deped/` at any depth and identifies files by checksum, so it also works with the flat local layout used for profiling (`raw-data/deped/original/`).
+A re-download of a published file therefore sits beside the earlier one. The pipeline searches `raw/deped/` at any depth and identifies files by checksum, so the layout does not matter to it, and it also works with the flat local layout used for profiling (`raw-data/deped/original/`).
 
 ## Validation
 
@@ -185,21 +187,21 @@ python -m src.ingestion.cli ddl --source deped_enrollment > etl/02_bronze/01_cre
 
 ## Running on Databricks
 
-**Not done yet.** These are the steps for the one deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files uploaded (#10), the commit merged and pushed, and the run announced to the team (workflow, Part 5).
+**Not done yet.** These are the steps for the one deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
 
-1. Upload the raw files (#10), into a dated folder, unchanged:
+1. Raw files. The three enrollment zips are already in `/Volumes/edu_access/00-source/raw/deped/` (checked 2026-10-06: sizes match the source card, and the folder's `SHA256SUMS.txt` lists the approved checksums). The first run hashes every zip itself, so a damaged upload is blocked, not loaded. For a later download, list the folder first, then upload into a new dated folder, never over an existing file:
 
    ```bash
-   databricks fs mkdir dbfs:/Volumes/edu_access/00-source/raw/deped/deped_enrollment/2026-09-28 --profile reached-hq
+   databricks fs ls dbfs:/Volumes/edu_access/00-source/raw/deped/ --profile reached-hq
    ```
 
    ```bash
-   databricks fs cp "$RAW_DATA_DIR/deped/original/Enrollment-in-SY-2023-2024.zip" dbfs:/Volumes/edu_access/00-source/raw/deped/deped_enrollment/2026-09-28/ --profile reached-hq
+   databricks fs cp "$RAW_DATA_DIR/deped/original/Enrollment-in-SY-2026-2027.zip" dbfs:/Volumes/edu_access/00-source/raw/deped/2027-08-15/ --profile reached-hq
    ```
 
-   Repeat for the 2024-2025 and 2025-2026 zips and a `SHA256SUMS.txt` covering them. The first run verifies every checksum, so a damaged upload is blocked, not loaded.
+   Then upload that folder's `SHA256SUMS.txt`.
 
-2. Deploy from a clean, pushed `main`. `${bundle.git.commit}` is `HEAD`, and the job clones that commit from GitHub:
+2. Deploy from a clean checkout of a pushed commit: the pull request branch for the confirmation run, `main` afterwards. `${bundle.git.commit}` is `HEAD`, and the job clones that commit from GitHub:
 
    ```bash
    git switch main && git pull --ff-only && git status --short
@@ -293,7 +295,7 @@ Bronze preserves; Silver cleans. Silver (#43) should:
 ## Runbook
 
 **1. How do I add a new DepEd school year?**
-Download the zip from the official page; do not rename or open-and-save it. Profile it and update the source card (checksums, encoding, rows). Add the delivery to `config/ingestion/deped_enrollment.json` (and a schema version if the header changed; then regenerate the DDL), and merge the pull request. Upload the zip to a new dated folder. Run the job. An older year loads as `backfill`, a newer one as `incremental`; other years are untouched.
+Download the zip from the official page; do not rename or open-and-save it. Profile it and update the source card (checksums, encoding, rows). Add the delivery to `config/ingestion/deped_enrollment.json` (and a schema version if the header changed; then regenerate the DDL), and merge the pull request. Upload the zip to `raw/deped/<download date>/`, never over an existing file. Run the job. An older year loads as `backfill`, a newer one as `incremental`; other years are untouched.
 
 **2. How do I know whether it was already processed?**
 `python -m src.ingestion.cli status --source deped_enrollment` locally, or the first validation query on Databricks. Look up the file's SHA-256: `succeeded` means processed.
@@ -334,7 +336,8 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 | Question | Default until decided | Where |
 |---|---|---|
 | Should the latest version of a school year always be current, or do revisions need review first? | Latest succeeded version | D-015 |
-| Is the dated raw layout accepted for #10? | Dated folders | D-016 |
+| Are per-publisher raw folders enough, given #10 asked for one folder per source? | First downloads flat in `raw/deped/`, later ones in dated subfolders | D-016 |
+| When is a `prod` target added, and how is its data kept apart from `dev`? There is one workspace and one catalog, and `edu_access` is hardcoded in the SQL and `store.py` | `dev` only | Before #47 |
 | How long are superseded versions kept in Bronze and Source? | Forever | Not yet logged |
 | Who can approve a delivery, and does `deped_enrollment` move to `accepted` before a `prod` target exists? | Any reviewer; stays `profiled` | Team |
 | Should a blank `school_id` fail the whole year, or be quarantined in Silver? | Fail the batch (none observed) | Profile O-1 |
