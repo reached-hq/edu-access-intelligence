@@ -2,77 +2,162 @@
 """
 Administrative boundaries source profiling
 
-Purpose:
-- Profile Philippine administrative boundary data:
-    1. City/municipality boundaries (ADM3)
-    2. Barangay boundaries (ADM4)
+Profiles the retained Philippine administrative boundary GeoJSON extracts.
 
-Source files:
-    /Volumes/edu_access/00-source/raw/admin_boundaries/
+Generates:
+    docs/source_inventory/hdx_boundaries/profile.md
 
-Output:
-    docs/source_inventory/admin_boundaries/profile.md
+The script loads the retained ADM3 and ADM4 GeoJSON files,
+profiles their structure, identifiers, geometry, hierarchy, source
+metadata, file integrity, and compatibility with the current PSGC
+publication.
+
+Findings:
+    O-1  Extracted file structure
+    O-2  Schema
+    O-3  Row counts and geographic coverage
+    O-4  Administrative code uniqueness
+    O-5  Missing administrative identifiers
+    O-6  Geometry types
+    O-7  Coordinate reference system
+    O-8  Geometry validity
+    O-9  Administrative hierarchy
+    O-10 Source metadata
+    O-11 ADM3 code compatibility with PSGC
+
+Suspected findings:
+    S-1  Boundary codes may require a validated PSGC crosswalk
+    S-2  Boundary source version may differ from current PSGC
+    S-3  Spatial joins should be performed using geometry rather than names
 """
 
-# %%
+
+# %% Setup
+
+import hashlib
+import sys
+from datetime import date
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
 
 
-# %%
-# Paths
+def find_repo():
+    """Repo root: from this file's location, or by searching upward from
+    the working folder when run cell by cell."""
+    try:
+        return Path(__file__).resolve().parents[2]
+    except NameError:
+        here = Path.cwd().resolve()
 
-DATA_DIR = Path(
-    "/Volumes/edu_access/00-source/raw/admin_boundaries"
-)
+        for folder in [here, *here.parents]:
+            if (
+                (folder / "config" / "sources.json").exists()
+                or (folder / ".git").exists()
+            ):
+                return folder
 
-REPO = Path.cwd()
+        sys.exit(
+            "Open the repo folder in VS Code (or cd into it) before "
+            "running cell by cell."
+        )
+
+
+REPO = find_repo()
 
 OUTPUT = (
     REPO
     / "docs"
     / "source_inventory"
-    / "admin_boundaries"
+    / "hdx_boundaries"
     / "profile.md"
+)
+
+PROFILED_BY = "@saraevcldn"
+PROFILE_DATE = date.today().isoformat()
+
+DATA_DIR = Path(
+    "/Volumes/edu_access/00-source/raw/admin_boundaries"
 )
 
 PSGC_FILE = Path(
     "/Volumes/edu_access/00-source/raw/psa/PSGC-2Q-2026-Publication-Datafile.xlsx"
 )
 
-
-# %%
-# Input files
-
 FILES = {
-    "adm3": DATA_DIR / "phl_admin3.parquet",
-    "adm4": DATA_DIR / "phl_admin4.parquet",
+    "adm3": DATA_DIR / "phl_admin3.geojson",
+    "adm4": DATA_DIR / "phl_admin4.geojson",
 }
 
 
-# %%
-# Helper functions
+# %% Helpers
 
-def format_table(headers, data):
-    """Create a simple Markdown table."""
-    lines = []
+findings = []
+suspected = []
 
-    lines.append("| " + " | ".join(headers) + " |")
-    lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
 
-    for row in data:
-        lines.append(
-            "| "
-            + " | ".join(
-                "" if value is None else str(value)
-                for value in row
-            )
-            + " |"
-        )
+def show(finding, text):
+    print(f"[BOUNDARIES {finding}] {text}")
 
-    return "\n".join(lines)
+    findings.append(
+        {
+            "id": finding,
+            "finding": text,
+        }
+    )
+
+
+def show_suspected(finding, text, test):
+    print(f"[BOUNDARIES {finding}] {text}")
+
+    suspected.append(
+        {
+            "id": finding,
+            "suspicion": text,
+            "test": test,
+        }
+    )
+
+
+def format_pct(value):
+    return f"{value:.2f}%"
+
+
+def format_values(values):
+    if not values:
+        return "none"
+
+    return ", ".join(
+        f"`{value}`"
+        for value in values
+    )
+
+
+def crs_label(crs):
+    if crs is None:
+        return "UNAVAILABLE"
+
+    crs_text = crs.to_string()
+
+    if crs_text == "OGC:CRS84":
+        return "CRS84 (WGS 84)"
+
+    if crs.to_epsg() == 4326:
+        return "EPSG:4326 (WGS 84)"
+
+    return crs_text
+
+
+def sha256_file(path):
+    """Return SHA-256 checksum for a file."""
+    h = hashlib.sha256()
+
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+
+    return h.hexdigest()
 
 
 def file_size_mb(path):
@@ -80,21 +165,20 @@ def file_size_mb(path):
     return path.stat().st_size / (1024 * 1024)
 
 
-# %%
-# Check input files
+# %% Verify retained source files
 
 for name, path in FILES.items():
     if not path.exists():
         raise FileNotFoundError(
-            f"Missing {name} file:\n{path}"
+            f"Retained {name} file not found: {path}"
         )
 
 if not PSGC_FILE.exists():
     raise FileNotFoundError(
-        f"Missing PSGC file:\n{PSGC_FILE}"
+        f"PSGC file not found: {PSGC_FILE}"
     )
 
-print("Administrative boundary files found.")
+print("Administrative boundary source files found.")
 
 for name, path in FILES.items():
     print(f"- {name}: {path}")
@@ -102,17 +186,36 @@ for name, path in FILES.items():
 print(f"- PSGC: {PSGC_FILE}")
 
 
-# %%
-# Load source files
+# %% File integrity
 
-adm3 = gpd.read_parquet(FILES["adm3"])
-adm4 = gpd.read_parquet(FILES["adm4"])
+file_metadata = {}
+
+for name, path in FILES.items():
+    size_bytes = path.stat().st_size
+    size_mb = file_size_mb(path)
+    sha256 = sha256_file(path)
+
+    file_metadata[name] = {
+        "size_bytes": size_bytes,
+        "size_mb": size_mb,
+        "sha256": sha256,
+    }
+
+    print(f"{name.upper()}:")
+    print(f"  File: {path.name}")
+    print(f"  Size: {size_bytes:,} bytes ({size_mb:.2f} MB)")
+    print(f"  SHA-256: {sha256}")
+
+
+# %% Load retained source files
+
+adm3 = gpd.read_file(FILES["adm3"])
+adm4 = gpd.read_file(FILES["adm4"])
 
 print("Administrative boundary files loaded.")
 
 
-# %%
-# O-1. Extracted file structure
+# %% O-1 Extracted file structure
 
 file_rows = []
 
@@ -123,53 +226,45 @@ for key, path in FILES.items():
         (
             key.upper(),
             path.name,
-            str(path),
-            f"{file_size_mb(path):.2f}",
-            len(gdf),
+            f"{path.stat().st_size:,} bytes",
+            f"{len(gdf):,}",
         )
     )
 
-file_table = format_table(
-    [
-        "Layer",
-        "File",
-        "Path",
-        "File size (MB)",
-        "Rows",
-    ],
-    file_rows,
+show(
+    "O-1",
+    "Administrative boundary files: "
+    + "; ".join(
+        f"{layer}={rows} rows"
+        for layer, _, _, rows in file_rows
+    )
+    + ".",
 )
 
 
-# %%
-# O-2. Schema
+# %% O-2 Schema
 
 adm3_columns = list(adm3.columns)
 adm4_columns = list(adm4.columns)
 
 adm3_schema = [
-    (column, str(adm3[column].dtype))
+    f"{column} ({adm3[column].dtype})"
     for column in adm3.columns
 ]
 
 adm4_schema = [
-    (column, str(adm4[column].dtype))
+    f"{column} ({adm4[column].dtype})"
     for column in adm4.columns
 ]
 
-adm3_schema_table = format_table(
-    ["Column", "Data type"],
-    adm3_schema,
-)
-
-adm4_schema_table = format_table(
-    ["Column", "Data type"],
-    adm4_schema,
+show(
+    "O-2",
+    f"ADM3 columns={adm3_columns}; "
+    f"ADM4 columns={adm4_columns}.",
 )
 
 
-# %%
-# O-3. Row counts and geographic coverage
+# %% O-3 Row counts and geographic coverage
 
 adm3_row_count = len(adm3)
 adm4_row_count = len(adm4)
@@ -177,53 +272,62 @@ adm4_row_count = len(adm4)
 adm3_code_count = adm3["adm3_pcode"].nunique()
 adm4_code_count = adm4["adm4_pcode"].nunique()
 
-
-# %%
-# O-4. Administrative code uniqueness
-
-adm3_duplicate_codes = (
-    adm3["adm3_pcode"]
-    .duplicated()
-    .sum()
-)
-
-adm4_duplicate_codes = (
-    adm4["adm4_pcode"]
-    .duplicated()
-    .sum()
+show(
+    "O-3",
+    f"ADM3: {adm3_row_count:,} rows and "
+    f"{adm3_code_count:,} unique administrative codes; "
+    f"ADM4: {adm4_row_count:,} rows and "
+    f"{adm4_code_count:,} unique administrative codes.",
 )
 
 
-# %%
-# O-5. Missing administrative identifiers
+# %% O-4 Administrative code uniqueness
 
-adm3_missing_code = (
-    adm3["adm3_pcode"]
-    .isna()
-    .sum()
+adm3_duplicate_codes = int(
+    adm3["adm3_pcode"].duplicated().sum()
 )
 
-adm4_missing_code = (
-    adm4["adm4_pcode"]
-    .isna()
-    .sum()
+adm4_duplicate_codes = int(
+    adm4["adm4_pcode"].duplicated().sum()
 )
 
-adm3_missing_name = (
-    adm3["adm3_name"]
-    .isna()
-    .sum()
-)
-
-adm4_missing_name = (
-    adm4["adm4_name"]
-    .isna()
-    .sum()
+show(
+    "O-4",
+    f"Duplicate administrative codes: "
+    f"ADM3={adm3_duplicate_codes:,}, "
+    f"ADM4={adm4_duplicate_codes:,}.",
 )
 
 
-# %%
-# O-6. Geometry types
+# %% O-5 Missing administrative identifiers
+
+adm3_missing_code = int(
+    adm3["adm3_pcode"].isna().sum()
+)
+
+adm4_missing_code = int(
+    adm4["adm4_pcode"].isna().sum()
+)
+
+adm3_missing_name = int(
+    adm3["adm3_name"].isna().sum()
+)
+
+adm4_missing_name = int(
+    adm4["adm4_name"].isna().sum()
+)
+
+show(
+    "O-5",
+    f"Missing identifiers: "
+    f"ADM3 pcode={adm3_missing_code:,}, "
+    f"name={adm3_missing_name:,}; "
+    f"ADM4 pcode={adm4_missing_code:,}, "
+    f"name={adm4_missing_name:,}.",
+)
+
+
+# %% O-6 Geometry types
 
 adm3_geometry_counts = (
     adm3.geometry
@@ -239,39 +343,19 @@ adm4_geometry_counts = (
     .sort_index()
 )
 
-adm3_geometry_table = format_table(
-    ["Geometry type", "Records"],
-    [
-        (geometry_type, count)
-        for geometry_type, count
-        in adm3_geometry_counts.items()
-    ],
-)
-
-adm4_geometry_table = format_table(
-    ["Geometry type", "Records"],
-    [
-        (geometry_type, count)
-        for geometry_type, count
-        in adm4_geometry_counts.items()
-    ],
+show(
+    "O-6",
+    f"ADM3 geometry types="
+    f"{adm3_geometry_counts.to_dict()}; "
+    f"ADM4 geometry types="
+    f"{adm4_geometry_counts.to_dict()}.",
 )
 
 
-# %%
-# O-7. Coordinate reference system
+# %% O-7 Coordinate reference system
 
-adm3_crs_name = (
-    adm3.crs.name
-    if adm3.crs
-    else None
-)
-
-adm4_crs_name = (
-    adm4.crs.name
-    if adm4.crs
-    else None
-)
+adm3_crs_name = crs_label(adm3.crs)
+adm4_crs_name = crs_label(adm4.crs)
 
 adm3_epsg = (
     adm3.crs.to_epsg()
@@ -285,68 +369,82 @@ adm4_epsg = (
     else None
 )
 
-
-# %%
-# O-8. Geometry validity
-
-adm3_empty_geometry = (
-    adm3.geometry.is_empty
-    .sum()
-)
-
-adm4_empty_geometry = (
-    adm4.geometry.is_empty
-    .sum()
-)
-
-adm3_invalid_geometry = (
-    (~adm3.geometry.is_valid)
-    .sum()
-)
-
-adm4_invalid_geometry = (
-    (~adm4.geometry.is_valid)
-    .sum()
-)
-
-adm3_missing_geometry = (
-    adm3.geometry.isna()
-    .sum()
-)
-
-adm4_missing_geometry = (
-    adm4.geometry.isna()
-    .sum()
+show(
+    "O-7",
+    f"ADM3 CRS={adm3_crs_name} "
+    f"(EPSG={adm3_epsg}); "
+    f"ADM4 CRS={adm4_crs_name} "
+    f"(EPSG={adm4_epsg}).",
 )
 
 
-# %%
-# O-9. Administrative hierarchy
+# %% O-8 Geometry validity
 
-adm4_missing_parent_adm3 = (
-    adm4["adm3_pcode"]
-    .isna()
-    .sum()
+adm3_empty_geometry = int(
+    adm3.geometry.is_empty.sum()
+)
+
+adm4_empty_geometry = int(
+    adm4.geometry.is_empty.sum()
+)
+
+adm3_invalid_geometry = int(
+    (~adm3.geometry.is_valid).sum()
+)
+
+adm4_invalid_geometry = int(
+    (~adm4.geometry.is_valid).sum()
+)
+
+adm3_missing_geometry = int(
+    adm3.geometry.isna().sum()
+)
+
+adm4_missing_geometry = int(
+    adm4.geometry.isna().sum()
+)
+
+show(
+    "O-8",
+    f"Geometry validation: "
+    f"ADM3 missing={adm3_missing_geometry:,}, "
+    f"empty={adm3_empty_geometry:,}, "
+    f"invalid={adm3_invalid_geometry:,}; "
+    f"ADM4 missing={adm4_missing_geometry:,}, "
+    f"empty={adm4_empty_geometry:,}, "
+    f"invalid={adm4_invalid_geometry:,}.",
+)
+
+
+# %% O-9 Administrative hierarchy
+
+adm4_missing_parent_adm3 = int(
+    adm4["adm3_pcode"].isna().sum()
 )
 
 adm4_parent_adm3_count = (
-    adm4["adm3_pcode"]
-    .nunique()
+    adm4["adm3_pcode"].nunique()
 )
 
 adm3_province_count = (
-    adm3["adm2_pcode"]
-    .nunique()
+    adm3["adm2_pcode"].nunique()
 )
 
 adm3_region_count = (
-    adm3["adm1_pcode"]
-    .nunique()
+    adm3["adm1_pcode"].nunique()
+)
+
+show(
+    "O-9",
+    f"ADM3 represents {adm3_province_count:,} provinces "
+    f"across {adm3_region_count:,} regions; "
+    f"ADM4 has {adm4_parent_adm3_count:,} distinct parent "
+    f"ADM3 codes and {adm4_missing_parent_adm3:,} missing "
+    f"parent ADM3 codes.",
 )
 
 
-# %%
-# O-10. Source metadata
+# %% O-10 Source metadata
 
 adm3_valid_on = (
     adm3["valid_on"]
@@ -380,54 +478,49 @@ adm4_versions = (
     .tolist()
 )
 
+show(
+    "O-10",
+    f"ADM3 valid_on={adm3_valid_on or 'none'}, "
+    f"version={adm3_versions or 'none'}; "
+    f"ADM4 valid_on={adm4_valid_on or 'none'}, "
+    f"version={adm4_versions or 'none'}.",
+)
 
-# %%
-# O-11. PSGC compatibility
 
-# Load the current PSGC publication datafile.
+# %% O-11 ADM3 code compatibility with PSGC
+
 psgc = pd.read_excel(
     PSGC_FILE,
     sheet_name="PSGC",
 )
 
-# Keep only city and municipality records because
-# ADM3 represents cities and municipalities.
 psgc_city_mun = psgc[
-    psgc["Geographic Level"].isin(["City", "Mun"])
+    psgc["Geographic Level"].isin(
+        ["City", "Mun"]
+    )
 ].copy()
-
-# The boundary source uses codes such as:
-# PH0102802
-#
-# The PSGC uses 10-digit codes such as:
-# 0102802000
-#
-# Convert the boundary code into the corresponding
-# 10-digit structure for the exact-code comparison.
 
 adm3_psgc_codes = (
     adm3["adm3_pcode"]
-    .astype(str)
+    .astype("string")
     .str.replace(r"^PH", "", regex=True)
     .str.zfill(7)
     .add("000")
 )
 
-# Read PSGC codes as strings so leading zeros are preserved.
 psgc_codes = (
     psgc_city_mun["10-digit PSGC"]
-    .astype(str)
+    .astype("string")
     .str.replace(r"\.0$", "", regex=True)
     .str.zfill(10)
 )
 
-psgc_code_set = set(psgc_codes)
+psgc_code_set = set(
+    psgc_codes.dropna()
+)
 
-# Count boundary records whose converted code
-# exists exactly in the current PSGC city/municipality list.
-adm3_exact_psgc_matches = (
-    adm3_psgc_codes.isin(psgc_code_set)
-    .sum()
+adm3_exact_psgc_matches = int(
+    adm3_psgc_codes.isin(psgc_code_set).sum()
 )
 
 adm3_psgc_mismatches = (
@@ -436,289 +529,303 @@ adm3_psgc_mismatches = (
 )
 
 adm3_psgc_match_rate = (
-    adm3_exact_psgc_matches / adm3_row_count
+    adm3_exact_psgc_matches
+    / adm3_row_count
+    * 100
     if adm3_row_count
     else 0
 )
 
-
-# %%
-# Build profile Markdown
-
-profile_md = f"""# Philippine administrative boundaries source profile
-
-## Purpose
-
-This profile documents the structure and observed data-quality
-characteristics of the Philippine administrative boundary data used
-by the Education Access Intelligence project.
-
-The profiling covers:
-
-1. City/municipality boundaries (`ADM3`)
-2. Barangay boundaries (`ADM4`)
-
-The boundary data is intended to provide geographic context for
-school locations and support spatial joins during later transformations.
-
-## Source data location
-
-The optimized GeoParquet files are stored in the Databricks source volume:
-
-`/Volumes/edu_access/00-source/raw/admin_boundaries/`
-
-The original source was published as GeoJSON. The GeoParquet files are
-derived local representations created to reduce storage size while
-preserving the spatial geometry.
-
-## O-1. Extracted file structure
-
-{file_table}
-
-## O-2. Schema
-
-### ADM3 — city/municipality
-
-{adm3_schema_table}
-
-Observed columns:
-
-`{", ".join(adm3_columns)}`
-
-### ADM4 — barangay
-
-{adm4_schema_table}
-
-Observed columns:
-
-`{", ".join(adm4_columns)}`
-
-## O-3. Row counts and geographic coverage
-
-### ADM3
-
-- Row count: **{adm3_row_count:,}**
-- Unique administrative codes: **{adm3_code_count:,}**
-
-### ADM4
-
-- Row count: **{adm4_row_count:,}**
-- Unique administrative codes: **{adm4_code_count:,}**
-
-The ADM3 layer represents city/municipality boundaries.
-The ADM4 layer represents barangay boundaries.
-
-## O-4. Administrative code uniqueness
-
-### ADM3
-
-- Duplicate `adm3_pcode` records: **{adm3_duplicate_codes:,}**
-
-### ADM4
-
-- Duplicate `adm4_pcode` records: **{adm4_duplicate_codes:,}**
-
-Each observed administrative code is unique within its respective layer.
-
-## O-5. Missing administrative identifiers
-
-### ADM3
-
-- Missing `adm3_pcode`: **{adm3_missing_code:,}**
-- Missing `adm3_name`: **{adm3_missing_name:,}**
-
-### ADM4
-
-- Missing `adm4_pcode`: **{adm4_missing_code:,}**
-- Missing `adm4_name`: **{adm4_missing_name:,}**
-
-## O-6. Geometry types
-
-### ADM3
-
-{adm3_geometry_table}
-
-### ADM4
-
-{adm4_geometry_table}
-
-The boundary layers contain Polygon and MultiPolygon geometries.
-
-## O-7. Coordinate reference system
-
-### ADM3
-
-- CRS: **{adm3_crs_name}**
-- EPSG: **{adm3_epsg}**
-
-### ADM4
-
-- CRS: **{adm4_crs_name}**
-- EPSG: **{adm4_epsg}**
-
-Both layers use WGS 84 / EPSG:4326.
-
-## O-8. Geometry validity
-
-### ADM3
-
-- Missing geometries: **{adm3_missing_geometry:,}**
-- Empty geometries: **{adm3_empty_geometry:,}**
-- Invalid geometries: **{adm3_invalid_geometry:,}**
-
-### ADM4
-
-- Missing geometries: **{adm4_missing_geometry:,}**
-- Empty geometries: **{adm4_empty_geometry:,}**
-- Invalid geometries: **{adm4_invalid_geometry:,}**
-
-## O-9. Administrative hierarchy
-
-### ADM3
-
-- Distinct provinces represented by `adm2_pcode`: **{adm3_province_count:,}**
-- Distinct regions represented by `adm1_pcode`: **{adm3_region_count:,}**
-
-### ADM4
-
-- Distinct parent city/municipality codes: **{adm4_parent_adm3_count:,}**
-- Missing parent `adm3_pcode`: **{adm4_missing_parent_adm3:,}**
-
-The ADM4 layer contains the parent city/municipality code needed
-to relate barangays to their corresponding ADM3 area.
-
-## O-10. Source metadata
-
-### ADM3
-
-- `valid_on` values: **{", ".join(adm3_valid_on)}**
-- `version` values: **{", ".join(adm3_versions)}**
-
-### ADM4
-
-- `valid_on` values: **{", ".join(adm4_valid_on)}**
-- `version` values: **{", ".join(adm4_versions)}**
-
-## O-11. PSGC compatibility
-
-The ADM3 administrative codes were compared with the current
-Philippine Standard Geographic Code (PSGC) 2Q 2026 publication
-datafile.
-
-The boundary source uses `adm3_pcode` values such as `PH0102802`,
-while the PSGC uses 10-digit codes such as `0102802000`. The
-boundary codes were structurally converted to the equivalent
-10-digit format for this compatibility check.
-
-- Boundary ADM3 records checked: **{adm3_row_count:,}**
-- PSGC city/municipality records: **{len(psgc_city_mun):,}**
-- Exact code matches: **{adm3_exact_psgc_matches:,}**
-- Code mismatches: **{adm3_psgc_mismatches:,}**
-- Exact code match rate: **{adm3_psgc_match_rate:.2%}**
-
-This check measures exact structural correspondence between the
-two code systems. Records without an exact code match are not
-force-matched by name and require separate crosswalk validation
-before a PSGC code is assigned.
-
-## Analytical limitations
-
-### Administrative boundaries are geographic reference data
-
-The dataset provides administrative boundaries and identifiers.
-It does not provide:
-
-- school counts
-- enrollment
-- teachers
-- classrooms
-- population
-- education outcomes
-
-It should therefore be combined with DepEd, PSA, OSM, and other
-project datasets rather than treated as an education dataset.
-
-### Spatial join is a later transformation
-
-The boundary files are preserved as source/reference data.
-
-Matching OSM school points to barangay or city/municipality polygons
-should be performed during the Silver transformation layer.
-
-### PSGC compatibility
-
-An exact structural comparison was performed against the PSGC 2Q 2026
-publication datafile. Exact code correspondence was found for
-{adm3_exact_psgc_matches:,} of {adm3_row_count:,} ADM3 records.
-
-Records without exact code correspondence were not force-matched by
-name. A validated crosswalk is required before assigning a current
-PSGC code to those records.
-
-### Source representation
-
-The original source was acquired as GeoJSON. The Parquet files used
-in Databricks are derived GeoParquet representations created for
-more efficient storage and analytical processing.
-
-## Reproducibility
-
-Profiling script:
-
-`notebooks/profiling/profile_boundaries.py`
-
-Raw/optimized source location:
-
-`/Volumes/edu_access/00-source/raw/admin_boundaries/`
-
-Output:
-
-`docs/source_inventory/admin_boundaries/profile.md`
-"""
-
-
-# %%
-# Write profile
+show(
+    "O-11",
+    f"ADM3 converted-code comparison with current PSGC: "
+    f"{adm3_exact_psgc_matches:,}/{adm3_row_count:,} "
+    f"records matched "
+    f"({adm3_psgc_match_rate:.2f}%); "
+    f"{adm3_psgc_mismatches:,} did not match.",
+)
+
+
+# %% Suspected findings
+
+show_suspected(
+    "S-1",
+    "ADM3 boundary codes may require a validated PSGC "
+    "crosswalk before being treated as official PSGC identifiers.",
+    "Compare the boundary-derived codes against the current "
+    "PSGC publication and manually review mismatches. "
+    "Do not assign PSGC codes by name alone.",
+)
+
+
+show_suspected(
+    "S-2",
+    "The administrative boundary version may not represent "
+    "the same geographic edition as the current PSGC file.",
+    "Compare the boundary source version and valid_on metadata "
+    "with the PSGC publication date and review any changed, "
+    "created, merged, or renamed LGUs.",
+)
+
+
+show_suspected(
+    "S-3",
+    "Administrative names should not be used as the primary "
+    "join key when a geographic or validated code-based join "
+    "is available.",
+    "Use PSGC codes or validated crosswalks for tabular joins "
+    "and spatial joins for assigning geographic features to "
+    "administrative areas.",
+)
+
+
+# %% Build profile sections
+
+observed_rows = []
+
+for item in findings:
+    observed_rows.append(
+        "| "
+        + item["id"]
+        + " | "
+        + item["finding"]
+        + " | Profiling output from the retained "
+          "administrative boundary extracts. "
+        + " | Source integration finding. "
+        + " | See integration notes and suspected findings. |"
+    )
+
+
+suspected_rows = []
+
+for item in suspected:
+    suspected_rows.append(
+        "| "
+        + item["id"]
+        + " | "
+        + item["suspicion"]
+        + " | "
+        + item["test"]
+        + " | Open |"
+    )
+
+
+# %% Generate profile.md
 
 OUTPUT.parent.mkdir(
     parents=True,
     exist_ok=True,
 )
 
+
+summary_text = (
+    "The retained administrative boundary source contains "
+    f"{adm3_row_count:,} ADM3 city/municipality records and "
+    f"{adm4_row_count:,} ADM4 barangay records. "
+    f"The ADM3 layer contains {adm3_code_count:,} unique "
+    "administrative codes, while the ADM4 layer contains "
+    f"{adm4_code_count:,}. "
+    f"The ADM3 converted-code comparison matched "
+    f"{adm3_exact_psgc_matches:,} of {adm3_row_count:,} "
+    f"records ({adm3_psgc_match_rate:.2f}%) against the "
+    "current PSGC city/municipality list. "
+    "Administrative boundaries are treated as geographic "
+    "reference data and are not themselves an education "
+    "dataset."
+)
+
+
+profile_text = f"""# hdx_boundaries: profile
+
+_Generated by `notebooks/profiling/profile_boundaries.py`. Do not edit by hand; change the script and rerun._
+
+## Run details
+
+| Field | Value |
+|---|---|
+| Date profiled | {PROFILE_DATE} |
+| Profiled by | {PROFILED_BY} |
+| Tool | Python, GeoPandas {gpd.__version__}, Pandas {pd.__version__}, run locally |
+| Profiling script | [`notebooks/profiling/profile_boundaries.py`](../../../notebooks/profiling/profile_boundaries.py) |
+| ADM3 source | `phl_admin3.geojson` |
+| ADM4 source | `phl_admin4.geojson` |
+| Raw source path | `/Volumes/edu_access/00-source/raw/admin_boundaries/` |
+| PSGC reference | `PSGC-2Q-2026-Publication-Datafile.xlsx` |
+
+## How to rerun
+
+Run:
+
+`notebooks/profiling/profile_boundaries.py`
+
+The script:
+
+1. Verifies that the retained ADM3 and ADM4 source files exist.
+2. Calculates file size and SHA-256 checksums.
+3. Loads the GeoJSON boundary layers.
+4. Profiles identifiers, geometry, CRS, hierarchy, and source metadata.
+5. Compares ADM3 codes with the current PSGC city/municipality list.
+6. Regenerates:
+
+`docs/source_inventory/hdx_boundaries/profile.md`
+
+## Summary
+
+{summary_text}
+
+## Identity
+
+| Field | Value |
+|---|---|
+| Source | Philippine administrative boundary data |
+| Geographic levels | ADM3 city/municipality; ADM4 barangay |
+| Retained format | GeoJSON |
+| Primary ADM3 identifier | `adm3_pcode` |
+| Primary ADM4 identifier | `adm4_pcode` |
+| Geometry | Polygon / MultiPolygon |
+| PSGC reference | PSA 2Q 2026 PSGC publication |
+
+## Files
+
+| File | Status | Size | SHA-256 | Notes |
+|---|---|---:|---|---|
+| `phl_admin3.geojson` | Retained | {file_metadata["adm3"]["size_mb"]:.2f} MB | `{file_metadata["adm3"]["sha256"]}` | City/municipality administrative boundaries |
+| `phl_admin4.geojson` | Retained | {file_metadata["adm4"]["size_mb"]:.2f} MB | `{file_metadata["adm4"]["sha256"]}` | Barangay administrative boundaries |
+
+Exact file sizes:
+
+- `phl_admin3.geojson`: {file_metadata["adm3"]["size_bytes"]:,} bytes
+- `phl_admin4.geojson`: {file_metadata["adm4"]["size_bytes"]:,} bytes
+
+## Coverage
+
+### ADM3 — city/municipality
+
+| Metric | Result |
+|---|---:|
+| Rows | {adm3_row_count:,} |
+| Unique `adm3_pcode` | {adm3_code_count:,} |
+| Duplicate `adm3_pcode` | {adm3_duplicate_codes:,} |
+| Missing `adm3_pcode` | {adm3_missing_code:,} |
+| Missing `adm3_name` | {adm3_missing_name:,} |
+
+### ADM4 — barangay
+
+| Metric | Result |
+|---|---:|
+| Rows | {adm4_row_count:,} |
+| Unique `adm4_pcode` | {adm4_code_count:,} |
+| Duplicate `adm4_pcode` | {adm4_duplicate_codes:,} |
+| Missing `adm4_pcode` | {adm4_missing_code:,} |
+| Missing `adm4_name` | {adm4_missing_name:,} |
+
+## Structure
+
+### ADM3 schema
+
+| Column | Data type |
+|---|---|
+{chr(10).join(f"| `{column}` | `{adm3[column].dtype}` |" for column in adm3.columns)}
+
+### ADM4 schema
+
+| Column | Data type |
+|---|---|
+{chr(10).join(f"| `{column}` | `{adm4[column].dtype}` |" for column in adm4.columns)}
+
+### Geometry
+
+| Layer | Geometry types | CRS |
+|---|---|---|
+| ADM3 | {", ".join(adm3_geometry_counts.index)} | {adm3_crs_name} |
+| ADM4 | {", ".join(adm4_geometry_counts.index)} | {adm4_crs_name} |
+
+### Geometry validation
+
+| Check | ADM3 | ADM4 |
+|---|---:|---:|
+| Missing geometry | {adm3_missing_geometry:,} | {adm4_missing_geometry:,} |
+| Empty geometry | {adm3_empty_geometry:,} | {adm4_empty_geometry:,} |
+| Invalid geometry | {adm3_invalid_geometry:,} | {adm4_invalid_geometry:,} |
+
+## Administrative hierarchy
+
+| Metric | Result |
+|---|---:|
+| ADM3 provinces represented | {adm3_province_count:,} |
+| ADM3 regions represented | {adm3_region_count:,} |
+| ADM4 parent ADM3 codes | {adm4_parent_adm3_count:,} |
+| ADM4 missing parent ADM3 code | {adm4_missing_parent_adm3:,} |
+
+The ADM4 layer contains a parent `adm3_pcode`, allowing barangays to be related to their corresponding city or municipality.
+
+## Source metadata
+
+### ADM3
+
+| Field | Values |
+|---|---|
+| `valid_on` | {format_values(adm3_valid_on)} |
+| `version` | {format_values(adm3_versions)} |
+
+### ADM4
+
+| Field | Values |
+|---|---|
+| `valid_on` | {format_values(adm4_valid_on)} |
+| `version` | {format_values(adm4_versions)} |
+
+## PSGC compatibility
+
+The ADM3 `adm3_pcode` values were structurally converted to a 10-digit representation for comparison with the PSA 2Q 2026 PSGC city/municipality records.
+
+| Metric | Result |
+|---|---:|
+| ADM3 records checked | {adm3_row_count:,} |
+| PSGC city/municipality records | {len(psgc_city_mun):,} |
+| Converted-code matches | {adm3_exact_psgc_matches:,} |
+| Converted-code mismatches | {adm3_psgc_mismatches:,} |
+| Match rate | {adm3_psgc_match_rate:.2f}% |
+
+This is a compatibility check only. The converted boundary code should not automatically be treated as an official PSGC assignment. Records without an exact correspondence require a validated crosswalk before being joined to PSGC-based datasets.
+
+## Observed findings
+
+| ID | Finding | Evidence | Impact | Proposed handling |
+|---|---|---|---|---|
+{chr(10).join(observed_rows)}
+
+## Suspected findings
+
+| ID | Suspicion | How to test | Status |
+|---|---|---|---|
+{chr(10).join(suspected_rows)}
+
+## Capstone integration notes
+
+- Use administrative boundaries as the geographic reference layer.
+- Use `adm3_pcode` / validated PSGC crosswalks rather than LGU names as the primary tabular join mechanism.
+- Use ADM3 boundaries for the project's city/municipality-level analysis.
+- Use ADM4 boundaries only where barangay-level analysis is required and the underlying data supports it.
+- Use spatial joins to assign OSM features to administrative areas.
+- Do not treat administrative boundaries as an education-capacity dataset.
+- Preserve the source version/date because administrative boundaries can change over time.
+
+## Questions for the publisher or mentor
+
+- Is this boundary source the preferred administrative-boundary source for the capstone?
+- Should ADM3 be the standard geographic grain for the MVP?
+- Should ADM4 be retained for possible future barangay-level analysis?
+- Should the project maintain a formal PSGC crosswalk between the boundary source and the PSA PSGC publication?
+"""
+
+
+# %% Write profile
+
 OUTPUT.write_text(
-    profile_md,
+    profile_text,
     encoding="utf-8",
 )
 
-print(f"Profile written to: {OUTPUT}")
-
-
-# %%
-# Summary
-
 print()
-print("Administrative boundary profiling complete.")
-print()
-
-print(f"ADM3 rows:               {adm3_row_count:,}")
-print(f"ADM3 unique codes:       {adm3_code_count:,}")
-print(f"ADM3 duplicate codes:    {adm3_duplicate_codes:,}")
-print(f"ADM3 invalid geometries: {adm3_invalid_geometry:,}")
-
-print()
-
-print(f"ADM4 rows:               {adm4_row_count:,}")
-print(f"ADM4 unique codes:       {adm4_code_count:,}")
-print(f"ADM4 duplicate codes:    {adm4_duplicate_codes:,}")
-print(f"ADM4 invalid geometries: {adm4_invalid_geometry:,}")
-
-print()
-
-print(f"PSGC City/Mun records:   {len(psgc_city_mun):,}")
-print(f"PSGC exact matches:      {adm3_exact_psgc_matches:,}")
-print(f"PSGC code mismatches:    {adm3_psgc_mismatches:,}")
-print(f"PSGC exact match rate:   {adm3_psgc_match_rate:.2%}")
-
-print()
-
-print(f"Output: {OUTPUT}")
+print(f"Generated profile: {OUTPUT}")
