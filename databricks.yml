@@ -3,7 +3,7 @@
 # Change the job by changing this file and deploying, not by editing it in the
 # workspace: a UI edit does not reach this file, and the next deploy overwrites it.
 #
-# Jobs so far: bronze_ingest (#11). Dashboards come in milestone 04 (Serve).
+# Jobs so far: bronze_ingest (#11), one task per source. Dashboards come in milestone 04 (Serve).
 # Commands and checks: docs/ingestion.md, "Running on Databricks".
 bundle:
   name: edu-access-intelligence
@@ -57,6 +57,31 @@ resources:
               - spark
               - --source
               - deped_enrollment
+              - --landing
+              - /Volumes/edu_access/00-source/raw
+              - --environment
+              - ${bundle.target}
+              - --code-revision
+              - "{{job.parameters.code_revision}}"
+
+        # One source per task, one after another: parallel tasks would compete
+        # for Free Edition's serverless capacity. ALL_DONE runs the next source
+        # even if the previous one failed, so one bad delivery does not hold
+        # back the others; the job still ends failed.
+        - task_key: bronze_deped_facilities
+          depends_on:
+            - task_key: bronze_deped_enrollment
+          run_if: ALL_DONE
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            source: GIT
+            parameters:
+              - ingest
+              - --backend
+              - spark
+              - --source
+              - deped_facilities
               - --landing
               - /Volumes/edu_access/00-source/raw
               - --environment

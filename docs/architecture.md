@@ -95,7 +95,7 @@ Bronze checks are listed in [ingestion.md, Validation](ingestion.md#validation).
 
 <!-- TODO(Phase 6): task order for the full pipeline. -->
 
-`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. It has no schedule during development, runs one at a time, and is safe to rerun.
+`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
 
 ## Environments and deployment
 
