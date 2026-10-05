@@ -154,6 +154,28 @@
       "format": "xlsx",
       "years": ["2018", "2021", "2023"],
       "owner": "maeveylain"
+    },
+    {
+      "source_id": "psa_population_per_barangay",
+      "name": "PSA 2024 population by barangay",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "2024 Census of Population (2024 POPCEN)",
+      "acquisition": "https://psa.gov.ph/statistics/population-and-housing/node/1684077791",
+      "format": "18 regional xlsx workbooks",
+      "publication": "Population as of 01 July 2024",
+      "owner": "mafelisilda"
+    },
+    {
+      "source_id": "psa_population_per_age_group",
+      "name": "PSA 2024 household population by age group",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "PSA OpenSTAT, 2024 Census of Population",
+      "acquisition": "https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/?tablelist=true",
+      "format": "CSV",
+      "publication": "2024 Census of Population",
+      "owner": "mafelisilda"
     }
   ]
 }
