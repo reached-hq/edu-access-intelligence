@@ -20,7 +20,7 @@ Raw files are kept outside git. Row count excludes the title and header records.
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Household Population by Age-Group Region, Province, and Highly Urbanized City- Philippines, 2024 Census of Population.csv` | CSV | UTF-8, CRLF; 38 encoded `U+FFFD` replacement characters | 131,051 | 2,603 | `ce797046a055f870c30f5a2ce6d42b4bdc8f14f4dd8145269f450372c6c93ad6` | Local; governed raw-storage upload pending |
+| `Household Population by Age-Group Region, Province, and Highly Urbanized City- Philippines, 2024 Census of Population.csv` | CSV | UTF-8, CRLF; 38 encoded `U+FFFD` replacement characters | 131,051 | 2,603 | `ce797046a055f870c30f5a2ce6d42b4bdc8f14f4dd8145269f450372c6c93ad6` | Governed raw storage; uploaded |
 
 ## Publisher documentation
 
@@ -28,7 +28,7 @@ Raw files are kept outside git. Row count excludes the title and header records.
 |---|---|---|---|
 | PSA OpenSTAT 2024 population table listing | https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/?tablelist=true | Live web resource; checksum not captured | Publisher, table title, table selection, and source system |
 | OpenSTAT API metadata for table `0201A6DPAG0.px` | https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/1A/PO_2024/0201A6DPAG0.px | Live JSON resource; checksum not captured | Exact table title; age-group, geography, and sex dimensions; category labels; 10-digit geographic codes |
-| PSA OpenSTAT 2024 population, land area, and density table `0221A6DLPD0.px` | https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/ | Live web resource; checksum not captured | Publisher footnote defining `*` as province population excluding HUC counts |
+| PSA OpenSTAT table `0221A6DLPD0.px`, "Population, Land Area, Population Density, and Percent Change in Population Density by Region, Province/Highly Urbanized City, and City/Municipality: 2015, 2020, and 2024" | https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/ | Live web resource; checksum not captured | Publisher footnote defining `*` as province population excluding HUC counts |
 | CSV title and header | Inside the inventoried file | File checksum above | Delivered title, column names, and exported layout |
 
 ## Coverage
@@ -80,7 +80,7 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** the six affected region-by-age child sums do not reconcile to published region totals, while all national totals reconcile to the 18 region totals.
 - **Observed:** 38 rows across `City of Las Piñas` and `City of Parañaque` contain `U+FFFD` in place of `ñ`; the original characters cannot be reconstructed from this file alone.
 - **Observed:** the CSV omits the 10-digit geographic codes available in the table API, making names and footnote-bearing labels the only delivered join material.
-- **Observed:** 25 geographic labels include asterisks, slash-number footnote markers, or both. A companion official PSA 2024 table defines `*` as province population excluding separately reported HUC counts. The marker is absent from Agusan del Norte in this file even though Butuan is listed separately.
+- **Observed:** 25 geographic labels include asterisks, slash-number footnote markers, or both. PSA OpenSTAT table `0221A6DLPD0.px`, titled "Population, Land Area, Population Density, and Percent Change in Population Density by Region, Province/Highly Urbanized City, and City/Municipality: 2015, 2020, and 2024," defines `*` as province population excluding separately reported HUC counts. The marker is absent from Agusan del Norte in this file even though Butuan is listed separately.
 - **Observed:** leading periods encode geographic display hierarchy rather than being part of the place name.
 - **Suspected:** the affected `Both Sexes` values may reflect a table-generation or export alignment defect. No correction is applied without publisher confirmation.
 

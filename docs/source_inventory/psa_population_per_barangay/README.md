@@ -20,24 +20,24 @@ Raw files are kept outside git. Counts below are normalized barangay rows from v
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `NCR_2.xlsx` | XLSX, 17 visible sheets | n/a | 94,875 | 1,715 | `9a336a2548ac3b41a84fa982a5915d8d1d0d467669449e2257e602130e97d773` | Local; governed raw-storage upload pending |
-| `CAR_0.xlsx` | XLSX, 7 visible sheets | n/a | 60,032 | 1,178 | `dea26637d31269e6de78b41823af0485443c8de3d0d66168d16b6becba9057a2` | Local; governed raw-storage upload pending |
-| `Region I_1.xlsx` | XLSX, 4 visible sheets | n/a | 97,629 | 3,267 | `0e08d47b19f719f91354a7d021aebea0fa87fbc6b45eb4e1558b42e070bd0944` | Local; governed raw-storage upload pending |
-| `Region II_1.xlsx` | XLSX, 5 visible sheets | n/a | 77,435 | 2,311 | `bcc8f0608d5f88ce464fb20db1bbb9c266fd0c309dece6bb646ac74a8bdbd314` | Local; governed raw-storage upload pending |
-| `Region III_1.xlsx` | XLSX, 9 visible sheets | n/a | 108,189 | 3,105 | `e159e508be3bfce8e655f81b63a83513dfb7a0b8de7b7f64a0d96ccca4b82afc` | Local; governed raw-storage upload pending |
-| `CALABARZON_0.xlsx` | XLSX, 6 visible sheets | n/a | 121,151 | 3,993 | `463dd9f7b5c72ddc57dca2080940b740b56af04d5b98ce43560480f8c517cde3` | Local; governed raw-storage upload pending |
-| `MIMAROPA_1.xlsx` | XLSX, 6 visible sheets | n/a | 60,568 | 1,460 | `2c310dce1199ef06f9c82e9391a0ea0674ceea54568c8beea0ecc963ec5e4aad` | Local; governed raw-storage upload pending |
-| `Region V_1.xlsx` | XLSX, 6 visible sheets | n/a | 105,223 | 3,471 | `bfaff9fd7303c9c8ed694313293712b947c844cbdc35b23917d0c11f23bedddd` | Local; governed raw-storage upload pending |
-| `Region VI_1.xlsx` | XLSX, 6 visible sheets | n/a | 103,902 | 3,389 | `55364452f3329ca73b8eb6afb32a49ba5910eea8f47a1f7d10bd09bf83479958` | Local; governed raw-storage upload pending |
-| `Region VII_1.xlsx` | XLSX, 5 visible sheets | n/a | 77,354 | 2,312 | `5d139e888b98152a04e3d4c09c113d3b858a8bc5449f11c238e4906817e029b4` | Local; governed raw-storage upload pending |
-| `Region VIII_0.xlsx` | XLSX, 7 visible sheets | n/a | 127,884 | 4,365 | `0c7d1cf30fe54b30f2b4a34cdde049bb87ff8999a65bf5c8163ad11207bffd8d` | Local; governed raw-storage upload pending |
-| `NIR_0.xlsx` | XLSX, 4 visible sheets | n/a | 53,614 | 1,353 | `2e68254acb31e46b374cdf5dfca6dac405d86911ab759938383d7378d53cb4dd` | Local; governed raw-storage upload pending |
-| `Region IX_1.xlsx` | XLSX, 5 visible sheets | n/a | 67,641 | 1,904 | `bd54fbdc780b8c530b41b78fe56fc28b5e9a61d478498e420320f5a5b81eec15` | Local; governed raw-storage upload pending |
-| `Region X_0.xlsx` | XLSX, 7 visible sheets | n/a | 78,117 | 2,022 | `e45d6ad39666353e2b31563483fb7da33d8e027f1ba89f16adf73c5a36b593cd` | Local; governed raw-storage upload pending |
-| `Region XI_1.xlsx` | XLSX, 6 visible sheets | n/a | 52,986 | 1,162 | `b5870cfd30b134f6db0cbfe1ec57e08bdf2587ae92cb1133731d37956e51efb4` | Local; governed raw-storage upload pending |
-| `Region XII_1.xlsx` | XLSX, 5 visible sheets | n/a | 50,184 | 1,097 | `7e54ed1874d1db871a6e35c0051ba7cb31ce28bf4a6c2c39e9f56efedeaf77e9` | Local; governed raw-storage upload pending |
-| `Caraga_0.xlsx` | XLSX, 6 visible sheets | n/a | 57,464 | 1,312 | `df1d4cd93d6433ca05e6ffd94fbc2f9cd3d46f3cdc964504296fea5c16eb6f8d` | Local; governed raw-storage upload pending |
-| `BARMM_1.xlsx` | XLSX, 7 visible sheets | n/a | 192,601 | 2,595 | `c7111b353ec133c7cc8cfe558f03d893b1e24a36d1bf57159cb44624752132a9` | Local; governed raw-storage upload pending |
+| `NCR_2.xlsx` | XLSX, 17 visible sheets | n/a | 94,875 | 1,715 | `9a336a2548ac3b41a84fa982a5915d8d1d0d467669449e2257e602130e97d773` | Governed raw storage; uploaded |
+| `CAR_0.xlsx` | XLSX, 7 visible sheets | n/a | 60,032 | 1,178 | `dea26637d31269e6de78b41823af0485443c8de3d0d66168d16b6becba9057a2` | Governed raw storage; uploaded |
+| `Region I_1.xlsx` | XLSX, 4 visible sheets | n/a | 97,629 | 3,267 | `0e08d47b19f719f91354a7d021aebea0fa87fbc6b45eb4e1558b42e070bd0944` | Governed raw storage; uploaded |
+| `Region II_1.xlsx` | XLSX, 5 visible sheets | n/a | 77,435 | 2,311 | `bcc8f0608d5f88ce464fb20db1bbb9c266fd0c309dece6bb646ac74a8bdbd314` | Governed raw storage; uploaded |
+| `Region III_1.xlsx` | XLSX, 9 visible sheets | n/a | 108,189 | 3,105 | `e159e508be3bfce8e655f81b63a83513dfb7a0b8de7b7f64a0d96ccca4b82afc` | Governed raw storage; uploaded |
+| `CALABARZON_0.xlsx` | XLSX, 6 visible sheets | n/a | 121,151 | 3,993 | `463dd9f7b5c72ddc57dca2080940b740b56af04d5b98ce43560480f8c517cde3` | Governed raw storage; uploaded |
+| `MIMAROPA_1.xlsx` | XLSX, 6 visible sheets | n/a | 60,568 | 1,460 | `2c310dce1199ef06f9c82e9391a0ea0674ceea54568c8beea0ecc963ec5e4aad` | Governed raw storage; uploaded |
+| `Region V_1.xlsx` | XLSX, 6 visible sheets | n/a | 105,223 | 3,471 | `bfaff9fd7303c9c8ed694313293712b947c844cbdc35b23917d0c11f23bedddd` | Governed raw storage; uploaded |
+| `Region VI_1.xlsx` | XLSX, 6 visible sheets | n/a | 103,902 | 3,389 | `55364452f3329ca73b8eb6afb32a49ba5910eea8f47a1f7d10bd09bf83479958` | Governed raw storage; uploaded |
+| `Region VII_1.xlsx` | XLSX, 5 visible sheets | n/a | 77,354 | 2,312 | `5d139e888b98152a04e3d4c09c113d3b858a8bc5449f11c238e4906817e029b4` | Governed raw storage; uploaded |
+| `Region VIII_0.xlsx` | XLSX, 7 visible sheets | n/a | 127,884 | 4,365 | `0c7d1cf30fe54b30f2b4a34cdde049bb87ff8999a65bf5c8163ad11207bffd8d` | Governed raw storage; uploaded |
+| `NIR_0.xlsx` | XLSX, 4 visible sheets | n/a | 53,614 | 1,353 | `2e68254acb31e46b374cdf5dfca6dac405d86911ab759938383d7378d53cb4dd` | Governed raw storage; uploaded |
+| `Region IX_1.xlsx` | XLSX, 5 visible sheets | n/a | 67,641 | 1,904 | `bd54fbdc780b8c530b41b78fe56fc28b5e9a61d478498e420320f5a5b81eec15` | Governed raw storage; uploaded |
+| `Region X_0.xlsx` | XLSX, 7 visible sheets | n/a | 78,117 | 2,022 | `e45d6ad39666353e2b31563483fb7da33d8e027f1ba89f16adf73c5a36b593cd` | Governed raw storage; uploaded |
+| `Region XI_1.xlsx` | XLSX, 6 visible sheets | n/a | 52,986 | 1,162 | `b5870cfd30b134f6db0cbfe1ec57e08bdf2587ae92cb1133731d37956e51efb4` | Governed raw storage; uploaded |
+| `Region XII_1.xlsx` | XLSX, 5 visible sheets | n/a | 50,184 | 1,097 | `7e54ed1874d1db871a6e35c0051ba7cb31ce28bf4a6c2c39e9f56efedeaf77e9` | Governed raw storage; uploaded |
+| `Caraga_0.xlsx` | XLSX, 6 visible sheets | n/a | 57,464 | 1,312 | `df1d4cd93d6433ca05e6ffd94fbc2f9cd3d46f3cdc964504296fea5c16eb6f8d` | Governed raw storage; uploaded |
+| `BARMM_1.xlsx` | XLSX, 7 visible sheets | n/a | 192,601 | 2,595 | `c7111b353ec133c7cc8cfe558f03d893b1e24a36d1bf57159cb44624752132a9` | Governed raw storage; uploaded |
 
 ## Publisher documentation
 
