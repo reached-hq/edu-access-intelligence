@@ -7,6 +7,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-001 | 2026-09-29 | Stakeholder needs come from published documents plus mentor validation | Accepted |
 | D-002 | 2026-09-29 | Use the course deliverables as the baseline until a rubric exists | Provisional |
 | D-003 | 2026-09-29 | Higher education is out of scope (decided 2026-10-05) | Accepted |
+| D-004 | 2026-10-05 | The stakeholders are LGU planners, with students as the focus | Accepted |
 | D-005 | 2026-09-29 | Branch from `main` with short-lived feature branches; no `dev` branch | Provisional |
 | D-006 | 2026-09-29 | One documentation folder per source; publisher documents stay with raw data | Accepted |
 | D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted |
@@ -15,16 +16,13 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-010 | 2026-09-30 | AI help is allowed but disclosed on every PR, and must pass four gates | Provisional |
 | D-011 | 2026-09-30 | Data dictionaries keep the publisher's words and the team's labeled interpretation in separate columns | Accepted |
 | D-012 | 2026-09-30 | PSGC 2Q 2026 is the master geographic reference, including for SY 2023-24; no crosswalk | Accepted |
-| D-013 | 2026-10-05 | The stakeholders are LGU planners, with students as the focus | Accepted |
-| D-014 | 2026-10-05 | Merge pull requests with merge commits, not squash | Accepted |
-
-D-004 was withdrawn on 2026-10-05. Its folder and file-naming rules are now described in [architecture.md](architecture.md#file-naming-and-layout). IDs are not reused.
+| D-013 | 2026-10-05 | Merge pull requests with merge commits, not squash | Accepted |
 
 ---
 
 ## D-001: Where stakeholder needs come from
 
-- **Problem:** The team has no direct access to the planners it serves (LGU planners since D-013). They are the audience for the presentation, not a source of interviews.
+- **Problem:** The team has no direct access to the planners it serves (LGU planners since D-004). They are the audience for the presentation, not a source of interviews.
 - **Decision:** Needs are drawn from published planning documents and checked with the program mentor. Every need is tagged **documented** (cited source), **mentor-validated**, or **assumed**.
 - **Reason:** Planners in the audience will know their own policies, so unsupported needs are the easiest thing for them to challenge.
 - **Consequence:** A candidate business question that rests mostly on **assumed** needs cannot be approved.
@@ -42,7 +40,14 @@ D-004 was withdrawn on 2026-10-05. Its folder and file-naming rules are now desc
 - **Decision:** Keep it in scope during source discovery and profiling. The stakeholders are framed as education planners (DepEd and CHED).
 - **Reason:** The theme's general question includes it.
 - **Consequence:** More sources to profile, and a different grain (one row per institution rather than per school). **Revisit at the end of Phase 3:** keep it only if the profiled data supports it.
-- **Revisited 2026-10-05:** higher education is out of scope. Sponsors pointed out that foundational learning gaps in basic education are more urgent, CHED data is available only by region or province, and the stakeholders are now LGU planners (D-013). The CHED source cards stay in the inventory as profiled, but no CHED source moves on to ingestion.
+- **Revisited 2026-10-05:** higher education is out of scope. Sponsors pointed out that foundational learning gaps in basic education are more urgent, CHED data is available only by region or province, and the stakeholders are now LGU planners (D-004). The CHED source cards stay in the inventory as profiled, but no CHED source moves on to ingestion.
+
+## D-004: Who the stakeholders are
+
+- **Problem:** The project was framed for DepEd and CHED planners. Sponsors asked what a mayor or local planner would actually need, for example whether a mayor can zoom into a barangay and trust what they see.
+- **Decision:** The stakeholders are LGU planners, with students as the focus. The analysis is basic education at city/municipality and barangay level.
+- **Reason:** LGUs take part in local school planning and funding (for example through local school boards), and they need area-level evidence that a national total cannot give; the cited needs are collected under D-001. Keeping students as the focus keeps every measure tied to learners.
+- **Consequence:** Planner needs are drawn from LGU-facing documents (D-001). Results must be trustworthy at barangay level, so place-name matching to PSGC is reported with its match rate. Higher education leaves scope (D-003).
 
 ## D-005: Branching model
 
@@ -100,14 +105,7 @@ D-004 was withdrawn on 2026-10-05. Its folder and file-naming rules are now desc
 - **Reason:** About 1,855 of about 43,760 codes differ from `Q4_2023`, almost all from NIR and Sulu, and name joins are not affected by a code change. `Q4_2023` has 457 names with broken accents and no 2024 population for about 1,780 barangays. 2Q 2026 has neither problem, is PSA's published file, and is already profiled.
 - **Consequence:** Region from PSGC must not be used for Negros or Sulu in SY 2023-24 results. Barangays split or renamed since 2023 (for example Barangay 176 in Caloocan) are flagged as unmatched or ambiguous, not forced. **Revisit** if a source arrives with codes from another PSGC version, or if the team needs code-level history; then build a crosswalk from `Correspondence Code`. Evidence and matching rules: [psa_psgc README](source_inventory/psa_psgc/README.md#version-used-and-sy-2023-24).
 
-## D-013: Who the stakeholders are
-
-- **Problem:** The project was framed for DepEd and CHED planners. Sponsors asked what a mayor or local planner would actually need, for example whether a mayor can zoom into a barangay and trust what they see.
-- **Decision:** The stakeholders are LGU planners, with students as the focus. The analysis is basic education at city/municipality and barangay level.
-- **Reason:** LGUs take part in local school planning and funding (for example through local school boards), and they need area-level evidence that a national total cannot give; the cited needs are collected under D-001. Keeping students as the focus keeps every measure tied to learners.
-- **Consequence:** Planner needs are drawn from LGU-facing documents (D-001). Results must be trustworthy at barangay level, so place-name matching to PSGC is reported with its match rate. Higher education leaves scope (D-003).
-
-## D-014: How pull requests are merged
+## D-013: How pull requests are merged
 
 - **Problem:** Squash merging put one commit per pull request on `main`, which hid the step-by-step history of how each change was built and reviewed.
 - **Decision:** Pull requests are merged with a merge commit; squash and rebase merging are turned off in the repository settings. Branches are still deleted after merging.

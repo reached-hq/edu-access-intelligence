@@ -144,7 +144,7 @@ Say what changed and why, what you ran to check it (with counts when data is inv
 
 ### Stacked pull requests
 
-A pull request can be based on another pull request's branch, not `main` (PR #13 was based on #12). When the first one merges, GitHub switches the second one's base to `main`. Pull requests merge with a merge commit (D-014), so the first PR's commits are already on `main` and the second PR usually needs no rebase.
+A pull request can be based on another pull request's branch, not `main` (PR #13 was based on #12). When the first one merges, GitHub switches the second one's base to `main`. Pull requests merge with a merge commit (D-013), so the first PR's commits are already on `main` and the second PR usually needs no rebase.
 
 If the second PR shows **conflicts** (for example, both changed the same lines), bring `main` into your own branch and resolve them there:
 
