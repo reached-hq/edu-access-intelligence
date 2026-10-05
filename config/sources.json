@@ -46,6 +46,17 @@
       "owner": "hyenalouise"
     },
     {
+      "source_id": "bpda_barmm_social_infrastructure",
+      "name": "BPDA BARMM social infrastructure",
+      "publisher": "Bangsamoro Planning and Development Authority (BPDA)",
+      "status": "profiled",
+      "source_system": "Bangsamoro Ecological Profile, Infrastructure",
+      "acquisition": "https://knowledge.bpda.bangsamoro.gov.ph/open-data/bangsamoro-ecological-profile/infrastructure",
+      "format": "xlsx",
+      "coverage": "Mixed and partly unstated; education headers include 2019-2021 and 2022",
+      "owner": "hyenalouise"
+    },
+    {
       "source_id": "ched_enrollment",
       "name": "CHED enrollment by region, sector and sex",
       "publisher": "Commission on Higher Education (CHED)",
