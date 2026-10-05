@@ -77,7 +77,8 @@ See [profile.md](profile.md) for evidence.
 | Bronze table | `` edu_access.`02-bronze`.deped_facilities_raw ``: every school year and delivery version, text, with provenance |
 | Schema versions | `v1` (SY 2023-24, 87 columns) |
 | Loaded locally | SY 2023-24, 2026-10-06: 60,167 rows, matching the table above; a second run skipped it. Blanks stay blank: 669 public elementary schools have `es_classrooms_instructional` = `''` (O-4), and none has `'0'` (O-5) |
-| Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; listed in that folder's `SHA256SUMS.txt` |
+| Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; a local copy for profiling stays in `raw-data/deped/original/` |
+| Checksums after upload | Match the table above. The ingestion job hashed the zip in the volume, and the CSV and README inside it, before loading, and refuses any file whose checksum differs; it loaded (job run `588715548188592`, 2026-10-06). The folder's `SHA256SUMS.txt` lists the same value |
 | Loaded on Databricks | Yes, 2026-10-06 (`dev`): 60,167 rows loaded and verified; a second run skipped it ([evidence](../../evidence/2026-10-06-deped-facilities-idempotency.md)) |
 
 How a new school year or a revised file is added: [ingestion.md, Runbook](../../ingestion.md#runbook).
