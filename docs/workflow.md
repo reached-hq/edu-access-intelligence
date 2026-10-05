@@ -144,25 +144,25 @@ Say what changed and why, what you ran to check it (with counts when data is inv
 
 ### Stacked pull requests
 
-A pull request can be based on another pull request's branch, not `main` (PR #13 was based on #12). When the first one merges, GitHub switches the second one's base to `main`, and it shows **conflicts**. That is expected: the first PR was squashed into one new commit, while the second still carries the old commits.
+A pull request can be based on another pull request's branch, not `main` (PR #13 was based on #12). When the first one merges, GitHub switches the second one's base to `main`. Pull requests merge with a merge commit (D-014), so the first PR's commits are already on `main` and the second PR usually needs no rebase.
 
-Fix it by replaying only your own commits onto the new `main` (only ever on your own feature branch):
+If the second PR shows **conflicts** (for example, both changed the same lines), bring `main` into your own branch and resolve them there:
 
 ```
 git fetch origin
 git switch <your-branch>
-git rebase --onto origin/main <last-commit-of-the-first-PR> <your-branch>
-git push --force-with-lease
+git merge origin/main
+git push
 ```
 
-`--force-with-lease` refuses to overwrite the branch if someone else pushed to it since you last fetched. Never force-push `main`.
+Never force-push `main`.
 
 ### Reviews
 
 - At least one teammate who is not the author approves. GitHub does not let you approve your own pull request.
 - Read the code, not just the description. A question ("this reads from the internet; the issue says no network?") is worth more than a quick approval.
 - **Admin override** (merging without an approval) is for when no teammate can review in time and CI is green. Leave a PR comment saying why. Proposed rule: confirm it with the team.
-- Merging squashes the branch into one commit on `main` and deletes the branch.
+- Merging creates a merge commit on `main`, keeps the branch's commits, and deletes the branch.
 
 ---
 
@@ -245,7 +245,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 | Branch | A separate line of work, so two people do not overwrite each other |
 | Pull request (PR) | "Please review my branch and merge it into `main`" |
 | CI | Checks GitHub runs on every pull request |
-| Squash merge | Combining a branch's commits into one commit on `main` |
+| Merge commit | The commit that joins a branch into `main`, keeping the branch's own commits |
 | Stacked PR | A pull request based on another pull request's branch |
 | Rebase | Replaying your commits on top of a newer base |
 | Signed / Verified commit | A commit signed with your key, which GitHub confirms |
