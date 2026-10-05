@@ -229,6 +229,8 @@ python -m src.ingestion.cli ddl --source deped_enrollment > etl/02_bronze/01_cre
 
 5. Check the results with the queries below, and record the run in `pipeline_runs` and on #11.
 
+Before step 4, stop other serverless compute: detach notebooks and leave the SQL warehouse stopped, and do not query it while the job runs. On Free Edition a job waits until serverless capacity is free; the first run waited 35 minutes for 3.5 minutes of work. Check the results after the run ends.
+
 `databricks bundle validate` was run on 2026-10-06 and passed; both commit values resolved to the same SHA.
 
 ### First Databricks run
@@ -236,10 +238,10 @@ python -m src.ingestion.cli ddl --source deped_enrollment > etl/02_bronze/01_cre
 2026-10-06, `dev`, job `[dev cheimlouise] bronze_ingest`, run `738752819100453`, commit `e681c5b`:
 
 - Loaded 60,167 + 60,129 + 60,204 rows (initial, incremental, incremental), as reported by the job; the task ended `SUCCESS`. This confirms behavior 4 below (zips read from `/Volumes/`) and that the job runs without `__file__` and exits cleanly.
-- It took 39 minutes (2,327 s), against about 7 seconds locally. The run's own timestamps show where: the job started at 17:21:37 UTC, the pipeline wrote its run row at 17:57:46, and the job ended at 18:00:42. Discovery, loading all 180,500 rows, reconciliation, and the gate took about 3 minutes; the other 36 passed before the pipeline started its work (Spark session, table creation, or waiting for serverless capacity, which was exhausted at the time; not yet told apart).
+- It took 39 minutes (2,327 s), against about 7 seconds locally. The run's own timestamps show where: the job started at 17:21:37 UTC, the pipeline wrote its run row at 17:57:46, and the job ended at 18:00:42. The job was waiting for compute: the serverless cluster's ID (`1005-175705-…`) shows it started at 17:57:05, 35.5 minutes after the job, and `DESCRIBE HISTORY` shows `pipeline_runs` created at 17:57:34. Free Edition's serverless capacity was in use elsewhere (the SQL warehouse reported `RESOURCE_EXHAUSTED` at the time), most likely by a notebook. Once it had compute, discovery, loading all 180,500 rows, reconciliation, and the gate took about 3.5 minutes; each small control-table write took 3 to 13 seconds.
 - Two problems found and fixed: the first deploy was rejected until the task declared `source: GIT`; and the tables were owned by the account that deployed the job, so nobody else could read them. Ownership of the six objects was moved to `reached-hq`, and every `CREATE` in `etl/` is now followed by `OWNER TO `reached-hq`` (D-009).
 - Verified the same day in a notebook, by a different account in the `reached-hq` group (the SQL warehouse could not start while other serverless compute was running: Free Edition's limit). Every check matched: rows 60,167 / 60,129 / 60,204; 0 pipeline duplicates; 0 rows missing provenance; 0 rows from another commit; 5,203 blank street addresses kept blank in SY 2023-24; the v2-only column NULL in all 120,296 v1-year rows; 595 SY 2025-26 rows with "ñ"; 3 batches succeeded and reconciled; 37 checks recorded, none other than PASS; 1 run succeeded in `dev`. `delta.columnMapping.mode` is `name`. The same numbers as the local load.
-- Run 2, `1088383272500634`, commit `d931112`, the same files: all three batches `skip`, 0 rows inserted, run `succeeded`, task `SUCCESS`, 9.5 minutes (8 before the run row, about 1 after). Verified in the tables: the attempts log shows `load` for each file in run 1 and `skip` in run 2; Bronze still has 180,500 rows, 0 pipeline duplicates, and every row from run 1; 2 succeeded runs; no check other than PASS. Every object, and both schemas, still belongs to `reached-hq` after the run re-applied ownership.
+- Run 2, `1088383272500634`, commit `d931112`, the same files: all three batches `skip`, 0 rows inserted, run `succeeded`, task `SUCCESS`, 9.5 minutes, of which 7.6 waiting for compute (cluster started 18:38:04) and 1.8 working. Verified in the tables: the attempts log shows `load` for each file in run 1 and `skip` in run 2; Bronze still has 180,500 rows, 0 pipeline duplicates, and every row from run 1; 2 succeeded runs; no check other than PASS. Every object, and both schemas, still belongs to `reached-hq` after the run re-applied ownership.
 
 ### Validation queries (Databricks SQL editor)
 
