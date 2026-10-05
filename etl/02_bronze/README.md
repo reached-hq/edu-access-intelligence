@@ -4,8 +4,10 @@ Each source landed unchanged, every column as text, plus provenance columns sayi
 
 | File | What it does |
 |---|---|
-| `01_create_deped_enrollment_raw.sql` | `deped_enrollment_raw`: all school years and delivery versions in one table. Generated from `config/ingestion/deped_enrollment.json` (`python -m src.ingestion.cli ddl --source deped_enrollment`); a test fails if it differs |
-| `90_validate_deped_enrollment_raw.sql` | Bronze gate, run after every load: no pipeline duplicates, every row has a known batch, every succeeded batch reconciles to its file. Writes to `data_quality_results` and fails on any FAIL. Reads `:run_id` and `:code_revision` |
+| `01_create_<source_id>_raw.sql` | One table per source, all school years and delivery versions. Generated from `config/ingestion/<source_id>.json` (`python -m src.ingestion.cli ddl --source <source_id>`); a test fails if it differs |
+| `90_validate_<source_id>_raw.sql` | Bronze gate, run after every load: no pipeline duplicates, every row has a known batch, every succeeded batch reconciles to its file. Writes to `data_quality_results` and fails on any FAIL. Reads `:run_id` and `:code_revision`. Generated the same way (`cli gate`) |
+
+Sources so far: `deped_enrollment`, `deped_facilities`.
 
 Loading is Python (`src/ingestion/`), because the files arrive as zips with a declared encoding. The rules:
 

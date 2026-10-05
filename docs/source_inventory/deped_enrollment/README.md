@@ -86,7 +86,7 @@ See [profile.md](profile.md) for evidence.
 | Schema versions | `v1` (SY 2023-24, 2024-25), `v2` (SY 2025-26) |
 | Loaded locally | All three school years, 2026-10-06; row counts match the table above |
 | Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; sizes and the folder's `SHA256SUMS.txt` match the table above (checked 2026-10-06) |
-| Loaded on Databricks | Not yet: the confirmation run is pending |
+| Loaded on Databricks | Yes, 2026-10-06 (`dev`): all three school years loaded and verified; a second run skipped them all ([evidence](../../evidence/2026-10-06-deped-enrollment-idempotency.md)) |
 
 How a new school year or a revised file is added: [ingestion.md, Runbook](../../ingestion.md#runbook).
 
