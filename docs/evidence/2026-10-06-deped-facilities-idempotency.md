@@ -17,6 +17,8 @@ The job `bronze_ingest` at commit `acec94d5546e9b8043da4e21065e45de1f4337f4` (`c
 | Enrollment task | 04:14:41 to 04:16:41, skipped 3 files | 04:18:49 to 04:19:51, skipped 3 files |
 | Facilities task | 04:16:41 to 04:18:14, **loaded 60,167 rows** | 04:19:52 to 04:20:39, **skipped, 0 inserted** |
 | Whole job | 3 min 41 s, `SUCCESS` | 1 min 52 s, `SUCCESS` |
+<img width="1140" height="313" alt="image" src="https://github.com/user-attachments/assets/e3fca7b7-6d39-44f8-a0f1-ddf55f3fcc14" />
+
 
 With no other serverless compute running, the job did not wait for capacity: compare enrollment's first run, which waited 35.5 minutes for 3.5 minutes of work ([enrollment evidence](2026-10-06-deped-enrollment-idempotency.md)).
 
@@ -24,20 +26,13 @@ With no other serverless compute running, the job did not wait for capacity: com
 
 ### The job's own output
 
-Run 1, facilities task:
+Run 1, facilities task: <br>
+<img width="1143" height="388" alt="image" src="https://github.com/user-attachments/assets/7d81bf34-b074-41a7-bdee-ddc94097af30" />
 
-```
-deped_facilities__2023-24__9317af02b595      load   initial     succeeded inserted= 60167 bronze= 60167
-status: succeeded
-```
+<br>
+Run 2, facilities task:<br>
+<img width="1149" height="382" alt="image" src="https://github.com/user-attachments/assets/ab4614a1-66f0-44c0-af05-8175bfbc381d" />
 
-Run 2, facilities task:
-
-```
-deped_facilities__2023-24__9317af02b595      skip   initial     skipped   inserted=     0 bronze= 60167
-      already loaded; same SHA-256
-status: succeeded
-```
 
 In both runs the enrollment task skipped all three of its files and inserted 0.
 
