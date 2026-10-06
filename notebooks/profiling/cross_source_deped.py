@@ -325,6 +325,40 @@ out.write_text(
 )
 show("A-12", f"wrote {out.relative_to(REPO)}: {len(rows)} rows")
 
+# %% A-13: check every brackets-dropped match against what the bracket says
+# DepEd's bracket should be "(POB.)" or a former name. It is a warning sign when the bracket
+# is neither of these, or when it names a different PSGC barangay in the same city or municipality.
+
+
+def bracket_check(name, unit, siblings):
+    if len(name) == 40 and name.count("(") > name.count(")"):
+        return "bracket cut off at 40"
+    inside = [fold(re.sub(r"[(*]", "", b)).strip() for b in re.findall(r"\(([^)]*)\)?", base(name))]
+    inside = [b for b in inside if b]
+    old = fold(base(unit.old)) if unit.old else ""
+    if inside and all(re.match(r"^(POB|POBLACION)\b", b) for b in inside):
+        return "(POB.)"
+    if inside and old and all(b in old for b in inside):
+        return "bracket is a PSGC old name"
+    if any(u.id != unit.id and no_brackets(fold(base(u.name))) in inside for u in siblings):
+        return "bracket names another barangay"
+    return "other"
+
+
+for level, results, weights in (("cities and municipalities", loc_result, w_loc), ("barangays", bgy_result, w_bgy)):
+    checked = collections.Counter()
+    flagged = []
+    for key, (tier, unit) in results.items():
+        if tier != "brackets dropped":
+            continue
+        siblings = barangay_candidates(loc_result[key[:2]][1]) if len(key) == 3 else []
+        result = bracket_check(key[-1], unit, siblings)
+        checked[result] += 1
+        if result in ("bracket names another barangay", "other"):
+            flagged.append((*key[1:], unit.name, unit.old or "-", result, weights[key]))
+    show("A-13", f"brackets-dropped {level}, by what the bracket holds (names): {dict(checked)}; "
+         f"needing a look (city or municipality, DepEd name, PSGC name, PSGC old names, result, schools): {flagged}")
+
 # %% B: school ID joins against enrollment SY 2023-24
 show("B-1", "enrollment by sector: " + str(q("SELECT sector, count(*) FROM enr GROUP BY 1 ORDER BY 2 DESC")))
 for finding, table, label in (("B-2", "fac", "facilities"), ("B-3", "per", "personnel")):
