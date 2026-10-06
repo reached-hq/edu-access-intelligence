@@ -7,7 +7,7 @@
 This memo tests how the DepEd anchor, school-level enrollment for SY 2023-24, joins to the other sources: by place name to PSGC 2Q 2026, and by `school_id` to the other DepEd school files. Every number below is printed by [`notebooks/profiling/cross_source_deped.py`](../../notebooks/profiling/cross_source_deped.py) under the finding ID shown, from checksum-verified raw files:
 
 - [`deped_enrollment`](../source_inventory/deped_enrollment/) and [`deped_facilities`](../source_inventory/deped_facilities/), SY 2023-24.
-- [`deped_nat_gr6`](../source_inventory/deped_nat_gr6/), and DepEd personnel and ELLNA from open pull requests [#40](https://github.com/reached-hq/edu-access-intelligence/pull/40) and [#49](https://github.com/reached-hq/edu-access-intelligence/pull/49). Their files were re-run here, not quoted from their cards.
+- [`deped_nat_gr6`](../source_inventory/deped_nat_gr6/), [`deped_personnel`](../source_inventory/deped_personnel/), and [`deped_ellna`](../source_inventory/deped_ellna/). Their files were re-run here, not quoted from their cards.
 - [`psa_psgc`](../source_inventory/psa_psgc/) 2Q 2026, the master geography ([D-012](../decisions.md#d-012-which-psgc-version-to-use)).
 
 The unmatched and ambiguous names are listed in [deped_psgc_unmatched.md](deped_psgc_unmatched.md).
@@ -70,8 +70,8 @@ Both are also recorded as O-17 and O-18 in the [deped_enrollment profile](../sou
 | File | Rows | In enrollment SY 2023-24 | Not in enrollment | Field compared | Differences |
 |---|---:|---:|---:|---|---:|
 | Facilities (B-2) | 60,167 | 60,167 | 0 | sector | 0 |
-| Personnel, [#40](https://github.com/reached-hq/edu-access-intelligence/pull/40) (B-3) | 60,167 | 60,167 | 0 | sector | 0 |
-| ELLNA, [#49](https://github.com/reached-hq/edu-access-intelligence/pull/49) (B-4) | 5,752 | 5,752 | 0 | region | 0 |
+| [Personnel](../source_inventory/deped_personnel/) (B-3) | 60,167 | 60,167 | 0 | sector | 0 |
+| [ELLNA](../source_inventory/deped_ellna/) (B-4) | 5,752 | 5,752 | 0 | region | 0 |
 | NAT Grade 6 (B-5) | 6,636 | 6,636 | 0 | region | 0 |
 
 - **Sectors (B-1):** enrollment has 47,818 public, 12,113 private, 203 SUC/LUC, and 33 overseas schools. Facilities and personnel have a row for every one of them, so a join never drops a school. The facilities card notes that facility measures are filled for public schools only.
@@ -101,4 +101,3 @@ So the availability, classroom, and teacher indicators can be computed for BARMM
 - Only SY 2023-24 is tested. SY 2024-25 and 2025-26 enrollment may name places differently.
 - The tiers beyond exact and old name are judgment calls. They are counted separately so a stricter rule can drop them; the strict rule (A-5) reaches 77.5% of schools at all three levels.
 - A unique match is not proof that the place is the same, so every brackets-dropped match, the largest non-exact tier, is checked against what DepEd's bracket holds (A-13). All 69 cities and municipalities have a bracket that is the PSGC unit's old name. Of the 2,891 barangays, 1,710 have only "(POB.)", 1,168 have the PSGC barangay's old name, and 10 have a bracket cut off at 40 characters. Three names (7 schools) are left: in Kapalong, `SAMPAO (BIENVENIDA)` matches Sampao, and `SEMONG (SAMPAO)` matches Semong although Sampao is also a barangay there; in Samal, `SAN MIGUEL (MAGAMOMO)` matches San Miguel, whose PSGC old name is spelled Magamono. The smaller tiers were read in full: 7 word-City-ignored, 17 independent-city, 4 folded, and 1 old-name city or municipality, and the 13 old-name barangays, all of which come from PSGC's own `Old names`. The 133 folded barangays differ from PSGC only in accents, punctuation, or spacing.
-- Personnel and ELLNA come from open pull requests; if their files change before merge, this memo must be rerun.
