@@ -2,25 +2,27 @@
 
 Each entry records **problem → decision → reason → consequence**. A **provisional** decision names the point at which it will be revisited.
 
-| ID | Date | Decision | Status |
-|---|---|---|---|
-| D-001 | 2026-09-29 | Stakeholder needs come from published documents plus mentor validation | Accepted |
-| D-002 | 2026-09-29 | Use the course deliverables as the baseline until a rubric exists | Provisional |
-| D-003 | 2026-09-29 | Keep higher education in scope during discovery | Provisional |
-| D-004 | 2026-09-29 | Follow the NYC Mobility repository conventions | Accepted |
-| D-005 | 2026-09-29 | Branch from `main` with short-lived feature branches; no `dev` branch | Provisional |
-| D-006 | 2026-09-29 | One documentation folder per source; publisher documents stay with raw data | Accepted |
-| D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted |
-| D-008 | 2026-09-29 | Develop locally; use Databricks compute only for planned runs | Accepted |
-| D-009 | 2026-09-29 | Catalog `edu_access` owned by the team group; raw files in a managed volume | Provisional |
-| D-010 | 2026-09-30 | AI help is allowed but disclosed on every PR, and must pass four gates | Provisional |
-| D-011 | 2026-09-30 | Data dictionaries keep the publisher's words and the team's labeled interpretation in separate columns | Accepted |
+| ID | Date | Decision | Status | Primary consequence |
+|---|---|---|---|---|
+| D-001 | 2026-09-29 | Stakeholder needs come from published documents plus mentor validation | Accepted | A question that rests mostly on assumed needs cannot be approved |
+| D-002 | 2026-09-29 | Use the course deliverables as the baseline until a rubric exists | Provisional | Scope may shift once the rubric is released |
+| D-003 | 2026-09-29 | Higher education is out of scope (decided 2026-10-05) | Accepted | CHED sources stay profiled, but none moves on to ingestion |
+| D-004 | 2026-09-29 | Data and secrets stay out of Git, enforced by CI | Accepted | CI fails pull requests that add data files, files over 1 MB, `.env` files, or secrets |
+| D-005 | 2026-09-29 | Branch from `main` with short-lived feature branches; no `dev` branch | Provisional | `dev` and `prod` are Databricks deploy targets, not branches |
+| D-006 | 2026-09-29 | One documentation folder per source; publisher documents stay with raw data | Accepted | Each source past `candidate` needs a `README.md`, and each profiled source a `profile.md` |
+| D-007 | 2026-09-29 | Profile sources locally with DuckDB, in scripts saved under `notebooks/profiling/` | Accepted | CI cannot rerun profiling, so each pull request states the script was run and the numbers matched |
+| D-008 | 2026-09-29 | Develop locally; use Databricks compute only for planned runs | Accepted | Logic is trusted only after it has run once on Databricks |
+| D-009 | 2026-09-29 | Catalog `edu_access` owned by the team group; raw files in a managed volume | Provisional | Every teammate can change or delete anything in the workspace |
+| D-010 | 2026-09-30 | AI help is allowed but disclosed on every PR, and must pass four gates | Provisional | CI blocks a pull request whose AI help section is empty; disclosure is otherwise on trust |
+| D-011 | 2026-09-30 | Data dictionaries keep the publisher's words and the team's labeled interpretation in separate columns | Accepted | Every interpretation carries a label and evidence, and is reviewed like any other claim |
+| D-012 | 2026-09-30 | PSGC 2Q 2026 is the master geographic reference, including for SY 2023-24; no crosswalk | Accepted | Region from PSGC is not used for Negros or Sulu in SY 2023-24 results |
+| D-013 | 2026-10-05 | The stakeholders are LGU planners, with students as the focus | Accepted | Results must be trustworthy at barangay level, and higher education leaves scope |
 
 ---
 
 ## D-001: Where stakeholder needs come from
 
-- **Problem:** The team has no direct access to DepEd or CHED planners. They are the audience for the presentation, not a source of interviews.
+- **Problem:** The team has no direct access to the planners it serves (LGU planners since D-013). They are the audience for the presentation, not a source of interviews.
 - **Decision:** Needs are drawn from published planning documents and checked with the program mentor. Every need is tagged **documented** (cited source), **mentor-validated**, or **assumed**.
 - **Reason:** Planners in the audience will know their own policies, so unsupported needs are the easiest thing for them to challenge.
 - **Consequence:** A candidate business question that rests mostly on **assumed** needs cannot be approved.
@@ -32,23 +34,24 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Reason:** These are the most complete statement of expectations available today.
 - **Consequence:** Scope may shift. **Revisit when the rubric is released.**
 
-## D-003: Higher education stays in scope for now
+## D-003: Higher education is out of scope
 
 - **Problem:** The theme mentions higher-education capacity. Higher education is CHED's mandate, not DepEd's.
 - **Decision:** Keep it in scope during source discovery and profiling. The stakeholders are framed as education planners (DepEd and CHED).
 - **Reason:** The theme's general question includes it.
 - **Consequence:** More sources to profile, and a different grain (one row per institution rather than per school). **Revisit at the end of Phase 3:** keep it only if the profiled data supports it.
+- **Revisited 2026-10-05:** higher education is out of scope. Sponsors pointed out that foundational learning gaps in basic education are more urgent, CHED data is available only by region or province, and the stakeholders are now LGU planners (D-013). The CHED source cards stay in the inventory as profiled, but no CHED source moves on to ingestion.
 
-## D-004: Follow the NYC Mobility conventions
+## D-004: Data and secrets stay out of Git
 
-- **Problem:** The repository needs a structure the team can work in immediately.
-- **Decision:** Reuse the NYC Mobility conventions: `etl/NN_layer/` with `90_validate_*` files, `config/` for non-secret settings, the same documentation set, the same PR and issue templates, and the same CI/CD approach.
-- **Reason:** The team has already built and defended this structure. A familiar convention is lower risk than a new one.
-- **Consequence:** The full folder layout exists from the start, with a placeholder `README.md` in each folder until its phase begins (changed 2026-10-01, so the whole pipeline shape is visible). The capstone adds `docs/source_inventory/`, `docs/cross_source/`, `docs/stakeholder/`, and `docs/limitations.md`. Cross-source analysis lives in `docs/cross_source/`, not `docs/profiling/`, so it is not confused with the scripts in `notebooks/profiling/`.
+- **Problem:** Raw files, credentials, and large outputs can end up committed by accident, and once pushed they stay in the repository's history.
+- **Decision:** No data and no secrets go into Git. Raw, interim, and processed datasets live in the agreed storage; the only exception is small, made-up samples under `tests/fixtures/`. Credentials stay in a local, git-ignored `.env`, and only `.env.example` (names, no values) is committed. CI enforces this in `tests/test_repo_policy.py`.
+- **Reason:** The repository is shared by the whole team and reviewed in public pull requests. Checking it automatically on every pull request is more reliable than relying on each person to remember.
+- **Consequence:** CI fails a pull request that adds a data file (for example `.csv`, `.xlsx`, or `.zip`), a file over 1 MB, a `.env` file, or text that looks like a token or private key. Generated outputs that are lists of records are written as Markdown, and profiling reads raw files from `RAW_DATA_DIR` outside the repository (D-007).
 
 ## D-005: Branching model
 
-- **Problem:** NYC Mobility used `main` plus a `dev` branch.
+- **Problem:** A long-lived `dev` branch alongside `main` is a common pattern, but it adds merge overhead for a small team.
 - **Decision:** Use `main` plus short-lived feature branches. `dev` and `prod` exist as Databricks deploy targets, not as branches.
 - **Reason:** Separate deploy targets already isolate environments, so a long-lived `dev` branch mostly adds merge overhead.
 - **Consequence:** CI runs on PRs into `main`. **Provisional:** the team has not yet confirmed this.
@@ -64,8 +67,8 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
 - **Problem:** Profiling findings must be reproducible by another engineer, without spending Databricks Free Edition compute on small files.
 - **Decision:** Profile locally with DuckDB (pinned in `requirements-dev.txt`), in a `.py` script per source under `notebooks/profiling/` with `# %%` cells. Each check prints under the finding ID used in that source's `profile.md`. Scripts read raw data from `RAW_DATA_DIR` and verify file checksums before profiling.
-- **Reason:** The DepEd files are about 60,000 rows each, so DuckDB profiles them in seconds on a laptop. DuckDB is in the course's Day 9 tool list and was used in NYC Mobility. Keeping the code next to the findings lets a reviewer rerun every number.
-- **Consequence:** CI cannot run profiling scripts because raw data is not in git. Each PR that changes a profile states that the script was run and the numbers matched. Checks that repeat across sources move into `src/profiling/` once a second source repeats them.
+- **Reason:** The DepEd files are about 60,000 rows each, so DuckDB profiles them in seconds on a laptop. DuckDB is in the course's Day 9 tool list. Keeping the code next to the findings lets a reviewer rerun every number.
+- **Consequence:** CI cannot run profiling scripts because raw data is not in git. Each PR that changes a profile states that the script was run and the numbers matched. Checks that repeat across sources move into `src/profiling/` once a second source repeats them. The xlsx reader was the first (`src/profiling/xlsx.py`, #33, added 2026-10-01).
 
 ## D-008: Develop locally, run on Databricks deliberately
 
@@ -94,3 +97,17 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Decision:** Add an **Our interpretation** column to every data dictionary. **Description (publisher)** stays the publisher's words only, including documentation given as an image. **Our interpretation** holds the team's reading, and every entry starts with a label, **[other source]**, **[observed]**, or **[assumed]**, followed by its evidence. An [assumed] entry the pipeline relies on needs a suspected finding in `profile.md`. The rules are in `docs/source_inventory/_template/data_dictionary.md`.
 - **Reason:** Separate columns let a reader tell at a glance who said what, which is what planners will question. The labels follow the documented / mentor-validated / assumed tagging from D-001, so the team uses one way of stating how sure it is. Keeping the text in the script keeps the dictionary generated and reproducible (D-007).
 - **Consequence:** Existing dictionaries (`deped_enrollment`, `deped_facilities`) gain the column when their script is next changed; DepEd documents almost every column, so they need few entries. Sources in review, starting with `psa_psgc` (#19), add it before approval. Interpretations can be wrong: the label and evidence make that visible, and they are reviewed like any other claim.
+
+## D-012: Which PSGC version to use
+
+- **Problem:** The anchor data is DepEd SY 2023-24, but the PSGC we profiled is 2Q 2026. Between them the Negros Island Region (NIR) was created and Sulu moved from BARMM to Region IX, so region labels and codes differ. The PSA API returns no records for `Q3_2023`; the nearest version it serves, `Q4_2023`, was pulled and compared.
+- **Decision:** Use the PSGC 2Q 2026 workbook as the one master reference for all school years. No crosswalk to older versions is built. DepEd files carry place names only, so joins use province, municipality, and barangay names inside their parent, never region. For SY 2023-24 results by region, use DepEd's own region column or report at province level.
+- **Reason:** About 1,855 of about 43,760 codes differ from `Q4_2023`, almost all from NIR and Sulu, and name joins are not affected by a code change. `Q4_2023` has 457 names with broken accents and no 2024 population for about 1,780 barangays. 2Q 2026 has neither problem, is PSA's published file, and is already profiled.
+- **Consequence:** Region from PSGC must not be used for Negros or Sulu in SY 2023-24 results. Barangays split or renamed since 2023 (for example Barangay 176 in Caloocan) are flagged as unmatched or ambiguous, not forced. **Revisit** if a source arrives with codes from another PSGC version, or if the team needs code-level history; then build a crosswalk from `Correspondence Code`. Evidence and matching rules: [psa_psgc README](source_inventory/psa_psgc/README.md#version-used-and-sy-2023-24).
+
+## D-013: Who the stakeholders are
+
+- **Problem:** The project was framed for DepEd and CHED planners. Sponsors asked what a mayor or local planner would actually need, for example whether a mayor can zoom into a barangay and trust what they see.
+- **Decision:** The stakeholders are LGU planners, with students as the focus. The analysis is basic education at city/municipality and barangay level.
+- **Reason:** LGUs take part in local school planning and funding (for example through local school boards), and they need area-level evidence that a national total cannot give; the cited needs are collected under D-001. Keeping students as the focus keeps every measure tied to learners.
+- **Consequence:** Planner needs are drawn from LGU-facing documents (D-001). Results must be trustworthy at barangay level, so place-name matching to PSGC is reported with its match rate. Higher education leaves scope (D-003).

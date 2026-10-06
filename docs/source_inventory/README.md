@@ -24,8 +24,18 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/cross_sour
 |---|---|---|---|---|
 | [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise |
 | [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise |
+| [deped_ellna](deped_ellna/) | DepEd selected school-level ELLNA results | DepEd | profiled | @mafelisilda |
+| [deped_nat_gr6](deped_nat_gr6/) | DepEd selected school-level NAT Grade 6 results | DepEd | profiled | @mafelisilda |
+| [deped_personnel](deped_personnel/) | DepEd school-level personnel | DepEd | profiled | @mafelisilda |
+| [bpda_barmm_education](bpda_barmm_education/) | BARMM education performance indicators | BPDA | profiled | @hyenalouise |
+| [bpda_barmm_social_infrastructure](bpda_barmm_social_infrastructure/) | BARMM social infrastructure | BPDA | profiled | @hyenalouise |
+| [bpda_barmm_roads](bpda_barmm_roads/) | BARMM road length by surface and administrative class | BPDA | profiled | @hyenalouise |
 | [ched_enrollment](ched_enrollment/) | CHED enrollment by region, sector and sex | CHED | profiled | @catweyine |
 | [ched_graduates](ched_graduates/) | CHED graduates by region, program level and sex | CHED | profiled | @catweyine |
 | [ched_school_count](ched_school_count/) | CHED higher education institutions by region and type | CHED | profiled | @catweyine |
 | [ched_student_faculty_ratio](ched_student_faculty_ratio/) | CHED student-faculty ratio by region | CHED | profiled | @catweyine |
 | [dti_cmci](dti_cmci/) | Cities and Municipalities Competitiveness Index (CMCI) | DTI | profiled | @saraevcldn |
+| [psa_psgc](psa_psgc/) | PSA Philippine Standard Geographic Code (PSGC) | PSA | profiled | @maeveylain |
+| [psa_poverty_stat](psa_poverty_stat/) | PSA city- and municipal-level poverty estimates | PSA | profiled | @maeveylain |
+| [psa_population_per_barangay](psa_population_per_barangay/) | PSA 2024 population by barangay | PSA | profiled | @mafelisilda |
+| [psa_population_per_age_group](psa_population_per_age_group/) | PSA 2024 household population by age group | PSA | profiled | @mafelisilda |
