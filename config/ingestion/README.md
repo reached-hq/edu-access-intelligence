@@ -37,6 +37,6 @@ A delivery is approved by merging its entry in a reviewed pull request, never by
 1. Download the official zip into raw storage under its original name; do not change the file.
 2. Profile it (`notebooks/profiling/`) and update the source card with its checksums, encoding, and row count.
 3. If the header matches no schema version, add a new version here with the exact new column list, and record the change in `profile.md`. The loader stops on any header it does not recognize.
-4. Add the delivery entry, copying the values from the source card. `tests/test_ingestion_validate.py` fails if a checksum or row count here is not also on the card.
+4. Add the delivery entry, copying the values from the source card. `tests/test_ingestion_validate.py` fails unless each value here matches the card row of its own file: the zip's name and checksum, and the CSV's name, checksum, row count, and encoding.
 
 A file whose name matches an approved delivery but whose SHA-256 does not is refused as `checksum_mismatch`. It is either damaged (download it again) or revised by the publisher (approve it as the next `delivery_version`; the earlier version is kept).

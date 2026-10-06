@@ -58,14 +58,34 @@ def test_every_contract_is_valid(repo_root, path):
     load_source_config(repo_root, path.stem)
 
 
+# How each approved encoding is written in a card's Files table.
+ENCODING_ON_CARD = {"utf-8": "UTF-8", "cp1252": "Windows-1252"}
+
+
 @pytest.mark.parametrize("path", CONTRACTS, ids=lambda p: p.stem)
-def test_contract_checksums_match_the_source_card(repo_root, path):
-    """The contract and the inventory card must describe the same files."""
+def test_contract_matches_the_source_card_row_by_row(repo_root, path):
+    """The contract and the inventory card must describe the same files, value for value.
+
+    Each value must sit on the card row of the file it belongs to: the zip's name
+    and checksum on one row, and the CSV's name, checksum, row count, and encoding
+    on another. A row count or encoding copied from another year's file fails.
+    """
     card = (repo_root / "docs/source_inventory" / path.stem / "README.md").read_text(encoding="utf-8")
+    lines = card.splitlines()
     for d in json.loads(path.read_text(encoding="utf-8"))["deliveries"]:
-        assert d["archive_sha256"] in card, d["archive"]
-        assert d["data_member_sha256"] in card, d["data_member"]
-        assert f"{d['row_count']:,}" in card, d["data_member"]
+        archive_rows = [line for line in lines if d["archive_sha256"] in line]
+        assert len(archive_rows) == 1, f"{d['archive']}: its checksum must be on exactly one card row"
+        assert f"`{d['archive']}`" in archive_rows[0], f"{d['archive']}: checksum is on another file's row"
+
+        csv_rows = [line for line in lines if d["data_member_sha256"] in line]
+        assert len(csv_rows) == 1, f"{d['data_member']}: its checksum must be on exactly one card row"
+        row = csv_rows[0]
+        assert f"`{d['data_member']}`" in row, f"{d['data_member']}: checksum is on another file's row"
+        assert f"{d['row_count']:,}" in row, f"{d['data_member']}: row count {d['row_count']:,} is not on its card row"
+        assert ENCODING_ON_CARD[d["encoding"]] in row, f"{d['data_member']}: encoding {d['encoding']} is not on its card row"
+
+        for name, digest in d["document_sha256"].items():
+            assert digest in card, f"{d['archive']}: {name} checksum is not on the card"
 
 
 def test_v2_adds_columns_without_reordering_v1():
