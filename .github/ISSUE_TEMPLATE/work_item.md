@@ -21,5 +21,4 @@ What checks or review evidence prove this is done? Include rerun behavior where 
 ## Ownership
 
 Owner:
-Reviewer:
 Documents affected:
