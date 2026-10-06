@@ -9,6 +9,9 @@ PROCESS_URL = "https://cmci.dti.gov.ph/data-portal-process.php"
 
 YEARS = [2023, 2024]
 
+INDICATOR_CODE = "edu"
+INDICATOR_LABEL = "Education"
+
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -17,12 +20,24 @@ HEADERS = {
     )
 }
 
+# Status rules. Each LGU-year gets exactly one:
+#   valid             HTTP 200, the indicator row is present, and its score is a number.
+#   cmci_missing      HTTP 200, the indicator row is present, and its score is "-"
+#                     (CMCI shows no value). This is the only source-side gap.
+#   cmci_server_error The request failed (network error or timeout), the status was
+#                     not 200, or the response had no indicator row (for example the
+#                     portal's "Please choose a Province and/or a Local Government
+#                     Unit" message or a PHP error page). These are extraction
+#                     failures, not missing data.
+#   unexpected_value  The indicator row is present but its score is neither "-" nor
+#                     a number. Should not happen; review by hand if it does.
+
 
 def get_education_score(lgu, year):
     """Request the CMCI Education score for one LGU-year."""
 
     payload = [
-        ("chk-indicators[]", "edu"),
+        ("chk-indicators[]", INDICATOR_CODE),
         ("chk-lgu[]", lgu),
         ("chk-year[]", str(year)),
     ]
@@ -40,7 +55,20 @@ def get_education_score(lgu, year):
     if response.status_code != 200:
         return None, "cmci_server_error"
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    score_text = find_indicator_score(response.text)
+
+    if score_text is None:
+        # HTTP 200 but no indicator row: an error or validation page,
+        # not a CMCI "-". Never report this as cmci_missing.
+        return None, "cmci_server_error"
+
+    return clean_score(score_text)
+
+
+def find_indicator_score(html):
+    """Return the score cell text of the indicator row, or None if the row is absent."""
+
+    soup = BeautifulSoup(html, "html.parser")
 
     for table in soup.find_all("table"):
         for row in table.find_all("tr"):
@@ -49,17 +77,14 @@ def get_education_score(lgu, year):
                 for cell in row.find_all(["th", "td"])
             ]
 
-            if len(cells) >= 2 and cells[0].strip() == "Education":
-                return clean_score(cells[1])
+            if len(cells) >= 2 and cells[0].strip() == INDICATOR_LABEL:
+                return cells[1]
 
-    return None, "cmci_missing"
+    return None
 
 
 def clean_score(score):
-    """Convert a CMCI score to numeric and assign a status."""
-
-    if score is None:
-        return None, "cmci_missing"
+    """Classify the score cell of a found indicator row."""
 
     score = str(score).strip()
 
@@ -117,9 +142,12 @@ def main():
         "Duplicate LGU-year combinations:",
         df.duplicated(["lgu", "year"]).sum(),
     )
+
     print("\nStatus counts:")
     print(df["status"].value_counts(dropna=False))
+
     print("\nMissing education scores:", df["education"].isna().sum())
+
     print("\nSaved:", output_file)
 
 
