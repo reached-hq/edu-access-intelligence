@@ -248,12 +248,17 @@ for finding, label, results, weights in (("A-2", "provinces", prov_result, w_pro
          + "; ".join(f"{t} {places[t]:,} / {school_counts[t]:,}" for t in sorted(places, key=lambda t: -places[t])))
 
 full = sum(1 for s in schools if bgy_result[(s[2], s[3], s[4])][1] is not None)
-exact_chain = sum(
+# Strict: the card's own rules only (exact or old name) at every level; at province level
+# the NCR district and Maguindanao split are allowed, since those provinces have no exact match.
+STRICT = {"exact", "old name"}
+strict_chain = sum(
     1 for s in schools
-    if prov_result[s[2]][0] == "exact" and loc_result[(s[2], s[3])][0] == "exact" and bgy_result[(s[2], s[3], s[4])][0] == "exact"
+    if prov_result[s[2]][0] in STRICT | {"NCR district", "documented split"}
+    and loc_result[(s[2], s[3])][0] in STRICT and bgy_result[(s[2], s[3], s[4])][0] in STRICT
 )
 show("A-5", f"schools matched down to barangay {full:,} of {len(schools):,} ({100 * full / len(schools):.1f}%); "
-     f"by exact names at all three levels {exact_chain:,} ({100 * exact_chain / len(schools):.1f}%)")
+     f"by the strict rule (exact or old name at every level, plus NCR district and split at province) "
+     f"{strict_chain:,} ({100 * strict_chain / len(schools):.1f}%)")
 show("A-6", "unmatched or ambiguous provinces: " + str({p: (t, w_prov[p]) for p, (t, pre) in prov_result.items() if not pre}))
 show("A-7", "unmatched or ambiguous cities and municipalities (province, name, tier, schools): "
      + str(sorted(((p, m, t, w_loc[(p, m)]) for (p, m), (t, u) in loc_result.items() if u is None), key=lambda r: -r[3])))
