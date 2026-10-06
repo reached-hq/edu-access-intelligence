@@ -25,7 +25,7 @@ Each source has one status:
 3. **DepEd school-level data stays the anchor.** Enrollment, facilities, and personnel join one-to-one on `school_id`. No BPDA source has a school ID.
 4. **BARMM learning outcomes exist only at region level.** OpenSTAT NAT and FLEMMS literacy tables give regional figures. The school-level ELLNA ([#49](https://github.com/reached-hq/edu-access-intelligence/pull/49)) and NAT Grade 6 ([`deped_nat_gr6`](../source_inventory/deped_nat_gr6/)) files cover only CAR and Regions I, III, VIII, and IX.
 5. **Distance analysis needs official school coordinates.** OSM ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) has 3,572 school points nationwide, far from a complete school list.
-6. **The DepEd anchor covers BARMM, so BARMM can be included on purpose.** Its 2,603 public schools are in enrollment, facilities, and personnel; 93.3% have classroom counts and 99.2% have teachers counted, against 99.0% and 99.6% elsewhere ([#57](https://github.com/reached-hq/edu-access-intelligence/pull/57), B-7).
+6. **The DepEd anchor covers BARMM, so BARMM can be included on purpose.** DepEd's SY 2023-24 region field classifies 2,603 public schools as BARMM, including Sulu; all are in enrollment, facilities, and personnel. Of those schools, 93.3% have classroom counts and 99.2% have teachers counted, against 99.0% and 99.6% elsewhere ([#57](https://github.com/reached-hq/edu-access-intelligence/pull/57), B-7).
 
 None of these sources supports a claim that distance, crowding, or teacher load *caused* poor learning outcomes. That would need predictors and outcomes joined at the same school and year.
 
@@ -33,12 +33,12 @@ None of these sources supports a claim that distance, crowding, or teacher load 
 
 This is a recommendation for the team, not yet a decision. If agreed, it should be recorded in `decisions.md`.
 
-BARMM can be analyzed with the same DepEd indicators as the rest of the country: school availability, classroom pressure, and teacher pressure all have near-complete coverage there ([#57](https://github.com/reached-hq/edu-access-intelligence/pull/57), B-7). Excluding it would drop 2,603 public schools that the data does support. We would include it on purpose and state these limits wherever BARMM results appear:
+BARMM can be analyzed with the same DepEd indicators as the rest of the country: school availability, classroom pressure, and teacher pressure all have near-complete coverage there ([#57](https://github.com/reached-hq/edu-access-intelligence/pull/57), B-7). Excluding it would drop 2,603 public schools classified as BARMM in DepEd's SY 2023-24 region field, including Sulu. We would include it on purpose and state these limits wherever BARMM results appear:
 
 - 174 BARMM public schools (6.7%) have no classroom counts and are left out of the classroom ratio, compared with 1.0% elsewhere.
 - BARMM has no school-level NAT or ELLNA results, so learning outcomes stay at region level.
 - Sulu is in BARMM for SY 2023-24 but under Region IX in PSGC 2Q 2026, so regional totals must say which map they use.
-- Only 7 of the 112 Special Geographic Area schools match a barangay in PSGC 2Q 2026, so barangay results there are incomplete.
+- Only 7 of the 112 SY 2023-24 DepEd schools filed under `BARMM` / `NORTH COTABATO`, the Special Geographic Area set used in [#57](https://github.com/reached-hq/edu-access-intelligence/pull/57), match a barangay in PSGC 2Q 2026, so barangay results there are incomplete.
 - The BPDA workbooks are historical background only; they cannot be joined to DepEd year for year.
 
 ## Source status
@@ -55,7 +55,7 @@ BARMM can be analyzed with the same DepEd indicators as the rest of the country:
 | [MBHTE BEMIS](https://bemis-mbhte.bangsamoro.gov.ph/pbi/report/landing) | Not inspected | Possibly school or institution | Unknown | Unknown | Strongest candidate for current BARMM school IDs and coordinates; needs a manual export or a request to MBHTE |
 | [DepEd National Inventory Dashboard](https://nid.deped.gov.ph/public-dashboard/region/BARMM/division/Special%20Geographic%20Area%20Division?page=1) | Candidate | School | Current dashboard state; school list matches SY 2024-25 | School ID | A check on school IDs and inventory-submission status only. No export, download, or API link |
 
-The DepEd National Inventory Dashboard was opened on 2026-10-04. Its Special Geographic Area division page lists 116 schools (47 not started, 41 API imported, 28 submitted; 45 projects), and those 116 school IDs are exactly DepEd's 116 public schools in that division in SY 2024-25; SY 2023-24 has 111 of them, and SY 2025-26 adds one (`306532`). The `www.` address fails a certificate check; `nid.deped.gov.ph` works.
+The DepEd National Inventory Dashboard was opened on 2026-10-04. Its Special Geographic Area division page lists 116 schools (47 not started, 41 API imported, 28 submitted; 45 projects), and those 116 school IDs are exactly DepEd's 116 public schools in that division in SY 2024-25; 111 of the dashboard IDs are present in SY 2023-24, and SY 2025-26 adds one (`306532`). This 111-school overlap is different from the 112-school set in [#57](https://github.com/reached-hq/edu-access-intelligence/pull/57): that set contains every SY 2023-24 DepEd school filed under `BARMM` / `NORTH COTABATO`, including one school outside the dashboard's current roster. The `www.` address fails a certificate check; `nid.deped.gov.ph` works.
 
 The thirteen OpenSTAT tables, including the FLEMMS tables, are profiled as `psa_openstat_education` in [#58](https://github.com/reached-hq/edu-access-intelligence/pull/58) and stored in `/Volumes/edu_access/00-source/raw/psa/openstat/`.
 
@@ -77,7 +77,18 @@ The sources describe BARMM at different dates, so the same name can mean a diffe
 - **COD-AB boundaries ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)):** valid 2025-02-13.
 - **PSGC 2Q 2026:** Sulu is under Region IX, and Maguindanao is split into del Norte and del Sur.
 
-A direct name match from the BPDA labels to PSGC 2Q 2026 will not work as is. Sulu matches by name but now sits under Region IX; Maguindanao no longer exists as one province; the numbered school divisions have no PSGC unit; and `SGA` has to be expanded to `Special Geographic Area`, which PSGC lists with a blank geographic level (code `1999900000`). The match rates that #8 asks for have not been computed for the BPDA labels yet. For DepEd's BARMM schools, [#57](https://github.com/reached-hq/edu-access-intelligence/pull/57) matched SY 2023-24 place names to PSGC 2Q 2026: 463 of 469 Sulu schools reach a barangay, now under Region IX, but only 7 of the 112 Special Geographic Area schools do, because PSGC now lists the area's barangays under eight new municipalities.
+### BPDA label matches to PSGC 2Q 2026
+
+All distinct reporting-area labels in the four BPDA workbooks were compared with the team's [PSGC 2Q 2026 reference](../source_inventory/psa_psgc/README.md). Matching normalized case and whitespace, used parent geography, and allowed only unambiguous form aliases: `Lamitan City`, `Marawi City`, and `Cotabato City` to PSGC's `City of ...` form; `SGA` or `Special Geographic Area (SGA)` to `Special Geographic Area` (`1999900000`); and missing hyphens in the MBHTE labels `Tipo Tipo` and `Al Barka`. Historical areas were not forced onto current units.
+
+| BPDA source | Unit tested | Matched | Match rate | Matched labels | Unmatched labels |
+|---|---|---:|---:|---|---|
+| Education | 10 distinct reporting-area labels | 6 | 60.0% | `Basilan`; `Lamitan City`; `Marawi City`; `Sulu`; `Tawi-Tawi`; `Cotabato City` | `Lanao del Sur I`; `Lanao del Sur II`; `Maguindanao I`; `Maguindanao II` |
+| Social Infrastructure | 9 distinct reporting-area labels | 8 | 88.9% | `Lanao del Sur`; `Basilan`; `Sulu`; `Tawi-Tawi`; `Cotabato City`; `Special Geographic Area (SGA)`; `Lamitan City`; `Marawi City` | `Maguindanao` |
+| Roads | 9 distinct reporting-area labels | 8 | 88.9% | `Lanao del Sur`; `Basilan`; `Sulu`; `Tawi-Tawi`; `Cotabato City`; `SGA`; `Lamitan City`; `Marawi City` | `Maguindanao` |
+| MBHTE Infrastructure Projects | 4 distinct Basilan province-municipality/city pairs across 16 records | 4 (16 records) | 100.0% | `Basilan` with `Lamitan City`, `Sumisip`, `Tipo Tipo`, or `Al Barka` | None |
+
+The four Education division labels are not PSGC units. The unsplit `Maguindanao` label is ambiguous because PSGC 2Q 2026 has `Maguindanao del Norte` and `Maguindanao del Sur`. Sulu matches province code `0906600000`, but that code now sits under Region IX, so the match does not preserve the workbook's historical BARMM region. For DepEd's BARMM schools, [#57](https://github.com/reached-hq/edu-access-intelligence/pull/57) matched SY 2023-24 place names to PSGC 2Q 2026: 463 of 469 Sulu schools reach a barangay, now under Region IX, but only 7 of the 112 `BARMM` / `NORTH COTABATO` schools do, because PSGC now lists the area's barangays under eight new municipalities.
 
 ### Timing
 
