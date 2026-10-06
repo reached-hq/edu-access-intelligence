@@ -93,7 +93,7 @@ Evidence lives in [profile.md](profile.md).
 - **Observed:** three undocumented missing markers: `..` for Senior High School teachers before SY 2016-17, `...` for empty NIR, Unknown, and NCR NAT cells and for NIR literacy before 2024, and `a` for Eastern Visayas literacy in 2013.
 - **Observed:** four elementary net enrolment rates are above 100% (Region III and Region X, SY 2019-20).
 - **Observed:** the school and teacher tables have 17 regions and no Negros Island Region; Negros is inside Regions VI and VII.
-- **Observed:** national functional literacy falls from 91.6% (2019) to 70.8% (2024). The tables carry no note, but the FLEMMS 2024 Technical Notes show PSA changed both definitions and the test for 2024 (PSA Board Resolution No. 13, Series of 2024); 2019 also counted high school or junior high school completers as functionally literate (O-9).
+- **Observed:** national functional literacy is 91.6% in 2019 and 70.8% in 2024; the two are not comparable because PSA changed the definitions and the test for 2024 (PSA Board Resolution No. 13, Series of 2024). The tables carry no note, but the FLEMMS 2024 Technical Notes record the change; 2019 also counted high school or junior high school completers as functionally literate (O-9).
 
 ## Limitations for analysis
 
