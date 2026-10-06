@@ -167,11 +167,16 @@ for stem, t in tables.items():
     raw = list(dict.fromkeys(row[0] for row in t["rows"]))
     no_prefix = [l for l in raw if not l.startswith("..") and l != "Philippines"]
     show("O-2", f"{stem}: {len(raw)} labels; regions {len([l for l in raw if l.startswith('..')])}; "
-         f"labels without the '..' prefix other than Philippines {no_prefix}; NIR present {any(REGION[l.lstrip('.')] == 'NIR' for l in raw)}")
+         f"labels without the '..' prefix other than Philippines {no_prefix}")
 variants = collections.defaultdict(set)
 for label in labels:
     variants[REGION[label.lstrip(".")]].add(label)
 show("O-2", "keys with more than one label: " + "; ".join(f"{k}: {sorted(v)}" for k, v in sorted(variants.items()) if len(v) > 1))
+
+# %% O-8 Negros Island Region rows
+has_nir = {stem: any(REGION[row[0].lstrip(".")] == "NIR" for row in t["rows"]) for stem, t in tables.items()}
+show("O-8", f"tables with a Negros Island Region row: {[s for s, v in has_nir.items() if v]}; "
+     f"without: {[s for s, v in has_nir.items() if not v]}")
 
 # %% O-3 Missing-value markers
 for stem, t in tables.items():
