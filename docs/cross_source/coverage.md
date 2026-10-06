@@ -6,7 +6,7 @@ One row per source: how it identifies places, its geographic level, years, time 
 
 Every number carries one evidence label:
 
-- **Re-run:** computed from checksum-verified raw files by a script in this repository. Checks new to this matrix print under C-n from [`cross_source_coverage.py`](../../notebooks/profiling/cross_source_coverage.py).
+- **Re-run:** computed from checksum-verified raw files by a script in this repository. Checks new to this matrix print under C-n from [`cross_source_coverage.py`](../../notebooks/profiling/cross_source_coverage.py), and per source under BP-n ([barangay population](../../notebooks/profiling/cross_source_psa_population_per_barangay.py)), AG-n ([age-group population](../../notebooks/profiling/cross_source_psa_population_per_age_group.py)), and CM-n ([CMCI](../../notebooks/profiling/cross_source_dti_cmci.py)).
 - **Card:** taken from the source's card or profile (merged or in an open pull request), not re-run here.
 - **Review:** a reviewer's check on a local copy, posted on a pull request but not yet in any card.
 - **Not run:** nobody has computed it yet.
@@ -16,7 +16,7 @@ Every number carries one evidence label:
 1. **PSGC 2Q 2026 is the hub.** Every source reaches it at one of five levels: school (`school_id` through DepEd enrollment), barangay, city or municipality, province or HUC, and region. OSM reaches it only spatially, through the HDX boundaries.
 2. **DepEd joins cleanly inside itself and mostly to PSGC.** All four DepEd school files join to enrollment on `school_id` with no loss, and 96.9% of SY 2023-24 schools reach a PSGC barangay by name (97.1% in SY 2024-25 and 2025-26, with the same rules; [year comparison](deped_year_comparison.md)).
 3. **Poverty joins entirely, and 96 HDX ADM3 units partly, through PSGC's old 9-digit `Correspondence Code`.** The PSGC card still says not to join on that code, so the rule needs updating (see [Conflicts](#conflicts-between-documents)).
-4. **Name-only sources still missing a match rate:** PSA barangay population, PSA age-group population (its codes are in the API, not the CSV), and CMCI (only a partial check). FLEMMS cannot be tested until the microdata is accessed.
+4. **Every acquired name-only source now has a match rate.** PSA barangay population: 99.87% by name, and every barangay accounted for. CMCI: 1,634 of 1,634, one-to-one. The age-group table's API codes are PSGC 2Q 2026 codes. Only FLEMMS cannot be tested, until the microdata is accessed.
 5. **Two gaps change school-level results:** 5,476 located schools (9.3%) sit in the 44 cities and municipalities with no poverty estimate, and the 112 Special Geographic Area schools match Region XII municipalities, so any city- or municipality-level value attached to them is wrong (see [Limits](#what-limits-the-joins)).
 6. **CHED is profiled but out of scope** ([D-003](../decisions.md#d-003-higher-education-is-out-of-scope)), so its rows are for the record only.
 
@@ -64,9 +64,9 @@ Every number carries one evidence label:
 | deped_nat_gr6 | `school_id` | Through enrollment | 6,636 of 6,636 are in enrollment, same region | None, but the same five regions, at 27.7% to 45.4% of their schools | Re-run (B-5, B-6) |
 | **PSA** | | | | | |
 | psa_psgc | 10-digit PSGC | Is the reference | Not applicable | 50 rows have no `Correspondence Code`; 2 rows have no geographic level | Card (O-2, O-3) |
-| psa_poverty_stat | `PSGC ID` padded to 6 digits plus `000` equals PSGC `Correspondence Code` | Code to `Correspondence Code`, then to the 10-digit PSGC | 1,612 of 1,612 rows (100%), one-to-one | 44 PSGC cities and municipalities have no estimate: 33 HUCs, Isabela City, Cotabato City, Pateros, and 8 Special Geographic Area municipalities. Kalayaan's row has no values. Named in profile X-1 and O-5 | Card (X-1); schools affected re-run (C-1) |
-| psa_population_per_barangay | Names inside region, province or HUC, and city or municipality | Name match, **or** PSGC's own `2024 Population` column, which appears to hold the same census counts (see [Population](#population-can-attach-by-code)) | **Not run** | **Not run.** The source has 42,011 barangays against PSGC's 42,010 | Card (O-13); population comparison re-run (C-3) |
-| psa_population_per_age_group | 10-digit codes from the OpenSTAT API, or names | Codes checked against PSGC | **Not run** (profile S-3 open) | 38 `Both Sexes` cells and 19 all-age totals are quarantined (Regions V, X, XI, ages 80 and over) | Card (O-7, O-8, O-11) |
+| psa_poverty_stat | `PSGC ID` padded to 6 digits plus `000` equals PSGC `Correspondence Code` | Code to `Correspondence Code`, then to the 10-digit PSGC | 1,612 of 1,612 rows (100%), one-to-one | 44 PSGC cities and municipalities have no estimate: 33 HUCs, Isabela City, Cotabato City, Pateros, and 8 Special Geographic Area municipalities. Kalayaan's row has no values. Named in profile X-1 and O-5 | Re-run (profile X-1, from the raw file); schools affected re-run (C-1) |
+| psa_population_per_barangay | Names inside region, province or HUC, and city or municipality | PSGC's own `2024 Population` column holds the same counts, already coded (see [Population](#population-can-attach-by-code)); the name match is the check | By name: 41,958 of 42,011 (99.87%), one-to-one; 41,957 with the same population as PSGC. The other 52 pair one-to-one with PSGC barangays by equal population inside the same province or HUC | 1 left: San Rafael, Calaca (637). PSGC counts it inside Dacanlao. [Listed](psa_population_psgc_unmatched.md) | Re-run (BP-2 to BP-5; C-3) |
+| psa_population_per_age_group | 10-digit codes from the OpenSTAT API metadata of table `0201A6DPAG0` | Code is the 10-digit PSGC | 136 of 136 lower-level and region codes are PSGC 2Q 2026 codes with the same name (18 regions, 82 provinces, 33 HUCs, Pateros, Isabela City, Special Geographic Area); the 137th is the Philippines. Every CSV label ties to one code, including the two with `U+FFFD` | None. 38 `Both Sexes` cells and 19 all-age totals stay quarantined (Regions V, X, XI, ages 80 and over) | Re-run (AG-2, AG-3); quarantine: card (O-7, O-8) |
 | psa_openstat_education | Region map from 35 labels to 20 keys | Region | All 35 labels map; the script stops on an unknown label. School tables use 17 regions | `Unknown` NAT rows have no region | Card (O-2, O-8) |
 | FLEMMS 2024 public-use file | `prv`; `reg` or `reg2` | Unknown whether `prv` is a PSGC code or PSA's own numbering | **Cannot be tested** until the microdata is accessed | The Special Geographic Area is not a FLEMMS domain | Documentation only |
 | **BPDA** | | | | | |
@@ -75,7 +75,7 @@ Every number carries one evidence label:
 | bpda_barmm_roads | Area labels | Same | 8 of 9 labels (88.9%) | `Maguindanao` (not split) | Re-run (BARMM memo) |
 | bpda_mbhte_infrastructure_projects | Province and municipality names | Same | 4 of 4 place pairs (100%), covering all 16 records | None | Re-run (BARMM memo) |
 | **Other publishers** | | | | | |
-| dti_cmci | `lgu` plus `year` | Name after removing the suffix, inside the province the suffix stands for. The suffix-to-province lookup is **not built** | 1,472 of 1,634 names equal a PSGC city or municipality name once the suffix is removed. This is not yet a unique match: 122 base names belong to more than one LGU | 162 names, **not listed**. The 8 Special Geographic Area municipalities are not in CMCI | Card (reviewer's check quoted in the card) |
+| dti_cmci | `lgu` plus `year` | Name after removing the suffix, inside the province the suffix stands for: 59 suffixes read from the data, 17 by review. Current names before old names; 16 reviewed aliases | 1,634 of 1,634, one-to-one: 1,440 exact, the rest by counted tiers. [Listed](dti_cmci_psgc_match.md) | None. The 8 Special Geographic Area municipalities are the only PSGC cities and municipalities with no CMCI LGU | Re-run (CM-1 to CM-4) |
 | hdx_boundaries | ADM3 `adm3_pcode`; ADM4 `adm4_pcode` | P-code converted to 10 digits, then PSGC; the rest through `Correspondence Code` or name | ADM3: 1,500 of 1,642 exact (91.35%). Of the other 142: 96 through `Correspondence Code`, 19 Sulu (region `19` to `09`), 18 Maguindanao del Norte and del Sur (16 by name, 2 spelled differently), 1 City of Manila by name, 8 Special Geographic Area. ADM4: 36,762 of 42,048 exact and 3,719 through `Correspondence Code` | ADM3: 10 left (8 Special Geographic Area units need a spatial check; 2 Maguindanao spellings need an alias). ADM4: 1,567 left. **Neither list is in the card yet** | ADM3 total: card (O-11). Breakdown and ADM4: review |
 | osm_philippines | None; spatial only | Point or polygon inside an HDX polygon, then HDX to PSGC | **Not run** | 770 school features have blank names (124 points, 646 areas) | Card (O-3, O-4) |
 | **CHED (out of scope)** | | | | | |
@@ -96,12 +96,16 @@ The intended path for every area source is `school_id → PSGC barangay → aggr
 
 ### Population can attach by code
 
-PSGC 2Q 2026 has a `2024 Population` column keyed by the 10-digit code. Re-run against the PSGC workbook (C-3), it matches the barangay population source on every figure that can be compared without the barangay file:
+PSGC 2Q 2026 has a `2024 Population` column keyed by the 10-digit code. It holds the same 2024 census counts as the barangay workbooks:
 
-- **Total:** PSGC barangays sum to 112,727,776, the same as the barangay workbooks' geographic total (profile O-7).
-- **Zero-population barangays:** 12 in both, with the same regional split: NCR 1, CAR 1, Region II 2, Region III 2, CALABARZON 3, Region VI 1, Region VIII 2 (profile O-10).
+- **Total:** PSGC barangays sum to 112,727,776, the same as the workbooks' geographic total (C-3, profile O-7).
+- **Zero-population barangays:** 12 in both, with the same regional split (C-3, profile O-10).
+- **Barangay by barangay:** of the 41,958 workbook barangays matched to PSGC by name, 41,957 have exactly PSGC's population (BP-3). The other 52 workbook barangays each pair with one PSGC barangay of the same population in the same province or HUC, all spelling differences or renamed municipalities (BP-4).
+- **The one-barangay difference:** the workbooks list San Rafael (637) and Dacanlao (7,046) in the City of Calaca; PSGC 2Q 2026 has only Dacanlao, with 7,683, their sum (BP-5).
 
-So PSGC's column is very likely the same 2024 census count, already coded. If a barangay-by-barangay comparison confirms it, barangay population attaches by code with no name crosswalk, and the name match becomes a check rather than the join. The one-barangay difference (42,011 against 42,010) still needs explaining.
+So barangay population attaches by PSGC code with no name crosswalk. The workbooks are a check on the PSGC column, not the join.
+
+The workbooks mark footnotes with superscript runs, which text extraction reads as plain digits (`Barangay 176-A 1`); this confirms the barangay profile's S-1. The match drops them from the workbooks' own formatting (BP-1).
 
 ## What limits the joins
 
@@ -115,7 +119,7 @@ So PSGC's column is very likely the same 2024 census count, already coded. If a 
 | Assessments are samples | ELLNA and NAT Grade 6 cover five regions only; none in BARMM | Report as selected schools, never as regional coverage |
 | Population concepts differ | Barangay file: total population. Age-group file: household population, province or HUC and up | Never mix the two in one ratio. School-age measures stay at province or HUC level |
 | Quarantined age-group cells | 38 `Both Sexes` cells and 19 all-age totals | Do not recalculate; keep out of joins |
-| CMCI LGUs not in PSGC by name | 162 of 1,634, and the suffix lookup is not built | Build and review the lookup before any join |
+| CMCI matches that rest on review | 17 suffix readings and 16 aliases (CM-2, CM-3) | A teammate checks the [list](dti_cmci_psgc_match.md) once before Silver |
 | No school coordinates | No acquired source has them | Spatial work (OSM, distance) waits for an official coordinate list |
 
 ## Time alignment with the SY 2023-24 anchor
@@ -141,7 +145,7 @@ Statements that disagree across cards, memos, and the #8 thread, with the eviden
 |---|---|---|---|---|
 | 1 | [psa_psgc profile](../source_inventory/psa_psgc/profile.md) O-3 | "Do not join on" `Correspondence Code` | The poverty join (X-1, 1,612 of 1,612) and 96 HDX ADM3 units depend on it. PSGC S-2 calls it "supported, not confirmed". D-012 says to revisit when a source arrives with codes from another PSGC version, which poverty and HDX both do | Revisit D-012 to allow joins through `Correspondence Code` where a source carries old codes, and update O-3 (open question 4) |
 | 2 | [BARMM memo](barmm_dataset_research.md), summary 5 | OSM has 3,572 school points | OSM also stores schools as areas: 3,572 points and 47,068 areas, 50,640 school IDs with no overlap (#39 card O-3) | Corrected in this pull request |
-| 3 | #8 thread (CMCI) | 1,634 of 1,634 CMCI LGUs match non-SGA PSGC units | #35 records only 1,472 of 1,634 names found after removing the suffix. No full match or lookup is in any card. 1,634 equals 1,642 minus the 8 Special Geographic Area municipalities, which is a count, not a match | Treat CMCI as **not yet matched** until the suffix lookup and full match are in #35 |
+| 3 | #8 thread (CMCI) | 1,634 of 1,634 CMCI LGUs match non-SGA PSGC units | The claim holds, but no card showed it: #35 records only 1,472 found after removing the suffix. Re-run here (CM-3): 1,634 of 1,634 match one-to-one, but only with a suffix lookup (17 suffixes by review) and 16 reviewed aliases. A plain name match also makes one false match: `San Pedro` takes Bulalacao through its old name instead of the City of San Pedro | Use the match in [dti_cmci_psgc_match.md](dti_cmci_psgc_match.md); try current names before old names in any national name match |
 | 4 | #8 thread (CMCI and OSM summary table) | CMCI columns `lgu_name`, `capacity_of_school`, `educational`; join to Gold on `psgc_code + year` | The files have `lgu`, `capacity_of_school_services`, `education` (#35 profile O-7). `year` is the CMCI reference year, not a school year | Use the real column names. Join on PSGC code and record the CMCI year as an attribute |
 | 5 | #8 thread (OSM summary table) | 49,245 area features (`school`, `kindergarten`, `college`, `university`), "all have names" | 49,245 is right for areas only (47,068 + 217 + 1,273 + 687). 646 area schools have blank names (#39 O-4). The point layer adds 3,572 schools. Colleges and universities are higher education, out of scope under D-003 | Count both layers, `school` only (plus kindergarten if the team keeps it), and count blank names |
 | 6 | #8 thread (HDX and PSGC comments) | "Only the 8 SGA units need a spatial check" | The 142 break down as 96 + 19 + 18 + 1 + 8. Two of the 18 Maguindanao units are spelled differently, so 10 are left, not 8 | Record all 10. The full breakdown and the ADM4 check should go into #38's profile |
@@ -166,7 +170,8 @@ Statements that disagree across cards, memos, and the #8 thread, with the eviden
 4. **D-012 and `Correspondence Code`:** amend D-012 to allow joins through `Correspondence Code` for sources that carry old codes (poverty, HDX), and update PSGC O-3 (conflict 1).
 5. **Special Geographic Area schools:** exclude the 112 from city- and municipality-level joins, or mark them, until their barangays are matched?
 6. **OSM scope:** `school` only, or also `kindergarten`? Colleges and universities are out under D-003.
-7. **Barangay population:** use PSGC's `2024 Population` column as the join, with the barangay workbooks as a check, if a barangay-by-barangay comparison agrees?
+7. **Barangay population:** settled by BP-3 to BP-5. Use PSGC's `2024 Population` column; keep the workbooks as a check. Record as a decision?
+8. **CMCI reviewed readings:** can Sara check the 17 suffix readings and 16 aliases in [dti_cmci_psgc_match.md](dti_cmci_psgc_match.md)?
 
 ## Status against #8
 
@@ -174,6 +179,6 @@ Statements that disagree across cards, memos, and the #8 thread, with the eviden
 |---|---|
 | One row per source: codes or names, level, years, time basis | Done for every acquired source, plus FLEMMS as a candidate |
 | Grain statement and join keys per source | Done |
-| Names-only sources matched to PSGC, match rate recorded | Done for DepEd and BPDA. Partial for CMCI (no unique match) and HDX ADM4 (review only). **Not run** for barangay population and age-group population. FLEMMS cannot be tested. CHED not needed (D-003) |
-| Unmatched records counted and listed | Listed for DepEd and BPDA; poverty gaps named. **Not listed** for CMCI (162) or HDX (ADM3 10, ADM4 1,567) |
+| Names-only sources matched to PSGC, match rate recorded | Done for DepEd (three years), BPDA, barangay population, age-group population, and CMCI. HDX ADM4 is review only until #38 or a re-run here. FLEMMS cannot be tested. CHED not needed (D-003) |
+| Unmatched records counted and listed | Listed for DepEd, BPDA, barangay population, and CMCI; poverty gaps named. **Not listed** for HDX (ADM3 10, ADM4 1,567) |
 | Enrollment compared across SY 2023-24 to 2025-26 | Done in [deped_year_comparison.md](deped_year_comparison.md): label mappings (Y-2), blank counts (Y-3), school IDs (Y-4), place changes (Y-5), and the PSGC match per year (Y-6). Lists in [deped_year_changes.md](deped_year_changes.md) |
