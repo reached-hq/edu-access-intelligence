@@ -17,7 +17,7 @@ ISSUE → BRANCH → CHANGE → VALIDATE → COMMIT → PUSH → PULL REQUEST �
 3. **Validate before you commit.** Run `python -m pytest tests -q`. For data changes, also check row counts, duplicates, and rerun safety.
 4. **Open a pull request.** Fill in the template and link the issue (`Closes #14` or `Part of #14`). CI fails if no issue is linked, if the PR has no milestone (it is copied from the linked issue when the issue has one), or if the **AI help** section is not filled in (see [Using AI](#using-ai)).
 5. **Review.** At least one teammate who is not the author approves the PR.
-6. **Merge.** Squash-merge, then delete the branch.
+6. **Merge.** Merge with a merge commit (the only method turned on), then delete the branch.
 
 ## Commit messages
 

@@ -8,7 +8,7 @@
 
 ## Pipeline stages
 
-The stage numbers follow the NYC Mobility convention: a stage number matches its `etl/` folder and its Unity Catalog schema. Schema names start with a digit and contain a hyphen, so SQL must quote them with backticks: ``SELECT * FROM edu_access.`02-bronze`.some_table``. Schemas are created when their stage starts.
+The stage numbers follow one rule: a stage number matches its `etl/` folder and its Unity Catalog schema. Schema names start with a digit and contain a hyphen, so SQL must quote them with backticks: ``SELECT * FROM edu_access.`02-bronze`.some_table``. Schemas are created when their stage starts.
 
 | Stage | Layer | Responsibility | Code | Schema |
 |---|---|---|---|---|
@@ -19,6 +19,13 @@ The stage numbers follow the NYC Mobility convention: a stage number matches its
 | 04 | Integration | Matching across sources (e.g. to PSGC) | `etl/04_integration/` | `` edu_access.`04-integration` `` (not created yet) |
 | 05 | Gold | Facts and dimensions for the approved question | `etl/05_gold/` | `` edu_access.`05-gold` `` (not created yet) |
 | 06 | Analytics | One dataset per business question | `etl/06_analytics/` | `` edu_access.`06-analytics` `` (not created yet) |
+
+## File naming and layout
+
+- Every folder in the layout exists from the start. Until its phase begins, it holds only a short `README.md` saying what will go there.
+- SQL files in each `etl/` folder are named `NN_<verb>_<object>.sql` and run in number order.
+- Each layer's checks are in `90_validate_<object>.sql`.
+- `config/` holds non-secret settings, including the source registry.
 
 ## Data flow
 

@@ -27,7 +27,7 @@ See [docs/architecture.md](docs/architecture.md) and [docs/decisions.md](docs/de
 
 ## Repository layout
 
-Every folder exists from the start (D-004). Until its phase begins, a folder holds only a short `README.md` saying what will go there.
+Every folder exists from the start (see [File naming and layout](docs/architecture.md#file-naming-and-layout)). Until its phase begins, a folder holds only a short `README.md` saying what will go there.
 
 | Path | Purpose | Filled in |
 |---|---|---|
