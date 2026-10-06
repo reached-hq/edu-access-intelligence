@@ -10,13 +10,13 @@ The "Question v1" column links each need to the analytical questions (AP1 to AP5
 
 ## Documents read
 
-| Short name | Document | Publisher, date |
-|---|---|---|
-| JC 1-2025 | Joint Circular No. 01, s. 2025: Omnibus Guidelines on the Use of the Special Education Fund (SEF) | DepEd, DBM, DILG, DOF; certified true copy dated 22 Jan 2026 |
-| Playbook | LGU Playbook: Fixing the Foundations of Local Education | EDCOM 2, 2026 |
-| EDCOM Y2 | Fixing the Foundations: EDCOM II Year Two Report | EDCOM 2, 2025 |
-| EDCOM NEP | Turning Point: A Decade of Necessary Reform, National Education Plan 2026-2035 (final report) | EDCOM 2, 2026 |
-| BEDP | Basic Education Development Plan 2030 | DepEd, June 2022 |
+| Short name | Document | Publisher, date | Link |
+|---|---|---|---|
+| JC 1-2025 | Joint Circular No. 01, s. 2025: Omnibus Guidelines on the Use of the Special Education Fund (SEF) | DepEd, DBM, DILG, DOF; certified true copy dated 22 Jan 2026 | [DBM issuance (PDF)](https://www.dbm.gov.ph/wp-content/uploads/Issuances/2025/Joint-Circular/DEPED-DBM-DILG-DOF-JOINT-CIRCULAR-NO.-01,-s.-2025.pdf); [DepEd announcement](https://www.deped.gov.ph/2026/03/03/deped-dbm-dilg-joint-memorandum-circular-no-01-s-2025-omnibus-guidelines-on-the-use-of-the-special-education-fund-sef/) |
+| Playbook | LGU Playbook: Fixing the Foundations of Local Education | EDCOM 2, 2026 | [EDCOM 2 (PDF)](https://edcom2.gov.ph/media/2024/02/LGU-Playbook_260311.pdf) |
+| EDCOM Y2 | Fixing the Foundations: EDCOM II Year Two Report | EDCOM 2, 2025 | [EDCOM 2 (PDF)](https://edcom2.gov.ph/media/2025/01/EDCOM-2-Year-2-Report-Fixing-the-Foundations-2025.pdf) |
+| EDCOM NEP | Turning Point: A Decade of Necessary Reform, National Education Plan 2026-2035 (final report) | EDCOM 2, 2026 | [EDCOM 2 publication page](https://edcom2.gov.ph/publications/the-national-education-plan-2026-2035/) (download form) |
+| BEDP | Basic Education Development Plan 2030 | DepEd, June 2022 | [Global Partnership for Education](https://www.globalpartnership.org/node/31757) |
 
 Pages are the numbers printed on the page. Where the PDF page number differs, it is given in brackets, for example "p. 135 [PDF 131]". JC 1-2025 and the Playbook print the PDF page number. The PDFs are kept outside the repo.
 
@@ -64,7 +64,7 @@ Question v1 relies on these, but none of the documents read states them. They st
 | A-02 | Total population is an acceptable denominator when school-age population is not available at barangay or city/municipality level. | AP1 | A later mentor check |
 | A-03 | Ranking areas within each measure, without thresholds, is enough for planners to choose areas for review. | AP5 | A later mentor check. The documents name an "ideal" classroom ratio (N-04) but give no number. |
 | A-04 | Head teachers are excluded from the primary teacher count. | AP3 | DepEd or mentor confirmation of head teachers' teaching load |
-| A-05 | Barangay-level results must be trustworthy enough for a mayor to use them. | AP1 | Raised by sponsors (D-013). JC 1-2025 p. 8 supports barangay indicators (N-01), but the trust level is not stated in a document. |
+| A-05 | Barangay-level results must be trustworthy enough for a mayor to use them. | AP1 | Raised by sponsors (D-013). Sponsor input is not mentor validation (D-001), so it stays assumed until the mentor confirms it. JC 1-2025 p. 8 supports barangay indicators (N-01), but the trust level is not stated in a document. |
 
 ## Thresholds and standards
 
