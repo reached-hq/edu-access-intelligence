@@ -10,7 +10,7 @@ This memo tests how the DepEd anchor, school-level enrollment for SY 2023-24, jo
 - [`deped_nat_gr6`](../source_inventory/deped_nat_gr6/), [`deped_personnel`](../source_inventory/deped_personnel/), and [`deped_ellna`](../source_inventory/deped_ellna/). Their files were re-run here, not quoted from their cards.
 - [`psa_psgc`](../source_inventory/psa_psgc/) 2Q 2026, the master geography ([D-012](../decisions.md#d-012-which-psgc-version-to-use)).
 
-The unmatched and ambiguous names are listed in [deped_psgc_unmatched.md](deped_psgc_unmatched.md).
+The unmatched and ambiguous names are listed in [deped_psgc_unmatched.md](generated/deped_psgc_unmatched.md).
 
 ## Summary
 
