@@ -4,4 +4,6 @@ Work that compares or joins sources, with evidence: for example the DepEd to PSG
 
 Not to be confused with `notebooks/profiling/`, which holds the scripts.
 
-Empty until #8 starts.
+## Contents
+
+- [BARMM sources: what they support and how they join](barmm_dataset_research.md): status, join keys, timing, and distance design for the BPDA, PSA, and teammates' sources covering BARMM (part of #8).

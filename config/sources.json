@@ -90,6 +90,17 @@
       "owner": "hyenalouise"
     },
     {
+      "source_id": "bpda_mbhte_infrastructure_projects",
+      "name": "BPDA monitored MBHTE infrastructure projects",
+      "publisher": "Bangsamoro Planning and Development Authority (BPDA)",
+      "status": "profiled",
+      "source_system": "BPDA Monitoring and Evaluation, MBHTE M&E",
+      "acquisition": "https://knowledge.bpda.bangsamoro.gov.ph/open-data/bpda-monitoring-and-evaluation/mbhte-m-and-e",
+      "format": "xlsx",
+      "coverage": "Sixteen delivered Basilan project records; monitoring dates in April 2024",
+      "owner": "hyenalouise"
+    },
+    {
       "source_id": "ched_enrollment",
       "name": "CHED enrollment by region, sector and sex",
       "publisher": "Commission on Higher Education (CHED)",
