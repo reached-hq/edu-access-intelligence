@@ -26,7 +26,7 @@ Usable for public-school capacity in SY 2023-24. It joins one-to-one with SY 202
 
 | ID | Finding | Evidence | Impact | Proposed handling |
 |---|---|---|---|---|
-| O-1 | `school_id` is clean | 0 blank, 0 non-numeric, 0 not 6 digits, 0 duplicates, 0 fully duplicated rows | Safe primary key | Assert uniqueness in Bronze validation |
+| O-1 | `school_id` is clean | 0 blank, 0 non-numeric, 0 not 6 digits, 0 duplicates, 0 fully duplicated rows | Safe primary key | Check in Bronze validation: a blank `school_id` fails the delivery; a repeated one is recorded as WARN and every row is kept as evidence, so Silver decides which counts (D-015) |
 | O-2 | One-to-one with SY 2023-24 enrollment | 60,167 in both files; 0 only in enrollment; 0 only in facilities. `sector`, `school_management`, and `offers_*` agree for every school | Location can be taken from enrollment | Referential integrity check in integration |
 | O-3 | Facility measures are public-only | Public: 47,818 rows, 38,677 with elementary classrooms, 47,817 with building counts. Private (12,113), SUC/LUC (203), PSO (33): 0 values in any facility count | Capacity analysis cannot include non-public schools | Scope the question to public schools; confirmed by Technical Notes p. 3, 12 |
 | O-4 | Public elementary schools without a classroom count | 669 of 39,346 public schools offering elementary (1.7%) have a blank `es_classrooms_instructional`. Public schools offering JHS or SHS: 0 blanks | These schools would look like missing capacity | Flag, never treat as zero; count them in validation |
