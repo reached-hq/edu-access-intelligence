@@ -10,7 +10,7 @@ This memo compares the three acquired enrollment files: their columns, category 
 - Place names are compared after the normalization the PSGC match already uses (capitals, collapsed spaces, repaired encoding, no trailing "(Capital)"), so that a spacing change is not counted as a move.
 - The PSGC match reuses the SY 2023-24 rules from [deped_dataset_research.md](deped_dataset_research.md#rules) unchanged. SY 2023-24 reproduces that memo's numbers exactly.
 
-The lists behind the counts (dropped and new school IDs, changed place names, newly unmatched names) are in [deped_year_changes.md](deped_year_changes.md).
+The lists behind the counts (dropped and new school IDs, changed place names, newly unmatched names) are in [deped_year_changes.md](generated/deped_year_changes.md).
 
 The [deped_enrollment profile](../source_inventory/deped_enrollment/profile.md) already records the column, encoding, and label changes for SY 2025-26 (O-6 to O-8), the Negros Island Region move (O-10), and the school ID churn (O-12). This memo adds what those findings leave out: which labels map to which, the lists, blank counts, the Sulu move, and the PSGC match for the later years.
 

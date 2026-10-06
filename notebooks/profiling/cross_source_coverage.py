@@ -4,7 +4,7 @@
 #   docs/cross_source/coverage.md
 #
 # Reuses the SY 2023-24 DepEd to PSGC match from cross_source_deped.py by running it
-# first (its output is hidden here; it also rewrites deped_psgc_unmatched.md, unchanged).
+# first (its output is hidden here; it also rewrites generated/deped_psgc_unmatched.md, unchanged).
 #
 # Runs locally; no Databricks compute:
 #   RAW_DATA_DIR=~/Projects/reached-hq/raw-data python notebooks/profiling/cross_source_coverage.py
