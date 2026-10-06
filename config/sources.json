@@ -154,7 +154,8 @@
       "format": "GeoPackage inside ZIP",
       "acquired_date": "2026-09-28",
       "owner": "saraevcldn"
-    }
+    },
+    {
       "source_id": "psa_psgc",
       "name": "PSA Philippine Standard Geographic Code (PSGC)",
       "publisher": "Philippine Statistics Authority (PSA)",
