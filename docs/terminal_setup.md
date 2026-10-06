@@ -336,7 +336,7 @@ We added DuckDB to the project on purpose. Here is the reasoning, so you can exp
 2. **Our data is small enough.** The DepEd files are about 60,000 rows each (11 to 19 MB). DuckDB profiles all four files in about 3 seconds. Spark's strength is spreading work across many machines, which data this size does not need (Day 7: "Use the simplest tool that reliably solves the problem").
 3. **It is still SQL.** The queries we write are the same kind we write in Databricks: `GROUP BY`, `JOIN`, `COUNT(*) FILTER (...)`. No new language to learn.
 4. **It makes findings reproducible.** Profiling scripts run in seconds on any teammate's laptop, so every number in a `profile.md` can be rerun and checked.
-5. **The course points to it.** DuckDB is in the Day 9 tool list ("Can we run some workloads in a different location?"), and the team already used it in NYC Mobility.
+5. **The course points to it.** DuckDB is in the Day 9 tool list ("Can we run some workloads in a different location?").
 
 **What it is not:**
 
@@ -440,7 +440,7 @@ databricks auth login --host https://dbc-76bcfddb-1669.cloud.databricks.com --pr
 
 A browser opens; sign in and allow access. The terminal prints `Profile reached-hq was successfully saved`.
 
-**Always pass `--profile reached-hq`.** Without it, the CLI uses whichever workspace you logged into last. In NYC Mobility, that sent a deploy to a personal workspace, and the error message blamed a missing warehouse instead.
+**Always pass `--profile reached-hq`.** Without it, the CLI uses whichever workspace you logged into last, so a deploy can go to a personal workspace, and the error message blames a missing warehouse instead.
 
 ### Check
 
