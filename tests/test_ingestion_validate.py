@@ -7,6 +7,7 @@ delivery is accepted and every wrong one is refused with a clear reason.
 
 import copy
 import json
+import os
 import zipfile
 
 import pytest
@@ -159,7 +160,20 @@ def test_document_checksum_must_match(tmp_path):
 
 # --- Safe zip handling -------------------------------------------------------
 
-@pytest.mark.parametrize("name", ["../escape.csv", "/etc/enrollment_2023-24.csv", "C:/x/enrollment.csv", "a\\b.csv"])
+ON_WINDOWS = os.sep == "\\"
+
+
+@pytest.mark.parametrize("name", [
+    "../escape.csv",
+    "/etc/enrollment_2023-24.csv",
+    "C:/x/enrollment.csv",
+    # Refused everywhere: as a backslash on Linux and macOS, and as '..' on
+    # Windows, where zipfile turns the backslash into '/'.
+    "..\\escape.csv",
+    pytest.param("a\\b.csv", marks=pytest.mark.skipif(
+        ON_WINDOWS, reason="On Windows, zipfile turns '\\' into '/' when writing and reading, so 'a\\b.csv' "
+                           "becomes the harmless 'a/b.csv'. '..\\escape.csv' covers the dangerous case there.")),
+])
 def test_unsafe_paths_are_refused(tmp_path, name):
     path = write_zip(tmp_path / "Enrollment-in-SY-2023-2024.zip", {name: b"x"})
     refused("unsafe_member", archive.list_members, path, 10_000)
