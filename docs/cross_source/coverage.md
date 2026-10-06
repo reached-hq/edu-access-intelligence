@@ -7,7 +7,7 @@ One row per source: how it identifies places, its geographic level, years, time 
 Every number carries one evidence label:
 
 - **Re-run:** computed from checksum-verified raw files by a script in this repository. Checks new to this matrix print under C-n from [`cross_source_coverage.py`](../../notebooks/profiling/cross_source_coverage.py), and per source under BP-n ([barangay population](../../notebooks/profiling/cross_source_psa_population_per_barangay.py)), AG-n ([age-group population](../../notebooks/profiling/cross_source_psa_population_per_age_group.py)), CM-n ([CMCI](../../notebooks/profiling/cross_source_dti_cmci.py)), and HB-n ([HDX boundaries](../../notebooks/profiling/cross_source_hdx_boundaries.py)).
-- **Card:** taken from the source's card or profile (merged or in an open pull request), not re-run here.
+- **Card:** taken from the source's card, profile, or memo (merged or in an open pull request), not re-run here.
 - **Not run:** nobody has computed it yet.
 
 ## Summary
@@ -15,7 +15,7 @@ Every number carries one evidence label:
 1. **PSGC 2Q 2026 is the hub.** Every source reaches it at one of five levels: school (`school_id` through DepEd enrollment), barangay, city or municipality, province or HUC, and region. OSM reaches it only spatially, through the HDX boundaries.
 2. **DepEd joins cleanly inside itself and mostly to PSGC.** All four DepEd school files join to enrollment on `school_id` with no loss, and 96.9% of SY 2023-24 schools reach a PSGC barangay by name (97.1% in SY 2024-25 and 2025-26, with the same rules; [year comparison](deped_year_comparison.md)).
 3. **Poverty joins entirely, and 96 HDX ADM3 units partly, through PSGC's old 9-digit `Correspondence Code`.** The PSGC card still says not to join on that code, so the rule needs updating (see [Conflicts](#conflicts-between-documents)).
-4. **Every acquired name-only or code-only source now has a match rate,** including the HDX boundaries (ADM3 1,634 of 1,642, ADM4 99.7%, both one-to-one once names are checked, because COD-AB reuses PSGC code numbers for different units in Maguindanao). PSA barangay population: 99.87% by name, and every barangay accounted for. CMCI: 1,634 of 1,634, one-to-one. The age-group table's API codes are PSGC 2Q 2026 codes. Only FLEMMS cannot be tested, until the microdata is accessed.
+4. **Every acquired name-only or code-only source now has a match rate,** including the HDX boundaries: ADM3 1,634 of 1,642 and ADM4 99.7%, both one-to-one, but only when names are checked as well as codes, since COD-AB uses some PSGC code numbers for different units (Maguindanao, Manila). PSA barangay population: 99.87% by name, and every barangay accounted for. CMCI: 1,634 of 1,634, one-to-one. The age-group table's API codes are PSGC 2Q 2026 codes. Only FLEMMS cannot be tested, until the microdata is accessed.
 5. **Two gaps change school-level results:** 5,476 located schools (9.3%) sit in the 44 cities and municipalities with no poverty estimate, and the 112 Special Geographic Area schools match Region XII municipalities, so any city- or municipality-level value attached to them is wrong (see [Limits](#what-limits-the-joins)).
 6. **CHED is profiled but out of scope** ([D-003](../decisions.md#d-003-higher-education-is-out-of-scope)), so its rows are for the record only.
 
@@ -42,7 +42,7 @@ Every number carries one evidence label:
 | [bpda_barmm_roads](../source_inventory/bpda_barmm_roads/) | @hyenalouise | profiled | Area labels | Province, city, or Special Geographic Area (9) | Undated | Unstated | One row per area |
 | [bpda_mbhte_infrastructure_projects](../source_inventory/bpda_mbhte_infrastructure_projects/) | @hyenalouise | profiled | Province and municipality names; barangay blank | Project (Basilan only) | Funded 2020-2022; monitored April 2024 | Monitoring date | One row per project record (16) |
 | **Other publishers** | | | | | | | |
-| dti_cmci ([#35](https://github.com/reached-hq/edu-access-intelligence/pull/35)) | @saraevcldn | profiled, open PR | Names only; 362 carry a two-letter suffix such as `Alaminos (LA)` | City or municipality (1,634) | 2023, 2024 | CMCI reference year | One row per LGU per year, one file per indicator |
+| dti_cmci ([#35](https://github.com/reached-hq/edu-access-intelligence/pull/35)) | @saraevcldn | profiled, open PR | Names only; 361 carry a two- or three-letter province suffix such as `Alaminos (LA)` | City or municipality (1,634) | 2023, 2024 | CMCI reference year | One row per LGU per year, one file per indicator |
 | hdx_boundaries ([#38](https://github.com/reached-hq/edu-access-intelligence/pull/38)) | @saraevcldn | profiled, open PR | `adm3_pcode`, `adm4_pcode`, and polygons | ADM3 city or municipality (1,642); ADM4 barangay (42,048) | `valid_on` 2025-02-13, version v03; 17 regions, before the Negros Island Region | Boundary validity date | One feature per unit |
 | osm_philippines ([#39](https://github.com/reached-hq/edu-access-intelligence/pull/39)) | @saraevcldn | profiled, open PR | Coordinates only | Point, line, and area features | Snapshot of 2026-09-28T20:23:05Z | Extract time | One row per mapped feature |
 | **CHED (out of scope, D-003)** | | | | | | | |
@@ -69,13 +69,13 @@ Every number carries one evidence label:
 | psa_openstat_education | Region map from 35 labels to 20 keys | Region | All 35 labels map; the script stops on an unknown label. School tables use 17 regions | `Unknown` NAT rows have no region | Card (O-2, O-8) |
 | FLEMMS 2024 public-use file | `prv`; `reg` or `reg2` | Unknown whether `prv` is a PSGC code or PSA's own numbering | **Cannot be tested** until the microdata is accessed | The Special Geographic Area is not a FLEMMS domain | Documentation only |
 | **BPDA** | | | | | |
-| bpda_barmm_education | Division labels | Names with documented aliases ([BARMM memo](barmm_dataset_research.md#bpda-label-matches-to-psgc-2q-2026)) | 6 of 10 labels (60.0%) | `Lanao del Sur I`, `Lanao del Sur II`, `Maguindanao I`, `Maguindanao II`: school divisions, not PSGC units | Re-run (BARMM memo) |
-| bpda_barmm_social_infrastructure | Area labels | Same | 8 of 9 labels (88.9%) | `Maguindanao` (not split) | Re-run (BARMM memo) |
-| bpda_barmm_roads | Area labels | Same | 8 of 9 labels (88.9%) | `Maguindanao` (not split) | Re-run (BARMM memo) |
-| bpda_mbhte_infrastructure_projects | Province and municipality names | Same | 4 of 4 place pairs (100%), covering all 16 records | None | Re-run (BARMM memo) |
+| bpda_barmm_education | Division labels | Names with documented aliases ([BARMM memo](barmm_dataset_research.md#bpda-label-matches-to-psgc-2q-2026)) | 6 of 10 labels (60.0%) | `Lanao del Sur I`, `Lanao del Sur II`, `Maguindanao I`, `Maguindanao II`: school divisions, not PSGC units | Card (BARMM memo; matched by hand, no script) |
+| bpda_barmm_social_infrastructure | Area labels | Same | 8 of 9 labels (88.9%) | `Maguindanao` (not split) | Card (BARMM memo; by hand) |
+| bpda_barmm_roads | Area labels | Same | 8 of 9 labels (88.9%) | `Maguindanao` (not split) | Card (BARMM memo; by hand) |
+| bpda_mbhte_infrastructure_projects | Province and municipality names | Same | 4 of 4 place pairs (100%), covering all 16 records | None | Card (BARMM memo; by hand) |
 | **Other publishers** | | | | | |
 | dti_cmci | `lgu` plus `year` | Name after removing the suffix, inside the province the suffix stands for: 59 suffixes read from the data, 17 by review. Current names before old names; 16 reviewed aliases | 1,634 of 1,634, one-to-one: 1,440 exact, the rest by counted tiers. [Listed](dti_cmci_psgc_match.md) | None. The 8 Special Geographic Area municipalities are the only PSGC cities and municipalities with no CMCI LGU | Re-run (CM-1 to CM-4) |
-| hdx_boundaries | ADM3 `adm3_pcode`; ADM4 `adm4_pcode` | P-code converted to 10 digits; then the old 9-digit form against `Correspondence Code`; then Sulu's region `19` as `09`. A code counts only if the names agree; otherwise the name inside its parent decides | ADM3: 1,634 of 1,642, one-to-one: 1,480 by code with the same name, 4 by code with a renamed LGU, 96 through `Correspondence Code`, 19 Sulu, 35 by name (Maguindanao and Manila). ADM4: 41,918 of 42,048 (99.7%), one-to-one | ADM3: the 8 Special Geographic Area units (no PSGC equivalent; spatial check). ADM4: 130 (63 Special Geographic Area, 44 old Bacoor barangays, 12 polygons that are not barangays, Barangay 176), plus 126 matched by code whose names differ, to review. [Listed](hdx_boundaries_psgc_unmatched.md) | Re-run (HB-1 to HB-3) |
+| hdx_boundaries | ADM3 `adm3_pcode`; ADM4 `adm4_pcode` | P-code converted to 10 digits; then the old 9-digit form against `Correspondence Code`; then Sulu's region `19` as `09`. A code counts only if the names agree; otherwise the name inside its parent decides | ADM3: 1,634 of 1,642, one-to-one: 1,480 by code with the same name, 4 by code with a renamed LGU, 96 through `Correspondence Code`, 19 Sulu, 35 by name (Maguindanao and Manila). ADM4: 41,918 of 42,048 (99.7%), one-to-one | ADM3: the 8 Special Geographic Area units (no PSGC equivalent; spatial check). ADM4: 130 (63 Special Geographic Area; 44 Bacoor barangays from before PSGC's renumbered set of 47; 21 polygons that are not barangays, such as forest land, Mount Apo park, a cemetery, and a mall; San Rafael in Calaca, which PSGC counts in Dacanlao; Barangay 176), plus 126 matched by code whose names differ, to review. [Listed](hdx_boundaries_psgc_unmatched.md) | Re-run (HB-1 to HB-3) |
 | osm_philippines | None; spatial only | Point or polygon inside an HDX polygon, then HDX to PSGC | **Not run** | 770 school features have blank names (124 points, 646 areas) | Card (O-3, O-4) |
 | **CHED (out of scope)** | | | | | |
 | ched_* (all four) | Region label | Region map | **Not run**; not needed while out of scope | BARMM has no values from AY 2023-24; the Negros Island Region has values only in AY 2024-25; school count has no NIR row | Card |
@@ -86,7 +86,7 @@ Every number carries one evidence label:
 |---|---|---|---|
 | School | DepEd enrollment, facilities, personnel, ELLNA, NAT Grade 6 | `school_id` | Enrollment is the anchor and the only DepEd file with place names |
 | Barangay | DepEd (through the name match), barangay population, HDX ADM4 | 10-digit PSGC | Barangay is the level the sponsor tests ([D-013](../decisions.md#d-013-who-the-stakeholders-are)) |
-| City or municipality | Poverty, CMCI, HDX ADM3, and DepEd aggregated | First 7 digits of the barangay PSGC, plus `000` | Poverty and HDX through `Correspondence Code`; CMCI by name |
+| City or municipality | Poverty, CMCI, HDX ADM3, and DepEd aggregated | First 7 digits of the barangay PSGC, plus `000` | Poverty through `Correspondence Code`; HDX by code checked against the name; CMCI by name |
 | Province or HUC | Age-group population, FLEMMS, and DepEd aggregated | First 5 digits of the PSGC | HUCs have province-level codes, so totals by PSGC province already keep them separate. DepEd files independent cities under their province; the name match sends them to their own codes |
 | Region | OpenSTAT, CHED, BPDA context | Explicit region map | Use DepEd's own region for SY 2023-24 (D-012) |
 | Spatial | OSM, HDX geometry | Point or polygon in polygon | Needs school coordinates, which no acquired source has |
@@ -99,7 +99,7 @@ PSGC 2Q 2026 has a `2024 Population` column keyed by the 10-digit code. It holds
 
 - **Total:** PSGC barangays sum to 112,727,776, the same as the workbooks' geographic total (C-3, profile O-7).
 - **Zero-population barangays:** 12 in both, with the same regional split (C-3, profile O-10).
-- **Barangay by barangay:** of the 41,958 workbook barangays matched to PSGC by name, 41,957 have exactly PSGC's population (BP-3). The other 52 workbook barangays each pair with one PSGC barangay of the same population in the same province or HUC, all spelling differences or renamed municipalities (BP-4).
+- **Barangay by barangay:** of the 41,958 workbook barangays matched to PSGC by name, 41,957 have exactly PSGC's population (BP-3). The other 52 workbook barangays each pair with one PSGC barangay of the same population in the same province or HUC: spelling differences, the barangays of two renamed municipalities (San Isidro, now Sawata; Don Victoriano Chiongbian, now Don Victoriano), and two renamed barangays (BP-4).
 - **The one-barangay difference:** the workbooks list San Rafael (637) and Dacanlao (7,046) in the City of Calaca; PSGC 2Q 2026 has only Dacanlao, with 7,683, their sum (BP-5).
 
 So barangay population attaches by PSGC code with no name crosswalk. The workbooks are a check on the PSGC column, not the join.
@@ -110,11 +110,11 @@ The workbooks mark footnotes with superscript runs, which text extraction reads 
 
 | Limit | Size | Handling |
 |---|---|---|
-| DepEd schools not matched to a PSGC barangay | 1,845 of 60,134 (SY 2023-24) | Listed, never forced. They still count at province level where the province matched |
+| DepEd schools not matched to a PSGC barangay | 1,845 of 60,134 (SY 2023-24) | Listed, never forced. They still count at city, municipality, or province level where those matched |
 | Schools in a city or municipality with no poverty estimate | 5,476 of 59,110 schools with a matched city or municipality (9.3%): HUCs 5,301, Cotabato City 83, Isabela City 74, Pateros 18. Public schools: 2,607 of 47,818. Re-run (C-1) | Keep blank with reason `not_in_source`; never impute. HUC, Isabela, and Cotabato estimates exist in PSA's 2023 Official Poverty Statistics, a different method (direct estimation) |
 | Special Geographic Area schools at city or municipality level | All 112 SY 2023-24 schools under `BARMM` / `NORTH COTABATO` match a Cotabato municipality in Region XII: Pikit 46, Midsayap 20, Pigkawayan 17, Kabacan 14, Carmen 12, Aleosan 3. Re-run (C-2) | A city- or municipality-level join (poverty, CMCI, ADM3) would give them those Region XII municipalities' values. Exclude them from such joins, or mark them, until their barangays are matched to the eight Special Geographic Area municipalities |
 | Region changes since SY 2023-24 | 3,306 matched schools: Negros to NIR (2,725), Sulu to Region IX (469), and the 112 above. DepEd's own region also moves: NIR from SY 2024-25 (2,704 schools) and Sulu to Region IX from SY 2025-26 (477) | Take region from DepEd for SY 2023-24 (D-012). Trends across school years use PSGC 2Q 2026 region or province, never DepEd's region (Y-5) |
-| Blank counts in SY 2025-26 | Senior High School columns blank for 47,352 schools and Kinder to Grade 10 for 1,403, where earlier years wrote 0; 120 schools offering SHS and 46 schools have no counts at all | Blank is 0 only where the level is not offered; the rest are missing (Y-3) |
+| Blank counts in SY 2025-26 | Senior High School columns blank for 47,352 schools and Kinder to Grade 10 for 1,403, where earlier years wrote 0. Separately, 120 schools that offer SHS have no SHS counts, and 46 schools have no counts at all | Blank is 0 only where the level is not offered; the rest are missing (Y-3) |
 | Assessments are samples | ELLNA and NAT Grade 6 cover five regions only; none in BARMM | Report as selected schools, never as regional coverage |
 | Population concepts differ | Barangay file: total population. Age-group file: household population, province or HUC and up | Never mix the two in one ratio. School-age measures stay at province or HUC level |
 | Quarantined age-group cells | 38 `Both Sexes` cells and 19 all-age totals | Do not recalculate; keep out of joins |
