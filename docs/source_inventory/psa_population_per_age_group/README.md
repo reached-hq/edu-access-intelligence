@@ -20,7 +20,7 @@ Raw files are kept outside git. Row count excludes the title and header records.
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Household Population by Age-Group Region, Province, and Highly Urbanized City- Philippines, 2024 Census of Population.csv` | CSV | UTF-8, CRLF; 38 encoded `U+FFFD` replacement characters | 131,051 | 2,603 | `ce797046a055f870c30f5a2ce6d42b4bdc8f14f4dd8145269f450372c6c93ad6` | Governed raw storage; uploaded |
+| `Household Population by Age-Group Region, Province, and Highly Urbanized City- Philippines, 2024 Census of Population.csv` | CSV | UTF-8, CRLF; 38 encoded `U+FFFD` replacement characters | 131,051 | 2,603 | `ce797046a055f870c30f5a2ce6d42b4bdc8f14f4dd8145269f450372c6c93ad6` | Databricks volume `/Volumes/edu_access/00-source/raw/psa/`; checksum verified 2026-10-06 |
 
 ## Publisher documentation
 
