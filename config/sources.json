@@ -143,6 +143,7 @@
       "format": "CSV",
       "years_acquired": ["2023", "2024"],
       "owner": "saraevcldn"
+    },
       "source_id": "psa_psgc",
       "name": "PSA Philippine Standard Geographic Code (PSGC)",
       "publisher": "Philippine Statistics Authority (PSA)",
