@@ -8,15 +8,18 @@ Purpose:
 - Keep publisher documentation separate from the team's interpretation.
 
 Input:
-    /Volumes/edu_access/00-source/raw/admin_boundaries/
+    RAW_DATA_DIR/admin_boundaries/
 
 Output:
     docs/source_inventory/hdx_boundaries/data_dictionary.md
 """
 
 # %%
+from datetime import date
 from pathlib import Path
 import hashlib
+import os
+
 
 import geopandas as gpd
 import pandas as pd
@@ -48,11 +51,65 @@ REPO = find_repo()
 
 
 # %%
-# Paths
+# Resolve raw data directory
 
-DATA_DIR = Path(
-    "/Volumes/edu_access/00-source/raw/admin_boundaries"
-)
+
+def env_value(name):
+    """Read a variable from the environment, else from the repo .env."""
+    if os.environ.get(name):
+        return os.environ[name]
+
+    env = REPO / ".env"
+
+    for line in (
+        env.read_text(encoding="utf-8").splitlines()
+        if env.exists()
+        else []
+    ):
+        key, _, value = line.partition("=")
+
+        if key.strip() == name and value.strip():
+            return value.strip()
+
+    return None
+
+
+def on_databricks():
+    return (
+        bool(os.environ.get("DATABRICKS_RUNTIME_VERSION"))
+        or Path("/databricks").exists()
+    )
+
+
+def resolve_raw_data_dir():
+    """Resolve RAW_DATA_DIR using the project convention."""
+
+    value = env_value("RAW_DATA_DIR")
+
+    if value:
+        return Path(value).expanduser(), "RAW_DATA_DIR"
+
+    if on_databricks():
+        return (
+            Path("/Volumes/edu_access/00-source/raw"),
+            "Databricks team volume (D-009)",
+        )
+
+    raise SystemExit(
+        "Set RAW_DATA_DIR to the folder that contains admin_boundaries/.\n"
+        f"Looked in the environment and in {REPO / '.env'}."
+    )
+
+
+RAW_DIR, RAW_DIR_FROM = resolve_raw_data_dir()
+
+DATA_DIR = RAW_DIR / "admin_boundaries"
+
+print(f"Raw data folder: {DATA_DIR} (from {RAW_DIR_FROM})")
+
+
+# %%
+# Paths
 
 OUTPUT = (
     REPO
@@ -89,10 +146,10 @@ README_PATH = (
 )
 
 SCRIPT_PATH = (
-    "notebooks/profiling/data_dictionary_admin_boundaries.py"
+    "notebooks/profiling/dictionary_boundaries.py"
 )
 
-PROFILE_DATE = "2026-10-05"
+PROFILE_DATE = date.today().isoformat()
 
 
 # %%
@@ -823,7 +880,7 @@ lines.append(
     f"- **Generated on:** **{PROFILE_DATE}**"
 )
 lines.append(
-    f"- **Source directory:** `{DATA_DIR}/`"
+    "- **Source directory:** `RAW_DATA_DIR/admin_boundaries/`"
 )
 lines.append(
     "- **ADM3 SHA-256 verified before reading:** "

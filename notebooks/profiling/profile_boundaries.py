@@ -7,10 +7,24 @@ Profiles the retained Philippine administrative boundary GeoJSON extracts.
 Generates:
     docs/source_inventory/hdx_boundaries/profile.md
 
-The script loads the retained ADM3 and ADM4 GeoJSON files,
-profiles their structure, identifiers, geometry, hierarchy, source
-metadata, file integrity, and compatibility with the current PSGC
-publication.
+The script verifies the SHA-256 of every input file against the value
+recorded on the inventory cards, then loads the ADM3 and ADM4 GeoJSON files
+and profiles their structure, identifiers, geometry, hierarchy, source
+metadata, and compatibility with the current PSGC publication.
+
+Runs locally (D-007). Open it in VS Code to run cell by cell (# %% markers),
+or run the whole file:
+    RAW_DATA_DIR=~/Documents/GitHub/raw-data python notebooks/profiling/profile_boundaries.py
+
+RAW_DATA_DIR (environment or the repo's .env) must contain:
+    admin_boundaries/phl_admin3.geojson
+    admin_boundaries/phl_admin4.geojson
+    psa/original/PSGC-2Q-2026-Publication-Datafile.xlsx  (the file on the PSGC card)
+
+Alternative: run on Databricks. Open this file from the team Git folder and
+run all cells. RAW_DATA_DIR is optional there: if it is not set, the script
+falls back to the team raw volume /Volumes/edu_access/00-source/raw (D-009).
+Databricks compute is shared Free Edition capacity, so prefer a local run (D-008).
 
 Findings:
     O-1  Extracted file structure
@@ -35,6 +49,7 @@ Suspected findings:
 # %% Setup
 
 import hashlib
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -66,6 +81,41 @@ def find_repo():
 
 REPO = find_repo()
 
+
+def env_value(name):
+    """Read a variable from the environment, else from the repo's git-ignored .env."""
+    if os.environ.get(name):
+        return os.environ[name]
+    env = REPO / ".env"
+    for line in env.read_text(encoding="utf-8").splitlines() if env.exists() else []:
+        key, _, value = line.partition("=")
+        if key.strip() == name and value.strip():
+            return value.strip()
+    return None
+
+
+def on_databricks():
+    return bool(os.environ.get("DATABRICKS_RUNTIME_VERSION")) or Path("/databricks").exists()
+
+
+def resolve_raw_data_dir():
+    """RAW_DATA_DIR from the environment or the repo's .env (D-007).
+    On Databricks only, fall back to the team's raw volume (D-009)."""
+    value = env_value("RAW_DATA_DIR")
+    if value:
+        return Path(value).expanduser(), "RAW_DATA_DIR"
+    if on_databricks():
+        return Path("/Volumes/edu_access/00-source/raw"), "Databricks team volume (D-009)"
+    sys.exit(
+        "Set RAW_DATA_DIR to the folder that contains admin_boundaries/ and psa/.\n"
+        f"Looked in the environment and in {REPO / '.env'}."
+    )
+
+
+RAW_DIR, RAW_DIR_FROM = resolve_raw_data_dir()
+RUN_ON = "run on Databricks" if on_databricks() else "run locally"
+print(f"Raw data folder: {RAW_DIR} (from {RAW_DIR_FROM})")
+
 OUTPUT = (
     REPO
     / "docs"
@@ -77,18 +127,36 @@ OUTPUT = (
 PROFILED_BY = "@saraevcldn"
 PROFILE_DATE = date.today().isoformat()
 
-DATA_DIR = Path(
-    "/Volumes/edu_access/00-source/raw/admin_boundaries"
-)
+DATA_DIR = RAW_DIR / "admin_boundaries"
 
-PSGC_FILE = Path(
-    "/Volumes/edu_access/00-source/raw/psa/PSGC-2Q-2026-Publication-Datafile.xlsx"
+# The PSGC datafile recorded on the PSGC card (psa/original/). The team volume
+# keeps it directly under psa/, so that location is accepted as a fallback.
+PSGC_NAME = "PSGC-2Q-2026-Publication-Datafile.xlsx"
+PSGC_FILE = next(
+    (
+        p
+        for p in [RAW_DIR / "psa" / "original" / PSGC_NAME, RAW_DIR / "psa" / PSGC_NAME]
+        if p.exists()
+    ),
+    RAW_DIR / "psa" / "original" / PSGC_NAME,
 )
 
 FILES = {
     "adm3": DATA_DIR / "phl_admin3.geojson",
     "adm4": DATA_DIR / "phl_admin4.geojson",
 }
+
+# Expected SHA-256, as recorded on the inventory cards. A changed file must
+# stop the run, not silently produce new numbers under the old checksum (D-007).
+PENDING = "PASTE_SHA256_FROM_PSGC_CARD"
+EXPECTED_SHA256 = {
+    "adm3": "f682747fbb26ba773131049ef61603f4b872ba93739f6e2c3320f55dd21eec41",
+    "adm4": "4ebb5e3cf7b3245c659ea5886725e6a77ffc2d4bcbe3963d8f704d5adc5523d2",
+    "psgc": "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d",
+}
+
+SOURCE_LABEL = "RAW_DATA_DIR/admin_boundaries/"
+PSGC_LABEL = f"RAW_DATA_DIR/psa/original/{PSGC_NAME}"
 
 
 # %% Helpers
@@ -165,18 +233,14 @@ def file_size_mb(path):
     return path.stat().st_size / (1024 * 1024)
 
 
-# %% Verify retained source files
+# %% Verify retained source files exist
 
 for name, path in FILES.items():
     if not path.exists():
-        raise FileNotFoundError(
-            f"Retained {name} file not found: {path}"
-        )
+        sys.exit(f"Retained {name} file not found: {path}")
 
 if not PSGC_FILE.exists():
-    raise FileNotFoundError(
-        f"PSGC file not found: {PSGC_FILE}"
-    )
+    sys.exit(f"PSGC file not found: {PSGC_FILE}")
 
 print("Administrative boundary source files found.")
 
@@ -186,14 +250,25 @@ for name, path in FILES.items():
 print(f"- PSGC: {PSGC_FILE}")
 
 
-# %% File integrity
+# %% File integrity: verify every checksum before reading any data
 
 file_metadata = {}
+pending = []
 
-for name, path in FILES.items():
+for name, path in [*FILES.items(), ("psgc", PSGC_FILE)]:
     size_bytes = path.stat().st_size
     size_mb = file_size_mb(path)
     sha256 = sha256_file(path)
+    expected = EXPECTED_SHA256[name]
+
+    if expected == PENDING:
+        pending.append((path.name, sha256))
+    elif sha256 != expected:
+        sys.exit(
+            f"{path.name}: SHA-256 does not match the inventory card. "
+            "Stop and re-inventory.\n"
+            f"Expected: {expected}\nActual:   {sha256}"
+        )
 
     file_metadata[name] = {
         "size_bytes": size_bytes,
@@ -201,10 +276,15 @@ for name, path in FILES.items():
         "sha256": sha256,
     }
 
-    print(f"{name.upper()}:")
-    print(f"  File: {path.name}")
-    print(f"  Size: {size_bytes:,} bytes ({size_mb:.2f} MB)")
-    print(f"  SHA-256: {sha256}")
+    print(f"{name.upper()}: {path.name}, {size_bytes:,} bytes ({size_mb:.2f} MB), SHA-256 OK")
+
+if pending:
+    lines = "\n".join(f"  {name}: {actual}" for name, actual in pending)
+    sys.exit(
+        f"No expected SHA-256 recorded yet for {len(pending)} file(s). Computed:\n{lines}\n"
+        "Copy the value from the PSGC inventory card into EXPECTED_SHA256 "
+        "(it must match the card), then run again."
+    )
 
 
 # %% Load retained source files
@@ -645,29 +725,27 @@ _Generated by `notebooks/profiling/profile_boundaries.py`. Do not edit by hand; 
 |---|---|
 | Date profiled | {PROFILE_DATE} |
 | Profiled by | {PROFILED_BY} |
-| Tool | Python, GeoPandas {gpd.__version__}, Pandas {pd.__version__}, run locally |
+| Tool | Python, GeoPandas {gpd.__version__}, Pandas {pd.__version__}, {RUN_ON} |
 | Profiling script | [`notebooks/profiling/profile_boundaries.py`](../../../notebooks/profiling/profile_boundaries.py) |
 | ADM3 source | `phl_admin3.geojson` |
 | ADM4 source | `phl_admin4.geojson` |
-| Raw source path | `/Volumes/edu_access/00-source/raw/admin_boundaries/` |
-| PSGC reference | `PSGC-2Q-2026-Publication-Datafile.xlsx` |
+| Raw source path | `{SOURCE_LABEL}` |
+| PSGC reference | `{PSGC_LABEL}` |
 
 ## How to rerun
 
-Run:
+Set `RAW_DATA_DIR` (environment or the repo's `.env`) to the folder that contains `admin_boundaries/` and `psa/original/`, then run:
 
-`notebooks/profiling/profile_boundaries.py`
+`python notebooks/profiling/profile_boundaries.py`
 
 The script:
 
-1. Verifies that the retained ADM3 and ADM4 source files exist.
-2. Calculates file size and SHA-256 checksums.
+1. Verifies that the ADM3, ADM4 and PSGC files exist.
+2. Verifies each file's SHA-256 against the inventory cards and stops on a mismatch.
 3. Loads the GeoJSON boundary layers.
 4. Profiles identifiers, geometry, CRS, hierarchy, and source metadata.
 5. Compares ADM3 codes with the current PSGC city/municipality list.
-6. Regenerates:
-
-`docs/source_inventory/hdx_boundaries/profile.md`
+6. Regenerates `docs/source_inventory/hdx_boundaries/profile.md`.
 
 ## Summary
 

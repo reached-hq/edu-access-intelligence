@@ -9,10 +9,10 @@
 | Source name | Common Operational Dataset – Administrative Boundaries (COD-AB), Philippines |
 | Publisher / agency | UN OCHA |
 | Source system (as stated by the publisher) | Common Operational Dataset – Administrative Boundaries (COD-AB) |
-| Source URL or acquisition method | https://data.humdata.org/dataset/cod-ab-phl |
+| Source URL or acquisition method | [https://data.humdata.org/dataset/cod-ab-phl](https://data.humdata.org/dataset/cod-ab-phl) |
 | Licensing or access restrictions | UN OCHA / Humanitarian Data Exchange access; specific licensing terms UNVERIFIED |
 | Owner (team member) | @saraevcldn |
-| Date acquired | UNVERIFIED |
+| Date acquired | 2026-10-02 06:34 PHT (UTC+8) |
 
 ## Files
 
@@ -20,8 +20,15 @@ Raw files are kept in raw storage, never in git. Record exactly what arrived.
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---:|---:|---|---|
-| `phl_admin3.geojson` | GeoJSON | UTF-8 | 555,585,099 | 1,642 | `f682747fbb26ba773131049ef61603f4b872ba93739f6e2c3320f55dd21eec41` | `/Volumes/edu_access/00-source/raw/admin_boundaries/` |
-| `phl_admin4.geojson` | GeoJSON | UTF-8 | 710,191,069 | 42,048 | `4ebb5e3cf7b3245c659ea5886725e6a77ffc2d4bcbe3963d8f704d5adc5523d2` | `/Volumes/edu_access/00-source/raw/admin_boundaries/` |
+| `phl_admin3.geojson` | GeoJSON | UTF-8 | 555,585,099 | 1,642 | `f682747fbb26ba773131049ef61603f4b872ba93739f6e2c3320f55dd21eec41` | `RAW_DATA_DIR/admin_boundaries/` (team copy: Databricks volume `/Volumes/edu_access/00-source/raw/admin_boundaries/`) |
+| `phl_admin4.geojson` | GeoJSON | UTF-8 | 710,191,069 | 42,048 | `4ebb5e3cf7b3245c659ea5886725e6a77ffc2d4bcbe3963d8f704d5adc5523d2` | `RAW_DATA_DIR/admin_boundaries/` (team copy: Databricks volume `/Volumes/edu_access/00-source/raw/admin_boundaries/`) |
+
+### Rerunning the profile
+
+- **Locally (default, D-007):** set `RAW_DATA_DIR` in the environment or the repo's `.env` to the folder that contains `admin_boundaries/phl_admin3.geojson` and `admin_boundaries/phl_admin4.geojson`, then run `python notebooks/profiling/profile_boundaries.py` and `python notebooks/profiling/dictionary_boundaries.py`.
+- **On Databricks (alternative):** open both scripts from the team Git folder and run all cells. `RAW_DATA_DIR` is optional there; the scripts fall back to the team raw volume `/Volumes/edu_access/00-source/raw` (D-009).
+
+Both profiling scripts verify the SHA-256 values before reading the files and stop on a mismatch.
 
 ## Publisher documentation
 
@@ -29,7 +36,7 @@ Documents the publisher provides about this data. Keep them with the raw files; 
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
-| COD-AB Philippines dataset page | https://data.humdata.org/dataset/cod-ab-phl | UNVERIFIED | Source identity and administrative-boundary metadata |
+| COD-AB Philippines dataset page | [https://data.humdata.org/dataset/cod-ab-phl](https://data.humdata.org/dataset/cod-ab-phl) | UNVERIFIED | Source identity and administrative-boundary metadata |
 
 ## Coverage
 
@@ -48,8 +55,8 @@ Documents the publisher provides about this data. Keep them with the raw files; 
 |---|---|
 | Apparent grain (what one row represents) | One administrative boundary feature per ADM3 city/municipality or ADM4 barangay |
 | Candidate primary key | `adm3_pcode` for ADM3; `adm4_pcode` for ADM4 |
-| Candidate join keys | `adm3_pcode`, `adm4_pcode`, parent administrative codes; validated PSGC crosswalk where available |
-| PSGC available? Which version? | Source contains administrative PCODEs; current PSA PSGC 2Q 2026 used for compatibility checking |
+| Candidate join keys | `adm3_pcode`, `adm4_pcode`, and parent administrative codes; PSGC joins require a validated crosswalk |
+| PSGC available? Which version? | No official PSGC identifiers in the source; source contains administrative PCODEs. PSA PSGC 2Q 2026 was used only for compatibility checking. |
 | Personally identifiable or sensitive fields | None observed |
 | Provenance fields in the source | `valid_on`, `valid_to`, `version`, administrative hierarchy fields |
 
@@ -96,6 +103,7 @@ What this source cannot support, or supports only with caveats.
 - This is geographic reference data and does not contain education enrollment, capacity, population, or education outcomes.
 - The boundary source should not be treated as the project's authoritative PSGC reference.
 - Current PSGC identifiers should only be assigned through a validated crosswalk.
+- The 142 ADM3 records without an exact structural PSGC match should not be force-mapped by name alone.
 - Spatial joins should be performed using the boundary geometry rather than relying on administrative names alone.
 - Geographic boundaries may not exactly match the geographic editions used by other project datasets.
 - ADM4 should only be used for barangay-level analysis where the underlying project data supports that geographic level.
