@@ -24,7 +24,7 @@ The file name carries `06Feb2026`. The PSA press release for these estimates, "8
 
 ## Publisher documentation
 
-The workbook has no data dictionary or metadata sheet. Its own documentation is the title, three footnotes, and a source line. The PSA press release for the same estimates (below) adds a definition, the method, and the data inputs. 
+The workbook has no data dictionary or metadata sheet. Its own documentation is the title, three footnotes, and a source line. The PSA press release for the same estimates (below) adds a definition, the method, and the data inputs.
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
