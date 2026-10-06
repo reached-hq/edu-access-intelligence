@@ -14,7 +14,7 @@ The unmatched and ambiguous names are listed in [deped_psgc_unmatched.md](deped_
 
 ## Summary
 
-1. **96.9% of schools match PSGC 2Q 2026 down to barangay** (58,289 of 60,134). Only 69.7% match on exact names at all three levels; the rest need documented rules for how DepEd writes names. 1,845 schools stay unmatched or ambiguous and are listed, not forced.
+1. **96.9% of schools match PSGC 2Q 2026 down to barangay** (58,289 of 60,134). Only 77.5% match on the strict rule (exact or old name at every level); the rest need documented rules for how DepEd writes names. 1,845 schools stay unmatched or ambiguous and are listed, not forced.
 2. **Most failures are naming conventions, not missing places.** DepEd adds former names in brackets, leaves out "City" for places that became cities, files independent cities under their geographic province, and groups NCR into four districts that are not PSGC units.
 3. **3,306 matched schools change region between SY 2023-24 and 2Q 2026**, all from the Negros Island Region and Sulu moves, plus 112 Special Geographic Area schools. Region must come from DepEd's own column for SY 2023-24 results.
 4. **DepEd's own place names have two data problems:** 173 names (260 schools) contain mangled characters, and 13 barangay names (24 schools) are exactly 40 characters long, which looks like truncation.
@@ -53,7 +53,7 @@ The 33 Philippine Schools Overseas are excluded (A-1).
 
 ### What it means for joins
 
-- **School share (A-5):** 58,289 of 60,134 schools (96.9%) reach a barangay code; 52,852 (87.9%) have an exact city or municipality match; 41,931 (69.7%) have exact names at all three levels.
+- **School share (A-5):** 58,289 of 60,134 schools (96.9%) reach a barangay code; 52,852 (87.9%) have an exact city or municipality match; 46,614 (77.5%) match on the strict rule: exact or old name at every level, with the NCR district and Maguindanao split rules allowed at province level, since those provinces cannot match exactly.
 - **Unmatched (A-12):** 1,845 schools are left: 1,022 under an unmatched city or municipality, 726 with an unmatched barangay, 60 with an ambiguous barangay, and 37 with no barangay given. All are listed with their school counts.
 - **Regions (A-8, A-9):** 3,306 matched schools have a different region in 2Q 2026: 1,602 from Region VI and 1,123 from Region VII to the Negros Island Region, 469 Sulu schools from BARMM to Region IX, and 112 schools that DepEd lists under BARMM but files in `NORTH COTABATO`, which now match Cotabato municipalities in Region XII. Negros and Siquijor match to barangay for 2,723 of 2,725 schools, and Sulu for 463 of 469.
 - **Special Geographic Area (A-11):** those 112 schools sit in the old Cotabato municipalities in DepEd (Aleosan, Carmen, Kabacan, Midsayap, Pigkawayan, Pikit). Only 7 of their barangays are found under those municipalities, which fits PSGC 2Q 2026 listing the area's eight new municipalities separately (codes starting `19999`).
@@ -99,6 +99,6 @@ So the availability, classroom, and teacher indicators can be computed for BARMM
 ## Limits
 
 - Only SY 2023-24 is tested. SY 2024-25 and 2025-26 enrollment may name places differently.
-- The tiers beyond exact and old name are judgment calls. They are counted separately so a stricter rule can drop them; matching on exact and old names only reaches 69.7% of schools at all three levels.
+- The tiers beyond exact and old name are judgment calls. They are counted separately so a stricter rule can drop them; the strict rule (A-5) reaches 77.5% of schools at all three levels.
 - A unique match is not proof that the place is the same. The sampled brackets-dropped, word-City-ignored, independent-city, and folded matches were reviewed and correct, but not every one of the 3,144 non-exact matches was checked by hand.
 - Personnel and ELLNA come from open pull requests; if their files change before merge, this memo must be rerun.
