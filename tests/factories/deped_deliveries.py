@@ -28,7 +28,7 @@ NAMES = {
 
 TEXT_VALUES = {
     "school_name": "Test School {i}",
-    "region": "Region T",
+    "region": "Region I",  # a real label: the Silver gate fails on any region not in the reviewed mapping
     "division": "Test Division",
     "province": "TEST PROVINCE",
     "school_district": "Test District",
@@ -74,6 +74,14 @@ def make_rows(header, n_rows=3, first_id=900001):
                 row.append(str(i % 4))
         rows.append(row)
     return rows
+
+
+def with_values(header, row, values):
+    """A copy of one made-up row with some columns set by name, e.g. {'g1_male': '-3'}."""
+    row = list(row)
+    for column, value in values.items():
+        row[header.index(column)] = value
+    return row
 
 
 def csv_bytes(header, rows, encoding="utf-8", line_ending="\n"):
@@ -153,14 +161,16 @@ def empty_config(source_id=DEFAULT):
 
 
 def fake_repo(root, config):
-    """A throwaway repository root: the real registry and etl/ SQL, with `config` as the contract."""
+    """A throwaway repository root: the real registries, Silver mappings, and etl/ SQL, with `config` as the contract."""
     import shutil
 
     root = Path(root)
     (root / "config" / "ingestion").mkdir(parents=True, exist_ok=True)
-    shutil.copy(REPO_ROOT / "config" / "sources.json", root / "config" / "sources.json")
+    for name in ("sources.json", "tables.yml"):
+        shutil.copy(REPO_ROOT / "config" / name, root / "config" / name)
+    shutil.copytree(REPO_ROOT / "config" / "mappings", root / "config" / "mappings", dirs_exist_ok=True)
     write_config(root, config)
-    for stage in ("01_control", "02_bronze"):
+    for stage in ("01_control", "02_bronze", "03_silver"):
         shutil.copytree(REPO_ROOT / "etl" / stage, root / "etl" / stage, dirs_exist_ok=True)
     return root
 
