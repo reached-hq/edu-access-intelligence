@@ -117,7 +117,15 @@ class IngestionRun:
                                  f"{source_id} is '{self.registry_entry['status']}'. Only accepted sources load into prod; "
                                  "use dev until the team accepts it.")
         table = self.config["bronze_table"]
-        self.bronze_ddl = self.repo_root / "etl" / "02_bronze" / f"01_create_{table}.sql"
+        ddl_matches = sorted((self.repo_root / "etl" / "02_bronze").glob(f"[0-8][0-9]_create_{table}.sql"))
+        if len(ddl_matches) != 1:
+            found = [str(path.relative_to(self.repo_root)) for path in ddl_matches]
+            raise IngestionError(
+                "config",
+                "missing_sql" if not found else "ambiguous_sql",
+                f"expected exactly one NN_create_{table}.sql in etl/02_bronze; found {found}.",
+            )
+        self.bronze_ddl = ddl_matches[0]
         self.bronze_gate = self.repo_root / "etl" / "02_bronze" / f"90_validate_{table}.sql"
         for path in (self.bronze_ddl, self.bronze_gate):
             if not path.is_file():

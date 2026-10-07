@@ -44,15 +44,24 @@ def test_known_source_table_names_are_registered(repo_root):
         "hdx_boundaries",
     ]
 
-    for source in sources:
+    for number, source in enumerate(sources, start=1):
         bronze = source["bronze"]
         silver = source["silver"]
         assert bronze["table"].endswith("_raw")
         assert silver["table"].endswith("_clean")
         assert silver["quarantine_table"].endswith("_quarantine")
+        assert SQL_FILE.fullmatch(bronze["create_file"])
+        assert SQL_FILE.fullmatch(silver["clean_file"])
+        prefix = f"{number:02d}_"
+        assert bronze["create_file"].startswith(prefix + "create_")
+        assert silver["clean_file"].startswith(prefix + "clean_")
         for layer in (bronze, silver):
-            assert SQL_FILE.fullmatch(layer["create_file"])
             assert SQL_FILE.fullmatch(layer["validate_file"])
+
+        if (repo_root / "config" / "ingestion" / f"{source['source_id']}.json").is_file():
+            assert (repo_root / "etl" / "02_bronze" / bronze["create_file"]).is_file()
+        if (repo_root / "config" / "mappings" / f"{source['source_id']}.json").is_file():
+            assert (repo_root / "etl" / "03_silver" / silver["clean_file"]).is_file()
 
 
 def test_integration_registry_is_explicitly_draft(repo_root):
@@ -62,6 +71,7 @@ def test_integration_registry_is_explicitly_draft(repo_root):
     for candidate in registry["draft_integration_tables"]:
         assert candidate["table"].endswith("_map")
         assert SQL_FILE.fullmatch(candidate["candidate_file"])
+        assert "_map_" in candidate["candidate_file"]
 
 
 def test_etl_files_follow_the_layer_layout(repo_files):

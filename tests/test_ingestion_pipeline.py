@@ -418,13 +418,14 @@ def test_missing_landing_folder_fails_the_run(env):
 CONTRACTS = sorted((REPO_ROOT / "config" / "ingestion").glob("*.json"))
 
 
-@pytest.mark.parametrize("kind, prefix, generate", [("ddl", "01_create", bronze_ddl), ("gate", "90_validate", bronze_gate)])
+@pytest.mark.parametrize("kind, pattern, generate", [("ddl", "[0-8][0-9]_create", bronze_ddl), ("gate", "90_validate", bronze_gate)])
 @pytest.mark.parametrize("contract", CONTRACTS, ids=lambda p: p.stem)
-def test_bronze_sql_matches_the_contract(contract, kind, prefix, generate):
+def test_bronze_sql_matches_the_contract(contract, kind, pattern, generate):
     """The table definition and the gate are generated from each contract, never hand-edited."""
     config = json.loads(contract.read_text(encoding="utf-8"))
-    path = REPO_ROOT / "etl" / "02_bronze" / f"{prefix}_{config['bronze_table']}.sql"
-    assert path.is_file(), f"missing {path.relative_to(REPO_ROOT)}"
+    matches = sorted((REPO_ROOT / "etl" / "02_bronze").glob(f"{pattern}_{config['bronze_table']}.sql"))
+    assert len(matches) == 1, f"expected one {pattern}_{config['bronze_table']}.sql; found {matches}"
+    path = matches[0]
     assert path.read_text(encoding="utf-8") == generate(config), (
         f"Regenerate: python -m src.ingestion.cli {kind} --source {config['source_id']} > {path.relative_to(REPO_ROOT)}")
 

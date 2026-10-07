@@ -4,7 +4,7 @@ Each source landed unchanged, every column as text, plus provenance columns sayi
 
 | File | What it does |
 |---|---|
-| `01_create_<table>.sql` | One table per logical source, including all delivery years. Generated from `config/ingestion/<source_id>.json` once that source has an ingestion contract (`python -m src.ingestion.cli ddl --source <source_id>`); a test fails if it differs |
+| `NN_create_<table>.sql` | One table per logical source, including all delivery years. `NN` is the source order in `config/tables.yml`. Generated from `config/ingestion/<source_id>.json` once that source has an ingestion contract (`python -m src.ingestion.cli ddl --source <source_id>`); a test fails if it differs |
 | `90_validate_<table>.sql` | Bronze gate, run after every load (in the job, as its own SQL task right after the load): no pipeline duplicates, every row has a known batch, every succeeded batch reconciles to its file. Writes to `data_quality_results` and fails on any FAIL. Reads `:run_id` and `:code_revision`. Generated the same way (`cli gate`) |
 
 Implemented sources: `deped_enrollment`, `deped_facilities`. Final names for
