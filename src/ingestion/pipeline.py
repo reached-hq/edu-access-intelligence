@@ -97,7 +97,7 @@ def discover(config, landing_root):
 
 class IngestionRun:
     def __init__(self, store, repo_root, source_id, landing_root, environment, code_revision,
-                 rerun_batch_ids=(), hook=None):
+                 rerun_batch_ids=(), hook=None, run_gate=True):
         if environment not in ENVIRONMENTS:
             raise IngestionError("config", "unknown_environment", f"environment must be one of {ENVIRONMENTS}.")
         self.store = store
@@ -107,6 +107,9 @@ class IngestionRun:
         self.code_revision = code_revision
         self.rerun_batch_ids = set(rerun_batch_ids)
         self.hook = hook or (lambda stage: None)
+        # Off when the job runs the source's Bronze gate as its own SQL task
+        # right after this one (databricks.yml); the gate then fails that task.
+        self.run_gate = run_gate
         self.config, self.registry_entry = load_source_config(repo_root, source_id)
         self.source_id = source_id
         if environment == "prod" and self.registry_entry["status"] != "accepted":
@@ -151,11 +154,12 @@ class IngestionRun:
         for archive_sha256, path in deliveries:
             summary.outcomes.append(self._process(path, archive_sha256))
 
-        try:
-            self.store.run_file(self.bronze_gate, {"run_id": self.run_id, "code_revision": self.code_revision})
-        except Exception as e:  # the gate raises on any FAIL; a broken gate must fail the run too
-            summary.gate_error = str(e)[:MAX_MESSAGE]
-            run.update(failure_stage="gate", error_message=summary.gate_error)
+        if self.run_gate:
+            try:
+                self.store.run_file(self.bronze_gate, {"run_id": self.run_id, "code_revision": self.code_revision})
+            except Exception as e:  # the gate raises on any FAIL; a broken gate must fail the run too
+                summary.gate_error = str(e)[:MAX_MESSAGE]
+                run.update(failure_stage="gate", error_message=summary.gate_error)
         self._finish(run, summary, started, deliveries_found=len(deliveries))
         return summary
 

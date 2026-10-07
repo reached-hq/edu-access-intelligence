@@ -62,7 +62,7 @@ def cmd_ingest(args):
     store = _store(args)
     try:
         run = IngestionRun(store, REPO_ROOT, args.source, Path(landing).expanduser(), args.environment,
-                           revision, rerun_batch_ids=args.rerun)
+                           revision, rerun_batch_ids=args.rerun, run_gate=not args.no_gate)
         summary = run.execute()
     finally:
         store.close()
@@ -125,6 +125,8 @@ def main(argv=None):
     ingest.add_argument("--code-revision", help="commit SHA; required off local, taken from git locally")
     ingest.add_argument("--rerun", action="append", default=[], metavar="BATCH_ID",
                         help="validate and merge a succeeded batch again (adds no rows); repeatable")
+    ingest.add_argument("--no-gate", action="store_true",
+                        help="leave the Bronze gate to the job task that runs it as SQL right after this one")
     ingest.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"],
                         help="duckdb: local file (--db); spark: Unity Catalog tables on Databricks")
     ingest.add_argument("--db", type=Path, default=DEFAULT_DB)

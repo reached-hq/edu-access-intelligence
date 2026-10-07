@@ -56,9 +56,9 @@ class Env:
         write_config(self.repo, self.config)
         return entry
 
-    def run(self, rerun=(), hook=None, environment="local"):
+    def run(self, rerun=(), hook=None, environment="local", run_gate=True):
         return IngestionRun(self.store, self.repo, "deped_enrollment", self.landing, environment, REVISION,
-                            rerun_batch_ids=rerun, hook=hook).execute()
+                            rerun_batch_ids=rerun, hook=hook, run_gate=run_gate).execute()
 
     def q(self, sql):
         return self.store.query(sql)
@@ -372,6 +372,23 @@ def test_gate_results_carry_the_code_revision(env):
     assert revisions == [(REVISION,)]
 
 
+def test_the_gate_can_run_as_its_own_step(env):
+    """With run_gate=False (the job's --no-gate), loading does not run the Bronze gate; the job runs
+    the same SQL file as the next task, under the job's run_id, and that task fails on a FAIL."""
+    env.deliver("2023-24")
+    env.run()
+    env.store.sql(f"INSERT INTO {BRONZE} SELECT * REPLACE ('ghost' AS batch_id) FROM {BRONZE} LIMIT 1")
+    summary = env.run(run_gate=False)
+    assert summary.status == "succeeded" and summary.gate_error is None
+    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = '{summary.run_id}' "
+                   "AND check_name = 'rows_have_a_known_batch'") == 0
+    gate = env.repo / "etl" / "02_bronze" / "90_validate_deped_enrollment_raw.sql"
+    with pytest.raises(Exception, match="Bronze gate failed"):
+        env.store.run_file(gate, {"run_id": "job-run-1", "code_revision": REVISION})
+    assert env.one(f"SELECT status FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-1' "
+                   "AND check_name = 'rows_have_a_known_batch'") == "FAIL"
+
+
 def test_an_approved_file_missing_from_landing_is_reported(env):
     env.deliver("2023-24")
     gone = env.deliver("2024-25", first_id=910001)
@@ -419,6 +436,22 @@ def test_cli_blocks_an_unapproved_file(tmp_path, capsys):
     assert code == 1
     assert "blocked" in capsys.readouterr().out
     assert cli.main(["status", "--source", "deped_enrollment", "--db", str(tmp_path / "t.duckdb")]) == 0
+
+
+def test_cli_can_leave_the_gate_to_the_next_task(tmp_path, capsys):
+    raw = tmp_path / "raw"
+    (raw / "deped").mkdir(parents=True)
+    args = ["ingest", "--source", "deped_enrollment", "--landing", str(raw), "--db", str(tmp_path / "t.duckdb")]
+    assert cli.main([*args, "--no-gate"]) == 0
+    store = DuckDBStore(tmp_path / "t.duckdb")
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE layer = 'bronze' "
+                       "AND check_name = 'no_pipeline_duplicates'") == [(0,)]
+    store.close()
+    assert cli.main(args) == 0  # without the flag, the gate runs inside the task, as before
+    store = DuckDBStore(tmp_path / "t.duckdb")
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE layer = 'bronze' "
+                       "AND check_name = 'no_pipeline_duplicates'") == [(1,)]
+    store.close()
 
 
 def test_cli_exit_codes_for_setup_problems(tmp_path):
