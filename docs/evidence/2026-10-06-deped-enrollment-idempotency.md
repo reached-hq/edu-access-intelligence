@@ -21,7 +21,7 @@ The job `bronze_ingest`, deployed with `databricks bundle deploy --target dev --
 | Waiting for compute / working | 35.5 min / 3.6 min | 7.6 min / 1.8 min |
 | Task result | `SUCCESS` | `SUCCESS` |
 
-The stored `code_revision` values above remain the exact commits Databricks ran and are preserved by tags `run/2026-10-06-enrollment-1` and `run/2026-10-06-enrollment-2`. After the branch was rebased, their counterparts in the current pull request are `51eaccc58aeeab2493126c72ce5feb2582ffb7d7` for run 1 and `3bfb3d1f61a62699243fd965946fbc65c3f56fb2` for run 2. Those counterparts contain the same PR-specific changes, but their snapshots also include later changes from the updated #69 base, including the `discover()` hashing fix; they are not the exact code that ran.
+The stored `code_revision` values above remain the exact commits Databricks ran and are preserved by tags `run/2026-10-06-enrollment-1` and `run/2026-10-06-enrollment-2`. After the branch was rebased, their counterparts in the current pull request are `a55e6e9e9b98d896f97730daa98f9ea0bb541cb3` for run 1 and `96b27f09d218efcf28595a4f67eeac2d7c92172c` for run 2. Those counterparts contain the same PR-specific changes, but their snapshots also include later changes from the merged #69 base, including the `discover()` hashing fix; they are not the exact code that ran.
 
 <img width="1070" height="557" alt="image" src="https://github.com/user-attachments/assets/f8b378f5-dc25-4040-9581-e82074f8de43" />
 
