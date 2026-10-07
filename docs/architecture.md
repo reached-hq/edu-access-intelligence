@@ -31,6 +31,15 @@ The stage numbers follow one rule: a stage number matches its `etl/` folder and 
 
 <!-- TODO(Phase 5): diagram from sources to dashboards. -->
 
+Built so far, Source to Bronze ([ingestion.md](ingestion.md)):
+
+```
+official download ─▶ 00-source volume ─▶ checksum + approved contract ─▶ validate ─▶ MERGE ─▶ 02-bronze
+                                                     │                                          │
+                                                     └──────────── 01-control ◀─────────────────┘
+                                      runs, batches, attempts, data-quality results, current_batches
+```
+
 ## Sources
 
 See [source_inventory/](source_inventory/).
@@ -49,24 +58,49 @@ See [source_inventory/](source_inventory/).
 
 ## Storage
 
-Raw files go to the managed volume `` edu_access.`00-source`.raw ``, one folder per publisher, keeping original filenames:
+Raw files go to the managed volume `` edu_access.`00-source`.raw ``, one folder per publisher, keeping original filenames. A raw file is never overwritten: any later download goes into a dated subfolder (D-016, provisional):
 
 ```
 /Volumes/edu_access/00-source/raw/
 └── deped/
-    └── Enrollment-in-SY-2023-2024.zip
+    ├── Enrollment-in-SY-2023-2024.zip      first downloads, uploaded 2026-09-30
+    ├── Enrollment-in-SY-2024-2025.zip
+    ├── Enrollment-in-SY-2025-2026.zip
+    ├── SHA256SUMS.txt                      covers every file in this folder
+    ├── ...                                 other DepEd sources
+    └── 2027-08-15/                         a later download (example date)
+        ├── Enrollment-in-SY-2026-2027.zip
+        └── SHA256SUMS.txt
 ```
+
+Ingestion identifies files by SHA-256, not by path (D-014).
 
 This is provisional (D-009): if the mentor approves the course R2 bucket, an R2-backed volume is added next to it. Local copies for profiling live outside the repository in `raw-data/` ([terminal_setup.md, Part 8](terminal_setup.md#part-8-raw-data-and-raw_data_dir)).
 
 ## Data quality
 
-<!-- TODO(Phase 9): checks per layer, the data_quality_results table, PASS/WARN/FAIL actions. -->
+<!-- TODO(Phase 9): checks per layer for Silver onward. -->
+
+Every check writes one row to `` edu_access.`01-control`.data_quality_results `` (#42 columns, plus `batch_id`, `source_id`, `code_revision`); results hold counts and rules, never row values.
+
+| Status | Meaning | Action |
+|---|---|---|
+| PASS | As expected | None |
+| WARN | Worth knowing, not wrong in Bronze (e.g. a publisher's duplicate school) | Recorded; rows are loaded as received; Silver decides |
+| FAIL | The batch cannot be trusted | The batch is not marked succeeded, so downstream does not read it; the run exits nonzero |
+
+Bronze checks are listed in [ingestion.md, Validation](ingestion.md#validation).
 
 ## Orchestration
 
-<!-- TODO(Phase 6): Databricks job task order (databricks.yml). -->
+<!-- TODO(Phase 6): task order for the full pipeline. -->
+
+`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. It has no schedule during development, runs one at a time, and is safe to rerun.
 
 ## Environments and deployment
 
-<!-- TODO(Phase 6): dev/prod bundle targets, CD workflow, secrets handling. -->
+<!-- TODO(Phase 6): prod target, CD workflow, secrets handling. -->
+
+- `dev` is the only bundle target so far (`mode: development`); `prod` is not defined yet. `dev` and `prod` are deploy targets, not branches (D-005).
+- The job runs the commit it was deployed from (`git_source.git_commit: ${bundle.git.commit}`), and records the same value as `code_revision` on every row it writes. New code needs a deploy from a clean, pushed `main`.
+- Only `accepted` sources may load into `prod`; `profiled` sources load into `local` and `dev` only.

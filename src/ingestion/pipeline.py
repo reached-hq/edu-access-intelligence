@@ -24,7 +24,7 @@ from src.ingestion.archive import sha256_file
 from src.ingestion.batch import batch_id, choose_action, load_type
 from src.ingestion.contract import find_delivery, load_source_config
 from src.ingestion.errors import IngestionError
-from src.ingestion.validate import FAIL, PASS, identify_delivery, prepare_delivery
+from src.ingestion.validate import FAIL, PASS, WARN, identify_delivery, prepare_delivery
 
 PIPELINE_NAME = "bronze_ingest"
 ENVIRONMENTS = ("local", "dev", "prod")
@@ -55,6 +55,7 @@ class RunSummary:
     status: str
     outcomes: list = field(default_factory=list)
     gate_error: str = None
+    missing_deliveries: list = field(default_factory=list)
 
 
 def year_from_archive_name(config, name):
@@ -146,6 +147,7 @@ class IngestionRun:
             self._finish(run, summary, started, deliveries_found=0)
             raise
 
+        self._check_approved_present(summary, {sha for sha, _ in deliveries})
         for archive_sha256, path in deliveries:
             summary.outcomes.append(self._process(path, archive_sha256))
 
@@ -172,6 +174,15 @@ class IngestionRun:
         )
         control.save_run(self.store, run)
         summary.status = run["status"]
+
+    def _check_approved_present(self, summary, found):
+        """An approved delivery missing from the landing folder was never uploaded or was lost
+        from raw storage. Nothing can be loaded from it, so it is a WARN naming the files."""
+        approved = self.config["deliveries"]
+        summary.missing_deliveries = [d["archive"] for d in approved if d["archive_sha256"] not in found]
+        missing = ", ".join(summary.missing_deliveries) or "none"
+        self._record_checks(None, [("approved_deliveries_present", WARN if summary.missing_deliveries else PASS,
+                                    len(approved), f"{len(approved) - len(summary.missing_deliveries)}; missing: {missing}")])
 
     # -- one archive ------------------------------------------------------------
 

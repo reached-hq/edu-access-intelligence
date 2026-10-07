@@ -27,6 +27,11 @@ PROVENANCE_TYPES = {
     "ingested_at_utc": "TIMESTAMP",
 }
 
+# The team group owns every object the job creates (D-009). Unity Catalog makes
+# the creator the owner, and a dev job runs as whoever deployed it, so without
+# this only that one person could read the table or load into it.
+OWNER_GROUP = "reached-hq"
+
 # Delta needs column mapping to store a column name with spaces, such as
 # 'Modified Curricular Offering Classification', unchanged.
 TABLE_PROPERTIES = {
@@ -64,6 +69,7 @@ def bronze_ddl(config):
         "-- version as text. NULL means the column is not in that year's file; ''",
         "-- means the publisher left it blank.",
         f"CREATE SCHEMA IF NOT EXISTS edu_access.`{SCHEMA}`;",
+        f"ALTER SCHEMA edu_access.`{SCHEMA}` OWNER TO `{OWNER_GROUP}`;",
         "",
         f"CREATE TABLE IF NOT EXISTS {bronze_table(config)} (",
     ]
@@ -73,7 +79,9 @@ def bronze_ddl(config):
         comma = "," if i < len(columns) - 1 else ""
         lines.append(f"  `{name}` {kind}{null}{comma}")
     props = ",\n".join(f"  '{k}' = '{v}'" for k, v in TABLE_PROPERTIES.items())
-    lines += [")", "USING DELTA", f"TBLPROPERTIES (\n{props}\n);", ""]
+    lines += [")", "USING DELTA", f"TBLPROPERTIES (\n{props}\n);", "",
+              "-- Owned by the team group, not by whoever ran the job first (D-009).",
+              f"ALTER TABLE {bronze_table(config)} OWNER TO `{OWNER_GROUP}`;", ""]
     return "\n".join(lines)
 
 

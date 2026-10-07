@@ -162,7 +162,7 @@ def check_rows(config, header, rows, expected_rows):
     ids = [values[key] for _, values in rows]
     pattern = re.compile(config["identifier_pattern"])
     blank = sum(1 for v in ids if v.strip() == "")
-    malformed = sum(1 for v in ids if v.strip() != "" and not pattern.match(v))
+    malformed = sum(1 for v in ids if v.strip() != "" and not pattern.fullmatch(v))
     repeated = sum(c - 1 for c in Counter(ids).values() if c > 1)
     duplicate_rows = n - len({tuple(values) for _, values in rows})
 

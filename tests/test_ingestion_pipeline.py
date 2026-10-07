@@ -371,6 +371,17 @@ def test_gate_results_carry_the_code_revision(env):
     assert revisions == [(REVISION,)]
 
 
+def test_an_approved_file_missing_from_landing_is_reported(env):
+    env.deliver("2023-24")
+    gone = env.deliver("2024-25", first_id=910001)
+    gone.unlink()
+    summary = env.run()
+    assert summary.missing_deliveries == ["Enrollment-in-SY-2024-2025.zip"]
+    assert summary.status == "succeeded"  # nothing is loadable from it, and nothing else is blocked
+    assert env.one(f"SELECT status FROM {CONTROL}.data_quality_results "
+                   "WHERE check_name = 'approved_deliveries_present'") == "WARN"
+
+
 def test_prod_refuses_a_source_that_is_not_accepted(env):
     with pytest.raises(IngestionError) as e:
         env.run(environment="prod")

@@ -5,16 +5,27 @@
     python -m src.ingestion.cli ddl    --source deped_enrollment > etl/02_bronze/01_create_deped_enrollment_raw.sql
 
 Locally the tables live in a DuckDB file (default local_state/edu_access.duckdb,
-git-ignored) and raw files are read from RAW_DATA_DIR. Exit codes: 0 every
+git-ignored) and raw files are read from RAW_DATA_DIR. On Databricks the job runs
+this file with --backend spark and --landing /Volumes/edu_access/00-source/raw
+(databricks.yml). Exit codes: 0 every
 delivery loaded or was already loaded; 1 a delivery failed or was blocked, or
 the Bronze gate failed; 2 configuration error; 3 environment error (missing
 landing folder, unreadable database).
 """
 
 import argparse
+import inspect
 import os
 import sys
 from pathlib import Path
+
+# Resolved from this file's compiled code, not from __file__: Databricks runs a
+# job's Python file with exec(compile(source, path, "exec")), which defines no
+# __file__ (and no __package__). Putting the repository root on the path lets
+# `src.ingestion` import when the file is run directly rather than with -m.
+REPO_ROOT = Path(inspect.currentframe().f_code.co_filename).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from src.ingestion import bronze, control
 from src.ingestion.contract import load_source_config
@@ -25,16 +36,21 @@ from src.ingestion.pipeline import IngestionRun
 from src.ingestion.revision import resolve_code_revision
 from src.ingestion.store import table_name
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = REPO_ROOT / "local_state" / "edu_access.duckdb"
 
 
 def _store(args):
-    from src.ingestion.store import DuckDBStore
     try:
+        if args.backend == "spark":
+            from pyspark.sql import SparkSession
+
+            from src.ingestion.store import SparkStore
+            return SparkStore(SparkSession.builder.getOrCreate())
+        from src.ingestion.store import DuckDBStore
         return DuckDBStore(args.db)
     except Exception as e:
-        raise IngestionError("setup", "store_unavailable", f"cannot open {args.db}: {e}")
+        where = "Spark (is this running on Databricks?)" if args.backend == "spark" else args.db
+        raise IngestionError("setup", "store_unavailable", f"cannot open {where}: {e}")
 
 
 def cmd_ingest(args):
@@ -55,6 +71,8 @@ def cmd_ingest(args):
               f"inserted={o.rows_inserted if o.rows_inserted is not None else '-':>6} "
               f"bronze={o.bronze_rows if o.bronze_rows is not None else '-':>6}"
               + (f"\n      {o.message}" if o.outcome in ("failed", "blocked") or o.action == "skip" and o.message else ""))
+    if summary.missing_deliveries:
+        print(f"  WARN approved but not in the landing folder: {', '.join(summary.missing_deliveries)}")
     if summary.gate_error:
         print(f"  Bronze gate: FAILED\n      {summary.gate_error}")
     print(f"status: {summary.status}")
@@ -100,11 +118,14 @@ def main(argv=None):
     ingest.add_argument("--code-revision", help="commit SHA; required off local, taken from git locally")
     ingest.add_argument("--rerun", action="append", default=[], metavar="BATCH_ID",
                         help="validate and merge a succeeded batch again (adds no rows); repeatable")
+    ingest.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"],
+                        help="duckdb: local file (--db); spark: Unity Catalog tables on Databricks")
     ingest.add_argument("--db", type=Path, default=DEFAULT_DB)
     ingest.set_defaults(func=cmd_ingest)
 
     status = sub.add_parser("status", help="show every batch of a source and its state")
     status.add_argument("--source", required=True)
+    status.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"])
     status.add_argument("--db", type=Path, default=DEFAULT_DB)
     status.set_defaults(func=cmd_status)
 
@@ -125,4 +146,9 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit_code = main()
+    # Exit only on failure. Databricks runs this file inside IPython, which
+    # reports even SystemExit(0) as a failed task; returning normally is success
+    # everywhere, and a nonzero code still fails the task and the shell.
+    if exit_code != EXIT_OK:
+        sys.exit(exit_code)

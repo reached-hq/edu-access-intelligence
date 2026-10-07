@@ -3,10 +3,71 @@
 # Change the job by changing this file and deploying, not by editing it in the
 # workspace: a UI edit does not reach this file, and the next deploy overwrites it.
 #
-# Placeholder: no jobs or dashboards yet. The Bronze job is added with #11,
-# dashboards in milestone 04 (Serve).
+# Jobs so far: bronze_ingest (#11). Dashboards come in milestone 04 (Serve).
+# Commands and checks: docs/ingestion.md, "Running on Databricks".
 bundle:
   name: edu-access-intelligence
+
+resources:
+  jobs:
+    bronze_ingest:
+      name: bronze_ingest
+      description: >-
+        Loads approved raw deliveries from the 00-source volume into 02-bronze,
+        recording every run, batch, and check in 01-control. Rerunning it is
+        safe: files already loaded are skipped.
+
+      # Every row the job writes (Bronze, control, data-quality results) carries
+      # the commit that produced it. Resolved at deploy time from the same
+      # substitution as git_source below, so the commit that runs and the commit
+      # recorded are the same value by construction.
+      parameters:
+        - name: code_revision
+          default: ${bundle.git.commit}
+
+      # A branch would be resolved when the job runs, a commit when the bundle is
+      # deployed: with git_branch, deploying at commit A and then merging B runs
+      # B's code while recording A. Pinning the commit means new code needs a
+      # deploy, which is the point of a controlled deployment. The commit must be
+      # pushed to GitHub before the job can run it.
+      git_source:
+        git_url: https://github.com/reached-hq/edu-access-intelligence
+        git_provider: gitHub
+        git_commit: ${bundle.git.commit}
+
+      # One run at a time: two runs could both see a batch as new.
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+
+      # No schedule during development (docs/workflow.md, Part 5). Runs are
+      # started deliberately with `databricks bundle run`.
+
+      tasks:
+        - task_key: bronze_deped_enrollment
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            # Without GIT, Databricks rejects a repository-relative path
+            # ("Invalid python file reference"), even with git_source set.
+            source: GIT
+            parameters:
+              - ingest
+              - --backend
+              - spark
+              - --source
+              - deped_enrollment
+              - --landing
+              - /Volumes/edu_access/00-source/raw
+              - --environment
+              - ${bundle.target}
+              - --code-revision
+              - "{{job.parameters.code_revision}}"
+
+      environments:
+        - environment_key: ingestion
+          spec:
+            client: "2"
 
 targets:
   # Name the host explicitly, so a deploy cannot land in whichever workspace

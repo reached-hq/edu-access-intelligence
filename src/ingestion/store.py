@@ -32,6 +32,14 @@ def split_statements(sql):
     return [s.strip() for s in code.split(";") if s.strip()]
 
 
+OWNER_STATEMENT = re.compile(r"^\s*ALTER\s+(TABLE|VIEW|SCHEMA)\s+\S+\s+OWNER\s+TO\b", re.IGNORECASE)
+
+
+def databricks_only(statement):
+    """Ownership is a Unity Catalog concept; DuckDB has no owners, so these statements are skipped locally."""
+    return bool(OWNER_STATEMENT.match(statement))
+
+
 def to_duckdb(statement):
     """Translate our Databricks SQL to DuckDB. Only constructs used in etl/ are handled."""
     statement = statement.replace("`", '"')
@@ -78,6 +86,8 @@ class DuckDBStore:
             self.sql(statement, used)
 
     def sql(self, statement, params=None):
+        if databricks_only(statement):
+            return
         self.con.execute(to_duckdb(statement), params or None)
 
     def query(self, statement, params=None):
@@ -117,4 +127,58 @@ class DuckDBStore:
             f"CREATE OR REPLACE TEMP TABLE {name} AS SELECT {select} FROM "
             f"read_json('{path}', format = 'newline_delimited', columns = {{{spec}}})"
         )
+        return name
+
+
+class SparkStore:
+    """Databricks store: the same SQL through Spark, into Unity Catalog Delta tables.
+
+    Not exercised by local tests (no Spark there); it is confirmed by the
+    Databricks run (D-017). Kept to the same five operations as DuckDBStore so
+    there is as little Databricks-only code as possible.
+    """
+
+    TYPES = {
+        "string": "StringType", "int": "IntegerType", "bigint": "LongType",
+        "double": "DoubleType", "timestamp": "TimestampType", "boolean": "BooleanType",
+    }
+
+    def __init__(self, spark):
+        self.spark = spark
+        # Timestamps are written as UTC wall-clock values; make Spark read them that way.
+        self.spark.conf.set("spark.sql.session.timeZone", "UTC")
+
+    def close(self):
+        pass
+
+    def run_file(self, path, params=None):
+        for statement in split_statements(Path(path).read_text(encoding="utf-8")):
+            used = {k: v for k, v in (params or {}).items() if f":{k}" in statement}
+            self.sql(statement, used)
+
+    def sql(self, statement, params=None):
+        """Run a statement to completion. spark.sql() runs a SELECT only when its
+        result is collected, and the Bronze gate ends with a SELECT that raises on
+        FAIL: without collect() the gate would never fail."""
+        self.spark.sql(statement, args=params or None).collect()
+
+    def query(self, statement, params=None):
+        return [tuple(r) for r in self.spark.sql(statement, args=params or None).collect()]
+
+    def records(self, statement, params=None):
+        return [r.asDict() for r in self.spark.sql(statement, args=params or None).collect()]
+
+    def columns(self, schema, table):
+        fields = self.spark.table(f"{CATALOG}.`{schema}`.{table}").schema.fields
+        return [(f.name, f.dataType.simpleString()) for f in fields]
+
+    def stage(self, name, columns, rows):
+        from pyspark.sql import types
+
+        schema = types.StructType([
+            types.StructField(c, getattr(types, self.TYPES[kind])(), True) for c, kind in columns
+        ])
+        names = [c for c, _ in columns]
+        frame = self.spark.createDataFrame([tuple(row[c] for c in names) for row in rows], schema)
+        frame.createOrReplaceTempView(name)
         return name
