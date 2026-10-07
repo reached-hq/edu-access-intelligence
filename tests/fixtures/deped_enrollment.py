@@ -140,3 +140,21 @@ def empty_config():
     config = copy.deepcopy(real_config())
     config["deliveries"] = []
     return config
+
+
+def fake_repo(root, config):
+    """A throwaway repository root: the real registry and etl/ SQL, with `config` as the contract."""
+    import shutil
+
+    root = Path(root)
+    (root / "config" / "ingestion").mkdir(parents=True, exist_ok=True)
+    shutil.copy(REPO_ROOT / "config" / "sources.json", root / "config" / "sources.json")
+    write_config(root, config)
+    for stage in ("01_control", "02_bronze"):
+        shutil.copytree(REPO_ROOT / "etl" / stage, root / "etl" / stage, dirs_exist_ok=True)
+    return root
+
+
+def write_config(root, config):
+    path = Path(root) / "config" / "ingestion" / "deped_enrollment.json"
+    path.write_text(json.dumps(config, indent=2), encoding="utf-8")

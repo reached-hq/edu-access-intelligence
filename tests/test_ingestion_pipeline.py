@@ -1,0 +1,414 @@
+"""Ingestion runs end to end: idempotency, incremental loads, revisions, failure, recovery.
+
+Every test runs the real etl/01_control and etl/02_bronze SQL on an in-memory
+DuckDB, against made-up deliveries in a temporary landing folder, inside a
+throwaway repository root whose contract approves those deliveries.
+
+test_idempotency_demonstration walks the whole story in order; the others
+check one behavior each.
+"""
+
+import shutil
+
+import pytest
+
+from fixtures.deped_enrollment import (
+    REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows, real_config, write_config,
+)
+from src.ingestion import cli, pipeline
+from src.ingestion.bronze import bronze_ddl
+from src.ingestion.errors import IngestionError
+from src.ingestion.pipeline import IngestionRun
+from src.ingestion.store import DuckDBStore
+
+REVISION = "a" * 40
+BRONZE = "edu_access.`02-bronze`.deped_enrollment_raw"
+CONTROL = "edu_access.`01-control`"
+
+
+class SimulatedCrash(BaseException):
+    """The process dying mid-load. BaseException, so the pipeline cannot catch and record it."""
+
+
+@pytest.fixture
+def env(tmp_path):
+    return Env(tmp_path)
+
+
+class Env:
+    def __init__(self, tmp_path):
+        self.config = empty_config()
+        self.landing = tmp_path / "landing"
+        self.inbox = self.landing / "deped"
+        self.repo = fake_repo(tmp_path / "repo", self.config)
+        self.store = DuckDBStore()
+        self.tmp = tmp_path
+
+    def deliver(self, school_year, schema_version="v1", encoding="utf-8", folder="original", approve_it=True, **kwargs):
+        path = make_delivery(self.inbox / folder, school_year, schema_version, encoding=encoding, **kwargs)
+        if approve_it:
+            self.approve(path, school_year, schema_version, encoding)
+        return path
+
+    def approve(self, path, school_year, schema_version="v1", encoding="utf-8", **kwargs):
+        entry = approve(self.config, path, school_year, schema_version, encoding, **kwargs)
+        write_config(self.repo, self.config)
+        return entry
+
+    def run(self, rerun=(), hook=None, environment="local"):
+        return IngestionRun(self.store, self.repo, "deped_enrollment", self.landing, environment, REVISION,
+                            rerun_batch_ids=rerun, hook=hook).execute()
+
+    def q(self, sql):
+        return self.store.query(sql)
+
+    def one(self, sql):
+        return self.q(sql)[0][0]
+
+    def bronze_rows(self, where="TRUE"):
+        return self.one(f"SELECT COUNT(*) FROM {BRONZE} WHERE {where}")
+
+    def batch(self, school_year, version=1):
+        rows = self.store.records(
+            f"SELECT * FROM {CONTROL}.ingestion_batches WHERE school_year = '{school_year}' AND delivery_version = {version}")
+        return rows[0] if rows else None
+
+
+def outcome(summary, school_year):
+    return next(o for o in summary.outcomes if o.school_year == school_year)
+
+
+# --- The demonstration ---------------------------------------------------------
+
+def test_idempotency_demonstration(env):
+    # 1-2. Load one delivery; record its batch and Bronze row count.
+    env.deliver("2023-24", n_rows=4)
+    first = env.run()
+    assert first.status == "succeeded"
+    assert (outcome(first, "2023-24").action, outcome(first, "2023-24").load_type) == ("load", "initial")
+    assert env.bronze_rows() == 4
+    batch = env.batch("2023-24")
+    assert (batch["status"], batch["source_rows"], batch["bronze_rows"]) == ("succeeded", 4, 4)
+
+    # 3-4. Run exactly the same ingestion again: skipped, no new rows.
+    second = env.run()
+    assert second.status == "succeeded"
+    assert (outcome(second, "2023-24").action, outcome(second, "2023-24").outcome) == ("skip", "skipped")
+    assert env.bronze_rows() == 4
+
+    # 5. The audit history says what happened, run by run.
+    attempts = env.q(f"SELECT run_id, action, outcome, rows_inserted FROM {CONTROL}.ingestion_batch_attempts "
+                     "ORDER BY started_at_utc")
+    assert [(a[0], a[1], a[2], a[3]) for a in attempts] == [
+        (first.run_id, "load", "succeeded", 4), (second.run_id, "skip", "skipped", 0)]
+    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.pipeline_runs WHERE status = 'succeeded'") == 2
+
+    # 6. A different school year loads as an incremental batch, leaving the first untouched.
+    env.deliver("2024-25", n_rows=3, first_id=910001)
+    third = env.run()
+    assert (outcome(third, "2024-25").action, outcome(third, "2024-25").load_type) == ("load", "incremental")
+    assert env.bronze_rows("school_year = '2023-24'") == 4
+    assert env.one(f"SELECT COUNT(DISTINCT run_id) FROM {BRONZE} WHERE school_year = '2023-24'") == 1
+    assert env.one(f"SELECT MIN(run_id) FROM {BRONZE} WHERE school_year = '2023-24'") == first.run_id
+
+    # 7. Same file name, different bytes: not treated as the original.
+    original = env.inbox / "original" / "Enrollment-in-SY-2024-2025.zip"
+    make_delivery(env.inbox / "redownload", "2024-25", n_rows=5, first_id=910001)
+    fourth = env.run()
+    changed = next(o for o in fourth.outcomes if o.outcome == "blocked")
+    assert (changed.archive_name, changed.load_type) == (original.name, "revision")
+    assert "not approved" in changed.message
+    assert fourth.status == "failed"
+    assert env.bronze_rows("school_year = '2024-25'") == 3
+    assert env.batch("2024-25")["status"] == "succeeded"
+
+
+# --- One behavior each ----------------------------------------------------------
+
+def test_provenance_is_complete_on_every_row(env):
+    env.deliver("2025-26", "v2", encoding="cp1252", line_ending="\r\n")
+    summary = env.run()
+    row = env.store.records(f"SELECT * FROM {BRONZE} WHERE source_row_number = 1")[0]
+    assert row["source_id"] == "deped_enrollment"
+    assert row["source_system"] and row["source_url"].startswith("https://www.deped.gov.ph/")
+    assert row["source_archive"] == "Enrollment-in-SY-2025-2026.zip"
+    assert row["source_file"].endswith("/enrollment_2025-26.csv")
+    assert (row["school_year"], row["delivery_version"], row["schema_version"]) == ("2025-26", 1, "v2")
+    assert len(row["source_sha256"]) == 64 and len(row["schema_fingerprint"]) == 64
+    assert (row["run_id"], row["code_revision"]) == (summary.run_id, REVISION)
+    assert row["batch_id"].startswith("deped_enrollment__2025-26__")
+    assert row["ingested_at_utc"] is not None
+    assert row["barangay"] == "Doña Test"
+
+
+def test_blanks_and_absent_columns_stay_distinct(env):
+    env.deliver("2023-24")
+    env.deliver("2025-26", "v2", encoding="cp1252")
+    env.run()
+    new_column = '"Modified Curricular Offering Classification"'
+    assert env.bronze_rows(f"school_year = '2023-24' AND {new_column} IS NULL") == 3  # not in v1
+    assert env.bronze_rows("street_address = ''") == 6  # blank as received
+    assert env.bronze_rows("street_address IS NULL OR g11_unique_male IS NULL") == 0
+    assert {r[0] for r in env.q(f"SELECT DISTINCT offers_es FROM {BRONZE}")} == {"True"}  # labels untouched
+
+
+def test_batch_id_is_the_same_for_the_same_bytes(env):
+    path = env.deliver("2023-24")
+    env.run()
+    first_id = env.batch("2023-24")["batch_id"]
+    shutil.move(str(path), env.inbox / "moved.zip")  # same bytes, another name and folder
+    env.run()
+    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.ingestion_batches") == 1
+    assert env.batch("2023-24")["batch_id"] == first_id
+
+
+def test_discovery_does_not_hash_unrelated_zips_when_approved_files_are_present(env, monkeypatch):
+    delivery = env.deliver("2023-24")
+    unrelated = env.inbox / "NAT-Grade-6.zip"
+    unrelated.write_bytes(b"not an enrollment delivery")
+    hashed = []
+    sha256_file = pipeline.sha256_file
+
+    def record_hash(path):
+        hashed.append(path)
+        return sha256_file(path)
+
+    monkeypatch.setattr(pipeline, "sha256_file", record_hash)
+    discovered = pipeline.discover(env.config, env.landing)
+
+    assert [path for _, path in discovered] == [delivery]
+    assert hashed == [delivery]
+
+
+def test_rerun_validates_again_and_adds_nothing(env):
+    env.deliver("2023-24")
+    env.run()
+    bid = env.batch("2023-24")["batch_id"]
+    summary = env.run(rerun=[bid])
+    o = outcome(summary, "2023-24")
+    assert (o.action, o.outcome, o.rows_inserted, o.bronze_rows) == ("rerun", "succeeded", 0, 3)
+    assert env.bronze_rows() == 3
+    assert env.batch("2023-24")["attempt_count"] == 2
+
+
+def test_late_historical_year_is_a_backfill(env):
+    env.deliver("2024-25")
+    env.deliver("2025-26", "v2")
+    env.run()
+    env.deliver("2022-23", first_id=920001)
+    summary = env.run()
+    assert outcome(summary, "2022-23").load_type == "backfill"
+    assert [o.action for o in summary.outcomes] == ["load", "skip", "skip"]
+    assert env.bronze_rows() == 9
+
+
+def test_approved_revision_keeps_both_versions(env):
+    v1 = env.deliver("2025-26", "v2")
+    env.run()
+    revised = make_delivery(env.inbox / "2026-08-01", "2025-26", "v2", n_rows=5)
+    env.approve(revised, "2025-26", "v2", delivery_version=2,
+                supersedes=env.config["deliveries"][0]["archive_sha256"])
+    summary = env.run()
+    o = next(o for o in summary.outcomes if o.action == "load")
+    assert (o.load_type, o.rows_inserted) == ("revision", 5)
+    assert env.q(f"SELECT delivery_version, COUNT(*) FROM {BRONZE} GROUP BY 1 ORDER BY 1") == [(1, 3), (2, 5)]
+    assert env.q(f"SELECT school_year, delivery_version FROM {CONTROL}.current_batches") == [("2025-26", 2)]
+    assert v1.exists()
+
+
+def test_rezipped_copy_of_a_loaded_file_is_skipped(env):
+    env.deliver("2023-24")
+    env.run()
+    make_delivery(env.inbox / "copy", "2023-24", zip_folder="Enrollment-in-SY-2023-2024")
+    summary = env.run()
+    copy = next(o for o in summary.outcomes if o.message and "different zip" in o.message)
+    assert copy.rows_inserted == 0
+    assert summary.status == "succeeded"
+    assert env.bronze_rows() == 3
+
+
+def test_unknown_file_is_blocked_and_fails_the_run(env):
+    env.deliver("2026-27", approve_it=False)
+    summary = env.run()
+    assert (summary.outcomes[0].outcome, summary.status) == ("blocked", "failed")
+    assert env.one(f"SELECT error_code FROM {CONTROL}.ingestion_batches") == "unregistered_delivery"
+    assert env.bronze_rows() == 0
+
+
+def test_failed_batch_can_be_retried(env):
+    path = env.deliver("2023-24")
+    env.config["deliveries"][0]["row_count"] = 99  # an approval mistake
+    write_config(env.repo, env.config)
+    first = env.run()
+    assert (outcome(first, "2023-24").outcome, first.status) == ("failed", "failed")
+    assert env.bronze_rows() == 0  # nothing loaded when a pre-load check fails
+    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") >= 1
+
+    env.config["deliveries"][0]["row_count"] = 3  # fixed in review
+    write_config(env.repo, env.config)
+    second = env.run()
+    o = outcome(second, "2023-24")
+    assert (o.action, o.outcome, o.load_type) == ("retry", "succeeded", "initial")
+    assert env.batch("2023-24")["attempt_count"] == 2
+    assert path.exists()
+
+
+def test_interrupted_load_is_recovered(env):
+    env.deliver("2023-24")
+
+    def crash(stage):
+        if stage == "after_bronze_merge":
+            raise SimulatedCrash()
+
+    with pytest.raises(SimulatedCrash):
+        env.run(hook=crash)
+    assert env.batch("2023-24")["status"] == "loading"
+    assert env.bronze_rows() == 3  # the MERGE committed before the crash...
+    assert env.q(f"SELECT * FROM {CONTROL}.current_batches") == []  # ...but downstream cannot see it
+    assert env.one(f"SELECT status FROM {CONTROL}.pipeline_runs") == "running"
+
+    summary = env.run()
+    o = outcome(summary, "2023-24")
+    assert (o.action, o.outcome, o.rows_inserted, o.bronze_rows) == ("retry", "succeeded", 0, 3)
+    assert env.bronze_rows() == 3
+
+
+def test_batch_is_invisible_downstream_until_its_last_write(env):
+    """Marking a batch succeeded is the final write. A crash any time before it,
+    even after reconciliation passed, leaves the batch out of current_batches."""
+    env.deliver("2023-24")
+
+    def crash(stage):
+        if stage == "reconciled":
+            raise SimulatedCrash()
+
+    with pytest.raises(SimulatedCrash):
+        env.run(hook=crash)
+    assert env.batch("2023-24")["status"] == "loading"
+    assert env.q(f"SELECT * FROM {CONTROL}.current_batches") == []
+
+
+def test_partial_write_is_completed_without_duplicates(env):
+    env.deliver("2023-24", n_rows=6)
+
+    def lose_rows(stage):
+        if stage == "after_bronze_merge":
+            env.store.sql(f"DELETE FROM {BRONZE} WHERE source_row_number > 2")
+            raise SimulatedCrash()
+
+    with pytest.raises(SimulatedCrash):
+        env.run(hook=lose_rows)
+    assert env.bronze_rows() == 2
+
+    o = outcome(env.run(), "2023-24")
+    assert (o.outcome, o.rows_inserted, o.bronze_rows) == ("succeeded", 4, 6)
+    assert env.one(f"SELECT COUNT(DISTINCT source_row_number) FROM {BRONZE}") == 6
+
+
+def test_reconciliation_failure_keeps_batch_out_of_downstream(env):
+    env.deliver("2023-24")
+
+    def lose_a_row(stage):
+        if stage == "after_bronze_merge":
+            env.store.sql(f"DELETE FROM {BRONZE} WHERE source_row_number = 1")
+
+    summary = env.run(hook=lose_a_row)
+    o = outcome(summary, "2023-24")
+    assert (o.outcome, summary.status) == ("failed", "failed")
+    assert env.batch("2023-24")["error_code"] == "reconciliation_failed"
+    assert env.q(f"SELECT * FROM {CONTROL}.current_batches") == []
+    assert summary.gate_error and "Bronze gate failed" in summary.gate_error
+
+
+def test_source_duplicates_are_kept_and_flagged(env):
+    rows = make_rows(columns("v1"))
+    rows.append(list(rows[0]))
+    env.deliver("2023-24", rows=rows)
+    summary = env.run()
+    assert summary.status == "succeeded"
+    assert env.bronze_rows("school_id = '900001'") == 2
+    warns = {r[0] for r in env.q(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE status = 'WARN'")}
+    assert warns == {"school_id_unique_in_file", "duplicate_rows_in_file"}
+
+
+def test_undocumented_drift_fails_the_batch(env):
+    env.deliver("2026-27", "v2", header=columns("v2") + ["g13_male"])
+    summary = env.run()
+    o = outcome(summary, "2026-27")
+    assert (o.outcome, summary.status) == ("failed", "failed")
+    assert env.batch("2026-27")["error_code"] == "unknown_schema_drift"
+    assert env.bronze_rows() == 0
+
+
+def test_a_new_schema_version_grows_bronze_from_the_contract(env):
+    env.deliver("2025-26", "v2")
+    env.run()
+    env.config["schema_versions"]["v3"] = {"first_school_year": "2026-27", "note": "test",
+                                            "columns": columns("v2") + ["g13_male"]}
+    env.deliver("2026-27", "v3", header=columns("v2") + ["g13_male"], first_id=930001)
+    summary = env.run()
+    assert outcome(summary, "2026-27").outcome == "succeeded"
+    assert env.bronze_rows("g13_male IS NULL") == 3   # SY 2025-26 rows: column absent
+    assert env.bronze_rows("g13_male IS NOT NULL") == 3
+
+
+def test_gate_catches_rows_without_a_batch(env):
+    env.deliver("2023-24")
+    env.run()
+    env.store.sql(f"INSERT INTO {BRONZE} SELECT * REPLACE ('ghost' AS batch_id) FROM {BRONZE} LIMIT 1")
+    summary = env.run()
+    assert summary.status == "failed" and "Bronze gate failed" in summary.gate_error
+    fails = env.q(f"SELECT check_name FROM {CONTROL}.data_quality_results "
+                  f"WHERE run_id = '{summary.run_id}' AND status = 'FAIL' ORDER BY 1")
+    assert fails == [("no_pipeline_duplicates",), ("rows_have_a_known_batch",), ("succeeded_batches_reconcile",)]
+
+
+def test_gate_results_carry_the_code_revision(env):
+    env.deliver("2023-24")
+    summary = env.run()
+    revisions = env.q(f"SELECT DISTINCT code_revision FROM {CONTROL}.data_quality_results "
+                      f"WHERE run_id = '{summary.run_id}'")
+    assert revisions == [(REVISION,)]
+
+
+def test_prod_refuses_a_source_that_is_not_accepted(env):
+    with pytest.raises(IngestionError) as e:
+        env.run(environment="prod")
+    assert e.value.code == "source_not_accepted"
+
+
+def test_missing_landing_folder_fails_the_run(env):
+    with pytest.raises(IngestionError) as e:
+        env.run()
+    assert e.value.code == "missing_landing"
+    assert env.one(f"SELECT status FROM {CONTROL}.pipeline_runs") == "failed"
+
+
+# --- The committed SQL and the command line --------------------------------------
+
+def test_bronze_ddl_matches_the_contract():
+    committed = (REPO_ROOT / "etl/02_bronze/01_create_deped_enrollment_raw.sql").read_text(encoding="utf-8")
+    assert committed == bronze_ddl(real_config()), (
+        "Regenerate: python -m src.ingestion.cli ddl --source deped_enrollment "
+        "> etl/02_bronze/01_create_deped_enrollment_raw.sql")
+
+
+def test_cli_blocks_an_unapproved_file(tmp_path, capsys):
+    make_delivery(tmp_path / "raw" / "deped", "2030-31")
+    code = cli.main(["ingest", "--source", "deped_enrollment", "--landing", str(tmp_path / "raw"),
+                     "--db", str(tmp_path / "t.duckdb")])
+    assert code == 1
+    assert "blocked" in capsys.readouterr().out
+    assert cli.main(["status", "--source", "deped_enrollment", "--db", str(tmp_path / "t.duckdb")]) == 0
+
+
+def test_cli_exit_codes_for_setup_problems(tmp_path):
+    db = ["--db", str(tmp_path / "t.duckdb")]
+    assert cli.main(["ingest", "--source", "deped_enrollment", "--landing", str(tmp_path / "none"), *db]) == 3
+    (tmp_path / "raw" / "deped").mkdir(parents=True)
+    landing = ["--landing", str(tmp_path / "raw")]
+    assert cli.main(["ingest", "--source", "deped_enrollment", "--environment", "dev",
+                     "--code-revision", "UNSET", *landing, *db]) == 2
+    assert cli.main(["ingest", "--source", "deped_enrollment", "--environment", "dev",
+                     "--code-revision", REVISION, *landing, *db]) == 0
+    assert cli.main(["ingest", "--source", "no_such_source", *landing, *db]) == 2

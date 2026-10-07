@@ -50,7 +50,7 @@ DELIVERY_FIELDS = {
     "schema_version", "row_count", "retrieved_at_utc",
 }
 CONFIG_FIELDS = {
-    "source_id", "bronze_table", "archive_pattern", "data_member_pattern",
+    "source_id", "bronze_table", "landing_dir", "archive_pattern", "data_member_pattern",
     "document_members", "max_uncompressed_bytes", "identifier_column",
     "identifier_pattern", "required_columns", "schema_versions", "deliveries",
 }
