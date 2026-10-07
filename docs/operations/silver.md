@@ -1,28 +1,30 @@
 # Silver: Bronze → clean, typed, standardized
 
-How the Bronze rows of each source's current deliveries become one clean, typed, validated table, what each rule changes, what is set aside, and how a run decides it has nothing to do. The first source built this way is `deped_enrollment` (#85).
+How the Bronze rows of each source's current deliveries become one clean, typed, validated table, what each rule changes, what is set aside, and how each run is recorded. The first source built this way is `deped_enrollment` (#85).
 
-**Status:** built and tested locally, and run on the real Bronze data of all three school years (2026-10-07). **Not yet run on Databricks**; the steps are under [Running on Databricks](#running-on-databricks).
+**Status:** two SQL tasks of the job `edu_access_pipeline`, built and tested locally, and run on the real Bronze data of all three school years (2026-10-08). **Not yet run on Databricks**; the steps are under [Running on Databricks](#running-on-databricks).
 
 ## The flow
 
 ```
-02 Bronze   edu_access.`02-bronze`.deped_enrollment_raw         every delivery, text, with provenance
-   │  only batches in 01-control.current_batches (the latest succeeded version of each school year)
+bronze_deped_enrollment             Python: check and load the deliveries          (serverless)
+90_validate_deped_enrollment_raw    SQL: the Bronze gate                            (SQL warehouse)
+   │  only if it passed
    ▼
-   decide: same batches and same rules as the last successful build? ── yes ─▶ skip (record it, stop)
-   │ no
+01_create_deped_enrollment_clean    SQL: run stamp in session variables; pipeline_runs 'running';
+   │                                     rebuild from 01-control.current_batches only:
+   │                                       deped_enrollment_clean       one row per school per school year
+   │                                       deped_enrollment_quarantine  rows that cannot be trusted, with reasons
+   │  only if it succeeded
    ▼
-03 Silver   CREATE OR REPLACE  deped_enrollment_clean        one row per school per school year
-            CREATE OR REPLACE  deped_enrollment_quarantine   rows that cannot be trusted, with reasons
-   │  column types, then the gate (90_validate_*): one row per check in data_quality_results; any FAIL stops
-   ▼
-01 Control  layer_builds (what was built, from which batches, with which rules) · pipeline_runs 'succeeded' (last)
+90_validate_deped_enrollment_clean  SQL: one row per check in data_quality_results;
+                                         pipeline_runs 'succeeded' or 'failed'; any FAIL fails the task
    │
-   ▼  Integration and Gold read Silver only when the latest silver_build run of the source succeeded
+   ▼  the next source's load runs whatever happened (ALL_DONE)
+      Integration and Gold read Silver only when the latest silver_build run of the source succeeded
 ```
 
-Code: `src/silver/` ([module list](../../src/silver/README.md)). SQL: `etl/03_silver/` ([files](../../etl/03_silver/README.md)), generated from the Bronze contract and the [Silver mapping](../../config/mappings/deped_enrollment.json). Columns: [data dictionary](../data/silver/deped-enrollment-clean.md). Decisions: D-021 to D-025 in [decisions.md](../governance/decisions.md).
+Code: `src/silver/` ([module list](../../src/silver/README.md)). SQL: `etl/03_silver/` ([files](../../etl/03_silver/README.md)), generated from the Bronze contract and the [Silver mapping](../../config/mappings/deped_enrollment.json). Columns: [data dictionary](../data/silver/deped-enrollment-clean.md). The job: D-020; Silver: D-021 to D-025 in [decisions.md](../governance/decisions.md).
 
 ## The question Silver answers
 
@@ -34,8 +36,8 @@ Code: `src/silver/` ([module list](../../src/silver/README.md)). SQL: `etl/03_si
 | What was changed | Each rule is one generated SQL expression from a reviewed file. Every build records how many rows each rule changed or flagged (`rule_*`, `flag_*` in `data_quality_results`), and the published value is always one join away in Bronze |
 | Why | The rule table below, the evidence for every label in the mapping, and decisions D-021 to D-025 |
 | What was set aside | `deped_enrollment_quarantine`, with the reasons; `rows_reconcile` proves Bronze rows = clean + quarantined, per school year |
-| Which run and code | `run_id`, `cleaned_at_utc` (one value per build), and `code_revision` on every row and every check |
-| Compute | A run with the same batches and rules as the last successful build skips: two reads, three small writes |
+| Which run and code | `run_id` (the job run), `cleaned_at_utc` (one value per build), and `code_revision` on every row and every check; the run itself in `pipeline_runs` |
+| Compute | Silver runs only after its Bronze gate passed, as two SQL tasks on the warehouse the Bronze gate already started. Rebuilding 180,000 rows takes about a second locally (D-025) |
 
 ## Grain and shape
 
@@ -86,18 +88,19 @@ A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR s
 
 ## The gate
 
-`etl/03_silver/90_validate_deped_enrollment_clean.sql` runs after every build, reading Bronze, both Silver tables, and `current_batches`. It writes one row per check to `` `01-control`.data_quality_results `` with `layer = 'silver'`, `:run_id`, and `:code_revision`, then fails if this run recorded any FAIL. Before it, `src/silver/run.py` checks every column's type (`columns_typed`).
+`etl/03_silver/90_validate_deped_enrollment_clean.sql` is the job task after every build, reading Bronze, both Silver tables, and `current_batches`. It writes one row per check to `` `01-control`.data_quality_results `` with `layer = 'silver'`, `:run_id`, and `:code_revision`; records the run as `succeeded` or `failed` in `pipeline_runs`; then fails the task if this execution recorded any FAIL. Only this execution's results count, so a repaired job run (same `run_id`) is judged on its own. Column types are fixed by the build itself (every count through `TRY_CAST(... AS INT)`); `tests/test_silver.py` checks them locally, and the Databricks check below checks them in Unity Catalog.
 
 | Check | Per | FAIL when |
 |---|---|---|
 | `rows_reconcile` | school year | Bronze current rows ≠ clean + quarantined |
 | `school_id_unique`, `school_id_valid` | school year | A key repeats, is NULL, or is not six digits in the clean table |
-| `counts_non_negative`, `columns_typed` | school year, table | A count is negative, or a column's type differs from the dictionary |
+| `counts_non_negative` | school year | A count is negative |
 | `learners_reconcile` | school year | Clean learners ≠ Bronze learners of the same rows |
 | `missing_counts_stay_null` | school year | NULL count cells in clean ≠ blank or absent cells in Bronze (catches blank → 0) |
 | `absent_columns_stay_null` | school year | A column the year's schema lacks is filled |
 | `labels_mapped_<column>` (9 columns) | school year | A published label is not in the reviewed mapping |
 | `enrollment_status_valid` | school year | A status outside the three values |
+| `current_batches_present` | table | Bronze has no current batch for the source, so Silver would be empty |
 | `lineage_complete`, `rows_resolve_to_current_bronze` | table | A lineage column is NULL, or a Silver row is not a current Bronze row |
 | `rows_built_by_this_run`, `one_timestamp_per_run` | table | A row is left from another run, or the tables disagree on `cleaned_at_utc` |
 | `quarantine_rate` | school year | WARN above 0; **FAIL above 1%** of the year's Bronze rows |
@@ -108,48 +111,42 @@ A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR s
 |---|---|---|
 | PASS | As expected | None |
 | WARN | Rows were quarantined (at most 1% of a year) | Recorded; the build stands; the source owner reviews the reasons |
-| FAIL | The Silver tables cannot be trusted | The task fails, `pipeline_runs` says `failed`, the next source's Bronze task still runs, and the next Silver run rebuilds instead of skipping. Gold must not read the tables |
+| FAIL | The Silver tables cannot be trusted | The gate task fails and `pipeline_runs` says `failed`; the tables hold that build until the next run rebuilds them, and Gold must not read them. The next source's load still runs |
 
-The local run on the real data recorded 111 results, all PASS.
+The local run on the real data recorded 110 results, all PASS.
 
-## Incremental, idempotent, and skip-when-unchanged
+## Every run rebuilds, and every run is recorded
 
-| Situation | What the run does | `layer_builds.reason` |
+Silver rebuilds both tables on every job run with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches (D-025): the same Bronze gives the same rows, so a rerun changes nothing but the run stamp, and a revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. On the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `5d9ecaf14baac697071e884851af3161` on every run.
+
+Each table is one Delta commit; the pair is not, so the run row is the commit marker, as `ingestion_batches` is for Bronze:
+
+| `pipeline_runs.status` (`pipeline_name = 'silver_build'`) | Written by | Meaning |
 |---|---|---|
-| No successful build yet | Build | `first_build` |
-| The previous Silver run failed or died | Build (the tables may hold an unverified build) | `previous_run_incomplete` |
-| A table is missing | Build | `tables_missing` |
-| `current_batches` changed: a new school year, a revised delivery | Build | `bronze_changed` |
-| The committed build or gate SQL changed (a reviewed rule or label) | Build | `rules_changed` |
-| `--force` | Build | `forced` |
-| Nothing changed | **Skip**: no Silver statement runs | `unchanged` |
-
-A build replaces both tables with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches (D-025). Each is one Delta commit; the pair is not, so the order of writes is the commit marker, as in Bronze: `pipeline_runs` 'running' → both tables → column types and gate → `layer_builds` → `pipeline_runs` 'succeeded'. A run that dies anywhere before the last write stays 'running', and the next run rebuilds. A revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. A forced rebuild of unchanged inputs gives identical content: on the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `5d9ecaf14baac697071e884851af3161` both times.
+| `running` | the build task, first | The build started; with no later status it never finished, or its gate never ran |
+| `succeeded` | the gate task, after its checks | Every check passed or warned: Gold may read Silver |
+| `failed` | the gate task, after its checks | At least one FAIL: Gold must not read Silver |
 
 ## Compute
 
 Free Edition's serverless capacity is shared; in the Bronze runs most time was spent waiting for it, and each small control-table statement took 3 to 13 seconds.
 
-- **Same compute as Bronze.** Silver is a Python task in the same job and serverless environment, through the same store layer. No SQL warehouse, no notebook.
-- **Skip is cheap.** A run with nothing to do creates the control tables if missing, reads `current_batches`, the last build, and the last run, and writes three rows. Locally it takes 0.1 s.
-- **A build** is about 20 statements: the schema and ownership (2), the classification view (1), two `CREATE OR REPLACE` and two ownership statements, the type check (3), the gate (2), three counts, and three control writes. Locally: 1.1 s to build and 0.6 s to check 180,500 rows; 1.9 s for the whole run.
-- **One task at a time.** Bronze enrollment → Silver enrollment → Bronze facilities, one chain, no schedule, `max_concurrent_runs: 1`.
+- **Two SQL tasks on the warehouse.** The Bronze gate before them has already started it, so Silver adds two tasks' statements, not a new start-up. No notebook.
+- **No skip.** A file cannot decide to skip itself, and the rebuild is cheap (about a second for 180,500 rows locally), so every run rebuilds (D-025). The saving given up is that work, not a warehouse start.
+- **A build** is about 15 statements: the run stamp (6), the run row, the schema and its owner, the classification view, two `CREATE OR REPLACE` and two owner statements. **The gate** is 5: its start time (2), the checks, the run row, the final check. Locally: about 1.1 s and 0.6 s.
+- **One task at a time.** One chain, no schedule, `max_concurrent_runs: 1`.
 
 Databricks timings will be recorded with the first run (open).
 
 ## Running locally
 
-From the repository root, with the virtual environment active, after loading Bronze ([ingestion](ingestion.md#running-locally)):
+From the repository root, with the virtual environment active, run the whole job as Databricks would, every task of `databricks.yml` in order, on DuckDB:
 
 ```bash
-python -m src.silver.cli build --source deped_enrollment
+RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run
 ```
 
-```bash
-python -m src.silver.cli status --source deped_enrollment
-```
-
-The tables go to the same DuckDB file as Bronze (`local_state/edu_access.duckdb`). The second `build` skips. Add `--force` to rebuild anyway, and `--db <path>` to use another file. Exit codes: 0 built or skipped; 1 the build or its gate failed; 2 configuration; 3 environment.
+The tables go to `local_state/edu_access.duckdb` (`--db <path>` for another file). Bronze loads only new files; Silver rebuilds every time. Exit code 0 when every task succeeded, 1 otherwise, with the failed tasks named.
 
 ## Changing a rule or approving a label
 
@@ -168,28 +165,27 @@ The tables go to the same DuckDB file as Bronze (`local_state/edu_access.duckdb`
    python -m src.silver.cli dictionary --source deped_enrollment > docs/data/silver/deped-enrollment-clean.md
    ```
 
-3. Run the tests and a local build on the real data; compare the `rule_*` counts with the table above. The source owner approves the pull request. The next job run rebuilds (`rules_changed`).
+3. Run the tests and the job locally on the real data; compare the `rule_*` counts with the table above. The source owner approves the pull request. The next job run builds with the new rules.
 
 ## Running on Databricks
 
-**Not yet run.** The deliberate confirmation run (D-008), after the pull request is pushed:
+**Not yet run.** The deliberate confirmation run (D-008), after the branch is pushed:
 
-1. From a clean checkout of the pushed commit, announce the run, detach notebooks, leave the SQL warehouse stopped.
+1. From a clean checkout of the pushed commit, announce the run, detach notebooks, leave the SQL warehouse stopped (the job starts it).
 2. `databricks bundle validate --target dev --profile reached-hq`, then `databricks bundle deploy --target dev --profile reached-hq`; confirm in `databricks bundle summary` that `git_commit` and `code_revision` both equal `git rev-parse HEAD`.
-3. `databricks bundle run bronze_ingest --target dev --profile reached-hq` twice. The first run's Bronze tasks skip (already loaded) and Silver builds; the second run's Silver task must skip.
-4. Check with the query below, then record the evidence in `evidence/pipeline-runs/<date>-deped-enrollment-silver.md` in the layout of the Bronze evidence, with per-task timings (job start, cluster start, task start and end) so waiting for compute is told apart from work.
+3. `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` twice. In both runs the Bronze loads skip (already loaded), the gates pass, and Silver rebuilds.
+4. Check with the queries below, then record the evidence in `evidence/pipeline-runs/<date>-deped-enrollment-silver.md` in the layout of the Bronze evidence, with per-task timings (job start, task start and end, queue and setup time) so waiting for compute is told apart from work.
 
-What only Databricks can show: Spark's behavior for the shared SQL (`regexp_like`, `translate`, `chr(160)`, the CTE inside `INSERT`), `CREATE OR REPLACE TABLE` and ownership on existing Unity Catalog tables, the temporary views on serverless, and the real cost of a build and of a skip.
+What only Databricks can show: Spark's behavior for the shared SQL (`regexp_like`, `translate`, `chr(160)`, session variables, the CTE inside `INSERT`, `MERGE` with variables), job parameters reaching SQL file tasks, `CREATE OR REPLACE TABLE` and ownership on existing Unity Catalog tables, and the real cost of the warehouse tasks.
 
-All checks in one query, each marked `OK` or `CHECK`, for the three approved deliveries after one build and one skip. Replace the commit with the one that ran:
+All checks in one query, each marked `OK` or `CHECK`, for the three approved deliveries after two runs. Replace the commit with the one that ran:
 
 ```sql
 WITH c AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_clean),
      q AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_quarantine),
-     lb AS (SELECT * FROM edu_access.`01-control`.layer_builds WHERE source_id = 'deped_enrollment'),
-     pr AS (SELECT * FROM edu_access.`01-control`.pipeline_runs WHERE pipeline_name = 'silver_build'),
-     last_build AS (SELECT MAX_BY(run_id, finished_at_utc) AS run_id FROM lb WHERE action = 'build'),
-     d AS (SELECT * FROM edu_access.`01-control`.data_quality_results WHERE run_id = (SELECT run_id FROM last_build)),
+     pr AS (SELECT * FROM edu_access.`01-control`.pipeline_runs WHERE pipeline_name = 'silver_build' AND source_id = 'deped_enrollment'),
+     last_run AS (SELECT MAX_BY(run_id, started_at_utc) AS run_id FROM pr),
+     d AS (SELECT * FROM edu_access.`01-control`.data_quality_results WHERE layer = 'silver' AND run_id = (SELECT run_id FROM last_run)),
 checks AS (
   SELECT 'clean rows SY 2023-24' AS check_name, '60167' AS expected, CAST(COUNT_IF(school_year = '2023-24') AS STRING) AS actual FROM c
   UNION ALL SELECT 'clean rows SY 2024-25', '60129', CAST(COUNT_IF(school_year = '2024-25') AS STRING) FROM c
@@ -205,15 +201,23 @@ checks AS (
   UNION ALL SELECT 'mangled Ã‘ left', '0', CAST(COUNT_IF(barangay LIKE '%Ã‘%' OR street_address LIKE '%Ã‘%') AS STRING) FROM c
   UNION ALL SELECT 'overseas flagged', '104', CAST(COUNT_IF(is_overseas) AS STRING) FROM c
   UNION ALL SELECT 'no counts published, SY 2025-26', '46', CAST(COUNT_IF(enrollment_status = 'no_counts') AS STRING) FROM c
-  UNION ALL SELECT 'checks in the build run', '111', CAST(COUNT(*) AS STRING) FROM d
-  UNION ALL SELECT 'checks in the build run not PASS', '0', CAST(COUNT_IF(status <> 'PASS') AS STRING) FROM d
-  UNION ALL SELECT 'rows from the build run', '180500', CAST(COUNT_IF(run_id = (SELECT run_id FROM last_build)) AS STRING) FROM c
+  UNION ALL SELECT 'checks in the last run', '110', CAST(COUNT(*) AS STRING) FROM d
+  UNION ALL SELECT 'checks in the last run not PASS', '0', CAST(COUNT_IF(status <> 'PASS') AS STRING) FROM d
+  UNION ALL SELECT 'rows from the last run', '180500', CAST(COUNT_IF(run_id = (SELECT run_id FROM last_run)) AS STRING) FROM c
   UNION ALL SELECT 'rows from another commit', '0', CAST(COUNT_IF(code_revision <> '<commit that ran>') AS STRING) FROM c
-  UNION ALL SELECT 'builds then skips', '1 build, 1 skip', CAST(COUNT_IF(action = 'build' AND outcome = 'succeeded') AS STRING)
-    || ' build, ' || CAST(COUNT_IF(action = 'skip' AND outcome = 'skipped') AS STRING) || ' skip' FROM lb
+  UNION ALL SELECT 'last silver run', 'succeeded', MAX(status) FROM pr WHERE run_id = (SELECT run_id FROM last_run)
   UNION ALL SELECT 'silver runs succeeded', '2', CAST(COUNT_IF(status = 'succeeded') AS STRING) FROM pr
 )
 SELECT check_name, expected, actual, CASE WHEN expected = actual THEN 'OK' ELSE 'CHECK' END AS result FROM checks;
+```
+
+Column types, in Unity Catalog only (expect `INT` 66):
+
+```sql
+SELECT data_type, COUNT(*) AS columns
+FROM edu_access.information_schema.columns
+WHERE table_schema = '03-silver' AND table_name = 'deped_enrollment_clean' AND column_name LIKE '%male'
+GROUP BY data_type;
 ```
 
 ## Handoff to Integration and Gold
@@ -241,7 +245,8 @@ What Integration still has to do: match `province`, `municipality`, and `baranga
 
 - Not yet run on Databricks: Spark has not executed this SQL.
 - `region` and the other categories are gated, so any new label stops Silver until it is reviewed, by design.
-- A full rebuild reruns every school year when one changes; fine at 180,000 rows, revisit for larger sources.
+- Every run rebuilds every school year, and starts the SQL warehouse; fine at 180,000 rows, revisit for larger sources.
+- After a failed gate the Silver tables hold the failed build until the next run; Gold must check the run status first.
 - Only `deped_enrollment` has Silver; facilities and the other sources follow with their own mapping (#86 to #90).
 
 ## Open questions
@@ -253,6 +258,7 @@ What Integration still has to do: match `province`, `municipality`, and `baranga
 | Is 1% the right FAIL threshold for quarantine? | 1% of a school year's Bronze rows | D-024 |
 | Should a school with two conflicting rows keep one copy if the rows are identical? | Every copy quarantined | D-024 |
 | Should Gold treat `no_counts` like `all_zero`? | Gold decides per measure | D-024 |
-| Rename the job from `bronze_ingest`? Changing its key would delete the job and its run history | Keep the key; the description says it builds Silver | D-025 |
-| Should the Silver task skip creating control tables that the Bronze task just created, to save statements? | Created if missing, as Bronze does | Compute |
+| Should Silver skip when Bronze is unchanged, with a condition task in the job? | Rebuild every run | D-025 |
+| Should the Bronze gate also count only its own execution's results, so a repaired job run is judged on its own, as the Silver gate does? Changing it means regenerating every source's Bronze gate | Start a new run instead of repairing a failed one | D-020 |
+| Drop `01-control.layer_builds` on dev, created by the cancelled run of 2026-10-08 and no longer used? | Left in place | Team |
 | Should profile.md record the three Bronze findings above (and S-1's correction)? | Recorded here only | D-007 |

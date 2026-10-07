@@ -360,7 +360,7 @@ Bronze preserves; Silver cleans. **Built for `deped_enrollment`** (#85; [Silver]
 - quarantines publisher duplicates of `school_id` rather than dropping them (none so far, profile O-1);
 - keeps `batch_id`, `source_sha256`, and `source_row_number`, so every Silver row traces back to its Bronze row.
 
-The Silver task runs right after this source's Bronze task, only if it succeeded, and skips when `current_batches` has not changed since its last successful build.
+Silver's two SQL tasks run right after this source's Bronze gate task, only if it passed, and rebuild from `current_batches` on every run (D-025).
 
 ## Runbook
 
