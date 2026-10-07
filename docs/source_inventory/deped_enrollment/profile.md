@@ -26,7 +26,7 @@ Clean and usable at school level: `school_id` is a reliable key within each year
 
 | ID | Finding | Evidence | Impact | Proposed handling |
 |---|---|---|---|---|
-| O-1 | `school_id` is clean in every year | 0 blank, 0 non-numeric, 0 not 6 digits, 0 duplicates, 0 fully duplicated rows in each of the three files | Safe primary key within a year | Assert uniqueness in Bronze validation |
+| O-1 | `school_id` is clean in every year | 0 blank, 0 non-numeric, 0 not 6 digits, 0 duplicates, 0 fully duplicated rows in each of the three files | Safe primary key within a year | Check in Bronze validation: a blank `school_id` fails the delivery; a repeated one is recorded as WARN and every row is kept as evidence, so Silver decides which counts (D-015) |
 | O-2 | Enrollment counts are valid | 0 non-integer and 0 negative values across all count columns; 0 schools with elementary learners that do not offer elementary | Counts can be typed as integers without loss | Type in Silver; keep a range check |
 | O-3 | Total learners per file | 27,081,292 (2023-24); 26,400,182 (2024-25); 25,935,863 (2025-26) | Baseline for reconciliation | Reconcile against DepEd's published totals (not yet done) |
 | O-4 | No PSGC codes | Location columns are names only | Joining to PSA data requires name matching | Match names to PSGC in integration; count and list unmatched |
