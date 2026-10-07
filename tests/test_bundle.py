@@ -115,7 +115,7 @@ def test_every_contract_has_a_task(jobs, repo_root):
 def test_no_schedules_during_development(jobs):
     for name, job in jobs.items():
         assert "schedule" not in job and "trigger" not in job and "continuous" not in job, (
-            f"{name}: no schedules during development (docs/workflow.md, Part 5)")
+            f"{name}: no schedules during development (docs/operations/workflow.md, Part 5)")
 
 
 def test_one_run_at_a_time(jobs):

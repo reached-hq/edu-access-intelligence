@@ -1,11 +1,11 @@
 """DepEd facilities loads through the same pipeline as enrollment, from its own contract.
 
-Made-up facilities zips (tests/fixtures/deped.py) are approved into a copy of
+Made-up facilities zips (tests/factories/deped_deliveries.py) are approved into a copy of
 the real facilities contract, inside a throwaway repository root that runs the
 real etl/ SQL on an in-memory DuckDB.
 """
 
-from fixtures.deped import (
+from factories.deped_deliveries import (
     approve, columns, empty_config, fake_repo, make_delivery, make_rows, registry_entry, write_config,
 )
 from src.ingestion.pipeline import IngestionRun

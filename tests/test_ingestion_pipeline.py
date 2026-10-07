@@ -13,7 +13,7 @@ import shutil
 
 import pytest
 
-from fixtures.deped import (
+from factories.deped_deliveries import (
     REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows, real_config, write_config,
 )
 from src.ingestion import cli, pipeline

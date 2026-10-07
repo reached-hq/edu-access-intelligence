@@ -3,14 +3,15 @@
 import re
 from pathlib import Path
 
-# Data belongs in the agreed storage, never in git. Small made-up samples under
-# tests/fixtures/ are the only exception.
+# Data belongs in the agreed storage, never in git. Small static, made-up
+# samples under tests/data/ are the only exception. Test factories are code and
+# create their files in pytest-provided temporary directories.
 DATA_EXTENSIONS = {
     ".csv", ".tsv", ".xlsx", ".xls", ".parquet", ".avro", ".orc",
     ".duckdb", ".db", ".sqlite", ".zip", ".gz",
     ".shp", ".shx", ".dbf", ".geojson", ".gpkg",
 }
-FIXTURES_DIR = Path("tests/fixtures")
+TEST_DATA_DIR = Path("tests/data")
 
 MAX_FILE_BYTES = 1_000_000
 
@@ -22,25 +23,25 @@ SECRET_PATTERNS = {
 }
 
 
-def _is_fixture(path):
-    return FIXTURES_DIR in path.parents
+def _is_test_data(path):
+    return TEST_DATA_DIR in path.parents
 
 
-def test_no_data_files_outside_fixtures(repo_files):
+def test_no_data_files_outside_test_data(repo_files):
     offenders = [
         str(p) for p in repo_files
-        if p.suffix.lower() in DATA_EXTENSIONS and not _is_fixture(p)
+        if p.suffix.lower() in DATA_EXTENSIONS and not _is_test_data(p)
     ]
     assert not offenders, (
         "Data files must not be committed; keep them in the agreed storage "
-        f"(or use a small made-up sample under {FIXTURES_DIR}/): {offenders}"
+        f"(or use a small made-up sample under {TEST_DATA_DIR}/): {offenders}"
     )
 
 
-def test_notebooks_use_source_format(repo_files):
+def test_no_committed_notebooks(repo_files):
     offenders = [str(p) for p in repo_files if p.suffix == ".ipynb"]
     assert not offenders, (
-        f"Save notebooks in .py source format, not .ipynb: {offenders}"
+        f"Keep reproducible analysis in analysis/ as .py files, not .ipynb: {offenders}"
     )
 
 

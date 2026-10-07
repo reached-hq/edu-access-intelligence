@@ -14,8 +14,8 @@ A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 
 The business question comes from two kinds of evidence, collected before any modeling:
 
-1. What education planners need to decide (`docs/stakeholder/`)
-2. What the available datasets can validly support (`docs/source_inventory/`, `docs/cross_source/`)
+1. What education planners need to decide (`docs/business/`)
+2. What the available datasets can validly support (`docs/data/source-inventory/`, `docs/data/cross-source/`)
 
 Data then moves through the course's layered architecture:
 
@@ -23,29 +23,31 @@ Data then moves through the course's layered architecture:
 SOURCE → BRONZE → SILVER → INTEGRATION → GOLD → ANALYTICS → DASHBOARD
 ```
 
-See [docs/architecture.md](docs/architecture.md) and [docs/decisions.md](docs/decisions.md).
+See [docs/architecture/overview.md](docs/architecture/overview.md) and [docs/governance/decisions.md](docs/governance/decisions.md).
 
 ## Repository layout
 
-Every folder exists from the start (see [File naming and layout](docs/architecture.md#file-naming-and-layout)). Until its phase begins, a folder holds only a short `README.md` saying what will go there.
+Every folder exists from the start (see [File naming and layout](docs/architecture/overview.md#file-naming-and-layout)). Until its phase begins, a folder holds only a short `README.md` saying what will go there.
 
 | Path | Purpose | Filled in |
 |---|---|---|
-| `config/` | Non-secret configuration and the source registry | Phase 1 |
+| `config/` | Non-secret configuration, source registry, naming rules, and ETL table registry | Phase 1 |
 | `docs/` | Architecture, decisions, source inventory, and the rest of the engineering docs | Phase 1 |
 | `tests/` | Repository policy and configuration tests, run by CI | Phase 1 |
-| `tests/fixtures/` | Small made-up files for tests; the only place data files may be committed | When a test needs one |
+| `tests/factories/` | Python builders for deterministic, made-up test deliveries | Phase 2 |
+| `tests/data/` | Small, static, made-up test files; the only place data files may be committed | When a test needs one |
 | `.github/` | PR and issue templates, CI and triage workflows | Phase 1 |
-| `docs/source_inventory/`, `docs/cross_source/`, `docs/stakeholder/` | One folder per source; work that compares sources; planner needs and the business question | Phase 1 |
-| `src/ingestion/`, `src/profiling/` | Land raw files for Bronze; profiling helpers shared by several scripts | Phases 2–3 |
-| `notebooks/` | Profiling and exploration (`.py` source format only) | Phase 3 |
+| `docs/data/source-inventory/`, `docs/data/cross-source/`, `docs/business/` | One folder per source; work that compares sources; planner needs and the business question | Phase 1 |
+| `analysis/profiling/`, `analysis/cross_source/` | Reproducible source profiling, dictionary generation, and cross-source research | Phases 1–3 |
+| `src/ingestion/`, `src/profiling/` | Production ingestion code and reusable profiling helpers | Phases 2–3 |
 | `etl/01_control` … `etl/06_analytics` | SQL per pipeline stage, each with `90_validate_*` checks | Phase 6 onward |
+| `evidence/` | Pipeline runs, source validation, and reconciliation evidence | As stages are verified |
 | `dashboards/` | Exported Databricks dashboards | Phase 9 onward |
 | `databricks.yml` | Databricks Asset Bundle: job and dashboards | Phase 6 |
 
 ## Setup
 
-Follow [docs/terminal_setup.md](docs/terminal_setup.md) once per laptop, then [docs/workflow.md](docs/workflow.md) for day-to-day work, including where code runs to save Databricks compute.
+Follow [docs/getting-started/terminal-setup.md](docs/getting-started/terminal-setup.md) once per laptop, then [docs/operations/workflow.md](docs/operations/workflow.md) for day-to-day work, including where code runs to save Databricks compute.
 
 ## Running the checks locally
 
@@ -60,4 +62,5 @@ CI runs the same checks on every pull request.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [documentation index](docs/README.md).
+Final Bronze and Silver names are in the [ETL table registry](docs/standards/tables.md).

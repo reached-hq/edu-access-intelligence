@@ -4,7 +4,7 @@
 # workspace: a UI edit does not reach this file, and the next deploy overwrites it.
 #
 # Jobs so far: bronze_ingest (#11), one task per source. Dashboards come in milestone 04 (Serve).
-# Commands and checks: docs/ingestion.md, "Running on Databricks".
+# Commands and checks: docs/operations/ingestion.md, "Running on Databricks".
 bundle:
   name: edu-access-intelligence
 
@@ -40,7 +40,7 @@ resources:
       queue:
         enabled: true
 
-      # No schedule during development (docs/workflow.md, Part 5). Runs are
+      # No schedule during development (docs/operations/workflow.md, Part 5). Runs are
       # started deliberately with `databricks bundle run`.
 
       tasks:

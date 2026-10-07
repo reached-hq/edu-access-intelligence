@@ -1,6 +1,6 @@
 # ETL
 
-SQL for each pipeline stage. A stage number matches its folder and its Unity Catalog schema (see [architecture.md](../docs/architecture.md#pipeline-stages)).
+SQL for each pipeline stage. A stage number matches its folder and its Unity Catalog schema (see the [architecture overview](../docs/architecture/overview.md#pipeline-stages)).
 
 | Folder | Stage | Schema |
 |---|---|---|
@@ -12,3 +12,8 @@ SQL for each pipeline stage. A stage number matches its folder and its Unity Cat
 | [`06_analytics/`](06_analytics/) | One dataset per business question | `` edu_access.`06-analytics` `` |
 
 Files run in name order inside a stage: `NN_<verb>_<object>.sql`, then `90_validate_<object>.sql`.
+
+The finalized Bronze and Silver names, plus draft Integration candidates, are
+in the [ETL table registry](../docs/standards/tables.md). Gold and Analytics
+names remain intentionally unassigned until the business problem and analytical
+questions are approved.

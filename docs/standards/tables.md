@@ -1,0 +1,58 @@
+# ETL table registry
+
+The machine-readable registry is [`config/tables.yml`](../../config/tables.yml).
+It fixes source-aligned Bronze and Silver names for the datasets already known,
+without pretending that the business problem or analytical questions are final.
+
+## Finalized source-aligned names
+
+| Dataset | Bronze table | Silver table | Silver quarantine |
+|---|---|---|---|
+| DepEd enrollment, SY 2023-24 through 2025-26 | `deped_enrollment_raw` | `deped_enrollment_clean` | `deped_enrollment_quarantine` |
+| DepEd facilities, SY 2023-24 | `deped_facilities_raw` | `deped_facilities_clean` | `deped_facilities_quarantine` |
+| DepEd personnel, SY 2023-24 | `deped_personnel_raw` | `deped_personnel_clean` | `deped_personnel_quarantine` |
+| PSA PSGC workbook, `PSGC` sheet | `psa_psgc_raw` | `psa_psgc_clean` | `psa_psgc_quarantine` |
+| PSA poverty statistics | `psa_poverty_stat_raw` | `psa_poverty_stat_clean` | `psa_poverty_stat_quarantine` |
+| HDX ADM3 boundaries | `hdx_adm3_raw` | `hdx_adm3_clean` | `hdx_adm3_quarantine` |
+
+The three enrollment school years belong in one table. `school_year` identifies
+the delivery year; it should not be encoded in separate table names. Likewise,
+the PSGC workbook and its `PSGC` sheet are one logical input, not separate
+tables. The HDX name includes `adm3` because the current scope is specifically
+the city/municipality layer.
+
+Fully qualified names use the catalog and layer schema. For example:
+
+```sql
+edu_access.`02-bronze`.deped_enrollment_raw
+edu_access.`03-silver`.deped_enrollment_clean
+```
+
+## File names
+
+Each source object owns its sequence, so the DDL starts at `01` and its
+validation gate uses `90`:
+
+```text
+01_create_<table>.sql
+90_validate_<table>.sql
+```
+
+The exact future file names are recorded beside each table in
+`config/tables.yml`. A registry entry does not mean the SQL file has been
+implemented.
+
+## Integration drafts
+
+These are working names only:
+
+| Candidate table | Candidate file | Intended grain |
+|---|---|---|
+| `deped_school_psgc_map` | `01_create_deped_school_psgc_map.sql` | One reviewed DepEd school-geography mapping to PSGC |
+| `psa_poverty_psgc_map` | `02_create_psa_poverty_psgc_map.sql` | One reviewed poverty-statistic geography mapping to PSGC |
+| `hdx_adm3_psgc_map` | `03_create_hdx_adm3_psgc_map.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
+
+Do not create these tables until their keys, match statuses, review workflow,
+and PSGC-version behavior are agreed. Gold and Analytics names remain deferred
+until the business problem, analytical questions, measures, and grains are
+approved.

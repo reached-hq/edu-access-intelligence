@@ -2,7 +2,7 @@
 -- highest delivery_version whose batch succeeded. Earlier versions stay in
 -- Bronze and in ingestion_batches; this view only says which one is current.
 -- Which version should be current after a publisher revision is an open team
--- decision (docs/decisions.md); this view implements the default, latest.
+-- decision (docs/governance/decisions.md); this view implements the default, latest.
 CREATE OR REPLACE VIEW edu_access.`01-control`.current_batches AS
 SELECT batch_id, source_id, school_year, delivery_version, archive_sha256, source_sha256, succeeded_at_utc
 FROM (
