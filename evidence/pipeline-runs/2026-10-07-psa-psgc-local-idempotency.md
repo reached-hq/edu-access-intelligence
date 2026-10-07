@@ -106,3 +106,25 @@ Run 2: 4 PASS (the approved workbook is present, and the three gate checks), no 
 ## How to reproduce
 
 Set `RAW_DATA_DIR` to the folder holding `psa/original/`, then run the commands above with the project's own interpreter (`.venv/Scripts/python.exe`). Expected: run 1 `load initial succeeded inserted=43768`, run 2 `skip`, `inserted=0`, both exit code 0.
+
+## Repeated at the pull request's commit
+
+The runs above used uncommitted code (`-dirty`). They were repeated after the work was committed and pushed (#111), at commit `8f9c893d424bcb7555f948b646f705f7ae8cc65d` (clean working tree, so the stored `code_revision` carries no `-dirty`), on a fresh database, from VS Code's PowerShell terminal with `$env:RAW_DATA_DIR` set to the raw-data root:
+
+```bash
+.\.venv\Scripts\python.exe -m src.ingestion.cli ingest --source psa_psgc --db local_state/psgc_commit.duckdb
+```
+
+| | Run 1 | Run 2 |
+|---|---|---|
+| `run_id` | `df5d9835-56a3-4506-adbc-05de7f909048` | `375d6313-939e-4245-85e8-6aacfd8aa4cc` |
+| Started (UTC) | 2026-10-07 15:42:33 | 2026-10-07 15:44:46 |
+| Action, outcome | `load`, `initial`, `succeeded` | `skip`, `skipped` ("already loaded; same SHA-256") |
+| Rows inserted | **43,768** | **0** |
+| Pipeline time (`duration_seconds`) | 8.8 s | 0.4 s |
+| Checks | 30 PASS, 11 WARN, 0 FAIL | 4 PASS |
+| `code_revision` | `8f9c893d…c65d` | `8f9c893d…c65d` |
+
+Checked in the database afterwards, all equal to the first runs and to the source card: 43,768 rows, Excel rows 2 to 43,769, 43,768 distinct codes; levels 42,010 / 1,493 / 149 / 82 / 18 / 14 / 2 blank; 50 blank correspondence codes, `#N/A` 1, population `0` 12, `-` urban/rural 38, 2,855 trailing spaces, 19 column-J footnotes, 29,620 leading-zero codes, 0 codes not exactly 10 digits; 0 pipeline duplicates; 0 rows missing provenance; every Bronze row carries the one commit. The 11 WARNs are the same checks at the same counts as the table in [Checks](#4-checks). Attempts: `load succeeded 43768`, then `skip skipped 0`. `current_batches`: `2026-Q2`, version 1, `psa_psgc__2026-Q2__31892bc2bdde`.
+
+This resolves the second limitation above. The Databricks `dev` run is still not done.
