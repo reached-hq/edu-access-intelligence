@@ -524,7 +524,7 @@ After the MERGE: Bronze rows for the workbook equal the sheet's rows (1,641), Ex
 | Rerun | `--rerun psa_poverty_stat__2018-2021-2023__303fb0e87bff` | Validated and merged again; 0 rows |
 | Incremental | A workbook with only later years (e.g. 2025) | New `logical_dataset`, `load_type = incremental`; earlier rows untouched |
 | Backfill | A workbook with only earlier years (e.g. 2015) | New `logical_dataset`, `load_type = backfill`; nothing rebuilt |
-| Revised delivery | A changed workbook for years already loaded (same name, or overlapping years) | Before approval: `blocked`, `load_type = revision`, run fails, nothing overwritten. After approval as `delivery_version: 2` of the same `logical_dataset` with `supersedes`: loaded beside v1; `current_batches` points to v2 |
+| Revised delivery | A changed workbook for years already loaded (same name, or overlapping years) | Before approval: `blocked`, `load_type = revision`, run fails, nothing overwritten. After approval as `delivery_version: 2` of the same `logical_dataset` with `supersedes`: loaded beside v1; `current_batches` points to v2. v2 must cover every estimate year of v1 (it may add years): `current_batches` keeps one version per dataset, so a dropped year would vanish from Silver. A v2 that drops a year is refused as `invalid_config` before anything runs |
 
 The contract refuses two logical datasets that share an estimate year, so a workbook that republishes 2023 can only enter as a reviewed revision, never as a silent second copy of 2023. Whether a later release that adds a year (2018 to 2025, say) is a revision of the existing dataset or a new dataset is a team decision when it happens (open question below); until then the contract forces the question.
 
@@ -623,7 +623,7 @@ Download it from the stat-tables page; do not rename it, open-and-save it, or co
 `python -m src.ingestion.cli status --source psa_poverty_stat`, or the first validation query: `succeeded` for its SHA-256 means processed.
 
 **3. What happens if the publisher replaces a file?**
-The new bytes do not match the approved SHA-256: the batch is `blocked` (`checksum_mismatch`, `load_type = revision` when its header names years already loaded) and the run fails. Nothing is overwritten. If the change is real, approve it as `delivery_version: 2` of the same `logical_dataset` with `supersedes` set to v1's `workbook_sha256`. Both versions stay in Bronze.
+The new bytes do not match the approved SHA-256: the batch is `blocked` (`checksum_mismatch`, `load_type = revision` when its header names years already loaded) and the run fails. Nothing is overwritten. If the change is real, approve it as `delivery_version: 2` of the same `logical_dataset` with `supersedes` set to v1's `workbook_sha256`. v2 must keep every estimate year of v1 (adding years is fine); a revision that drops a year is refused, because `current_batches` would then hide that year from Silver. Both versions stay in Bronze.
 
 **4. How do I inspect a failed batch?**
 
@@ -653,7 +653,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 
 | Question | Default until decided | Where |
 |---|---|---|
-| Is a later release that adds a year (and may revise old ones) a revision of the current dataset, or a new dataset? | The contract refuses overlap across datasets, so the reviewer must choose; both versions are kept either way | D-018 |
+| Is a later release that adds a year (and may revise old ones) a revision of the current dataset, or a new dataset? | The contract refuses overlap across datasets, and a revision must keep every year of the version it supersedes. So a release covering all earlier years plus a new one loads as a revision; one that overlaps but drops a year (e.g. 2023, 2025 after 2018, 2021, 2023) cannot be approved either way until the team decides | D-018 |
 | Should the latest version always be current after a revision? | Latest succeeded version | D-015 |
 | Does `psa_poverty_stat` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
 | How long are superseded versions kept? | Forever | Not yet logged |

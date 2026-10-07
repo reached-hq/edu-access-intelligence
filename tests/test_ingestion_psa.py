@@ -118,6 +118,28 @@ def test_overlapping_years_must_be_a_version_of_the_same_dataset():
     validate_config(config, registry_entry(SOURCE))
 
 
+def test_a_revision_must_keep_every_estimate_year_it_supersedes():
+    """current_batches makes one version per logical dataset current, so a revision that drops a year would hide it.
+
+    Review of #109: v1 covers 2018, 2021, 2023 and v2 covers 2023, 2025. Without this rule both load, and Silver,
+    reading current_batches, sees only v2: 2018 and 2021 disappear although they are still in Bronze.
+    """
+    config = real_config()
+    v1 = config["deliveries"][0]
+    add_schema(config, "v2", ["2023", "2025"])
+    v2 = copy.deepcopy(v1)
+    v2.update(estimate_years=["2023", "2025"], schema_version="v2", delivery_version=2,
+              supersedes=v1["workbook_sha256"], workbook="2_2025 SAE_with PSGC_noHUC_01Feb2028.xlsx",
+              workbook_sha256="2" * 64)
+    config["deliveries"].append(v2)
+    error = refused("invalid_config", validate_config, config, registry_entry(SOURCE))
+    assert "drops ['2018', '2021']" in error.message
+
+    add_schema(config, "v3", ["2018", "2021", "2023", "2025"])
+    v2.update(estimate_years=["2018", "2021", "2023", "2025"], schema_version="v3")
+    validate_config(config, registry_entry(SOURCE))  # a revision that keeps every year and adds one is fine
+
+
 # --- Checksums and identity --------------------------------------------------------
 
 def test_approved_fixture_passes_and_flags_known_quirks(tmp_path):
@@ -576,6 +598,43 @@ def test_approved_revision_keeps_both_versions(env):
     assert env.q(f"SELECT logical_dataset, delivery_version FROM {CONTROL}.current_batches") == [
         ("sae_city_municipal_2018_2021_2023", 2)]
     assert v1.exists()
+
+
+REVISED = "2_2025 SAE_with PSGC_noHUC_01Feb2028.xlsx"
+
+
+def test_revision_dropping_estimate_years_is_refused_and_every_year_stays_current(env):
+    """The reviewer's case from #109, end to end: a v2 covering 2023, 2025 must not hide 2018 and 2021."""
+    v1 = env.deliver()
+    env.run()
+    add_schema(env.config, "v2", ["2023", "2025"])
+    years = ("2023", "2025")
+    env.deliver(REVISED, folder="2027-12-01", years=years, rows=default_rows(years),
+                approve_kwargs={"schema_version": "v2", "delivery_version": 2,
+                                "supersedes": env.config["deliveries"][0]["workbook_sha256"]})
+    error = refused("invalid_config", env.run)
+    assert "drops ['2018', '2021']" in error.message
+    # Nothing was loaded, and v1, with all three years, is still what Silver reads.
+    assert env.q(f"SELECT estimate_years_covered, delivery_version FROM {CONTROL}.current_batches") == [(V1, 1)]
+    assert env.bronze_rows() == SHEET_ROWS and v1.exists()
+
+
+def test_superset_revision_keeps_every_year_current(env):
+    """A revision that keeps the old years and adds one becomes current with every year still visible."""
+    env.deliver()
+    env.run()
+    add_schema(env.config, "v2", ["2018", "2021", "2023", "2025"])
+    years = ("2018", "2021", "2023", "2025")
+    env.deliver(REVISED, folder="2027-12-01", years=years, rows=default_rows(years),
+                approve_kwargs={"schema_version": "v2", "delivery_version": 2,
+                                "supersedes": env.config["deliveries"][0]["workbook_sha256"]})
+    summary = env.run()
+    o = next(o for o in summary.outcomes if o.action == "load")
+    assert (o.load_type, o.outcome) == ("revision", "succeeded")
+    assert env.q(f"SELECT estimate_years_covered, delivery_version FROM {CONTROL}.current_batches") == [
+        ("2018,2021,2023,2025", 2)]
+    assert env.q(f"SELECT delivery_version, COUNT(*) FROM {BRONZE} WHERE source_row_kind = 'unit' "
+                 "GROUP BY 1 ORDER BY 1") == [(1, 6), (2, 6)]  # v1 stays in Bronze
 
 
 def test_separate_datasets_are_each_current(env):

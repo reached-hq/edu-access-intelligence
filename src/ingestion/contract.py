@@ -311,6 +311,9 @@ def validate_xlsx_config(config, registry_entry):
 
     - versions are counted per logical_dataset (1, 2, 3...), each revision
       naming the workbook it supersedes;
+    - a revision keeps every estimate year of the version it supersedes:
+      current_batches makes one version per logical_dataset current, so a
+      year a revision dropped would vanish from Silver while still in Bronze;
     - two logical datasets may not share an estimate year: a workbook that
       republishes a year already approved is a new version of that dataset,
       never a second, silent copy of the year.
@@ -406,6 +409,15 @@ def validate_xlsx_config(config, registry_entry):
             if d["supersedes"] != previous:
                 want = f"supersedes = {previous!r}" if previous else "supersedes = null"
                 raise _config_error(f"{dataset} version {i} must have {want}.")
+            if i > 1:
+                dropped = sorted(set(deliveries[i - 2]["estimate_years"]) - set(d["estimate_years"]))
+                if dropped:
+                    raise _config_error(
+                        f"{dataset} version {i} covers {d['estimate_years']} and drops {dropped} from version "
+                        f"{i - 1}. current_batches makes one version of a logical dataset current, so the dropped "
+                        "years would disappear from Silver while still in Bronze. A revision must keep every "
+                        "estimate year of the version it supersedes; if the publisher dropped a year, record a "
+                        "team decision first.")
 
     names = sorted(by_dataset)
     for i, a in enumerate(names):

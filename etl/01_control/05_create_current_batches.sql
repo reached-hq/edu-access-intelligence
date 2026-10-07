@@ -1,7 +1,10 @@
 -- What downstream (Silver) may read: for each source and period, the highest
 -- delivery_version whose batch succeeded. The period is the school year for
 -- school-year sources, and the logical dataset for workbook sources whose
--- delivery covers several estimate years (psa_poverty_stat). Earlier versions
+-- delivery covers several estimate years (psa_poverty_stat). One version per
+-- logical dataset is safe only because the contract refuses a revision that
+-- drops an estimate year of the version it supersedes (D-018), so the current
+-- version always covers every year approved for that dataset. Earlier versions
 -- stay in Bronze and in ingestion_batches; this view only says which one is
 -- current. Which version should be current after a publisher revision is an
 -- open team decision (docs/governance/decisions.md); this view implements the default, latest.
