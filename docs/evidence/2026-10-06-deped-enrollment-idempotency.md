@@ -21,6 +21,8 @@ The job `bronze_ingest`, deployed with `databricks bundle deploy --target dev --
 | Waiting for compute / working | 35.5 min / 3.6 min | 7.6 min / 1.8 min |
 | Task result | `SUCCESS` | `SUCCESS` |
 
+The branch was rebased after these runs. The stored `code_revision` values above remain the exact commits Databricks ran; their rebased counterparts in the current pull request are `6eb0268299ff88c77cb654220fbc7e645b347353` for run 1 and `9211adec5e12fa76dc822f12b402f79fafe92939` for run 2. The mapping is recorded rather than changing the run evidence.
+
 <img width="1070" height="557" alt="image" src="https://github.com/user-attachments/assets/f8b378f5-dc25-4040-9581-e82074f8de43" />
 
 The waiting time was Free Edition serverless capacity in use elsewhere, not the pipeline: the cluster ID encodes its start time, and `DESCRIBE HISTORY` shows `pipeline_runs` created at 01:57:34, 29 seconds after the cluster started.
