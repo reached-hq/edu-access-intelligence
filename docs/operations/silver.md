@@ -22,7 +22,7 @@ How the Bronze rows of each source's current deliveries become one clean, typed,
    ▼  Integration and Gold read Silver only when the latest silver_build run of the source succeeded
 ```
 
-Code: `src/silver/` ([module list](../../src/silver/README.md)). SQL: `etl/03_silver/` ([files](../../etl/03_silver/README.md)), generated from the Bronze contract and the [Silver mapping](../../config/mappings/deped_enrollment.json). Columns: [data dictionary](../data/silver/deped-enrollment-clean.md). Decisions: D-018 to D-022 in [decisions.md](../governance/decisions.md).
+Code: `src/silver/` ([module list](../../src/silver/README.md)). SQL: `etl/03_silver/` ([files](../../etl/03_silver/README.md)), generated from the Bronze contract and the [Silver mapping](../../config/mappings/deped_enrollment.json). Columns: [data dictionary](../data/silver/deped-enrollment-clean.md). Decisions: D-021 to D-025 in [decisions.md](../governance/decisions.md).
 
 ## The question Silver answers
 
@@ -32,14 +32,14 @@ Code: `src/silver/` ([module list](../../src/silver/README.md)). SQL: `etl/03_si
 |---|---|
 | Which Bronze row | Every clean and quarantined row carries `batch_id`, `delivery_version`, `schema_version`, `source_sha256`, and `source_row_number`; the last two identify the Bronze row exactly. The gate checks that every Silver row resolves to a current Bronze row |
 | What was changed | Each rule is one generated SQL expression from a reviewed file. Every build records how many rows each rule changed or flagged (`rule_*`, `flag_*` in `data_quality_results`), and the published value is always one join away in Bronze |
-| Why | The rule table below, the evidence for every label in the mapping, and decisions D-018 to D-022 |
+| Why | The rule table below, the evidence for every label in the mapping, and decisions D-021 to D-025 |
 | What was set aside | `deped_enrollment_quarantine`, with the reasons; `rows_reconcile` proves Bronze rows = clean + quarantined, per school year |
 | Which run and code | `run_id`, `cleaned_at_utc` (one value per build), and `code_revision` on every row and every check |
 | Compute | A run with the same batches and rules as the last successful build skips: two reads, three small writes |
 
 ## Grain and shape
 
-One row per school per school year, key (`school_id`, `school_year`), wide as published: the 66 grade × sex × strand count columns stay columns (D-018). Gold unpivots them when its grain is agreed. Column names are snake_case; the one publisher column that is not, `Modified Curricular Offering Classification` (SY 2025-26 only, undocumented), is renamed `modified_curricular_offering_classification`.
+One row per school per school year, key (`school_id`, `school_year`), wide as published: the 66 grade × sex × strand count columns stay columns (D-021). Gold unpivots them when its grain is agreed. Column names are snake_case; the one publisher column that is not, `Modified Curricular Offering Classification` (SY 2025-26 only, undocumented), is renamed `modified_curricular_offering_classification`.
 
 ## Cleaning rules
 
@@ -80,7 +80,7 @@ Profiling Bronze rather than the raw files confirmed every count above, and foun
 
 ## Quarantine
 
-`deped_enrollment_quarantine` holds `school_year`, `school_id` as published, `quarantine_reasons` (every reason that applies), the Bronze lineage, and the run stamp. Read the published values from Bronze by `source_sha256` and `source_row_number`. Reasons: `school_id_blank`, `school_id_malformed`, `school_id_duplicated`, `count_negative`, `count_uncastable` (D-021). The three acquired years quarantine nothing.
+`deped_enrollment_quarantine` holds `school_year`, `school_id` as published, `quarantine_reasons` (every reason that applies), the Bronze lineage, and the run stamp. Read the published values from Bronze by `source_sha256` and `source_row_number`. Reasons: `school_id_blank`, `school_id_malformed`, `school_id_duplicated`, `count_negative`, `count_uncastable` (D-024). The three acquired years quarantine nothing.
 
 A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR school_id = ''`), and the reasons string is never NULL, so the split into the two tables cannot lose a row whose `school_id` is NULL; `tests/test_silver.py` proves it with such a row.
 
@@ -124,7 +124,7 @@ The local run on the real data recorded 111 results, all PASS.
 | `--force` | Build | `forced` |
 | Nothing changed | **Skip**: no Silver statement runs | `unchanged` |
 
-A build replaces both tables with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches (D-022). Each is one Delta commit; the pair is not, so the order of writes is the commit marker, as in Bronze: `pipeline_runs` 'running' → both tables → column types and gate → `layer_builds` → `pipeline_runs` 'succeeded'. A run that dies anywhere before the last write stays 'running', and the next run rebuilds. A revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. A forced rebuild of unchanged inputs gives identical content: on the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `5d9ecaf14baac697071e884851af3161` both times.
+A build replaces both tables with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches (D-025). Each is one Delta commit; the pair is not, so the order of writes is the commit marker, as in Bronze: `pipeline_runs` 'running' → both tables → column types and gate → `layer_builds` → `pipeline_runs` 'succeeded'. A run that dies anywhere before the last write stays 'running', and the next run rebuilds. A revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. A forced rebuild of unchanged inputs gives identical content: on the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `5d9ecaf14baac697071e884851af3161` both times.
 
 ## Compute
 
@@ -233,7 +233,7 @@ What Gold must respect:
 - NULL counts: "not published"; in SY 2025-26 usually "level not offered". Use `schema_version` to tell a column the year lacks from a blank, and NULL-safe filters (`IS NOT TRUE`) on nullable booleans.
 - Region is as published: NIR exists from SY 2024-25 (O-10); compare regions across years only through PSGC (D-012).
 - School IDs change between years (O-12): a missing ID is not a closed school.
-- Unpivot grade, sex, and strand there (D-018), and decide how `g11_sshs_*` relates to the older strand columns.
+- Unpivot grade, sex, and strand there (D-021), and decide how `g11_sshs_*` relates to the older strand columns.
 
 What Integration still has to do: match `province`, `municipality`, and `barangay` to PSGC 2Q 2026 (D-012) using the names as Silver keeps them (spacing normalized, `Ñ` repaired, `(Capital)` and other suffixes kept), apply the 40-character prefix rule to truncated barangays (O-18), and report unmatched names ([generated list](../data/cross-source/generated/deped_psgc_unmatched.md)).
 
@@ -248,11 +248,11 @@ What Integration still has to do: match `province`, `municipality`, and `baranga
 
 | Question | Default until decided | Where |
 |---|---|---|
-| Should `Ã±` → `ñ` be repaired with `Ã‘` → `Ñ`, or left for Integration? | Repaired (exact pattern, counted) | D-020 |
-| Should more address placeholders become NULL (`none` 709, `not applicable` about 300 a year, `NA`/`na` 44, `0` 104 in SY 2025-26)? | Only `-`, `n/a`, `N/A` | D-020 |
-| Is 1% the right FAIL threshold for quarantine? | 1% of a school year's Bronze rows | D-021 |
-| Should a school with two conflicting rows keep one copy if the rows are identical? | Every copy quarantined | D-021 |
-| Should Gold treat `no_counts` like `all_zero`? | Gold decides per measure | D-021 |
-| Rename the job from `bronze_ingest`? Changing its key would delete the job and its run history | Keep the key; the description says it builds Silver | D-022 |
+| Should `Ã±` → `ñ` be repaired with `Ã‘` → `Ñ`, or left for Integration? | Repaired (exact pattern, counted) | D-023 |
+| Should more address placeholders become NULL (`none` 709, `not applicable` about 300 a year, `NA`/`na` 44, `0` 104 in SY 2025-26)? | Only `-`, `n/a`, `N/A` | D-023 |
+| Is 1% the right FAIL threshold for quarantine? | 1% of a school year's Bronze rows | D-024 |
+| Should a school with two conflicting rows keep one copy if the rows are identical? | Every copy quarantined | D-024 |
+| Should Gold treat `no_counts` like `all_zero`? | Gold decides per measure | D-024 |
+| Rename the job from `bronze_ingest`? Changing its key would delete the job and its run history | Keep the key; the description says it builds Silver | D-025 |
 | Should the Silver task skip creating control tables that the Bronze task just created, to save statements? | Created if missing, as Bronze does | Compute |
 | Should profile.md record the three Bronze findings above (and S-1's correction)? | Recorded here only | D-007 |
