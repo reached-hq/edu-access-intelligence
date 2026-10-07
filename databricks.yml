@@ -40,8 +40,70 @@ resources:
         enabled: true
 
       tasks:
+        # Shared control bootstrap. These idempotent DDL tasks run once before
+        # the source lanes fan out, avoiding concurrent control-table creation.
+        - task_key: 01_create_pipeline_runs
+          sql_task:
+            file:
+              path: etl/01_control/01_create_pipeline_runs.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 02_create_ingestion_batches
+          depends_on:
+            - task_key: 01_create_pipeline_runs
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/01_control/02_create_ingestion_batches.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 03_create_ingestion_batch_attempts
+          depends_on:
+            - task_key: 02_create_ingestion_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/01_control/03_create_ingestion_batch_attempts.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 04_create_data_quality_results
+          depends_on:
+            - task_key: 03_create_ingestion_batch_attempts
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/01_control/04_create_data_quality_results.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 05_create_current_batches
+          depends_on:
+            - task_key: 04_create_data_quality_results
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/01_control/05_create_current_batches.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
         # 01 - DepEd enrollment
+        - task_key: 01_create_deped_enrollment_raw
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/01_create_deped_enrollment_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
         - task_key: bronze_deped_enrollment
+          depends_on:
+            - task_key: 01_create_deped_enrollment_raw
+          run_if: ALL_SUCCESS
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -49,6 +111,7 @@ resources:
             parameters:
               - ingest
               - --no-gate
+              - --no-setup
               - --backend
               - spark
               - --source
@@ -93,7 +156,20 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         # 02 - DepEd facilities
+        - task_key: 02_create_deped_facilities_raw
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/02_create_deped_facilities_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
         - task_key: bronze_deped_facilities
+          depends_on:
+            - task_key: 02_create_deped_facilities_raw
+          run_if: ALL_SUCCESS
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -101,6 +177,7 @@ resources:
             parameters:
               - ingest
               - --no-gate
+              - --no-setup
               - --backend
               - spark
               - --source
@@ -145,8 +222,22 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         # 03 - DepEd personnel
+        - task_key: 03_create_deped_personnel_raw
+          disabled: true
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/03_create_deped_personnel_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
         - task_key: bronze_deped_personnel
           disabled: true
+          depends_on:
+            - task_key: 03_create_deped_personnel_raw
+          run_if: ALL_SUCCESS
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -154,6 +245,7 @@ resources:
             parameters:
               - ingest
               - --no-gate
+              - --no-setup
               - --backend
               - spark
               - --source
@@ -199,8 +291,22 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         # 04 - PSA PSGC workbook, PSGC sheet
+        - task_key: 04_create_psa_psgc_raw
+          disabled: true
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/04_create_psa_psgc_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
         - task_key: bronze_psa_psgc
           disabled: true
+          depends_on:
+            - task_key: 04_create_psa_psgc_raw
+          run_if: ALL_SUCCESS
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -208,6 +314,7 @@ resources:
             parameters:
               - ingest
               - --no-gate
+              - --no-setup
               - --backend
               - spark
               - --source
@@ -253,8 +360,22 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         # 05 - PSA poverty statistics
+        - task_key: 05_create_psa_poverty_stat_raw
+          disabled: true
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/05_create_psa_poverty_stat_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
         - task_key: bronze_psa_poverty_stat
           disabled: true
+          depends_on:
+            - task_key: 05_create_psa_poverty_stat_raw
+          run_if: ALL_SUCCESS
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -262,6 +383,7 @@ resources:
             parameters:
               - ingest
               - --no-gate
+              - --no-setup
               - --backend
               - spark
               - --source
@@ -307,8 +429,22 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         # 06 - HDX ADM3 boundaries
+        - task_key: 06_create_hdx_adm3_raw
+          disabled: true
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/06_create_hdx_adm3_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
         - task_key: bronze_hdx_boundaries
           disabled: true
+          depends_on:
+            - task_key: 06_create_hdx_adm3_raw
+          run_if: ALL_SUCCESS
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -316,6 +452,7 @@ resources:
             parameters:
               - ingest
               - --no-gate
+              - --no-setup
               - --backend
               - spark
               - --source
@@ -377,7 +514,7 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
-        # Integration maps. Extra dependencies serialize SQL tasks for Free Edition capacity.
+        # Integration maps fan out after their required clean source outputs.
         - task_key: 01_map_deped_school_psgc
           disabled: true
           depends_on:
@@ -407,7 +544,7 @@ resources:
         - task_key: 02_map_psa_poverty_psgc
           disabled: true
           depends_on:
-            - task_key: 90_validate_deped_school_psgc_map
+            - task_key: 90_validate_control
             - task_key: 90_validate_psa_poverty_stat_clean
             - task_key: 90_validate_psa_psgc_clean
           run_if: ALL_SUCCESS
@@ -431,7 +568,7 @@ resources:
         - task_key: 03_map_hdx_adm3_psgc
           disabled: true
           depends_on:
-            - task_key: 90_validate_psa_poverty_psgc_map
+            - task_key: 90_validate_control
             - task_key: 90_validate_hdx_adm3_clean
             - task_key: 90_validate_psa_psgc_clean
           run_if: ALL_SUCCESS
@@ -527,7 +664,7 @@ resources:
         - task_key: 02_placeholder_dim_school
           disabled: true
           depends_on:
-            - task_key: 90_placeholder_validate_dim_geography
+            - task_key: 90_validate_education_geography_integrated
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -549,6 +686,7 @@ resources:
         - task_key: 10_placeholder_fact_school_year
           disabled: true
           depends_on:
+            - task_key: 90_placeholder_validate_dim_geography
             - task_key: 90_placeholder_validate_dim_school
           run_if: ALL_SUCCESS
           sql_task:
@@ -571,7 +709,8 @@ resources:
         - task_key: 20_placeholder_fact_poverty_estimate
           disabled: true
           depends_on:
-            - task_key: 90_placeholder_validate_fact_school_year
+            - task_key: 90_placeholder_validate_dim_geography
+            - task_key: 90_placeholder_validate_dim_school
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -594,6 +733,7 @@ resources:
         - task_key: 01_answer_ap1
           disabled: true
           depends_on:
+            - task_key: 90_placeholder_validate_fact_school_year
             - task_key: 90_placeholder_validate_fact_poverty_estimate
           run_if: ALL_SUCCESS
           sql_task:
@@ -616,7 +756,8 @@ resources:
         - task_key: 02_answer_ap2
           disabled: true
           depends_on:
-            - task_key: 90_validate_ap1
+            - task_key: 90_placeholder_validate_fact_school_year
+            - task_key: 90_placeholder_validate_fact_poverty_estimate
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -638,7 +779,8 @@ resources:
         - task_key: 03_answer_ap3
           disabled: true
           depends_on:
-            - task_key: 90_validate_ap2
+            - task_key: 90_placeholder_validate_fact_school_year
+            - task_key: 90_placeholder_validate_fact_poverty_estimate
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -660,7 +802,8 @@ resources:
         - task_key: 04_answer_ap4
           disabled: true
           depends_on:
-            - task_key: 90_validate_ap3
+            - task_key: 90_placeholder_validate_fact_school_year
+            - task_key: 90_placeholder_validate_fact_poverty_estimate
           run_if: ALL_SUCCESS
           sql_task:
             file:

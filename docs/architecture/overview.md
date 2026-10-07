@@ -99,12 +99,14 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 | Task | Type | Runs on | Runs when |
 |---|---|---|---|
-| `bronze_<source_id>`: check each delivery against its contract, load, reconcile (`src/ingestion/cli.py ingest --no-gate`) | Python | serverless job compute | At job start; every source load is an independent root |
+| `01_create_pipeline_runs` through `05_create_current_batches` | SQL | SQL warehouse | At job start, once, in order |
+| `NN_create_<table>_raw` | SQL | SQL warehouse | Control setup succeeded; all source DDL tasks fan out in parallel |
+| `bronze_<source_id>`: check each delivery against its contract, load, reconcile (`src/ingestion/cli.py ingest --no-gate --no-setup`) | Python | serverless job compute | That source's raw table exists |
 | `90_validate_<table>_raw`: the Bronze gate (`etl/02_bronze/90_validate_<table>_raw.sql`) | SQL | SQL warehouse | The load succeeded |
 | Silver clean and validation files from `etl/`, one task each | SQL | SQL warehouse | The preceding task in the same source lane succeeded |
-| Control, Integration, Gold, and Analytics files from `etl/`, one task each | SQL | SQL warehouse | Their required upstream source outputs succeeded |
+| Mapping, dimension, fact, and analytics files from `etl/`, one task each | SQL | SQL warehouse | All required outputs from the preceding stage succeeded |
 
-Python is used only where SQL cannot do the work: the deliveries are zips with a declared encoding. Every SQL file is its own task, so a failed check shows as its own failed task. Source lanes start in parallel and do not depend on each other. Within each lane, tasks run in order and stop if their own upstream task fails. The control task is the fan-in point after all source lanes, and downstream Integration tasks name the source outputs they require. SQL tasks receive the job parameters `code_revision` and `run_id` (`{{job.run_id}}`) as `:code_revision` and `:run_id`. The job has no schedule during development, allows only one whole job run at a time, and is safe to rerun. `python -m src.job.local_run` checks the same DAG in a deterministic topological order on DuckDB ([src/job](../../src/job/README.md)).
+Python is used only where SQL cannot do the work: the deliveries are zips with a declared encoding. Every SQL file is its own task, so a failed check shows as its own failed task. After the shared control bootstrap, source lanes start in parallel and do not depend on each other. Within each lane, tasks run in order and stop if their own upstream task fails. `90_validate_control` is the source-lane fan-in. Mapping tasks then fan out in parallel and converge on Integration; dimensions fan out after Integration; facts fan out after both dimension gates; and all analytics outputs fan out after both fact gates. SQL tasks receive the job parameters `code_revision` and `run_id` (`{{job.run_id}}`) as `:code_revision` and `:run_id`. The job has no schedule during development, allows only one whole job run at a time, and is safe to rerun. `python -m src.job.local_run` checks the same DAG in a deterministic topological order on DuckDB ([src/job](../../src/job/README.md)).
 
 ## Environments and deployment
 

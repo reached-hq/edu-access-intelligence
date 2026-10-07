@@ -62,7 +62,8 @@ def cmd_ingest(args):
     store = _store(args)
     try:
         run = IngestionRun(store, REPO_ROOT, args.source, Path(landing).expanduser(), args.environment,
-                           revision, rerun_batch_ids=args.rerun, run_gate=not args.no_gate)
+                           revision, rerun_batch_ids=args.rerun, run_gate=not args.no_gate,
+                           setup_tables=not args.no_setup)
         summary = run.execute()
     finally:
         store.close()
@@ -127,6 +128,8 @@ def main(argv=None):
                         help="validate and merge a succeeded batch again (adds no rows); repeatable")
     ingest.add_argument("--no-gate", action="store_true",
                         help="leave the Bronze gate to the job task that runs it as SQL right after this one")
+    ingest.add_argument("--no-setup", action="store_true",
+                        help="require upstream SQL tasks to have created the control and Bronze tables")
     ingest.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"],
                         help="duckdb: local file (--db); spark: Unity Catalog tables on Databricks")
     ingest.add_argument("--db", type=Path, default=DEFAULT_DB)

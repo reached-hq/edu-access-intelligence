@@ -97,7 +97,7 @@ def discover(config, landing_root):
 
 class IngestionRun:
     def __init__(self, store, repo_root, source_id, landing_root, environment, code_revision,
-                 rerun_batch_ids=(), hook=None, run_gate=True):
+                 rerun_batch_ids=(), hook=None, run_gate=True, setup_tables=True):
         if environment not in ENVIRONMENTS:
             raise IngestionError("config", "unknown_environment", f"environment must be one of {ENVIRONMENTS}.")
         self.store = store
@@ -110,6 +110,9 @@ class IngestionRun:
         # Off when the job runs the source's Bronze gate as its own SQL task
         # right after this one (databricks.yml); the gate then fails that task.
         self.run_gate = run_gate
+        # Off when databricks.yml runs the control and source DDL as explicit
+        # upstream SQL tasks. Standalone CLI runs keep automatic setup.
+        self.setup_tables = setup_tables
         self.config, self.registry_entry = load_source_config(repo_root, source_id)
         self.source_id = source_id
         if environment == "prod" and self.registry_entry["status"] != "accepted":
@@ -136,8 +139,9 @@ class IngestionRun:
     # -- run ------------------------------------------------------------------
 
     def execute(self):
-        control.create_tables(self.store, self.repo_root)
-        self.store.run_file(self.bronze_ddl)
+        if self.setup_tables:
+            control.create_tables(self.store, self.repo_root)
+            self.store.run_file(self.bronze_ddl)
         bronze.add_missing_columns(self.store, self.config)
 
         started = utc_now()

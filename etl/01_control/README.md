@@ -12,4 +12,4 @@ Tables that record pipeline runs, ingestion batches, and data-quality results. T
 
 Batch statuses: `validating` → `loading` → `succeeded`, or `failed` (retried by the next run), `blocked` (not an approved delivery), `skipped` (a re-zipped copy of an approved file). The `succeeded` status is written last, after Bronze is reconciled, so it marks the batch as committed (D-015).
 
-Files follow `NN_<verb>_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)). The ingestion code creates these tables if they do not exist, so a first run needs no separate setup.
+Files follow `NN_<verb>_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)). The Databricks job runs them as explicit bootstrap tasks before its source lanes. Standalone ingestion creates them automatically unless `--no-setup` is passed, so a manual first run needs no separate setup.

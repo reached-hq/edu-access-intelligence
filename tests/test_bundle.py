@@ -103,22 +103,68 @@ def sql_tasks(jobs):
                 yield job_name, task
 
 
-def test_source_loads_are_independent_roots(jobs):
-    """Sources are independent: all loads can start in parallel and only their own lanes depend on them."""
+def test_control_bootstrap_is_the_only_root(jobs):
+    """Control objects are initialized once before the source lanes fan out."""
     for name, job in jobs.items():
+        roots = [task["task_key"] for task in job["tasks"] if not task.get("depends_on")]
+        assert roots == ["01_create_pipeline_runs"], f"{name}: unexpected roots {roots}"
+
+
+def test_source_lanes_fan_out_after_control_bootstrap(jobs, repo_root):
+    """Each load depends on its own raw DDL, never on another source lane."""
+    registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text(encoding="utf-8"))
+    tables = {entry["source_id"]: entry["bronze"]["table"] for entry in registry["source_tables"]}
+    for name, job in jobs.items():
+        tasks = {task["task_key"]: task for task in job["tasks"]}
         loads = [task for task in job["tasks"] if "spark_python_task" in task]
         assert loads, f"{name} has no source loads"
-        for task in loads:
-            assert not task.get("depends_on"), f"{name}/{task['task_key']} must be an independent root"
-            assert "run_if" not in task, f"{name}/{task['task_key']} must not wait on another source"
+        for load in loads:
+            source = argument(load, "--source")
+            ddl_path = f"etl/02_bronze/{next(p.name for p in (repo_root / 'etl' / '02_bronze').glob('*_create_*.sql') if p.name.endswith(f'_create_{tables[source]}.sql'))}"
+            ddl = next(task for task in job["tasks"] if task.get("sql_task", {}).get("file", {}).get("path") == ddl_path)
+            assert load.get("depends_on") == [{"task_key": ddl["task_key"]}]
+            assert ddl.get("depends_on") == [{"task_key": "05_create_current_batches"}]
+            assert load.get("run_if") == "ALL_SUCCESS"
+            assert ddl.get("run_if") == "ALL_SUCCESS"
 
 
 def test_non_source_tasks_declare_dependencies(jobs):
-    """Only source loads are roots; every transform or check names its required upstream task."""
+    """After the control root, every setup, load, transform, and check names its upstream task."""
     for name, job in jobs.items():
         for task in job["tasks"]:
-            if "spark_python_task" not in task:
+            if task["task_key"] != "01_create_pipeline_runs":
                 assert task.get("depends_on"), f"{name}/{task['task_key']} has no dependency"
+
+
+def test_parallel_stages_fan_in_only_at_the_next_stage(jobs):
+    tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
+
+    expected_maps = {
+        "01_map_deped_school_psgc": {
+            "90_validate_control", "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean",
+            "90_validate_deped_personnel_clean", "90_validate_psa_psgc_clean",
+        },
+        "02_map_psa_poverty_psgc": {
+            "90_validate_control", "90_validate_psa_poverty_stat_clean", "90_validate_psa_psgc_clean",
+        },
+        "03_map_hdx_adm3_psgc": {
+            "90_validate_control", "90_validate_hdx_adm3_clean", "90_validate_psa_psgc_clean",
+        },
+    }
+    for key, expected in expected_maps.items():
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == expected
+
+    integration_gate = {"90_validate_education_geography_integrated"}
+    for key in ("01_placeholder_dim_geography", "02_placeholder_dim_school"):
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == integration_gate
+
+    dimension_gates = {"90_placeholder_validate_dim_geography", "90_placeholder_validate_dim_school"}
+    for key in ("10_placeholder_fact_school_year", "20_placeholder_fact_poverty_estimate"):
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == dimension_gates
+
+    fact_gates = {"90_placeholder_validate_fact_school_year", "90_placeholder_validate_fact_poverty_estimate"}
+    for key in ("01_answer_ap1", "02_answer_ap2", "03_answer_ap3", "04_answer_ap4"):
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == fact_gates
 
 
 def test_a_load_that_skips_its_gate_is_followed_by_it(jobs, repo_root):
@@ -137,6 +183,12 @@ def test_a_load_that_skips_its_gate_is_followed_by_it(jobs, repo_root):
             assert gate.get("sql_task", {}).get("file", {}).get("path") == f"etl/02_bronze/90_validate_{table}.sql", (
                 f"{name}/{task['task_key']} skips its gate, so the next task must run 90_validate_{table}.sql")
             assert gate.get("run_if") == "ALL_SUCCESS"
+
+
+def test_job_loads_leave_table_setup_to_explicit_sql_tasks(jobs):
+    for name, task in python_tasks(jobs):
+        assert "--no-setup" in task["spark_python_task"]["parameters"], (
+            f"{name}/{task['task_key']} would repeat shared DDL inside a parallel source load")
 
 
 def test_placeholder_tasks_are_disabled(jobs, repo_root):
