@@ -40,7 +40,7 @@ def test_labels_for(title, expected):
 
 
 def test_every_workflow_tag_has_a_label():
-    # The tags listed in docs/workflow.md, Issue titles.
+    # The tags listed in docs/operations/workflow.md, Issue titles.
     tags = {"SETUP", "DECISION", "SOURCE", "FRAME", "PROFILE", "BRONZE", "SILVER", "INTEGRATE", "GOLD",
             "DQ", "DEPLOY", "MONITOR", "OPS", "DASHBOARD", "AI/BI", "DOCS", "PROOF", "PRESENT"}
     assert tags <= set(title_labels.TAG_LABELS)

@@ -1,0 +1,110 @@
+version: 1
+
+# Final names for the known source-aligned Bronze and Silver objects. A listed
+# SQL file is the name to use when that layer is implemented; it does not imply
+# that the file already exists.
+source_tables:
+  - source_id: deped_enrollment
+    dataset: DepEd enrollment
+    scope:
+      school_years: [2023-24, 2024-25, 2025-26]
+      note: All three deliveries share one table and are distinguished by school_year.
+    bronze:
+      table: deped_enrollment_raw
+      create_file: 01_create_deped_enrollment_raw.sql
+      validate_file: 90_validate_deped_enrollment_raw.sql
+    silver:
+      table: deped_enrollment_clean
+      quarantine_table: deped_enrollment_quarantine
+      create_file: 01_create_deped_enrollment_clean.sql
+      validate_file: 90_validate_deped_enrollment_clean.sql
+
+  - source_id: deped_facilities
+    dataset: DepEd facilities
+    scope:
+      school_years: [2023-24]
+    bronze:
+      table: deped_facilities_raw
+      create_file: 01_create_deped_facilities_raw.sql
+      validate_file: 90_validate_deped_facilities_raw.sql
+    silver:
+      table: deped_facilities_clean
+      quarantine_table: deped_facilities_quarantine
+      create_file: 01_create_deped_facilities_clean.sql
+      validate_file: 90_validate_deped_facilities_clean.sql
+
+  - source_id: deped_personnel
+    dataset: DepEd personnel
+    scope:
+      school_years: [2023-24]
+    bronze:
+      table: deped_personnel_raw
+      create_file: 01_create_deped_personnel_raw.sql
+      validate_file: 90_validate_deped_personnel_raw.sql
+    silver:
+      table: deped_personnel_clean
+      quarantine_table: deped_personnel_quarantine
+      create_file: 01_create_deped_personnel_clean.sql
+      validate_file: 90_validate_deped_personnel_clean.sql
+
+  - source_id: psa_psgc
+    dataset: Philippine Standard Geographic Code (PSGC)
+    scope:
+      workbook: PSGC xlsx
+      sheet: PSGC
+      note: The workbook and its PSGC sheet are one logical source table, not two datasets.
+    bronze:
+      table: psa_psgc_raw
+      create_file: 01_create_psa_psgc_raw.sql
+      validate_file: 90_validate_psa_psgc_raw.sql
+    silver:
+      table: psa_psgc_clean
+      quarantine_table: psa_psgc_quarantine
+      create_file: 01_create_psa_psgc_clean.sql
+      validate_file: 90_validate_psa_psgc_clean.sql
+
+  - source_id: psa_poverty_stat
+    dataset: PSA poverty statistics
+    scope:
+      estimate_years: [2018, 2021, 2023]
+    bronze:
+      table: psa_poverty_stat_raw
+      create_file: 01_create_psa_poverty_stat_raw.sql
+      validate_file: 90_validate_psa_poverty_stat_raw.sql
+    silver:
+      table: psa_poverty_stat_clean
+      quarantine_table: psa_poverty_stat_quarantine
+      create_file: 01_create_psa_poverty_stat_clean.sql
+      validate_file: 90_validate_psa_poverty_stat_clean.sql
+
+  - source_id: hdx_boundaries
+    dataset: HDX administrative boundaries
+    scope:
+      layer: ADM3
+      note: Only ADM3 is in the current analytical scope; the table name makes that grain explicit.
+    bronze:
+      table: hdx_adm3_raw
+      create_file: 01_create_hdx_adm3_raw.sql
+      validate_file: 90_validate_hdx_adm3_raw.sql
+    silver:
+      table: hdx_adm3_clean
+      quarantine_table: hdx_adm3_quarantine
+      create_file: 01_create_hdx_adm3_clean.sql
+      validate_file: 90_validate_hdx_adm3_clean.sql
+
+# Candidates only. Keep them out of executable ETL until their keys, review
+# workflow, and grains are approved.
+draft_integration_tables:
+  - table: deped_school_psgc_map
+    candidate_file: 01_create_deped_school_psgc_map.sql
+    purpose: Reviewed mapping from DepEd school geography to the selected PSGC version.
+  - table: psa_poverty_psgc_map
+    candidate_file: 02_create_psa_poverty_psgc_map.sql
+    purpose: Reviewed mapping from poverty-statistic geography identifiers to PSGC.
+  - table: hdx_adm3_psgc_map
+    candidate_file: 03_create_hdx_adm3_psgc_map.sql
+    purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
+
+deferred_layers:
+  - gold
+  - analytics

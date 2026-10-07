@@ -42,36 +42,36 @@ def test_source_ids_are_unique_snake_case(registry):
 
 
 def test_sources_past_candidate_have_an_inventory_card(repo_root, registry):
-    inventory = repo_root / "docs" / "source_inventory"
+    inventory = repo_root / "docs" / "data" / "source-inventory"
     missing = [
         s["source_id"] for s in registry["sources"]
         if s.get("status") not in (None, "candidate")
         and not (inventory / s.get("source_id", "") / "README.md").is_file()
     ]
     assert not missing, (
-        f"Sources beyond 'candidate' need docs/source_inventory/<source_id>/README.md: {missing}"
+        f"Sources beyond 'candidate' need docs/data/source-inventory/<source_id>/README.md: {missing}"
     )
 
 
 def test_profiled_sources_have_a_profile(repo_root, registry):
-    inventory = repo_root / "docs" / "source_inventory"
+    inventory = repo_root / "docs" / "data" / "source-inventory"
     missing = [
         s["source_id"] for s in registry["sources"]
         if s.get("status") in ("profiled", "accepted")
         and not (inventory / s.get("source_id", "") / "profile.md").is_file()
     ]
     assert not missing, (
-        f"Profiled or accepted sources need docs/source_inventory/<source_id>/profile.md: {missing}"
+        f"Profiled or accepted sources need docs/data/source-inventory/<source_id>/profile.md: {missing}"
     )
 
 
 def test_profiled_sources_have_a_data_dictionary(repo_root, registry):
-    inventory = repo_root / "docs" / "source_inventory"
+    inventory = repo_root / "docs" / "data" / "source-inventory"
     missing = [
         s["source_id"] for s in registry["sources"]
         if s.get("status") in ("profiled", "accepted")
         and not (inventory / s.get("source_id", "") / "data_dictionary.md").is_file()
     ]
     assert not missing, (
-        f"Profiled or accepted sources need docs/source_inventory/<source_id>/data_dictionary.md: {missing}"
+        f"Profiled or accepted sources need docs/data/source-inventory/<source_id>/data_dictionary.md: {missing}"
     )

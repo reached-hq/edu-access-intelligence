@@ -145,6 +145,17 @@
       "owner": "catweyine"
     },
     {
+      "source_id": "osm_philippines",
+      "name": "OpenStreetMap Philippines geographic data",
+      "publisher": "OpenStreetMap / Geofabrik",
+      "status": "profiled",
+      "source_system": "Geofabrik OpenStreetMap Philippines extract",
+      "acquisition": "https://download.geofabrik.de/asia/philippines.html",
+      "format": "GeoPackage inside ZIP",
+      "acquired_date": "2026-09-28",
+      "owner": "saraevcldn"
+    },
+    {
       "source_id": "psa_psgc",
       "name": "PSA Philippine Standard Geographic Code (PSGC)",
       "publisher": "Philippine Statistics Authority (PSA)",
@@ -167,6 +178,18 @@
       "owner": "maeveylain"
     },
     {
+      "source_id": "psa_openstat_education",
+      "name": "PSA OpenSTAT education and literacy tables (13 regional tables)",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "PSA OpenSTAT (PXWeb), database 3S, folder C10",
+      "acquisition": "https://openstat.psa.gov.ph/PXWeb/api/v1/en/DB/3S/C10",
+      "format": "csv and json (API)",
+      "school_years_acquired": ["2004-05", "2005-06", "2006-07", "2007-08", "2008-09", "2009-10", "2010-11", "2011-12", "2012-13", "2013-14", "2014-15", "2015-16", "2016-17", "2017-18", "2018-19", "2019-20", "2020-21", "2021-22", "2022-23", "2023-24"],
+      "years": ["2013", "2019", "2024"],
+      "owner": "hyenalouise"
+    },
+    {
       "source_id": "psa_population_per_barangay",
       "name": "PSA 2024 population by barangay",
       "publisher": "Philippine Statistics Authority (PSA)",
@@ -187,6 +210,17 @@
       "format": "CSV",
       "publication": "2024 Census of Population",
       "owner": "mafelisilda"
-    }
+    },
+    {
+      "source_id": "hdx_boundaries",
+      "name": "Philippine administrative boundaries",
+      "publisher": "UN OCHA",
+      "status": "profiled",
+      "source_system": "Common Operational Dataset – Administrative Boundaries (COD-AB)",
+      "acquisition": "https://data.humdata.org/dataset/cod-ab-phl",
+      "format": "GeoJSON",
+      "coverage": "ADM3 city/municipality and ADM4 barangay",
+      "owner": "saraevcldn"
+      }
   ]
 }

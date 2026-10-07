@@ -1,6 +1,6 @@
 # Shared profiling code
 
-Helpers used by more than one script in `notebooks/profiling/` (D-007). The profiling scripts themselves stay in `notebooks/profiling/`.
+Helpers used by more than one script in `analysis/profiling/` (D-007). The profiling scripts themselves stay in `analysis/profiling/`.
 
 | Module | What it holds |
 |---|---|
@@ -8,7 +8,7 @@ Helpers used by more than one script in `notebooks/profiling/` (D-007). The prof
 
 ## Using it from a profiling script
 
-A script in `notebooks/profiling/` runs from its own folder, so it puts the repository root on the import path first:
+A script in `analysis/profiling/` runs from its own folder, so it puts the repository root on the import path first:
 
 ```python
 REPO = Path(__file__).resolve().parents[2]

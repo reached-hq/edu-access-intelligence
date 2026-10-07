@@ -1,6 +1,6 @@
 # Contributing
 
-The rules in short. For the full walkthrough see [docs/workflow.md](docs/workflow.md); for laptop setup see [docs/terminal_setup.md](docs/terminal_setup.md).
+The rules in short. For the full walkthrough see [docs/operations/workflow.md](docs/operations/workflow.md); for laptop setup see [docs/getting-started/terminal-setup.md](docs/getting-started/terminal-setup.md).
 
 ## Workflow
 
@@ -28,7 +28,7 @@ ISSUE → BRANCH → CHANGE → VALIDATE → COMMIT → PUSH → PULL REQUEST �
 
 These are enforced by `tests/test_repo_policy.py` where possible.
 
-- **Never commit data.** Raw, interim, and processed datasets live in the agreed storage, not in git. The only exception is small, made-up samples under `tests/fixtures/`.
+- **Never commit data.** Raw, interim, and processed datasets live in the agreed storage, not in git. The only exception is small, made-up samples under `tests/data/`.
 - **Never commit secrets.** Use `.env` locally; it is git-ignored. Only `.env.example`, with variable names and no values, is committed.
 - **Save notebooks in `.py` source format,** not `.ipynb`.
 - **Never modify raw files.** Every transformation writes a new layer.
@@ -53,7 +53,7 @@ Every pull request states whether AI helped with the work in it. If it did, the 
 
 State what the AI did: which tool, and which parts of the work. CI fails a pull request that does not tick exactly one option, or that ticks **AI helped** without all four gates and a note on what the AI did. CI can only see the ticks, so reviewers still send back work that does not really pass the gates.
 
-This applies to pull requests opened after this rule was merged. Open pull requests add the block the next time they are edited. See D-010 in [docs/decisions.md](docs/decisions.md).
+This applies to pull requests opened after this rule was merged. Open pull requests add the block the next time they are edited. See D-010 in [docs/governance/decisions.md](docs/governance/decisions.md).
 
 ## Running the checks locally
 
