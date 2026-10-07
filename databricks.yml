@@ -134,7 +134,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 01_clean_deped_enrollment
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_raw
           run_if: ALL_SUCCESS
@@ -145,7 +144,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_deped_enrollment_clean
-          disabled: true
           depends_on:
             - task_key: 01_clean_deped_enrollment
           run_if: ALL_SUCCESS

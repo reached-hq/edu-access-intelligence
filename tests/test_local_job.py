@@ -93,7 +93,7 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
     assert results["bronze_deped_enrollment"] == "succeeded"      # the load itself is fine
     assert results["90_validate_deped_enrollment_raw"] == "failed"
-    assert results["01_create_deped_enrollment_clean"] == "upstream_failed"   # Silver never builds on a failed gate
+    assert results["01_clean_deped_enrollment"] == "upstream_failed"   # Silver never builds on a failed gate
     assert results["bronze_deped_facilities"] == "succeeded"      # independent root: enrollment cannot block it
     store = DuckDBStore(db)
     assert store.query(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
