@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validate the integrated education-geography output and mapping lineage.
+-- Implement the gate and its data_quality_results writes before activating this task.

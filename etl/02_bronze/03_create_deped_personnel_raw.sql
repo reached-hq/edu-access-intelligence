@@ -1,0 +1,2 @@
+-- PLACEHOLDER: create edu_access.`02-bronze`.deped_personnel_raw.
+-- The Python ingestion task will load the approved SY 2023-24 DepEd personnel delivery.

@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build hdx_adm3_clean and hdx_adm3_quarantine.
+-- Implement the reviewed geometry and attribute rules before activating this task.

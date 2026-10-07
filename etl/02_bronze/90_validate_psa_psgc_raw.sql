@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validate edu_access.`02-bronze`.psa_psgc_raw.
+-- Implement the gate and its data_quality_results writes before activating this task.

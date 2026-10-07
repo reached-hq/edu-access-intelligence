@@ -1,0 +1,2 @@
+-- PLACEHOLDER: proposed validation gate for fact_school_year.
+-- Remove "placeholder_" from the filename only when the fact and gate are implemented.

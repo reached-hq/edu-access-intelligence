@@ -1,0 +1,2 @@
+-- PLACEHOLDER: map PSA poverty-statistic geography identifiers to PSGC.
+-- Implement approved correspondence-code and coverage-gap rules before activation.

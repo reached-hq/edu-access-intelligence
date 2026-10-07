@@ -1,0 +1,2 @@
+-- PLACEHOLDER: create edu_access.`02-bronze`.psa_psgc_raw.
+-- The Python ingestion task will load the approved PSGC workbook's PSGC sheet.

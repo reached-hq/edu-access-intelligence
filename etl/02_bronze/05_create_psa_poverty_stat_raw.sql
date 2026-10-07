@@ -1,0 +1,2 @@
+-- PLACEHOLDER: create edu_access.`02-bronze`.psa_poverty_stat_raw.
+-- The Python ingestion task will load the approved PSA poverty-statistics workbook.

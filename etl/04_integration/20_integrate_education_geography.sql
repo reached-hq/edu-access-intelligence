@@ -1,0 +1,2 @@
+-- PLACEHOLDER: attach reviewed PSGC, poverty, and HDX ADM3 geography to education records.
+-- Implement only after the three mapping tables and their gates are approved.
