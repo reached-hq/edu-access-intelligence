@@ -40,6 +40,8 @@ official download ─▶ 00-source volume ─▶ checksum + approved contract �
                                       runs, batches, attempts, data-quality results, current_batches
 ```
 
+Two delivery formats share this flow, chosen by the source's contract: a zip with one CSV per school year (DepEd), and an xlsx workbook per publication quarter (`psa_psgc`, format `xlsx_table`, D-019). Only discovery, the period, and how a file is read and checked differ.
+
 ## Sources
 
 See the [source inventory](../data/source-inventory/).
@@ -73,7 +75,7 @@ Raw files go to the managed volume `` edu_access.`00-source`.raw ``, one folder 
         └── SHA256SUMS.txt
 ```
 
-Ingestion identifies files by SHA-256, not by path (D-014).
+Ingestion identifies files by SHA-256, not by path (D-014). The same layout holds for `raw/psa/`: PSA replaces the quarterly PSGC file at a stable URL, so a re-download goes into a dated subfolder and never over the earlier file.
 
 This is provisional (D-009): if the mentor approves the course R2 bucket, an R2-backed volume is added next to it. Local copies for profiling live outside the repository in `raw-data/` ([terminal setup, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)).
 
@@ -95,7 +97,7 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 <!-- TODO(Phase 6): task order for the full pipeline. -->
 
-`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
+`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (`deped_enrollment`, `deped_facilities`, `psa_psgc`; `src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
 
 ## Environments and deployment
 
