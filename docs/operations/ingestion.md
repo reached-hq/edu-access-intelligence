@@ -14,7 +14,8 @@ DepEd download page                         (official zip, one per school year)
    │  discover → checksum → is it an approved delivery?   (config/ingestion/deped_enrollment.json)
    ▼
 01 Control  pipeline_runs · ingestion_batches · ingestion_batch_attempts · data_quality_results
-   │  validate → MERGE into Bronze → reconcile → mark the batch succeeded → Bronze gate
+   │  validate → MERGE into Bronze → reconcile → mark the batch succeeded   (Python task)
+   │  → Bronze gate, 90_validate_<table>_raw.sql                             (its own SQL task)
    ▼
 02 Bronze   edu_access.`02-bronze`.deped_enrollment_raw     (all years, all versions, text, with provenance)
    │
@@ -88,7 +89,7 @@ Before anything is written to Bronze (`src/ingestion/validate.py`):
 | `school_id` is never blank | FAIL → `failed`, nothing loaded |
 | `school_id` is 6 digits; unique in the file; no fully repeated rows | WARN: recorded, rows loaded as received |
 
-After the MERGE, before the batch is marked succeeded (`bronze.reconcile`): Bronze rows for the file equal the source rows, no row number appears twice, row numbers run 1..n, and no provenance column is NULL. Then the Bronze gate (`etl/02_bronze/90_validate_deped_enrollment_raw.sql`) checks the whole table, and fails the run on any FAIL recorded in it.
+After the MERGE, before the batch is marked succeeded (`bronze.reconcile`): Bronze rows for the file equal the source rows, no row number appears twice, row numbers run 1..n, and no provenance column is NULL. Then the Bronze gate (`etl/02_bronze/90_validate_deped_enrollment_raw.sql`) checks the whole table. In the job it is its own SQL task right after the load (the load runs with `--no-gate`), and it fails that task on any FAIL it records; run by hand without `--no-gate`, `ingest` runs it itself and fails the run.
 
 Each run also records `approved_deliveries_present`: a WARN naming any approved zip that is not in the landing folder.
 
@@ -177,6 +178,12 @@ RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.ingestion.cli ingest -
 python -m src.ingestion.cli status --source deped_enrollment
 ```
 
+To run the whole job as Databricks would, every task of `databricks.yml` in order (including the gates as separate SQL steps):
+
+```bash
+RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run
+```
+
 Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing.
 
 After changing a schema version in the contract, regenerate the Bronze DDL and gate (a test fails until you do):
@@ -194,7 +201,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 1. Write `config/ingestion/<source_id>.json`: file-name patterns, the column list as a schema version, and the approved deliveries copied from the source card ([config/ingestion/README.md](../../config/ingestion/README.md)).
 2. Generate `etl/02_bronze/01_create_<source_id>_raw.sql` and `90_validate_<source_id>_raw.sql` with the two commands above.
 3. Add the publisher's file names to `NAMES` in `tests/factories/deped_deliveries.py` and a test that loads a made-up delivery (see `tests/test_ingestion_facilities.py`).
-4. Add a task to `bronze_ingest` in `databricks.yml`, after the last one, with `run_if: ALL_DONE` (`tests/test_bundle.py` checks both).
+4. Add two tasks to `edu_access_pipeline` in `databricks.yml`, after the last one: the load (`ingest --no-gate`, `run_if: ALL_DONE`) and its gate as a `sql_task` running `etl/02_bronze/90_validate_<source_id>_raw.sql` (`run_if: ALL_SUCCESS`). `tests/test_bundle.py` checks the chain, and that a load without its gate is followed by it.
 5. Load the real file locally and compare with the source card, then open the pull request, run the job twice on `dev`, and record the evidence.
 
 ## Running on Databricks
@@ -227,7 +234,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
    databricks bundle deploy --target dev --profile reached-hq
    ```
 
-3. Confirm what was deployed: in the job (`[dev <user>] bronze_ingest`), `git_source.git_commit` and the `code_revision` parameter must both equal `git rev-parse HEAD`:
+3. Confirm what was deployed: in the job (`[dev <user>] edu_access_pipeline`; `[dev <user>] bronze_ingest` before #47), `git_source.git_commit` and the `code_revision` parameter must both equal `git rev-parse HEAD`:
 
    ```bash
    databricks bundle summary --target dev --profile reached-hq
@@ -236,12 +243,12 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 4. Run it twice. The second run must skip all three files:
 
    ```bash
-   databricks bundle run bronze_ingest --target dev --profile reached-hq
+   databricks bundle run edu_access_pipeline --target dev --profile reached-hq
    ```
 
 5. Check the results with the queries below, and record the run in `pipeline_runs` and on #11.
 
-Before step 4, stop other serverless compute: detach notebooks and leave the SQL warehouse stopped, and do not query it while the job runs. On Free Edition a job waits until serverless capacity is free; the first run waited 35 minutes for 3.5 minutes of work. Check the results after the run ends.
+Before step 4, stop other serverless compute: detach notebooks and leave the SQL warehouse stopped (the job starts it for its SQL tasks), and do not query it while the job runs. On Free Edition a job waits until serverless capacity is free; the first run waited 35 minutes for 3.5 minutes of work. Check the results after the run ends.
 
 `databricks bundle validate` was run on 2026-10-06 and passed; both commit values resolved to the same SHA.
 

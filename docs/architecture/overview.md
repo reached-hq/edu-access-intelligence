@@ -87,7 +87,7 @@ Every check writes one row to `` edu_access.`01-control`.data_quality_results ``
 |---|---|---|
 | PASS | As expected | None |
 | WARN | Worth knowing, not wrong in Bronze (e.g. a publisher's duplicate school) | Recorded; rows are loaded as received; Silver decides |
-| FAIL | The batch cannot be trusted | The batch is not marked succeeded, so downstream does not read it; the run exits nonzero |
+| FAIL | The batch or table cannot be trusted | The batch is not marked succeeded, so downstream does not read it; the task that recorded the FAIL fails, and the tasks after it in that source's lane do not run |
 
 Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#validation).
 
@@ -95,7 +95,15 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 <!-- TODO(Phase 6): task order for the full pipeline. -->
 
-`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
+`databricks.yml` defines one job, `edu_access_pipeline` (D-020). Each source has a lane:
+
+| Task | Type | Runs on | Runs when |
+|---|---|---|---|
+| `bronze_<source_id>`: check each delivery against its contract, load, reconcile (`src/ingestion/cli.py ingest --no-gate`) | Python | serverless job compute | Always (`ALL_DONE` after the previous lane) |
+| `90_validate_<table>_raw`: the Bronze gate (`etl/02_bronze/90_validate_<table>_raw.sql`) | SQL | SQL warehouse | The load succeeded |
+| Later layers' files from `etl/`, one task each | SQL | SQL warehouse | The task before it succeeded |
+
+Python is used only where SQL cannot do the work: the deliveries are zips with a declared encoding. Every SQL file is its own task, so a failed check shows as its own failed task. All tasks form one chain, one task at a time, so they never compete for Free Edition's capacity; a lane's tasks run only if the one before succeeded, and the next lane starts whatever happened. SQL tasks receive the job parameters `code_revision` and `run_id` (`{{job.run_id}}`) as `:code_revision` and `:run_id`. The job has no schedule during development, runs one at a time, and is safe to rerun. `python -m src.job.local_run` runs the same tasks in the same order on DuckDB ([src/job](../../src/job/README.md)).
 
 ## Environments and deployment
 
