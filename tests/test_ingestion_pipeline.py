@@ -15,7 +15,7 @@ import pytest
 from fixtures.deped_enrollment import (
     REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows, real_config, write_config,
 )
-from src.ingestion import cli
+from src.ingestion import cli, pipeline
 from src.ingestion.bronze import bronze_ddl
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
@@ -160,6 +160,24 @@ def test_batch_id_is_the_same_for_the_same_bytes(env):
     env.run()
     assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.ingestion_batches") == 1
     assert env.batch("2023-24")["batch_id"] == first_id
+
+
+def test_discovery_does_not_hash_unrelated_zips_when_approved_files_are_present(env, monkeypatch):
+    delivery = env.deliver("2023-24")
+    unrelated = env.inbox / "NAT-Grade-6.zip"
+    unrelated.write_bytes(b"not an enrollment delivery")
+    hashed = []
+    sha256_file = pipeline.sha256_file
+
+    def record_hash(path):
+        hashed.append(path)
+        return sha256_file(path)
+
+    monkeypatch.setattr(pipeline, "sha256_file", record_hash)
+    discovered = pipeline.discover(env.config, env.landing)
+
+    assert [path for _, path in discovered] == [delivery]
+    assert hashed == [delivery]
 
 
 def test_rerun_validates_again_and_adds_nothing(env):

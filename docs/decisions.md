@@ -132,10 +132,10 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
 ## D-016: Raw storage layout
 
-- **Problem:** The architecture stored raw files flat, one folder per publisher with original file names. A re-downloaded file with the same name, such as a DepEd re-upload, would overwrite the earlier one, and the earlier bytes would be gone.
-- **Decision:** Raw files go to `/Volumes/edu_access/00-source/raw/<publisher>/<source_id>/<download date, YYYY-MM-DD>/<original file name>`, with a `SHA256SUMS.txt` in each dated folder. A dated folder is never changed after upload.
-- **Reason:** It keeps the original file names (#10), puts each source in its own folder (#10), and lets two versions of one file sit side by side. The ingestion code finds deliveries by searching the publisher folder at any depth and identifies them by checksum (D-014), so it does not depend on the layout.
-- **Consequence:** Each upload creates a new dated folder. Local copies may keep the flat `raw-data/<publisher>/original/` layout used for profiling. Supersedes the flat example in `docs/architecture.md` (Storage) once accepted. **Provisional:** affects #10, which has not started.
+- **Problem:** Raw files are stored flat, one folder per publisher with original file names; the DepEd files were uploaded that way to `/Volumes/edu_access/00-source/raw/deped/` on 2026-09-30 and 2026-10-03. A later download with the same name, such as a DepEd re-upload, would overwrite the earlier file, and the earlier bytes would be gone.
+- **Decision:** Files already in `raw/<publisher>/` stay where they are. No raw file is ever overwritten: any later download, whether a new school year or a re-download of a published one, goes into `raw/<publisher>/<download date, YYYY-MM-DD>/` under its original file name. Every folder has a `SHA256SUMS.txt` covering all of its files, updated in the same upload.
+- **Reason:** Moving the uploaded files would change paths teammates already use, for no gain: ingestion searches the publisher folder at any depth and identifies files by checksum (D-014), not by path. What protects history is the no-overwrite rule, and a dated subfolder is enough to keep it.
+- **Consequence:** The folder mixes the first downloads with dated later ones; a dated folder also records when its files were retrieved. Before an upload, list the target folder to check that no file of that name is there. The flat uploads do not meet #10's "one folder per source"; whether per-publisher folders are enough is open. `SHA256SUMS.txt` in `raw/deped/` does not yet cover the files added on 2026-10-03 (#10). Local copies may keep the `raw-data/<publisher>/original/` layout used for profiling. **Revised 2026-10-06:** first proposed one folder per source and download date for every file; changed after finding the files already uploaded flat. **Provisional:** the team has not yet reviewed it.
 
 ## D-017: DuckDB stands in for Delta in local ingestion runs
 

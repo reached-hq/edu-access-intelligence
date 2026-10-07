@@ -75,11 +75,22 @@ def discover(config, landing_root):
                              f"landing folder {root} does not exist. Set --landing (or RAW_DATA_DIR) to the raw root.")
     approved = {d["archive_sha256"] for d in config["deliveries"]}
     pattern = re.compile(config["archive_pattern"])
+    paths = sorted(root.rglob("*.zip"))
+    named = [path for path in paths if pattern.match(path.name)]
+    differently_named = [path for path in paths if not pattern.match(path.name)]
     found = {}
-    for path in sorted(root.rglob("*.zip")):
+    for path in named:
         digest = sha256_file(path)
-        if (pattern.match(path.name) or digest in approved) and digest not in found:
+        if digest not in found:
             found[digest] = path
+    missing_approved = approved - found.keys()
+    for path in differently_named:
+        if not missing_approved:
+            break
+        digest = sha256_file(path)
+        if digest in missing_approved:
+            found[digest] = path
+            missing_approved.remove(digest)
     return sorted(found.items(), key=lambda item: (year_from_archive_name(config, item[1].name) or "", item[1].name))
 
 
