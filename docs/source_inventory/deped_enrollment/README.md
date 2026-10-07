@@ -20,11 +20,11 @@ Published years: SY 2017-18 to SY 2025-26. Acquired so far: the three years belo
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Enrollment-in-SY-2023-2024.zip` | zip | n/a | 2,969,709 | n/a | `a10f4d0f9082919c13b3a091774c8231c99c95b1b1872310714107013b77dbbb` | Local (`raw-data/deped/original/`), pending storage decision (#1) |
+| `Enrollment-in-SY-2023-2024.zip` | zip | n/a | 2,969,709 | n/a | `a10f4d0f9082919c13b3a091774c8231c99c95b1b1872310714107013b77dbbb` | `/Volumes/edu_access/00-source/raw/deped/` (uploaded 2026-09-30) |
 | ↳ `enrollment_2023-24.csv` | CSV | UTF-8, LF | 19,010,469 | 60,167 | `cb9457d1dd12cccde880e0d8065212f16a4a5970ac525d5e2f8c90069f1c3657` | extracted from the zip |
-| `Enrollment-in-SY-2024-2025.zip` | zip | n/a | 2,962,042 | n/a | `fd5dd74a62b828608c62335b7c324ddf05be58e3f05465fee68854795f5b1a92` | Local, pending #1 |
+| `Enrollment-in-SY-2024-2025.zip` | zip | n/a | 2,962,042 | n/a | `fd5dd74a62b828608c62335b7c324ddf05be58e3f05465fee68854795f5b1a92` | `/Volumes/edu_access/00-source/raw/deped/` (uploaded 2026-09-30) |
 | ↳ `enrollment_2024-25.csv` | CSV | UTF-8, LF | 19,223,401 | 60,129 | `dd14e211bb32d8b80450c1e061397f6d7d3c819cef2070f204ddf33395ff5dac` | extracted from the zip |
-| `Enrollment-in-SY-2025-2026.zip` | zip | n/a | 2,981,421 | n/a | `ab4d7e24b3a46a99db2c76dee5279a976e4c3a76062e79f7217e70dc6dd1b450` | Local, pending #1 |
+| `Enrollment-in-SY-2025-2026.zip` | zip | n/a | 2,981,421 | n/a | `ab4d7e24b3a46a99db2c76dee5279a976e4c3a76062e79f7217e70dc6dd1b450` | `/Volumes/edu_access/00-source/raw/deped/` (uploaded 2026-09-30) |
 | ↳ `enrollment_2025-26.csv` | CSV | **Windows-1252, CRLF** | 18,840,355 | 60,204 | `8c80173a7fc29eb3dd7b9e018d603022c731713d794945a8c9c2a2f0f190ee9e` | extracted from the zip |
 
 ## Publisher documentation
@@ -86,7 +86,8 @@ See [profile.md](profile.md) for evidence.
 | Bronze table | `` edu_access.`02-bronze`.deped_enrollment_raw ``: all school years and delivery versions, text, with provenance |
 | Schema versions | `v1` (SY 2023-24, 2024-25), `v2` (SY 2025-26) |
 | Loaded locally | All three school years, 2026-10-06; row counts match the table above |
-| Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; sizes and the folder's `SHA256SUMS.txt` match the table above (checked 2026-10-06) |
+| Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; a local copy for profiling stays in `raw-data/deped/original/` |
+| Checksums after upload | Match the table above. The ingestion job hashed each zip in the volume, and the CSV and README inside it, before loading, and refuses any file whose checksum differs; all three loaded (job run `738752819100453`, 2026-10-06). The folder's `SHA256SUMS.txt` lists the same values |
 | Loaded on Databricks | Yes, 2026-10-06 (`dev`): all three school years loaded and verified; a second run skipped them all ([evidence](../../evidence/2026-10-06-deped-enrollment-idempotency.md)) |
 
 How a new school year or a revised file is added: [ingestion.md, Runbook](../../ingestion.md#runbook).

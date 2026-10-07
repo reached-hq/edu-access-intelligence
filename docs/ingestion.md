@@ -1,8 +1,8 @@
 # Ingestion: Source → Control → Bronze
 
-How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; other sources reuse the same code with their own contract.
+How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract.
 
-**Status:** built and tested locally. **Not yet run on Databricks**: the raw files are not uploaded yet (#10), and the confirmation run is the last step of #11. Nothing in this document claims a Databricks table, job, or run exists until that section says it was done.
+**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs.
 
 ## The flow
 
@@ -179,11 +179,23 @@ python -m src.ingestion.cli status --source deped_enrollment
 
 Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing.
 
-After changing a schema version in the contract, regenerate the Bronze DDL (a test fails until you do):
+After changing a schema version in the contract, regenerate the Bronze DDL and gate (a test fails until you do):
 
 ```bash
 python -m src.ingestion.cli ddl --source deped_enrollment > etl/02_bronze/01_create_deped_enrollment_raw.sql
 ```
+
+```bash
+python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_validate_deped_enrollment_raw.sql
+```
+
+### Adding another source shaped like these (a zip with one CSV and a README)
+
+1. Write `config/ingestion/<source_id>.json`: file-name patterns, the column list as a schema version, and the approved deliveries copied from the source card ([config/ingestion/README.md](../config/ingestion/README.md)).
+2. Generate `etl/02_bronze/01_create_<source_id>_raw.sql` and `90_validate_<source_id>_raw.sql` with the two commands above.
+3. Add the publisher's file names to `NAMES` in `tests/fixtures/deped.py` and a test that loads a made-up delivery (see `tests/test_ingestion_facilities.py`).
+4. Add a task to `bronze_ingest` in `databricks.yml`, after the last one, with `run_if: ALL_DONE` (`tests/test_bundle.py` checks both).
+5. Load the real file locally and compare with the source card, then open the pull request, run the job twice on `dev`, and record the evidence.
 
 ## Running on Databricks
 
@@ -236,6 +248,8 @@ Before step 4, stop other serverless compute: detach notebooks and leave the SQL
 ### First Databricks run
 
 Evidence for both runs, with the queries and their results: [evidence/2026-10-06-deped-enrollment-idempotency.md](evidence/2026-10-06-deped-enrollment-idempotency.md).
+
+Facilities, the second source, was loaded and rerun the same day at commit `acec94d` (rebased counterpart `9bcdb12`): 60,167 rows, then a skip, with enrollment untouched ([evidence](evidence/2026-10-06-deped-facilities-idempotency.md)). With the SQL warehouse stopped and notebooks detached, the whole job took 3 min 41 s, then 1 min 52 s: it did not wait for capacity.
 
 Times here are Manila time (UTC+8), with UTC in brackets where it helps. Timestamps in the tables are stored in UTC (`*_utc` columns); convert them for display with `from_utc_timestamp(col, 'Asia/Manila')`.
 

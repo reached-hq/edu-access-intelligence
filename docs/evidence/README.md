@@ -5,3 +5,4 @@ Records of runs that prove a claim about the pipeline, one file per claim, named
 | Evidence | Claim | Issue |
 |---|---|---|
 | [2026-10-06-deped-enrollment-idempotency.md](2026-10-06-deped-enrollment-idempotency.md) | Loading DepEd enrollment into Bronze twice on Databricks inserts nothing the second time | #11 |
+| [2026-10-06-deped-facilities-idempotency.md](2026-10-06-deped-facilities-idempotency.md) | DepEd facilities loads once from its own contract, a second run inserts nothing, and enrollment is untouched | #11 |

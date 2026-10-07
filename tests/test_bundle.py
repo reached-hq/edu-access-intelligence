@@ -95,6 +95,23 @@ def test_tasks_load_sources_that_have_a_contract(jobs, repo_root, project):
         assert argument(task, "--backend") == "spark"
 
 
+def test_source_tasks_run_one_after_another(jobs):
+    """Parallel tasks would compete for Free Edition's serverless capacity, and one
+    source's failure must not stop the next (run_if: ALL_DONE)."""
+    for name, job in jobs.items():
+        tasks = [t for _, t in python_tasks({name: job})]
+        for previous, task in zip(tasks, tasks[1:]):
+            assert [d["task_key"] for d in task.get("depends_on", [])] == [previous["task_key"]], (
+                f"{name}/{task['task_key']} must depend on {previous['task_key']} only")
+            assert task.get("run_if") == "ALL_DONE", f"{name}/{task['task_key']} must run even if the previous source failed"
+
+
+def test_every_contract_has_a_task(jobs, repo_root):
+    sources = {argument(t, "--source") for _, t in python_tasks(jobs)}
+    contracts = {p.stem for p in (repo_root / "config" / "ingestion").glob("*.json")}
+    assert contracts <= sources, f"contracts with no job task: {sorted(contracts - sources)}"
+
+
 def test_no_schedules_during_development(jobs):
     for name, job in jobs.items():
         assert "schedule" not in job and "trigger" not in job and "continuous" not in job, (
