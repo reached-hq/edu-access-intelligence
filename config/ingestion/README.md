@@ -36,7 +36,7 @@ Each approved delivery pins:
 A delivery is approved by merging its entry in a reviewed pull request, never by the pipeline. To add one, for example a new school year:
 
 1. Download the official zip into raw storage under its original name; do not change the file.
-2. Profile it (`notebooks/profiling/`) and update the source card with its checksums, encoding, and row count.
+2. Profile it (`analysis/profiling/`) and update the source card with its checksums, encoding, and row count.
 3. If the header matches no schema version, add a new version here with the exact new column list, and record the change in `profile.md`. The loader stops on any header it does not recognize.
 4. Add the delivery entry, copying the values from the source card. `tests/test_ingestion_validate.py` fails unless each value here matches the card row of its own file: the zip's name and checksum, and the CSV's name, checksum, row count, and encoding.
 

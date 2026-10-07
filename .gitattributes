@@ -1,0 +1,7 @@
+# Analysis programs and Databricks SQL may intentionally use Markdown hard line
+# breaks in source-format cells. Other whitespace remains checked normally.
+analysis/**/*.py -whitespace
+etl/**/*.py -whitespace
+etl/**/*.sql -whitespace
+*.sql linguist-language=SQL
+*.sql linguist-detectable=true

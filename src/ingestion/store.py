@@ -13,7 +13,7 @@ DuckDB is not Delta. Each write here is its own statement and commit, never a
 multi-table transaction, because Delta commits one table at a time; a test that
 passed only because DuckDB wrapped two tables in one transaction would prove
 nothing about Databricks. What local runs cannot show (Delta column mapping,
-Unity Catalog, volume paths) is listed in docs/decisions.md and confirmed on
+Unity Catalog, volume paths) is listed in docs/governance/decisions.md and confirmed on
 Databricks.
 """
 

@@ -1,0 +1,46 @@
+# Approved non-secret naming configuration.
+catalog: edu_access
+
+schemas:
+  source: 00-source
+  control: 01-control
+  bronze: 02-bronze
+  silver: 03-silver
+  integration: 04-integration
+  gold: 05-gold
+  analytics: 06-analytics
+
+control_tables:
+  - pipeline_runs
+  - ingestion_batches
+  - ingestion_batch_attempts
+  - data_quality_results
+  - current_batches
+
+table_patterns:
+  bronze: <source_id>_raw
+  silver: <source_id>_clean
+  quarantine: <source_id>_quarantine
+  integration_map: <subject>_map
+  gold_dimension: dim_<entity>
+  gold_fact: fact_<business_process>
+  analytics: <measure>_by_<dimensions>
+
+file_patterns:
+  etl: NN_<verb>_<object>.sql
+  validation: 90_validate_<object>.sql
+  source_profile: profile_<source_id>.py
+  source_dictionary: dictionary_<source_id>.py
+  cross_source_analysis: cross_source_<subject>.py
+
+code_style:
+  python_modules: snake_case
+  source_ids: snake_case
+  tables: snake_case
+  columns: snake_case
+  documentation_files: kebab-case
+
+exceptions:
+  - README.md
+  - source inventory folders match source_id and therefore use snake_case
+  - source inventory files use README.md, profile.md, and data_dictionary.md

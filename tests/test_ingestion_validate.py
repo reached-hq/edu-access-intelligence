@@ -1,6 +1,6 @@
 """What a DepEd enrollment delivery must pass before anything reaches Bronze.
 
-Each test builds made-up zips in a temporary folder (tests/fixtures/deped.py),
+Each test builds made-up zips in a temporary folder (tests/factories/deped_deliveries.py),
 approves them into a copy of the real contract, and checks that the right
 delivery is accepted and every wrong one is refused with a clear reason.
 """
@@ -12,7 +12,7 @@ import zipfile
 
 import pytest
 
-from fixtures.deped import (
+from factories.deped_deliveries import (
     REPO_ROOT, approve, columns, empty_config, make_delivery, make_rows, real_config,
     registry_entry, write_zip,
 )
@@ -70,7 +70,9 @@ def test_contract_matches_the_source_card_row_by_row(repo_root, path):
     and checksum on one row, and the CSV's name, checksum, row count, and encoding
     on another. A row count or encoding copied from another year's file fails.
     """
-    card = (repo_root / "docs/source_inventory" / path.stem / "README.md").read_text(encoding="utf-8")
+    card = (
+        repo_root / "docs" / "data" / "source-inventory" / path.stem / "README.md"
+    ).read_text(encoding="utf-8")
     lines = card.splitlines()
     for d in json.loads(path.read_text(encoding="utf-8"))["deliveries"]:
         archive_rows = [line for line in lines if d["archive_sha256"] in line]
