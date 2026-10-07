@@ -1,11 +1,14 @@
-"""Silver for deped_enrollment: cleaning rules, quarantine, the gate, and skip-when-unchanged.
+"""Silver for deped_enrollment: cleaning rules, quarantine, the gate, and the run record.
 
 Made-up deliveries (tests/factories/deped_deliveries.py) go through the real
 Bronze pipeline into an in-memory DuckDB, then through the committed Silver
-SQL, inside a throwaway repository root. No real DepEd row is used.
+SQL files, run the way the job's two SQL tasks run them: the build, then the
+gate, with the job parameters bound. No real DepEd row is used.
 """
 
 import json
+import uuid
+from dataclasses import dataclass
 from datetime import datetime
 
 import pytest
@@ -17,9 +20,7 @@ from factories.deped_deliveries import (
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
 from src.ingestion.store import DuckDBStore, to_duckdb
-from src.silver import cli
 from src.silver.dictionary import dictionary_markdown
-from src.silver.run import SilverRun
 from src.silver.spec import build_spec, load_spec
 from src.silver.sql import build_sql, gate_sql
 
@@ -31,8 +32,11 @@ CONTROL = "edu_access.`01-control`"
 V1, V2 = columns("v1"), columns("v2")
 
 
-class SimulatedCrash(BaseException):
-    """The process dying. BaseException, so the run cannot catch and record it."""
+@dataclass
+class SilverResult:
+    run_id: str
+    status: str            # succeeded | failed | built (the gate was not run)
+    error: str = None
 
 
 @pytest.fixture
@@ -59,8 +63,28 @@ class Env:
         assert summary.status == "succeeded", summary
         return summary
 
-    def silver(self, force=False, hook=None):
-        return SilverRun(self.store, self.repo, "deped_enrollment", "local", REVISION, force=force, hook=hook).execute()
+    def silver(self, run_id=None, hook=None, gate=True):
+        """The job's two Silver SQL tasks: the build, then (if it succeeded) the gate."""
+        run_id = run_id or str(uuid.uuid4())
+        params = {"run_id": run_id, "code_revision": REVISION, "environment": "local"}
+        folder = self.repo / "etl" / "03_silver"
+        try:
+            self.store.run_file(folder / "01_create_deped_enrollment_clean.sql", params)
+        except Exception as e:
+            return SilverResult(run_id, "failed", f"build: {e}")
+        if hook:
+            hook()
+        if not gate:
+            return SilverResult(run_id, "built")
+        try:
+            self.store.run_file(folder / "90_validate_deped_enrollment_clean.sql", params)
+        except Exception as e:
+            return SilverResult(run_id, "failed", str(e))
+        return SilverResult(run_id, "succeeded")
+
+    def silver_run(self, run_id):
+        return self.rows(f"SELECT * FROM {CONTROL}.pipeline_runs WHERE run_id = '{run_id}' "
+                         "AND pipeline_name = 'silver_build'")[0]
 
     def q(self, sql):
         return self.store.query(sql)
@@ -231,7 +255,9 @@ def test_quarantine_above_one_percent_fails_the_run(env):
     summary = env.silver()
     assert summary.status == "failed" and "Silver gate failed" in summary.error
     assert env.failed_checks(summary.run_id) == ["quarantine_rate"]
-    assert env.one(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE run_id = '{summary.run_id}'") == "failed"
+    run = env.silver_run(summary.run_id)
+    assert (run["status"], run["failure_stage"], run["error_message"]) == (
+        "failed", "gate", "1 FAIL result(s) in data_quality_results")
 
 
 def test_duplicate_school_id_quarantines_every_copy(env):
@@ -272,14 +298,11 @@ def test_an_unmapped_label_fails_the_gate(env):
     env.deliver("2025-26", "v2", rows=[v2_row(0, {"sector": "Charter"}), v2_row(1)])   # a new year brings a new label
     env.bronze()
     summary = env.silver()
-    assert (summary.reason, summary.status) == ("bronze_changed", "failed")
+    assert summary.status == "failed"
     assert env.failed_checks(summary.run_id) == ["labels_mapped_sector"]
     assert env.one(f"SELECT sector FROM {CLEAN} WHERE school_id = '950001'") is None
-    build = env.rows(f"SELECT * FROM {CONTROL}.layer_builds WHERE run_id = '{summary.run_id}'")[0]
-    assert (build["action"], build["outcome"], build["failure_stage"]) == ("build", "failed", "gate")
-    # The next run does not skip a failed build: it rebuilds, and fails again until the mapping is reviewed.
-    again = env.silver()
-    assert (again.action, again.reason, again.status) == ("build", "previous_run_incomplete", "failed")
+    assert env.silver_run(summary.run_id)["status"] == "failed"
+    assert env.silver().status == "failed"   # and on every run, until the mapping is reviewed
 
 
 def test_an_unknown_boolean_label_fails_the_gate(env):
@@ -311,9 +334,8 @@ def test_the_gate_catches_a_count_turned_into_zero(env):
     env.deliver("2025-26", "v2", rows=[v2_row(0, {"g1_male": ""}), v2_row(1)])
     env.bronze()
 
-    def blank_becomes_zero(stage):
-        if stage == "after_build":
-            env.store.sql(f"UPDATE {CLEAN} SET g1_male = 0 WHERE g1_male IS NULL")
+    def blank_becomes_zero():
+        env.store.sql(f"UPDATE {CLEAN} SET g1_male = 0 WHERE g1_male IS NULL")
 
     summary = env.silver(hook=blank_becomes_zero)
     assert summary.status == "failed"
@@ -324,10 +346,9 @@ def test_the_gate_catches_a_lost_row_and_a_stale_row(env):
     env.deliver("2023-24", n_rows=4)
     env.bronze()
 
-    def tamper(stage):
-        if stage == "after_build":
-            env.store.sql(f"DELETE FROM {CLEAN} WHERE school_id = '900002'")
-            env.store.sql(f"UPDATE {CLEAN} SET run_id = 'an-old-run' WHERE school_id = '900003'")
+    def tamper():
+        env.store.sql(f"DELETE FROM {CLEAN} WHERE school_id = '900002'")
+        env.store.sql(f"UPDATE {CLEAN} SET run_id = 'an-old-run' WHERE school_id = '900003'")
 
     summary = env.silver(hook=tamper)
     assert env.failed_checks(summary.run_id) == ["learners_reconcile", "missing_counts_stay_null",
@@ -353,10 +374,10 @@ def test_lineage_and_code_revision_on_every_row_and_result(env):
 def test_clean_and_quarantine_share_one_timestamp(env):
     env.deliver("2023-24", rows=v1_rows(150, {0: {"g1_male": "-1"}}))
     env.bronze()
-    env.silver()
+    summary = env.silver()
     stamps = env.q(f"SELECT DISTINCT cleaned_at_utc FROM {CLEAN} UNION SELECT DISTINCT cleaned_at_utc FROM {QUARANTINE}")
     assert len(stamps) == 1 and isinstance(stamps[0][0], datetime)
-    assert env.one(f"SELECT cleaned_at_utc FROM {CONTROL}.layer_builds") == stamps[0][0]
+    assert env.silver_run(summary.run_id)["started_at_utc"] == stamps[0][0]
 
 
 def test_check_results_hold_counts_not_values(env):
@@ -380,7 +401,7 @@ def test_only_current_batches_are_read_and_a_revision_replaces_its_year(env):
     env.bronze()
     assert env.one(f"SELECT COUNT(*) FROM {BRONZE} WHERE school_year = '2025-26'") == 8   # both versions kept
     summary = env.silver()
-    assert (summary.action, summary.reason, summary.status) == ("build", "bronze_changed", "succeeded")
+    assert summary.status == "succeeded"
     assert env.q(f"SELECT DISTINCT delivery_version, school_id LIKE '96%' FROM {CLEAN} WHERE school_year = '2025-26'") \
         == [(2, True)]
     assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE school_year = '2025-26'") == 5
@@ -388,72 +409,59 @@ def test_only_current_batches_are_read_and_a_revision_replaces_its_year(env):
     assert first.exists()
 
 
-def test_skip_when_bronze_is_unchanged(env):
-    env.deliver("2023-24")
-    env.bronze()
-    built = env.silver()
-    env.bronze()                                           # a Bronze rerun that loads nothing new
-    skipped = env.silver()
-    assert (built.action, built.reason) == ("build", "first_build")
-    assert (skipped.action, skipped.reason, skipped.status) == ("skip", "unchanged", "succeeded")
-    assert env.q(f"SELECT DISTINCT run_id FROM {CLEAN}") == [(built.run_id,)]   # tables untouched
-    assert env.q(f"SELECT action, outcome, input_batch_ids = '{built.input_batch_ids}' FROM {CONTROL}.layer_builds "
-                 "ORDER BY started_at_utc") == [("build", "succeeded", True), ("skip", "skipped", True)]
-    run = env.rows(f"SELECT * FROM {CONTROL}.pipeline_runs WHERE run_id = '{skipped.run_id}'")[0]
-    assert (run["pipeline_name"], run["status"], run["batches_loaded"], run["batches_skipped"]) == ("silver_build", "succeeded", 0, 1)
-    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = '{skipped.run_id}'") == 0
-
-
-def test_a_new_school_year_or_changed_rules_rebuild(env):
-    env.deliver("2023-24")
-    env.bronze()
-    env.silver()
-    env.deliver("2024-25", first_id=910001)
-    env.bronze()
-    assert env.silver().reason == "bronze_changed"
-    gate = env.repo / "etl" / "03_silver" / "90_validate_deped_enrollment_clean.sql"
-    gate.write_text(gate.read_text(encoding="utf-8") + "\n-- a reviewed rule change\n", encoding="utf-8")
-    assert env.silver().reason == "rules_changed"
-    assert env.silver().reason == "unchanged"
-
-
-def test_a_forced_rerun_is_idempotent(env):
+def test_every_run_rebuilds_the_same_tables(env):
+    """Silver rebuilds on every run (D-025): the same Bronze gives the same rows, never more."""
     env.deliver("2023-24", rows=v1_rows(150, {2: {"g1_male": "-1"}}))
     env.deliver("2025-26", "v2", rows=[v2_row(i) for i in range(3)])
     env.bronze()
     content = ("SELECT * EXCLUDE (run_id, cleaned_at_utc) FROM {} ORDER BY school_year, source_row_number")
     first = env.silver()
     before = (env.q(content.format(CLEAN)), env.q(content.format(QUARANTINE)))
-    again = env.silver(force=True)
-    assert (again.action, again.reason, again.status) == ("build", "forced", "succeeded")
-    assert (again.clean_rows, again.quarantined_rows) == (first.clean_rows, first.quarantined_rows) == (152, 1)
+    env.bronze()                                           # a Bronze rerun that loads nothing new
+    again = env.silver()
+    assert first.status == again.status == "succeeded" and first.run_id != again.run_id
     assert (env.q(content.format(CLEAN)), env.q(content.format(QUARANTINE))) == before
+    assert (env.one(f"SELECT COUNT(*) FROM {CLEAN}"), env.one(f"SELECT COUNT(*) FROM {QUARANTINE}")) == (152, 1)
     assert env.one(f"SELECT COUNT(*) - COUNT(DISTINCT school_id || school_year) FROM {CLEAN}") == 0
+    assert env.q(f"SELECT DISTINCT run_id FROM {CLEAN}") == [(again.run_id,)]
 
 
-def test_a_build_that_dies_is_rebuilt_not_skipped(env):
+def test_a_run_is_succeeded_only_after_its_gate_passes(env):
     env.deliver("2023-24")
     env.bronze()
-
-    def crash(stage):
-        if stage == "after_build":
-            raise SimulatedCrash()
-
-    with pytest.raises(SimulatedCrash):
-        env.silver(hook=crash)
-    assert env.one(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'silver_build'") == "running"
-    first = env.silver()
-    assert (first.action, first.reason) == ("build", "first_build")   # nothing was recorded as built
-    with pytest.raises(SimulatedCrash):
-        env.silver(force=True, hook=crash)
-    after_crash = env.silver()
-    assert (after_crash.action, after_crash.reason, after_crash.status) == ("build", "previous_run_incomplete", "succeeded")
+    built = env.silver(gate=False)                       # the build task ran; the gate task never did
+    run = env.silver_run(built.run_id)
+    assert (run["status"], run["environment"], run["code_revision"]) == ("running", "local", REVISION)
+    assert run["finished_at_utc"] is None
+    done = env.silver()
+    run = env.silver_run(done.run_id)
+    assert run["status"] == "succeeded" and run["finished_at_utc"] >= run["started_at_utc"]
+    assert env.silver_run(built.run_id)["status"] == "running"   # never mistaken for a good build
 
 
-def test_no_current_batch_fails_clearly(env):
+def test_a_repaired_run_is_judged_by_its_own_checks(env):
+    """Databricks' Repair run keeps the run_id: the gate must not count an earlier attempt's FAIL."""
+    env.deliver("2023-24", n_rows=4)
+    env.bronze()
+
+    def lose_a_row():
+        env.store.sql(f"DELETE FROM {CLEAN} WHERE school_id = '900002'")
+
+    first = env.silver(run_id="job-run-9", hook=lose_a_row)
+    assert first.status == "failed"
+    repaired = env.silver(run_id="job-run-9")
+    assert repaired.status == "succeeded"
+    assert env.silver_run("job-run-9")["status"] == "succeeded"
+    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-9' AND status = 'FAIL'") > 0
+
+
+def test_no_current_batch_fails_the_gate(env):
+    from src.ingestion import control
+    control.create_tables(env.store, env.repo)          # what the job's first task does before any load
+    env.store.run_file(env.repo / "etl" / "02_bronze" / "01_create_deped_enrollment_raw.sql")
     summary = env.silver()
-    assert summary.status == "failed" and "no succeeded Bronze batch" in summary.error
-    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.layer_builds") == 0
+    assert summary.status == "failed"
+    assert "current_batches_present" in env.failed_checks(summary.run_id)
 
 
 # --- The committed SQL, the mapping, and the command line ------------------------------------
@@ -554,20 +562,3 @@ def test_translated_regular_expressions_behave_like_spark():
     assert store.query("SELECT regexp_like('123456', '^[0-9]{6}$'), regexp_like('12345', '^[0-9]{6}$'), "
                        "regexp_like('x123456', '[0-9]{6}')") == [(True, False, True)]       # partial match, as rlike
     assert store.query("SELECT TRY_CAST('5.0' AS INT)") == [(5,)]   # why counts are checked as digits first
-
-
-def test_cli_builds_skips_and_reports(tmp_path, capsys, monkeypatch):
-    e = Env(tmp_path)
-    e.deliver("2023-24")
-    db = tmp_path / "t.duckdb"
-    e.store = DuckDBStore(db)
-    e.bronze()
-    e.store.close()
-    args = ["--source", "deped_enrollment", "--db", str(db)]
-    monkeypatch.setattr(cli, "REPO_ROOT", e.repo)
-    assert cli.main(["build", *args]) == 0
-    assert cli.main(["build", *args]) == 0
-    assert cli.main(["status", *args]) == 0
-    assert cli.main(["build", "--environment", "dev", "--code-revision", "UNSET", *args]) == 2
-    out = capsys.readouterr().out
-    assert "build (first_build)" in out and "skip (unchanged)" in out and "status: succeeded" in out

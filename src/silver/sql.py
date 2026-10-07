@@ -1,14 +1,18 @@
 """The Silver build and gate SQL for a source, generated from its spec (src/silver/spec.py).
 
-Both files are committed under etl/03_silver/ and run by src/silver/run.py;
-a test fails if a committed file differs from what this module generates, so
-the reviewed mapping is the only place a rule is written down.
+Both files are committed under etl/03_silver/, and each is one SQL task of the
+job (databricks.yml) on the SQL warehouse; src/job/local_run.py runs the same
+files locally. A test fails if a committed file differs from what this module
+generates, so the reviewed mapping is the only place a rule is written down.
 
-The SQL uses only what Databricks and DuckDB share, plus two names that
+The SQL uses only what Databricks and DuckDB share, plus names that
 src/ingestion/store.py translates for DuckDB: regexp_like (DuckDB:
-regexp_matches) and regexp_replace (Spark replaces every match, DuckDB only the
-first unless asked). No regular expression or string literal contains a
-backslash, because the two engines read backslashes in literals differently.
+regexp_matches), regexp_replace (Spark replaces every match, DuckDB only the
+first unless asked), and session variables (session.<name>). No regular
+expression or string literal contains a backslash, because the two engines read
+backslashes in literals differently. Job parameters reach the files as :name;
+they are copied into session variables first, because a parameter marker cannot
+appear in a view or table definition.
 """
 
 from src.ingestion.bronze import OWNER_GROUP
@@ -151,7 +155,7 @@ def build_sql(spec):
         "       ELSE 'has_learners' END AS enrollment_status",
         "t.barangay_possibly_truncated",
         "t.quarantine_reasons",
-    ] + [f"t.{name}" for name in lineage] + [f"run.{name}" for name in run_stamp]
+    ] + [f"t.{name}" for name in lineage] + [f"session.silver_{name} AS {name}" for name in run_stamp]
 
     clean_columns = [name for name, _ in spec.clean_columns()]
     quarantine_select = ["school_year", spec.identifier, "split(quarantine_reasons, ',') AS quarantine_reasons",
@@ -163,11 +167,37 @@ def build_sql(spec):
         "-- Every current Bronze row ends in exactly one of the two tables:",
         f"--   {spec.clean_table}       one row per school per school year, typed and standardized;",
         f"--   {spec.quarantine_table}  rows that cannot be trusted, with their reasons.",
-        "-- Each CREATE OR REPLACE is one atomic Delta commit, but the pair is not, so the run",
-        "-- is trusted only once its gate passes and pipeline_runs says succeeded (docs/operations/silver.md).",
+        "-- Each CREATE OR REPLACE is one atomic Delta commit, but the pair is not, so the run is",
+        "-- trusted only once the gate (the next task) records it succeeded in pipeline_runs",
+        "-- (docs/operations/silver.md). It rebuilds on every run (D-025).",
         "--",
-        "-- Needs the temporary table silver_run (run_id, cleaned_at_utc, code_revision), one row staged",
-        "-- by src/silver/run.py, so both tables carry the same run and the same timestamp.",
+        "-- Parameters, supplied by the job (or src/job/local_run.py):",
+        "--   :run_id         the job run; every row built here, and the gate's results, carry it",
+        "--   :code_revision  the commit that ran, from the job parameter; never a literal",
+        "--   :environment    the deploy target: local, dev, or prod",
+        "",
+        "-- One run stamp for the whole file, so both tables carry the same run and the same time.",
+        "DECLARE OR REPLACE VARIABLE silver_run_id STRING;",
+        "SET VARIABLE silver_run_id = :run_id;",
+        "DECLARE OR REPLACE VARIABLE silver_code_revision STRING;",
+        "SET VARIABLE silver_code_revision = COALESCE(NULLIF(:code_revision, ''), 'UNSET');",
+        "DECLARE OR REPLACE VARIABLE silver_environment STRING;",
+        "SET VARIABLE silver_environment = COALESCE(NULLIF(:environment, ''), 'UNSET');",
+        "DECLARE OR REPLACE VARIABLE silver_cleaned_at_utc TIMESTAMP;",
+        "SET VARIABLE silver_cleaned_at_utc = current_timestamp();",
+        "",
+        "-- The run starts. Its row stays 'running' until the gate records how it ended, so a",
+        "-- build that dies is never mistaken for a good one.",
+        f"MERGE INTO {CONTROL}.pipeline_runs AS t",
+        "USING (SELECT session.silver_run_id AS run_id) AS s",
+        f"ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = {lit(source)}",
+        "WHEN MATCHED THEN UPDATE SET",
+        "  status = 'running', started_at_utc = session.silver_cleaned_at_utc, finished_at_utc = NULL,",
+        "  failure_stage = NULL, error_message = NULL, code_revision = session.silver_code_revision",
+        "WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, status, started_at_utc, code_revision)",
+        f"  VALUES (s.run_id, 'silver_build', {lit(source)}, session.silver_environment, 'running',",
+        "          session.silver_cleaned_at_utc, session.silver_code_revision);",
+        "",
         f"CREATE SCHEMA IF NOT EXISTS edu_access.`{SCHEMA}`;",
         f"ALTER SCHEMA edu_access.`{SCHEMA}` OWNER TO `{OWNER_GROUP}`;",
         "",
@@ -196,8 +226,7 @@ def build_sql(spec):
         ")",
         "SELECT",
         joined(final, 2),
-        "FROM typed AS t",
-        "CROSS JOIN silver_run AS run;",
+        "FROM typed AS t;",
         "",
         "-- One row per school per school year, with the Bronze row it came from.",
         f"CREATE OR REPLACE TABLE {clean} USING DELTA AS",
@@ -315,6 +344,8 @@ def gate_sql(spec):
 
     checks = [
         "-- The whole table, both tables together",
+        check("current_batches_present", clean_name, "CASE WHEN current_batches > 0 THEN 'PASS' ELSE 'FAIL' END",
+              "'at least 1'", "CAST(current_batches AS STRING)", "found"),
         must_be_zero("lineage_complete", clean_name, "missing_lineage", "whole"),
         must_be_zero("rows_resolve_to_current_bronze", clean_name, "unresolved_rows", "unresolved"),
         must_be_zero("rows_built_by_this_run", clean_name, "other_run_rows", "whole"),
@@ -362,15 +393,21 @@ def gate_sql(spec):
     missing_lineage = " OR ".join(f"{name} IS NULL" for name in ["school_year", *lineage, *stamp])
     lines = header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [
         "--",
-        "-- Runs after every Silver build. Each check writes one row to data_quality_results; the",
-        "-- last statement fails on any FAIL recorded for this run (including the column-type checks",
-        "-- written by src/silver/run.py), so the run is not marked succeeded and nothing downstream runs.",
+        "-- The job task after the Silver build. Each check writes one row to data_quality_results;",
+        "-- then the run's pipeline_runs row records 'succeeded' or 'failed', and the last statement",
+        "-- fails the task on any FAIL, so nothing downstream runs.",
         "-- PASS: as expected. WARN: recorded, the build stands (quarantined rows exist).",
         "-- FAIL: the Silver tables cannot be trusted. Results hold counts, never row values.",
         "--",
-        "-- Parameters, supplied by the job (or the local CLI):",
-        "--   :run_id         the Silver run being checked",
+        "-- Parameters, supplied by the job (or src/job/local_run.py):",
+        "--   :run_id         the job run that built the tables",
         "--   :code_revision  the commit that ran, from the job parameter; never a literal",
+        "",
+        "-- Only this execution's results decide: a repaired job run keeps its run_id, and the",
+        "-- results of an earlier attempt must not fail it again.",
+        "DECLARE OR REPLACE VARIABLE silver_gate_started_at_utc TIMESTAMP;",
+        "SET VARIABLE silver_gate_started_at_utc = current_timestamp();",
+        "",
         f"INSERT INTO {CONTROL}.data_quality_results",
         "  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)",
         f"SELECT :run_id, batch_id, {lit(source)}, 'silver', table_name, check_name, status, expected, actual,",
@@ -423,6 +460,7 @@ def gate_sql(spec):
         "  LEFT JOIN matched_years ON matched_years.school_year = y.school_year",
         "  LEFT JOIN quarantine_years ON quarantine_years.school_year = y.school_year",
         "),",
+        "found AS (SELECT COUNT(*) AS current_batches FROM cur),",
         "silver_rows AS (",
         silver_rows,
         "),",
@@ -446,13 +484,31 @@ def gate_sql(spec):
         "SELECT * FROM checks",
         ") AS results;",
         "",
-        "-- Stop here if anything failed in this run.",
+        "-- How the run ended. 'succeeded' is the last write of a good build: Gold reads Silver",
+        "-- only when the latest silver_build run of the source succeeded.",
+        f"MERGE INTO {CONTROL}.pipeline_runs AS t",
+        "USING (",
+        "  SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails",
+        f"  FROM {CONTROL}.data_quality_results",
+        f"  WHERE run_id = :run_id AND source_id = {lit(source)} AND layer = 'silver'",
+        "    AND checked_at_utc >= session.silver_gate_started_at_utc",
+        ") AS s",
+        f"ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = {lit(source)}",
+        "WHEN MATCHED THEN UPDATE SET",
+        "  status = CASE WHEN s.fails = 0 THEN 'succeeded' ELSE 'failed' END,",
+        "  finished_at_utc = current_timestamp(),",
+        "  failure_stage = CASE WHEN s.fails = 0 THEN NULL ELSE 'gate' END,",
+        "  error_message = CASE WHEN s.fails = 0 THEN NULL",
+        "                       ELSE CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results' END;",
+        "",
+        "-- Stop here if anything failed in this execution.",
         "SELECT CASE WHEN COUNT(*) > 0",
         f"            THEN raise_error('Silver gate failed for {source}: ' || CAST(COUNT(*) AS STRING)",
         "                             || ' FAIL result(s) in data_quality_results for run ' || :run_id)",
         "       END",
         f"FROM {CONTROL}.data_quality_results",
-        f"WHERE run_id = :run_id AND source_id = {lit(source)} AND layer = 'silver' AND status = 'FAIL';",
+        f"WHERE run_id = :run_id AND source_id = {lit(source)} AND layer = 'silver' AND status = 'FAIL'",
+        "  AND checked_at_utc >= session.silver_gate_started_at_utc;",
         "",
     ]
     return "\n".join(lines)

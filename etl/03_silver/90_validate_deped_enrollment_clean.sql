@@ -3,15 +3,21 @@
 --   python -m src.silver.cli gate --source deped_enrollment > etl/03_silver/90_validate_deped_enrollment_clean.sql
 -- Do not edit by hand; tests/test_silver.py fails if it differs.
 --
--- Runs after every Silver build. Each check writes one row to data_quality_results; the
--- last statement fails on any FAIL recorded for this run (including the column-type checks
--- written by src/silver/run.py), so the run is not marked succeeded and nothing downstream runs.
+-- The job task after the Silver build. Each check writes one row to data_quality_results;
+-- then the run's pipeline_runs row records 'succeeded' or 'failed', and the last statement
+-- fails the task on any FAIL, so nothing downstream runs.
 -- PASS: as expected. WARN: recorded, the build stands (quarantined rows exist).
 -- FAIL: the Silver tables cannot be trusted. Results hold counts, never row values.
 --
--- Parameters, supplied by the job (or the local CLI):
---   :run_id         the Silver run being checked
+-- Parameters, supplied by the job (or src/job/local_run.py):
+--   :run_id         the job run that built the tables
 --   :code_revision  the commit that ran, from the job parameter; never a literal
+
+-- Only this execution's results decide: a repaired job run keeps its run_id, and the
+-- results of an earlier attempt must not fail it again.
+DECLARE OR REPLACE VARIABLE silver_gate_started_at_utc TIMESTAMP;
+SET VARIABLE silver_gate_started_at_utc = current_timestamp();
+
 INSERT INTO edu_access.`01-control`.data_quality_results
   (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, batch_id, 'deped_enrollment', 'silver', table_name, check_name, status, expected, actual,
@@ -338,6 +344,7 @@ years AS (
   LEFT JOIN matched_years ON matched_years.school_year = y.school_year
   LEFT JOIN quarantine_years ON quarantine_years.school_year = y.school_year
 ),
+found AS (SELECT COUNT(*) AS current_batches FROM cur),
 silver_rows AS (
   SELECT school_year, batch_id, delivery_version, schema_version, source_sha256, source_row_number, run_id, cleaned_at_utc, code_revision FROM clean
   UNION ALL SELECT school_year, batch_id, delivery_version, schema_version, source_sha256, source_row_number, run_id, cleaned_at_utc, code_revision FROM quarantined
@@ -358,7 +365,10 @@ unresolved AS (
 ),
 checks AS (
   -- The whole table, both tables together
-  SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'lineage_complete' AS check_name,
+  SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'current_batches_present' AS check_name,
+         CASE WHEN current_batches > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
+         'at least 1' AS expected, CAST(current_batches AS STRING) AS actual FROM found
+  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'lineage_complete' AS check_name,
          CASE WHEN missing_lineage = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(missing_lineage AS STRING) AS actual FROM whole
   UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rows_resolve_to_current_bronze' AS check_name,
@@ -483,10 +493,28 @@ checks AS (
 SELECT * FROM checks
 ) AS results;
 
--- Stop here if anything failed in this run.
+-- How the run ended. 'succeeded' is the last write of a good build: Gold reads Silver
+-- only when the latest silver_build run of the source succeeded.
+MERGE INTO edu_access.`01-control`.pipeline_runs AS t
+USING (
+  SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails
+  FROM edu_access.`01-control`.data_quality_results
+  WHERE run_id = :run_id AND source_id = 'deped_enrollment' AND layer = 'silver'
+    AND checked_at_utc >= session.silver_gate_started_at_utc
+) AS s
+ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = 'deped_enrollment'
+WHEN MATCHED THEN UPDATE SET
+  status = CASE WHEN s.fails = 0 THEN 'succeeded' ELSE 'failed' END,
+  finished_at_utc = current_timestamp(),
+  failure_stage = CASE WHEN s.fails = 0 THEN NULL ELSE 'gate' END,
+  error_message = CASE WHEN s.fails = 0 THEN NULL
+                       ELSE CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results' END;
+
+-- Stop here if anything failed in this execution.
 SELECT CASE WHEN COUNT(*) > 0
             THEN raise_error('Silver gate failed for deped_enrollment: ' || CAST(COUNT(*) AS STRING)
                              || ' FAIL result(s) in data_quality_results for run ' || :run_id)
        END
 FROM edu_access.`01-control`.data_quality_results
-WHERE run_id = :run_id AND source_id = 'deped_enrollment' AND layer = 'silver' AND status = 'FAIL';
+WHERE run_id = :run_id AND source_id = 'deped_enrollment' AND layer = 'silver' AND status = 'FAIL'
+  AND checked_at_utc >= session.silver_gate_started_at_utc;

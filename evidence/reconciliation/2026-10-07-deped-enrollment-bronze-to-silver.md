@@ -59,9 +59,11 @@ Idempotency: the MD5 of all 180,500 clean rows, ordered by school year and row n
 
 ## Why it holds
 
-1. Silver reads Bronze only through `current_batches`, and each row goes to exactly one of the two tables by a reasons string that is never NULL ([build SQL](../../etl/03_silver/01_create_deped_enrollment_clean.sql)).
-2. The gate recomputes rows, learners, blank cells, labels, and lineage from Bronze and compares them with Silver per school year ([gate](../../etl/03_silver/90_validate_deped_enrollment_clean.sql)).
-3. A run skips only when the current batches and the SHA-256 of the build and gate SQL equal those of the last successful build and the previous run finished ([run.py](../../src/silver/run.py)).
+Links point to the code at the commit above; Silver has since become two SQL tasks that rebuild on every run (D-025).
+
+1. Silver reads Bronze only through `current_batches`, and each row goes to exactly one of the two tables by a reasons string that is never NULL ([build SQL](https://github.com/reached-hq/edu-access-intelligence/blob/fe859549a99394adc3030c460ff92e637ccd49e5/etl/03_silver/01_create_deped_enrollment_clean.sql)).
+2. The gate recomputes rows, learners, blank cells, labels, and lineage from Bronze and compares them with Silver per school year ([gate](https://github.com/reached-hq/edu-access-intelligence/blob/fe859549a99394adc3030c460ff92e637ccd49e5/etl/03_silver/90_validate_deped_enrollment_clean.sql)).
+3. A run skips only when the current batches and the SHA-256 of the build and gate SQL equal those of the last successful build and the previous run finished ([run.py](https://github.com/reached-hq/edu-access-intelligence/blob/fe859549a99394adc3030c460ff92e637ccd49e5/src/silver/run.py)).
 
 ## Also shown by tests
 

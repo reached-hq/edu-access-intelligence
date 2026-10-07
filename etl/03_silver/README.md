@@ -4,8 +4,8 @@ Typed, standardized, and validated data at the source's own grain, with a quaran
 
 | File | What it does |
 |---|---|
-| `01_create_<table>.sql` | Rebuilds the source's clean and quarantine tables from the Bronze rows of `` `01-control`.current_batches `` only: a temporary view classifies every row (cleaned values and quarantine reasons), then two `CREATE OR REPLACE TABLE ... AS SELECT`, each handed to `reached-hq`. Needs the one-row temporary table `silver_run` staged by `src/silver/run.py` |
-| `90_validate_<table>.sql` | Silver gate, run after every build: reconciliation with Bronze per school year, keys, ranges, NULLs, labels, lineage, quarantine rate, and a record of each rule's affected rows. Writes to `data_quality_results` (`layer = 'silver'`) and fails on any FAIL. Reads `:run_id` and `:code_revision` |
+| `01_create_<table>.sql` | Job task: rebuilds the source's clean and quarantine tables from the Bronze rows of `` `01-control`.current_batches `` only, on every run. It keeps one run stamp in session variables (`:run_id`, `:code_revision`, one timestamp), records the run as `running` in `pipeline_runs`, classifies every row in a temporary view (cleaned values and quarantine reasons), then runs two `CREATE OR REPLACE TABLE ... AS SELECT`, each handed to `reached-hq` |
+| `90_validate_<table>.sql` | Job task after the build: reconciliation with Bronze per school year, keys, ranges, NULLs, labels, lineage, quarantine rate, and a record of each rule's affected rows. Writes to `data_quality_results` (`layer = 'silver'`), records the run as `succeeded` or `failed` in `pipeline_runs`, then fails the task on any FAIL. Reads `:run_id` and `:code_revision` |
 
 Both files are generated from the Bronze contract (`config/ingestion/<source_id>.json`) and the reviewed Silver mapping (`config/mappings/<source_id>.json`); a test fails if they differ:
 

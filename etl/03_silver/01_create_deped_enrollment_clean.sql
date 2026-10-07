@@ -8,11 +8,37 @@
 -- Every current Bronze row ends in exactly one of the two tables:
 --   deped_enrollment_clean       one row per school per school year, typed and standardized;
 --   deped_enrollment_quarantine  rows that cannot be trusted, with their reasons.
--- Each CREATE OR REPLACE is one atomic Delta commit, but the pair is not, so the run
--- is trusted only once its gate passes and pipeline_runs says succeeded (docs/operations/silver.md).
+-- Each CREATE OR REPLACE is one atomic Delta commit, but the pair is not, so the run is
+-- trusted only once the gate (the next task) records it succeeded in pipeline_runs
+-- (docs/operations/silver.md). It rebuilds on every run (D-025).
 --
--- Needs the temporary table silver_run (run_id, cleaned_at_utc, code_revision), one row staged
--- by src/silver/run.py, so both tables carry the same run and the same timestamp.
+-- Parameters, supplied by the job (or src/job/local_run.py):
+--   :run_id         the job run; every row built here, and the gate's results, carry it
+--   :code_revision  the commit that ran, from the job parameter; never a literal
+--   :environment    the deploy target: local, dev, or prod
+
+-- One run stamp for the whole file, so both tables carry the same run and the same time.
+DECLARE OR REPLACE VARIABLE silver_run_id STRING;
+SET VARIABLE silver_run_id = :run_id;
+DECLARE OR REPLACE VARIABLE silver_code_revision STRING;
+SET VARIABLE silver_code_revision = COALESCE(NULLIF(:code_revision, ''), 'UNSET');
+DECLARE OR REPLACE VARIABLE silver_environment STRING;
+SET VARIABLE silver_environment = COALESCE(NULLIF(:environment, ''), 'UNSET');
+DECLARE OR REPLACE VARIABLE silver_cleaned_at_utc TIMESTAMP;
+SET VARIABLE silver_cleaned_at_utc = current_timestamp();
+
+-- The run starts. Its row stays 'running' until the gate records how it ended, so a
+-- build that dies is never mistaken for a good one.
+MERGE INTO edu_access.`01-control`.pipeline_runs AS t
+USING (SELECT session.silver_run_id AS run_id) AS s
+ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = 'deped_enrollment'
+WHEN MATCHED THEN UPDATE SET
+  status = 'running', started_at_utc = session.silver_cleaned_at_utc, finished_at_utc = NULL,
+  failure_stage = NULL, error_message = NULL, code_revision = session.silver_code_revision
+WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, status, started_at_utc, code_revision)
+  VALUES (s.run_id, 'silver_build', 'deped_enrollment', session.silver_environment, 'running',
+          session.silver_cleaned_at_utc, session.silver_code_revision);
+
 CREATE SCHEMA IF NOT EXISTS edu_access.`03-silver`;
 ALTER SCHEMA edu_access.`03-silver` OWNER TO `reached-hq`;
 
@@ -655,11 +681,10 @@ SELECT
   t.schema_version,
   t.source_sha256,
   t.source_row_number,
-  run.run_id,
-  run.cleaned_at_utc,
-  run.code_revision
-FROM typed AS t
-CROSS JOIN silver_run AS run;
+  session.silver_run_id AS run_id,
+  session.silver_cleaned_at_utc AS cleaned_at_utc,
+  session.silver_code_revision AS code_revision
+FROM typed AS t;
 
 -- One row per school per school year, with the Bronze row it came from.
 CREATE OR REPLACE TABLE edu_access.`03-silver`.deped_enrollment_clean USING DELTA AS

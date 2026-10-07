@@ -51,6 +51,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") == [(0,)]
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_enrollment_clean") == [(3, "job-run-1")]
+    assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'silver_build'") == [("succeeded",)]
     store.close()
 
 
@@ -91,6 +93,7 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
     assert results["bronze_deped_enrollment"] == "succeeded"      # the load itself is fine
     assert results["90_validate_deped_enrollment_raw"] == "failed"
+    assert results["01_create_deped_enrollment_clean"] == "upstream_failed"   # Silver never builds on a failed gate
     assert results["bronze_deped_facilities"] == "succeeded"      # independent root: enrollment cannot block it
     store = DuckDBStore(db)
     assert store.query(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "

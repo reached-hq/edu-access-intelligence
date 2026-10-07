@@ -10,8 +10,8 @@ LINEAGE_MEANING = {
     "schema_version": "Which header the file had; tells a column absent that year (NULL) from a published blank (NULL)",
     "source_sha256": "SHA-256 of the publisher's CSV; with `source_row_number`, identifies the Bronze row exactly",
     "source_row_number": "The row's position in that CSV (data rows from 1)",
-    "run_id": "The Silver run that built the row; every row of a build has the same one",
-    "cleaned_at_utc": "When that Silver run built the table; one value per build, in UTC",
+    "run_id": "The job run that built the row (`{{job.run_id}}`); every row of a build has the same one, as do the gate's results",
+    "cleaned_at_utc": "When that build ran; one value for both tables, in UTC",
     "code_revision": "The commit that ran the build",
 }
 

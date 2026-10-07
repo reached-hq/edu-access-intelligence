@@ -17,12 +17,10 @@ import pytest
 from src.ingestion.store import SparkStore
 
 CLI = "src/ingestion/cli.py"
-SILVER_CLI = "src/silver/cli.py"
 
 # Every job file, with a command that succeeds without a store and what it prints.
 JOB_FILES = [
     (CLI, "ddl", "CREATE TABLE IF NOT EXISTS"),
-    (SILVER_CLI, "sql", "CREATE OR REPLACE TABLE"),
 ]
 
 
