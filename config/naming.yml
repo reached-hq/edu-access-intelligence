@@ -16,6 +16,7 @@ control_tables:
   - ingestion_batch_attempts
   - data_quality_results
   - current_batches
+  - layer_builds
 
 table_patterns:
   bronze: <source_id>_raw

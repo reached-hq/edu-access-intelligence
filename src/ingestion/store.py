@@ -45,6 +45,10 @@ def to_duckdb(statement):
     statement = statement.replace("`", '"')
     statement = re.sub(r"(?<![:\w]):([A-Za-z_]\w*)", r"$\1", statement)  # :name parameters
     statement = re.sub(r"\braise_error\(", "error(", statement)
+    statement = re.sub(r"\bregexp_like\(", "regexp_matches(", statement)
+    # Same name, different meaning: Spark replaces every match, DuckDB only the
+    # first unless given 'g'. regexp_replace_all is a macro made in DuckDBStore.
+    statement = re.sub(r"\bregexp_replace\(", "regexp_replace_all(", statement)
     statement = re.sub(r"\bcurrent_timestamp\(\)", "(current_timestamp AT TIME ZONE 'UTC')", statement)
     statement = re.sub(r"\bSTRING\b", "VARCHAR", statement)
     statement = re.sub(r"\s+USING\s+DELTA\b", "", statement, flags=re.IGNORECASE)
@@ -74,6 +78,7 @@ class DuckDBStore:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.con.execute(f"ATTACH '{target}' AS {CATALOG}")
         self.con.execute(f"USE {CATALOG}")
+        self.con.execute("CREATE TEMP MACRO regexp_replace_all(s, p, r) AS regexp_replace(s, p, r, 'g')")
         self._tmp = tempfile.TemporaryDirectory()
 
     def close(self):

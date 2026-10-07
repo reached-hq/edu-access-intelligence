@@ -15,6 +15,7 @@ RUNS = "pipeline_runs"
 BATCHES = "ingestion_batches"
 ATTEMPTS = "ingestion_batch_attempts"
 DQ = "data_quality_results"
+BUILDS = "layer_builds"
 
 
 def create_tables(store, repo_root):
@@ -54,6 +55,10 @@ def add_attempt(store, row):
 
 def add_checks(store, rows):
     _append(store, DQ, rows)
+
+
+def add_layer_build(store, row):
+    _append(store, BUILDS, [row])
 
 
 def find_batch(store, archive_sha256):
