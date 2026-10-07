@@ -1,8 +1,8 @@
 # Ingestion: Source → Control → Bronze
 
-How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract.
+How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below).
 
-**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs.
+**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs. `psa_poverty_stat`: built and tested locally with made-up workbooks only; **not yet run on the real workbook or on Databricks** (see its section).
 
 ## The flow
 
@@ -27,7 +27,7 @@ Code: `src/ingestion/` ([module list](../../src/ingestion/README.md)). SQL: `etl
 
 | Question | Answer |
 |---|---|
-| What is ingested? | The CSV inside each `Enrollment-in-SY-YYYY-YYYY.zip`. The `README.md` inside is checksummed but stays in Source |
+| What is ingested? | Every row of sheet `2023_NoHUC_Maguindanao grouped` (used range A1:S1641, 1,641 rows), so no worksheet row is dropped: the title (row 1), the 4 header rows, the 1,630 body rows (Excel rows 6 to 1635: 1,612 city/municipality rows and 18 region banner rows), and the 6 footer rows (notes and source line). Each row is labelled by `source_row_kind`; only `unit` rows are data. Column S is in the used range but empty, and checked, not loaded |
 | How often does it arrive? | Yearly, one zip per school year (SY 2025-26 was added 2026-07-23). DepEd also re-uploads published years (2025-10-15) |
 | What identifies a new delivery? | An archive SHA-256 not seen before |
 | What shows a delivery changed? | The same school year (from the file names) with a different SHA-256 |
@@ -403,3 +403,258 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 | Who can approve a delivery, and does `deped_enrollment` move to `accepted` before a `prod` target exists? | Any reviewer; stays `profiled` | Team |
 | Should a blank `school_id` fail the whole year, or be quarantined in Silver? | Fail the batch (none observed) | Profile O-1 |
 | Does DepEd publish the promised school ID mapping file, and should it be a delivery member? | Unexpected members fail the batch | Source card |
+
+## PSA Poverty Stat (xlsx workbook)
+
+`psa_poverty_stat` loads through the same pipeline as DepEd, from its own contract, `config/ingestion/psa_poverty_stat.json` (`format: xlsx_sheet`). What differs is in `src/ingestion/workbook.py` (reading and checking the workbook) and `src/ingestion/formats.py` (period, versions, load type). Decision: D-018.
+
+**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`). **Not yet verified on the real workbook**: the merged-header and footer checks follow the profile's description (O-1) and must be confirmed by one local run on the real file ([commands](#psa-running-locally)). **Not run on Databricks.** The source stays `profiled`.
+
+### The flow
+
+```
+psa.gov.ph stat-tables page                (official xlsx; no API, no scraping)
+   │  download by hand; never modify, never re-save in Excel
+   ▼
+00 Source   /Volumes/edu_access/00-source/raw/psa/[<download date>/]2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx
+   │  discover *SAE*.xlsx → SHA-256 → approved?   (config/ingestion/psa_poverty_stat.json)
+   ▼
+   │  open safely → expected sheet only → header names from the merged header → schema version
+   │  → estimate years from the header → footer 'Notes:' → every row 1..1641 labelled title / header /
+   │    unit / region_banner / footer
+01 Control  pipeline_runs · ingestion_batches (+ logical_dataset, estimate_years_covered, source_sheet)
+   │        · ingestion_batch_attempts · data_quality_results
+   │  checks (FAIL blocks; WARN records) → MERGE → reconcile (rows, units, banners) → succeeded → gate
+   ▼
+02 Bronze   edu_access.`02-bronze`.psa_poverty_stat_raw   (1,641 rows per delivery: the whole sheet, text, with provenance)
+   │
+   ▼  Silver reads only batches in `01-control`.current_batches
+```
+
+### The nine questions
+
+| Question | Answer |
+|---|---|
+| What is ingested? | Sheet `2023_NoHUC_Maguindanao grouped` of the approved workbook: the 1,630 body rows (Excel rows 6 to 1635), both the 1,612 city/municipality rows and the 18 region banner rows. The title, header rows and footer stay in Source; they are checked, not loaded |
+| How often does it arrive? | UNVERIFIED. One workbook so far, covering 2018, 2021 and 2023 (released 2026-02-06). Treated as an irregular batch, never as a stream |
+| What identifies a new delivery? | A workbook SHA-256 not seen before |
+| What shows a delivery changed? | The same file name (or estimate years already loaded) with a different SHA-256. There is no `updated_at` in the workbook, and none is invented |
+| Has this exact file been processed? | `ingestion_batches.status = 'succeeded'` for its `archive_sha256` (the workbook's) |
+| Are previous versions kept? | Yes: in Source (no overwrite, D-016) and in Bronze (`delivery_version` per `logical_dataset`, D-015, D-018) |
+| Is the delivery valid? | The checks under [PSA validation](#psa-validation) |
+| Can it be rerun safely? | Yes: a succeeded workbook is skipped; a forced rerun inserts nothing |
+| Where did each row come from? | `source_file`, `source_sha256`, `source_sheet`, `source_row_number` (the Excel row), plus `batch_id`, `run_id`, `code_revision` |
+
+### Identity
+
+| Level | Identified by | Why |
+|---|---|---|
+| Delivery (batch) | Workbook SHA-256; `batch_id` = `psa_poverty_stat__2018-2021-2023__<sha[:12]>` | Same bytes, same batch, wherever the file sits |
+| Logical period | `logical_dataset` + `delivery_version` (e.g. `sae_city_municipal_2018_2021_2023` v1) | One workbook covers three estimate years, so versions are counted per dataset, not per year |
+| Estimate years | `estimate_years_covered` = `2018,2021,2023`, read from the header and checked against the approval | Delivery metadata. A wide row holds all three years; no row is given a single year |
+| Bronze row | `source_sha256` + `source_row_number` (Excel row) | A rerun inserts nothing; repeated publisher rows (different Excel rows) are all kept. One sheet per approved workbook keeps the pair unique; loading a second sheet would need `source_sheet` in the key |
+| Schema | `schema_version` + `schema_fingerprint` of the 18 built column names | Any renamed, added, or reordered header changes it |
+
+Why not a hash of the row's content? Two identical publisher rows would merge into one, which is silent deduplication. Why not the file name? PSA can replace the file at the same URL and name.
+
+### Layout as a versioned contract
+
+Schema `v1` pins the layout the profile found (O-1), and anything else stops the batch:
+
+| Element | Contract | On anything else |
+|---|---|---|
+| Sheets | Only `2023_NoHUC_Maguindanao grouped` | `missing_sheet` / `unexpected_sheet` (a new sheet may hold data) |
+| Header | Rows 2 (group, merged across its columns), 4 (ID; Lower/Upper Limit), 5 (year) build 18 names that must equal `v1` exactly | `unknown_schema_drift`; groups not merged as profiled: `unexpected_header_layout` |
+| Estimate years | From the column names: 2018, 2021, 2023, equal to the approval | `estimate_years_mismatch` |
+| Used range | `A1:S1641`, as declared in the sheet | FAIL |
+| Body | Row 6 to the row before `Notes:` in column A: 1,630 rows | `footer_not_found`; count FAIL |
+| Row kinds | `unit` (has `PSGC ID`), `region_banner` (only `Region/Province`), `blank`, `unclassified` | Units 1,612 and banners 18 each reconciled; any `unclassified` row FAILs |
+| Footer | 6 rows (1636 to 1641), loaded as `footer` | FAIL |
+| Title and header | Row 1 (`title`) and rows 2 to 5 (`header`), loaded as received | Header drift stops the batch (above) |
+| Column S | Empty and ignored; nothing right of it | FAIL |
+
+### PSA validation
+
+Before Bronze, in addition to the layout above:
+
+| Check | Status |
+|---|---|
+| Workbook exists, approved by SHA-256 | `blocked` (`unregistered_delivery`; `checksum_mismatch` for an approved name with other bytes) |
+| Opens as a zip without `..`, absolute, linked or encrypted parts, under 50 MB expanded; no XML DTD or entities | `failed` (`corrupt_archive`, `corrupt_workbook`, `unsafe_member`, `unsafe_workbook`, `archive_too_large`) |
+| `PSGC ID` matches `[0-9]{5,6}` on every unit row (banners exempt) | FAIL |
+| Units, banners, blank rows, body rows, footer rows equal the approval | FAIL |
+| `PSGC ID` unique; no fully repeated rows | WARN, rows kept (source duplicates) |
+| Non-numeric values in estimate columns; formula cells; error cells | WARN, rows kept |
+| Known publisher issues (below) | WARN with the profiled count beside the actual count |
+
+Known issues are flagged, never corrected, in Bronze:
+
+| Check (`known_issue_…`) | Profiled | Finding | Bronze keeps |
+|---|---|---|---|
+| `psgc_id_leading_zero_lost` (ID shorter than 6 digits) | 1,073 | O-2 | `12801`, not `012801` |
+| `unit_rows_without_estimates` (Kalayaan) | 1 | O-5 | 15 blanks `''`; never 0. Missing is not zero poverty |
+| `province_label_continued` | 1 | O-3 | `(Continued)` as written |
+| `lower_limit_zero_or_negative` | 3 | O-7 | `-2.4063453271442992E-2`, not clipped |
+| `se_disagrees_with_cv_2018` / `_2021` / `_2023` (tolerance 0.05) | 6 / 133 / 1 | O-8 (2021: CALABARZON) | SE as published |
+| `cv_over_20_2018` / `_2021` / `_2023` | 171 / 84 / 156 | O-9 | CV as published |
+
+Values are the text stored in the file: numbers keep every stored digit (no rounding, no added precision), text keeps its Unicode, and labels and names are not standardized (61 differ from PSGC, O-10/X-1). Results hold counts only, never values.
+
+After the MERGE: Bronze rows for the workbook equal the sheet's rows (1,641), Excel row numbers run 1..1641 with no repeats, every provenance column is filled, and the counts by `source_row_kind` equal the file's (`bronze_row_kinds_match_source`: title 1, header 4, unit 1,612, region_banner 18, footer 6). Then the generated gate (`etl/02_bronze/90_validate_psa_poverty_stat_raw.sql`) checks the whole table.
+
+### Bronze table
+
+`edu_access.`02-bronze`.psa_poverty_stat_raw` (generated: `etl/02_bronze/01_create_psa_poverty_stat_raw.sql`): 17 provenance columns, then the 18 publisher columns as text. Poverty incidence is the percentage of **persons** below the poverty threshold (press release 2026-43), not of families or students. Each year's estimate keeps its CV, standard error, and both 90% limits in the same row.
+
+| Provenance column | Meaning |
+|---|---|
+| `source_id`, `source_system`, `source_url` | From the registry |
+| `logical_dataset`, `estimate_years_covered`, `delivery_version` | Which delivery, of which dataset, covering which years |
+| `source_file`, `source_sha256`, `source_sheet`, `source_row_number` | The workbook, its checksum, the sheet, the Excel row |
+| `source_row_kind` | `title`, `header`, `unit`, `region_banner`, `blank`, or `footer`, from the layout; changes no source column. Silver reads only `unit` rows as data |
+| `schema_version`, `schema_fingerprint` | Which header it had |
+| `batch_id`, `run_id`, `ingested_at_utc`, `code_revision` | The batch, the run, when, and the commit |
+
+### Retry, rerun, backfill, revision (workbooks)
+
+| Term | Example | What happens |
+|---|---|---|
+| Skip | The same workbook again | Attempt logged `skip`; 0 rows |
+| Retry | A batch that failed (for example an approval with a wrong count, later fixed) or was interrupted | Picked up automatically; MERGE adds only missing rows |
+| Rerun | `--rerun psa_poverty_stat__2018-2021-2023__303fb0e87bff` | Validated and merged again; 0 rows |
+| Incremental | A workbook with only later years (e.g. 2025) | New `logical_dataset`, `load_type = incremental`; earlier rows untouched |
+| Backfill | A workbook with only earlier years (e.g. 2015) | New `logical_dataset`, `load_type = backfill`; nothing rebuilt |
+| Revised delivery | A changed workbook for years already loaded (same name, or overlapping years) | Before approval: `blocked`, `load_type = revision`, run fails, nothing overwritten. After approval as `delivery_version: 2` of the same `logical_dataset` with `supersedes`: loaded beside v1; `current_batches` points to v2 |
+
+The contract refuses two logical datasets that share an estimate year, so a workbook that republishes 2023 can only enter as a reviewed revision, never as a silent second copy of 2023. Whether a later release that adds a year (2018 to 2025, say) is a revision of the existing dataset or a new dataset is a team decision when it happens (open question below); until then the contract forces the question.
+
+<a id="psa-running-locally"></a>
+### Running locally
+
+In VS Code's terminal, from the repository root, with the virtual environment active:
+
+```bash
+python -m pytest tests -q
+```
+
+```bash
+python -m src.ingestion.cli ingest --source psa_poverty_stat
+```
+
+```bash
+python -m src.ingestion.cli status --source psa_poverty_stat
+```
+
+`RAW_DATA_DIR` must be set in that terminal first ([terminal setup, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)), or given with `--landing <raw root>`. The workbook must be under `$RAW_DATA_DIR/psa/` (for example `psa/original/`). Expected on the real file: one batch `load initial`, `inserted=1641 bronze=1641`, status `succeeded`, every FAIL-type check PASS and the known-issue WARNs at their profiled counts; the second run `skip`, `inserted=0`. If the first run reports `unexpected_header_layout`, `footer_rows_match_approved` or another layout FAIL, the profile's description of the layout and the real file differ: do not change the data, record what was found and adjust the contract in review.
+
+After changing the contract's schema, regenerate the SQL (a test fails until you do):
+
+```bash
+python -m src.ingestion.cli ddl --source psa_poverty_stat > etl/02_bronze/01_create_psa_poverty_stat_raw.sql
+```
+
+```bash
+python -m src.ingestion.cli gate --source psa_poverty_stat > etl/02_bronze/90_validate_psa_poverty_stat_raw.sql
+```
+
+### Databricks confirmation (not yet done)
+
+`databricks.yml` has a third task, `bronze_psa_poverty_stat`, after facilities (`run_if: ALL_DONE`). Before running it: the change is reviewed and merged, the run is announced to the team (it touches the shared control tables), and the CLI profile `reached-hq` works. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
+
+The first run after this change also adds three nullable columns to `ingestion_batches` and two to `ingestion_batch_attempts` (`ALTER TABLE … ADD COLUMN`, only if missing) and replaces `current_batches`. DepEd rows are unaffected (the new columns are NULL for them), but the run should be announced, and `ALTER TABLE ADD COLUMN` on the existing Delta tables is confirmed only by that run.
+
+Validation queries (Databricks SQL editor):
+
+```sql
+-- The batch and its counts: expect 1 succeeded, expected = source = bronze = 1641 (the whole sheet)
+SELECT batch_id, logical_dataset, estimate_years_covered, source_sheet, delivery_version, load_type, status,
+       expected_rows, source_rows, bronze_rows, error_code
+FROM edu_access.`01-control`.ingestion_batches WHERE source_id = 'psa_poverty_stat';
+
+-- Every sheet row by kind: expect footer 6, header 4, region_banner 18, title 1, unit 1612
+SELECT source_row_kind, COUNT(*) FROM edu_access.`02-bronze`.psa_poverty_stat_raw GROUP BY ALL ORDER BY 1;
+
+-- Load then skip: expect 'load' in run 1 and 'skip' with 0 rows in run 2
+SELECT r.started_at_utc, a.action, a.outcome, a.rows_inserted, a.estimate_years_covered
+FROM edu_access.`01-control`.ingestion_batch_attempts AS a JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
+WHERE a.source_id = 'psa_poverty_stat' ORDER BY r.started_at_utc;
+
+-- No pipeline duplicates: expect 0
+SELECT COUNT(*) - COUNT(DISTINCT source_sha256, source_row_number) FROM edu_access.`02-bronze`.psa_poverty_stat_raw;
+
+-- Excel rows: expect 1 and 1641
+SELECT MIN(source_row_number), MAX(source_row_number) FROM edu_access.`02-bronze`.psa_poverty_stat_raw;
+
+-- Known issues kept as received: expect 1073 five-digit IDs, 1 unit with a blank 2023 estimate
+SELECT COUNT_IF(source_row_kind = 'unit' AND length(`PSGC ID`) = 5) AS five_digit_ids,
+       COUNT_IF(source_row_kind = 'unit' AND `Poverty Incidence 2023` = '') AS blank_2023
+FROM edu_access.`02-bronze`.psa_poverty_stat_raw;
+
+-- Checks for the PSA batch: expect no FAIL, and WARNs at the profiled counts
+SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
+WHERE source_id = 'psa_poverty_stat' AND run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs
+                                                  WHERE source_id = 'psa_poverty_stat') ORDER BY status, check_name;
+
+-- Where one row came from
+SELECT source_file, source_sha256, source_sheet, source_row_number, source_row_kind, batch_id, run_id, code_revision
+FROM edu_access.`02-bronze`.psa_poverty_stat_raw WHERE source_row_number = 641;
+```
+
+### Handoff to Silver (not built here)
+
+Silver should:
+
+- read only rows whose `batch_id` is in `current_batches`, and only `source_row_kind = 'unit'`; use the banner rows to carry the region label down (O-3), never as places;
+- keep `PSGC ID` raw, and add a padded 6-digit code (`lpad(…, 6, '0')`) and the PSGC Correspondence Code (padded code + `000`); the geographic join to PSGC belongs in Integration (X-1, D-012);
+- unpivot to one row per unit and estimate year, typing estimates, CV, SE and limits as decimals without rounding; blanks become NULL with a reason (`no_estimate` for Kalayaan), never 0;
+- flag, not fix: CV over 20, the 2021 CALABARZON standard errors, zero or negative lower limits (clip only in a documented, reversible column if a rule is approved);
+- take province from the ID prefix, not the labels (`(Continued)`, Surigao rows, O-3), and region from the banner for Negros Island Region (two ID prefixes);
+- record that 33 highly urbanized cities, Isabela, Cotabato, Pateros and 8 SGA municipalities are `not_in_source`, not zero poverty;
+- keep `batch_id` and `source_row_number` on every row.
+
+Cross-year comparability (S-3) and update frequency remain unverified; a trend across 2018, 2021 and 2023 needs the team's decision first.
+
+### Runbook (PSA)
+
+**1. How do I add a new PSA Poverty Stat workbook delivery?**
+Download it from the stat-tables page; do not rename it, open-and-save it, or convert it. Upload it to `raw/psa/<download date>/` (never over an existing file) with that folder's `SHA256SUMS.txt`. Profile it (`analysis/profiling/profile_psa_poverty.py`, adjusted for its name and checksum), update the card, and add the delivery to `config/ingestion/psa_poverty_stat.json` in a pull request: `logical_dataset`, `estimate_years`, `workbook`, `workbook_sha256`, `sheet`, `schema_version`, `body_rows`, `unit_rows`, `banner_rows`, `footer_rows`, `retrieved_at_utc`. If the header has other years or columns, add a schema version (and regenerate the DDL). Then run the job.
+
+**2. How do I know whether it was already processed?**
+`python -m src.ingestion.cli status --source psa_poverty_stat`, or the first validation query: `succeeded` for its SHA-256 means processed.
+
+**3. What happens if the publisher replaces a file?**
+The new bytes do not match the approved SHA-256: the batch is `blocked` (`checksum_mismatch`, `load_type = revision` when its header names years already loaded) and the run fails. Nothing is overwritten. If the change is real, approve it as `delivery_version: 2` of the same `logical_dataset` with `supersedes` set to v1's `workbook_sha256`. Both versions stay in Bronze.
+
+**4. How do I inspect a failed batch?**
+
+```sql
+SELECT batch_id, status, failure_stage, error_code, error_message, attempt_count, last_run_id
+FROM edu_access.`01-control`.ingestion_batches
+WHERE source_id = 'psa_poverty_stat' AND status IN ('failed', 'blocked', 'loading');
+```
+
+Then its checks: `SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results WHERE batch_id = '<batch_id>'`.
+
+**5. How do I safely rerun it?**
+Fix the cause and run again: a `failed` or `loading` batch is retried and the MERGE adds only missing rows. To repeat a succeeded batch on purpose: `--rerun <batch_id>` (adds 0 rows).
+
+**6. How do I verify the Bronze output?**
+1,641 rows for the workbook (1 `title`, 4 `header`, 1,612 `unit`, 18 `region_banner`, 6 `footer`), Excel rows 1 to 1641, no FAIL, the known-issue WARNs at their profiled counts, and one row traced to its sheet line with the last query above (row 641 is Kalayaan, blank estimates).
+
+**7. How do I prove the same batch did not create duplicates?**
+Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still has 1,641 rows, and the duplicate query returns 0. Locally, `tests/test_ingestion_psa.py::test_psa_idempotency_demonstration` proves the same with made-up workbooks, and `analysis/demo/psa_ingestion_demo.py` prints the whole story (load, skip, a new year, a changed file blocked, a crash and its recovery, one row traced to its Excel line) for a presentation: run it cell by cell in VS Code, or `python analysis/demo/psa_ingestion_demo.py`. It uses no raw data and no Databricks.
+
+### Limitations and open questions (PSA)
+
+- Verified only on made-up workbooks; the real-file run and the Databricks run are pending.
+- The merged-header check expects each group in row 2 to be merged across its columns, as the profile describes; if the real file differs, the contract is corrected in review, not the file.
+- `known_issue` checks compare against counts from one profile run; they warn, they never block.
+- Update frequency, cross-year comparability (S-3), and the PSGC version of the ID are unverified.
+
+| Question | Default until decided | Where |
+|---|---|---|
+| Is a later release that adds a year (and may revise old ones) a revision of the current dataset, or a new dataset? | The contract refuses overlap across datasets, so the reviewer must choose; both versions are kept either way | D-018 |
+| Should the latest version always be current after a revision? | Latest succeeded version | D-015 |
+| Does `psa_poverty_stat` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
+| How long are superseded versions kept? | Forever | Not yet logged |
+| Should Silver clip negative lower limits, or only flag them? | Flag only | Silver issue |

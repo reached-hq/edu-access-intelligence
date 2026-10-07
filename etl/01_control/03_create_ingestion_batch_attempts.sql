@@ -21,7 +21,10 @@ CREATE TABLE IF NOT EXISTS edu_access.`01-control`.ingestion_batch_attempts (
   error_code STRING,
   error_message STRING,
   environment STRING NOT NULL,
-  code_revision STRING NOT NULL
+  code_revision STRING NOT NULL,
+  -- Workbook sources only (see 02_create_ingestion_batches.sql); NULL otherwise.
+  logical_dataset STRING,
+  estimate_years_covered STRING
 );
 
 -- Owned by the team group, not by whoever ran the job first (D-009).

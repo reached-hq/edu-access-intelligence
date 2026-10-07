@@ -1,0 +1,197 @@
+{
+  "source_id": "psa_poverty_stat",
+  "format": "xlsx_sheet",
+  "bronze_table": "psa_poverty_stat_raw",
+  "landing_dir": "psa",
+  "workbook_pattern": "^(?!~\\$).*SAE.*\\.xlsx$",
+  "max_uncompressed_bytes": 50000000,
+  "identifier_column": "PSGC ID",
+  "identifier_pattern": "[0-9]{5,6}",
+  "label_column": "Region/Province",
+  "required_columns": [
+    "PSGC ID",
+    "Region/Province",
+    "Municipality/City"
+  ],
+  "schema_versions": {
+    "v1": {
+      "first_estimate_years": [
+        "2018",
+        "2021",
+        "2023"
+      ],
+      "note": "Profiled 2026-09-29 (profile.md O-1). Names built from the merged header exactly as analysis/profiling/dictionary_psa_poverty.py builds them; column S is empty and ignored.",
+      "layout": {
+        "first_data_row": 6,
+        "group_row": 2,
+        "group_fill_from_column": 4,
+        "sub_row": 4,
+        "sub_row_columns": [
+          1,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18
+        ],
+        "year_row": 5,
+        "width": 18,
+        "ignored_columns": [
+          19
+        ],
+        "footer_marker": "Notes:",
+        "value_columns_from": 4
+      },
+      "columns": [
+        "PSGC ID",
+        "Region/Province",
+        "Municipality/City",
+        "Poverty Incidence 2018",
+        "Poverty Incidence 2021",
+        "Poverty Incidence 2023",
+        "Coefficient of Variation 2018",
+        "Coefficient of Variation 2021",
+        "Coefficient of Variation 2023",
+        "Standard Error 2018",
+        "Standard Error 2021",
+        "Standard Error 2023",
+        "90% Confidence Interval Lower Limit 2018",
+        "90% Confidence Interval Upper Limit 2018",
+        "90% Confidence Interval Lower Limit 2021",
+        "90% Confidence Interval Upper Limit 2021",
+        "90% Confidence Interval Lower Limit 2023",
+        "90% Confidence Interval Upper Limit 2023"
+      ]
+    }
+  },
+  "known_issues": [
+    {
+      "name": "psgc_id_leading_zero_lost",
+      "check": "identifier_shorter_than",
+      "length": 6,
+      "finding": "O-2",
+      "profiled": 1073
+    },
+    {
+      "name": "unit_rows_without_estimates",
+      "check": "unit_rows_all_values_blank",
+      "finding": "O-5 (Kalayaan, footnote 3)",
+      "profiled": 1
+    },
+    {
+      "name": "province_label_continued",
+      "check": "label_equals",
+      "columns": [
+        "Region/Province"
+      ],
+      "value": "(Continued)",
+      "finding": "O-3",
+      "profiled": 1
+    },
+    {
+      "name": "lower_limit_zero_or_negative",
+      "check": "number_at_most",
+      "limit": 0,
+      "finding": "O-7",
+      "profiled": 3,
+      "columns": [
+        "90% Confidence Interval Lower Limit 2018",
+        "90% Confidence Interval Lower Limit 2021",
+        "90% Confidence Interval Lower Limit 2023"
+      ]
+    },
+    {
+      "name": "se_disagrees_with_cv_2018",
+      "check": "se_disagrees_with_cv",
+      "tolerance": 0.05,
+      "finding": "O-8",
+      "profiled": 6,
+      "columns": [
+        "Poverty Incidence 2018",
+        "Coefficient of Variation 2018",
+        "Standard Error 2018"
+      ]
+    },
+    {
+      "name": "se_disagrees_with_cv_2021",
+      "check": "se_disagrees_with_cv",
+      "tolerance": 0.05,
+      "finding": "O-8 (CALABARZON)",
+      "profiled": 133,
+      "columns": [
+        "Poverty Incidence 2021",
+        "Coefficient of Variation 2021",
+        "Standard Error 2021"
+      ]
+    },
+    {
+      "name": "se_disagrees_with_cv_2023",
+      "check": "se_disagrees_with_cv",
+      "tolerance": 0.05,
+      "finding": "O-8",
+      "profiled": 1,
+      "columns": [
+        "Poverty Incidence 2023",
+        "Coefficient of Variation 2023",
+        "Standard Error 2023"
+      ]
+    },
+    {
+      "name": "cv_over_20_2018",
+      "check": "number_above",
+      "limit": 20,
+      "finding": "O-9",
+      "profiled": 171,
+      "columns": [
+        "Coefficient of Variation 2018"
+      ]
+    },
+    {
+      "name": "cv_over_20_2021",
+      "check": "number_above",
+      "limit": 20,
+      "finding": "O-9",
+      "profiled": 84,
+      "columns": [
+        "Coefficient of Variation 2021"
+      ]
+    },
+    {
+      "name": "cv_over_20_2023",
+      "check": "number_above",
+      "limit": 20,
+      "finding": "O-9",
+      "profiled": 156,
+      "columns": [
+        "Coefficient of Variation 2023"
+      ]
+    }
+  ],
+  "deliveries": [
+    {
+      "logical_dataset": "sae_city_municipal_2018_2021_2023",
+      "estimate_years": [
+        "2018",
+        "2021",
+        "2023"
+      ],
+      "delivery_version": 1,
+      "supersedes": null,
+      "workbook": "2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx",
+      "workbook_sha256": "303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026",
+      "sheet": "2023_NoHUC_Maguindanao grouped",
+      "used_range": "A1:S1641",
+      "schema_version": "v1",
+      "body_rows": {
+        "first": 6,
+        "last": 1635
+      },
+      "unit_rows": 1612,
+      "banner_rows": 18,
+      "footer_rows": 6,
+      "release": "PSA press release 2026-43, released 2026-02-06",
+      "retrieved_at_utc": "2026-09-29T10:00:00Z"
+    }
+  ]
+}

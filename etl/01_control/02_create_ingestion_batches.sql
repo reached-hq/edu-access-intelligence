@@ -1,13 +1,13 @@
--- The processed-file manifest: one row per distinct archive (by SHA-256) ever
--- seen, holding its current state. Upserted with MERGE on batch_id.
+-- The processed-file manifest: one row per distinct archive or workbook (by
+-- SHA-256) ever seen, holding its current state. Upserted with MERGE on batch_id.
 --
 -- Bronze has no cross-table transaction with this table, so this row is the
 -- commit marker: downstream reads only Bronze rows whose batch has
 -- status = 'succeeded' (see 05_create_current_batches.sql).
 CREATE TABLE IF NOT EXISTS edu_access.`01-control`.ingestion_batches (
-  batch_id STRING NOT NULL,            -- <source_id>__<school_year>__<archive_sha256[:12]>; same file, same id
+  batch_id STRING NOT NULL,            -- <source_id>__<school year or estimate years>__<archive_sha256[:12]>; same file, same id
   source_id STRING NOT NULL,
-  school_year STRING,                  -- from the file names; NULL if they could not be read
+  school_year STRING,                  -- from the file names; NULL if unreadable, or for a workbook source
   delivery_version INT,                -- 1 for a school year's first delivery, 2+ for revisions
   supersedes_archive_sha256 STRING,    -- the delivery a revision replaces; both stay in Bronze
   load_type STRING,                    -- initial | incremental | backfill | revision
@@ -35,7 +35,13 @@ CREATE TABLE IF NOT EXISTS edu_access.`01-control`.ingestion_batches (
   error_code STRING,
   error_message STRING,
   environment STRING NOT NULL,
-  code_revision STRING NOT NULL        -- commit of the latest attempt
+  code_revision STRING NOT NULL,       -- commit of the latest attempt
+  -- Added for workbook sources whose delivery covers several estimate years
+  -- (psa_poverty_stat). NULL for school-year sources. Existing tables get
+  -- these columns from src/ingestion/control.py (ADDED_COLUMNS).
+  logical_dataset STRING,              -- what versions are counted within, e.g. 'sae_city_municipal_2018_2021_2023'
+  estimate_years_covered STRING,       -- e.g. '2018,2021,2023': delivery metadata, not a value of any one row
+  source_sheet STRING                  -- the workbook sheet loaded
 );
 
 -- Owned by the team group, not by whoever ran the job first (D-009).

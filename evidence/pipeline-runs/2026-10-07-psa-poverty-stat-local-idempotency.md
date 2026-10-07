@@ -1,0 +1,123 @@
+# Evidence: PSA Poverty Stat ingestion is idempotent and incremental (local, made-up workbooks)
+
+Issue #83 · local only (DuckDB) · 2026-10-07, Manila time (UTC+8) · run by Claude for @catweyine, to be rerun by a reviewer
+
+> **Scope of this evidence.** Made-up workbooks shaped like the real one (`tests/factories/psa_workbooks.py`), the real `psa_poverty_stat` contract rules, and the real `etl/` SQL, on an in-memory DuckDB. It does **not** show that the real workbook passes the layout checks, and it is **not** a Databricks run. Both are still to do (see "What this does not prove").
+
+## The claim
+
+When a PSA Poverty Stat workbook arrives, the pipeline loads it once, skips it on every later run, loads a workbook with a new estimate year (or an older one) without touching earlier rows, refuses a changed file under an approved name without overwriting anything, and recovers from a crash after the Bronze write without duplicates. Every Bronze row points to its workbook, sheet, and Excel row.
+
+## What was run
+
+Code on branch `feat/83-psa-poverty-bronze`, rebased onto `main` at `49703b9` (after the repository reorganization, #105), from a clean checkout; the commit SHA is the pull request's head. DuckDB 1.4.5 built from the `duckdb-python` v1.4.5 source, because the package index was not reachable from the workspace used; the same suite on untouched `main` passed 203 of 203 with that build, as a baseline.
+
+```bash
+python -m pytest tests -q
+```
+
+Result: `279 passed` (203 existing plus 76 new; 72 of the new tests in `tests/test_ingestion_psa.py`). No existing test changed behavior; `tests/test_ingestion_validate.py` gained a workbook branch in the card-consistency test.
+
+```bash
+python analysis/demo/psa_ingestion_demo.py
+```
+
+Output (exit code 0). Run IDs are random per execution. Each fixture workbook has 19 sheet rows, all loaded: 1 title, 4 header, 8 body (6 units, 2 region banners), 6 footer:
+
+```text
+== Run 1, first delivery: run cda63045 SUCCEEDED
+   2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx    years=2018,2021,2023  load   initial     succeeded inserted=19
+
+-- batch manifest
+   ('psa_poverty_stat__2018-2021-2023__84e221518598', '2018,2021,2023', 'initial', 'succeeded', 19, 19, 19)
+
+-- every sheet row lands in Bronze, by kind (title, header, units, banners, footer reconciled separately)
+   ('footer', 6)
+   ('header', 4)
+   ('region_banner', 2)
+   ('title', 1)
+   ('unit', 6)
+
+== Run 2, same files: run de131da7 SUCCEEDED
+   2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx    years=2018,2021,2023  skip   initial     skipped   inserted=0
+
+-- attempts log
+   ('cda63045', 'load', 'succeeded', 19)
+   ('de131da7', 'skip', 'skipped', 0)
+
+-- pipeline duplicates (expect 0)
+   (0,)
+
+== Run 3, new year 2025: run 71ebc82e SUCCEEDED
+   2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx    years=2018,2021,2023  skip   initial     skipped   inserted=0
+   2_2025 SAE_with PSGC_noHUC_01Feb2028.xlsx    years=2025            load   incremental succeeded inserted=19
+
+-- rows per delivery, and the run that inserted them (2018-2023 untouched)
+   ('2018,2021,2023', 19, 1)
+   ('2025', 19, 1)
+
+== Run 4, changed workbook under the approved name: run 5a80af37 FAILED
+   2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx    years=2018,2021,2023  block  revision    blocked   inserted=0
+      reason: 2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx has SHA-256 03d3b89d74e0585745b1a67f69fce33be5d0e53f32b6275d4cb736d533252342, which is not approved (approved: sae_cit
+   2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx    years=2018,2021,2023  skip   initial     skipped   inserted=0
+   2_2025 SAE_with PSGC_noHUC_01Feb2028.xlsx    years=2025            skip   incremental skipped   inserted=0
+
+-- nothing overwritten
+   ('2018,2021,2023', 1, 19)
+   ('2025', 1, 19)
+
+-- the blocked file
+   ('psa_poverty_stat__2018-2021-2023__03d3b89d74e0', 'blocked', 'revision', 'checksum_mismatch')
+
+== Run 5 crashed after writing Bronze, before marking the batch succeeded
+
+-- the 2015 batch is stuck in 'loading', and downstream cannot see it
+   ('2015', 'loading', False)
+   ('2018,2021,2023', 'succeeded', True)
+   ('2018,2021,2023', 'blocked', False)
+   ('2025', 'succeeded', True)
+
+== Run 6, the same command again: run 5d1f707a SUCCEEDED
+   2_2015 SAE_with PSGC_noHUC_01Jan2017.xlsx    years=2015            retry  backfill    succeeded inserted=0
+   2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx    years=2018,2021,2023  skip   initial     skipped   inserted=0
+   2_2025 SAE_with PSGC_noHUC_01Feb2028.xlsx    years=2025            skip   incremental skipped   inserted=0
+
+-- recovered without duplicates
+   ('2015', 19, 19)
+   ('2018,2021,2023', 19, 19)
+   ('2025', 19, 19)
+
+-- row from Excel line 9 of the first workbook (a unit with no estimates: blank, not 0)
+   ('2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx', '84e221518598', '2023_NoHUC_Maguindanao grouped', 9, 'unit', '99103', 'No Estimate Town', '', 'psa_poverty_stat__2018-2021-2023__84e221', 'cda63045')
+
+-- known publisher issues recorded as WARN (not corrected)
+   ('known_issue_cv_over_20_2018', '1', '0 (profiled: 171, O-9)')
+   ('known_issue_lower_limit_zero_or_negative', '1', '0 (profiled: 3, O-7)')
+   ('known_issue_province_label_continued', '1', '0 (profiled: 1, O-3)')
+   ('known_issue_psgc_id_leading_zero_lost', '3', '0 (profiled: 1073, O-2)')
+   ('known_issue_se_disagrees_with_cv_2018', '2', '0 (profiled: 6, O-8)')
+   ('known_issue_se_disagrees_with_cv_2023', '1', '0 (profiled: 1, O-8)')
+   ('known_issue_unit_rows_without_estimates', '1', '0 (profiled: 1, O-5 (Kalayaan, footnote 3))')
+```
+
+## Why the claim holds
+
+| Step | Evidence above |
+|---|---|
+| Load once | Run 1: `load initial`, 19 inserted (the whole sheet); manifest `expected = source = bronze = 19`; title, header, units, banners and footer reconciled separately |
+| Same file again inserts nothing | Run 2: `skip`, 0 inserted; attempts log `load` then `skip`; pipeline duplicates 0 |
+| New estimate year is incremental | Run 3: 2025 workbook `load incremental`; 2018-2023 rows still from 1 run |
+| Changed bytes under the approved name | Run 4: `block revision`, `checksum_mismatch`; Bronze still one version per dataset; run `FAILED` (exit 1 on the command line) |
+| Crash after the Bronze write | Run 5: 2015 batch stuck in `loading`, not visible in `current_batches` |
+| Recovery | Run 6: same command, `retry backfill`, 0 inserted (rows already there), 19 rows and 19 distinct Excel rows per delivery |
+| Provenance | The traced row gives file, workbook SHA-256, sheet, Excel row 9, row kind, batch, run; its blank estimate stays `''` |
+| Known issues kept, not fixed | WARN results with the profiled count beside each |
+
+## What this does not prove
+
+- That the real workbook (`303fb0e8…`) passes the layout checks: the merged-header groups, the footer at row 1636, 1,630 body rows, 1,641 rows in the used range A1:S1641. The checks follow the profile's description (O-1); no one has run them on the real file yet. Run `python -m src.ingestion.cli ingest --source psa_poverty_stat` with `RAW_DATA_DIR` set, twice, and record the output here.
+- Databricks behavior: `ALTER TABLE … ADD COLUMN` on the existing control tables, the replaced `current_batches` view, Delta column names with `%` and `/`, and reading the workbook from `/Volumes/`. These are confirmed only by the `dev` job run (`docs/operations/ingestion.md`, PSA section).
+
+## How to reproduce
+
+From the repository root, in VS Code's terminal with the virtual environment active, run the two commands above. Nothing needs raw data or credentials.
