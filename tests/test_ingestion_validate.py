@@ -75,6 +75,13 @@ def test_contract_matches_the_source_card_row_by_row(repo_root, path):
     ).read_text(encoding="utf-8")
     lines = card.splitlines()
     for d in json.loads(path.read_text(encoding="utf-8"))["deliveries"]:
+        if "workbook_sha256" in d:  # a workbook delivered as is (xlsx_table): one file, one card row
+            rows = [line for line in lines if d["workbook_sha256"] in line]
+            assert len(rows) == 1, f"{d['workbook']}: its checksum must be on exactly one card row"
+            assert f"`{d['workbook']}`" in rows[0], f"{d['workbook']}: checksum is on another file's row"
+            assert f"{d['row_count']:,}" in rows[0], f"{d['workbook']}: row count {d['row_count']:,} is not on its card row"
+            assert d["range"] in rows[0], f"{d['workbook']}: range {d['range']} is not on its card row"
+            continue
         archive_rows = [line for line in lines if d["archive_sha256"] in line]
         assert len(archive_rows) == 1, f"{d['archive']}: its checksum must be on exactly one card row"
         assert f"`{d['archive']}`" in archive_rows[0], f"{d['archive']}: checksum is on another file's row"
