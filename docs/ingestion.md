@@ -2,7 +2,7 @@
 
 How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract.
 
-**Status:** built and tested locally. **Not yet run on Databricks**: the raw files are not uploaded yet (#10), and the confirmation run is the last step of #11. Nothing in this document claims a Databricks table, job, or run exists until that section says it was done.
+**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs.
 
 ## The flow
 
