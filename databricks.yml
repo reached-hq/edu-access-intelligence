@@ -3,19 +3,31 @@
 # Change the job by changing this file and deploying, not by editing it in the
 # workspace: a UI edit does not reach this file, and the next deploy overwrites it.
 #
-# Jobs so far: bronze_ingest (#11), one task per source. Dashboards come in milestone 04 (Serve).
+# One job, edu_access_pipeline (#47): per source, a Python task that checks and
+# loads its deliveries, then each layer's SQL from etl/ as its own task.
+# Dashboards come in milestone 04 (Serve).
 # Commands and checks: docs/operations/ingestion.md, "Running on Databricks".
 bundle:
   name: edu-access-intelligence
 
+variables:
+  # The SQL warehouse that runs every sql_task. Warehouse ids are per
+  # workspace: check `databricks warehouses list --profile reached-hq` if the
+  # host changes. Override without editing this file:
+  #   databricks bundle deploy --target dev --var="warehouse_id=<id>"
+  warehouse_id:
+    description: SQL warehouse that runs the job's SQL tasks (Serverless Starter Warehouse)
+    default: 71d3ccb9cea611c0
+
 resources:
   jobs:
-    bronze_ingest:
-      name: bronze_ingest
+    edu_access_pipeline:
+      name: edu_access_pipeline
       description: >-
         Loads approved raw deliveries from the 00-source volume into 02-bronze,
-        recording every run, batch, and check in 01-control. Rerunning it is
-        safe: files already loaded are skipped.
+        then runs each layer's SQL from etl/ as its own task, recording every
+        run, batch, and check in 01-control. Rerunning it is safe: files
+        already loaded are skipped.
 
       # Every row the job writes (Bronze, control, data-quality results) carries
       # the commit that produced it. Resolved at deploy time from the same
@@ -24,6 +36,11 @@ resources:
       parameters:
         - name: code_revision
           default: ${bundle.git.commit}
+        # One id for every SQL task of a run: a gate's results carry it, and
+        # its last statement fails on any FAIL recorded under it. Python tasks
+        # keep their own run id in pipeline_runs.
+        - name: run_id
+          default: "{{job.run_id}}"
 
       # A branch would be resolved when the job runs, a commit when the bundle is
       # deployed: with git_branch, deploying at commit A and then merging B runs
@@ -44,6 +61,11 @@ resources:
       # started deliberately with `databricks bundle run`.
 
       tasks:
+        # Per source: a Python task checks each delivery against its contract
+        # and loads it (the files are zips with a declared encoding, which SQL
+        # cannot read), then the SQL tasks run that source's files from etl/,
+        # each only if the one before it succeeded. The Python task leaves the
+        # Bronze gate to the SQL task after it (--no-gate).
         - task_key: bronze_deped_enrollment
           environment_key: ingestion
           spark_python_task:
@@ -53,6 +75,7 @@ resources:
             source: GIT
             parameters:
               - ingest
+              - --no-gate
               - --backend
               - spark
               - --source
@@ -64,13 +87,23 @@ resources:
               - --code-revision
               - "{{job.parameters.code_revision}}"
 
-        # One source per task, one after another: parallel tasks would compete
-        # for Free Edition's serverless capacity. ALL_DONE runs the next source
-        # even if the previous one failed, so one bad delivery does not hold
-        # back the others; the job still ends failed.
-        - task_key: bronze_deped_facilities
+        - task_key: 90_validate_deped_enrollment_raw
           depends_on:
             - task_key: bronze_deped_enrollment
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/90_validate_deped_enrollment_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        # One task at a time, in one chain: parallel tasks would compete for
+        # Free Edition's serverless capacity. The next source starts with
+        # ALL_DONE, so it runs even if the previous source failed or was
+        # stopped; the job still ends failed.
+        - task_key: bronze_deped_facilities
+          depends_on:
+            - task_key: 90_validate_deped_enrollment_raw
           run_if: ALL_DONE
           environment_key: ingestion
           spark_python_task:
@@ -78,6 +111,7 @@ resources:
             source: GIT
             parameters:
               - ingest
+              - --no-gate
               - --backend
               - spark
               - --source
@@ -88,6 +122,16 @@ resources:
               - ${bundle.target}
               - --code-revision
               - "{{job.parameters.code_revision}}"
+
+        - task_key: 90_validate_deped_facilities_raw
+          depends_on:
+            - task_key: bronze_deped_facilities
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/90_validate_deped_facilities_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
 
       environments:
         - environment_key: ingestion

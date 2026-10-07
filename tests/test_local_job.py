@@ -78,3 +78,22 @@ def test_python_tasks_get_local_values():
         assert argv[argv.index(flag) + 1] == value
     assert "/Volumes/edu_access/00-source/raw" not in argv
     assert params["code_revision"] == REVISION
+
+
+def test_a_failing_gate_fails_its_task_and_the_next_source_still_runs(repo, tmp_path):
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    run_job(repo, landing, db, REVISION, log=lambda *_: None)
+    store = DuckDBStore(db)
+    store.sql(f"INSERT INTO {BRONZE} SELECT * REPLACE ('ghost' AS batch_id) FROM {BRONZE} LIMIT 1")
+    store.close()
+    results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
+    assert results["bronze_deped_enrollment"] == "succeeded"      # the load itself is fine
+    assert results["90_validate_deped_enrollment_raw"] == "failed"
+    assert results["bronze_deped_facilities"] == "succeeded"      # ALL_DONE: the next source still runs
+    store = DuckDBStore(db)
+    assert store.query(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
+                       "AND status = 'FAIL' ORDER BY 1") == [
+        ("no_pipeline_duplicates",), ("rows_have_a_known_batch",), ("succeeded_batches_reconcile",)]
+    store.close()

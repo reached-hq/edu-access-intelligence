@@ -95,19 +95,66 @@ def test_tasks_load_sources_that_have_a_contract(jobs, repo_root, project):
         assert argument(task, "--backend") == "spark"
 
 
-def test_source_tasks_run_one_after_another(jobs):
-    """Parallel tasks would compete for Free Edition's serverless capacity, and one
-    source's failure must not stop the next (run_if: ALL_DONE)."""
+def sql_tasks(jobs):
+    for job_name, job in jobs.items():
+        for task in job["tasks"]:
+            if "sql_task" in task:
+                yield job_name, task
+
+
+def test_tasks_run_one_after_another(jobs):
+    """Parallel tasks would compete for Free Edition's serverless capacity, so every task
+    waits for the one listed before it: one chain, one task at a time."""
     for name, job in jobs.items():
-        tasks = [t for _, t in python_tasks({name: job})]
+        tasks = job["tasks"]
         for previous, task in zip(tasks, tasks[1:]):
             assert [d["task_key"] for d in task.get("depends_on", [])] == [previous["task_key"]], (
                 f"{name}/{task['task_key']} must depend on {previous['task_key']} only")
-            assert task.get("run_if") == "ALL_DONE", f"{name}/{task['task_key']} must run even if the previous source failed"
+
+
+def test_each_source_starts_whatever_came_before(jobs):
+    """One source's failure must not stop the next source's load (run_if: ALL_DONE)."""
+    for name, task in python_tasks(jobs):
+        if task.get("depends_on"):
+            assert task.get("run_if") == "ALL_DONE", f"{name}/{task['task_key']} must run even if the previous task failed"
+
+
+def test_a_load_that_skips_its_gate_is_followed_by_it(jobs, repo_root):
+    """`ingest --no-gate` leaves the Bronze gate to the next task; that task must be the gate
+    of the same source, and run only if the load succeeded. No source loads unchecked."""
+    for name, job in jobs.items():
+        tasks = job["tasks"]
+        for i, task in enumerate(tasks):
+            if "spark_python_task" not in task or "--no-gate" not in task["spark_python_task"]["parameters"]:
+                continue
+            source = argument(task, "--source")
+            table = json.loads((repo_root / "config" / "ingestion" / f"{source}.json").read_text())["bronze_table"]
+            gate = tasks[i + 1] if i + 1 < len(tasks) else {}
+            assert gate.get("sql_task", {}).get("file", {}).get("path") == f"etl/02_bronze/90_validate_{table}.sql", (
+                f"{name}/{task['task_key']} skips its gate, so the next task must run 90_validate_{table}.sql")
+            assert gate.get("run_if") == "ALL_SUCCESS"
+
+
+def test_sql_tasks_run_committed_files_on_the_warehouse(jobs, repo_root):
+    tasks = list(sql_tasks(jobs))
+    assert tasks, "no SQL task found"
+    for name, task in tasks:
+        sql = task["sql_task"]
+        assert sql["file"]["source"] == "GIT", f"{name}/{task['task_key']} must read its file from the commit"
+        assert (repo_root / sql["file"]["path"]).is_file(), f"{name}/{task['task_key']}: {sql['file']['path']} missing"
+        assert sql["warehouse_id"] == "${var.warehouse_id}", f"{name}/{task['task_key']} must use the warehouse variable"
+
+
+def test_sql_tasks_share_the_run_id(jobs):
+    """A gate's results carry :run_id, and its last statement fails on a FAIL recorded under it."""
+    for name, job in jobs.items():
+        parameters = {p["name"]: p["default"] for p in job.get("parameters", [])}
+        assert parameters.get("run_id") == "{{job.run_id}}", f"{name}: job parameter run_id must be {{{{job.run_id}}}}"
 
 
 def test_every_contract_has_a_task(jobs, repo_root):
-    sources = {argument(t, "--source") for _, t in python_tasks(jobs)}
+    sources = {argument(t, "--source") for _, t in python_tasks(jobs)
+               if t["spark_python_task"]["python_file"] == "src/ingestion/cli.py"}
     contracts = {p.stem for p in (repo_root / "config" / "ingestion").glob("*.json")}
     assert contracts <= sources, f"contracts with no job task: {sorted(contracts - sources)}"
 
@@ -121,6 +168,11 @@ def test_no_schedules_during_development(jobs):
 def test_one_run_at_a_time(jobs):
     for name, job in jobs.items():
         assert job.get("max_concurrent_runs") == 1, f"{name}: two concurrent runs could both load one batch"
+
+
+def test_the_job_is_named_for_the_whole_pipeline(jobs):
+    assert list(jobs) == ["edu_access_pipeline"]
+    assert jobs["edu_access_pipeline"]["name"] == "edu_access_pipeline"
 
 
 def test_dev_target_names_the_project_workspace(bundle, project):
