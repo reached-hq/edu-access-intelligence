@@ -94,9 +94,6 @@ resources:
 
         # 02 - DepEd facilities
         - task_key: bronze_deped_facilities
-          depends_on:
-            - task_key: 90_validate_deped_enrollment_clean
-          run_if: ALL_DONE
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -150,9 +147,6 @@ resources:
         # 03 - DepEd personnel
         - task_key: bronze_deped_personnel
           disabled: true
-          depends_on:
-            - task_key: 90_validate_deped_facilities_clean
-          run_if: ALL_DONE
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -207,9 +201,6 @@ resources:
         # 04 - PSA PSGC workbook, PSGC sheet
         - task_key: bronze_psa_psgc
           disabled: true
-          depends_on:
-            - task_key: 90_validate_deped_personnel_clean
-          run_if: ALL_DONE
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -264,9 +255,6 @@ resources:
         # 05 - PSA poverty statistics
         - task_key: bronze_psa_poverty_stat
           disabled: true
-          depends_on:
-            - task_key: 90_validate_psa_psgc_clean
-          run_if: ALL_DONE
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py
@@ -321,9 +309,6 @@ resources:
         # 06 - HDX ADM3 boundaries
         - task_key: bronze_hdx_boundaries
           disabled: true
-          depends_on:
-            - task_key: 90_validate_psa_poverty_stat_clean
-          run_if: ALL_DONE
           environment_key: ingestion
           spark_python_task:
             python_file: src/ingestion/cli.py

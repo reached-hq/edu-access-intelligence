@@ -99,11 +99,12 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 | Task | Type | Runs on | Runs when |
 |---|---|---|---|
-| `bronze_<source_id>`: check each delivery against its contract, load, reconcile (`src/ingestion/cli.py ingest --no-gate`) | Python | serverless job compute | Always (`ALL_DONE` after the previous lane) |
+| `bronze_<source_id>`: check each delivery against its contract, load, reconcile (`src/ingestion/cli.py ingest --no-gate`) | Python | serverless job compute | At job start; every source load is an independent root |
 | `90_validate_<table>_raw`: the Bronze gate (`etl/02_bronze/90_validate_<table>_raw.sql`) | SQL | SQL warehouse | The load succeeded |
-| Later layers' files from `etl/`, one task each | SQL | SQL warehouse | The task before it succeeded |
+| Silver clean and validation files from `etl/`, one task each | SQL | SQL warehouse | The preceding task in the same source lane succeeded |
+| Control, Integration, Gold, and Analytics files from `etl/`, one task each | SQL | SQL warehouse | Their required upstream source outputs succeeded |
 
-Python is used only where SQL cannot do the work: the deliveries are zips with a declared encoding. Every SQL file is its own task, so a failed check shows as its own failed task. All tasks form one chain, one task at a time, so they never compete for Free Edition's capacity; a lane's tasks run only if the one before succeeded, and the next lane starts whatever happened. SQL tasks receive the job parameters `code_revision` and `run_id` (`{{job.run_id}}`) as `:code_revision` and `:run_id`. The job has no schedule during development, runs one at a time, and is safe to rerun. `python -m src.job.local_run` runs the same tasks in the same order on DuckDB ([src/job](../../src/job/README.md)).
+Python is used only where SQL cannot do the work: the deliveries are zips with a declared encoding. Every SQL file is its own task, so a failed check shows as its own failed task. Source lanes start in parallel and do not depend on each other. Within each lane, tasks run in order and stop if their own upstream task fails. The control task is the fan-in point after all source lanes, and downstream Integration tasks name the source outputs they require. SQL tasks receive the job parameters `code_revision` and `run_id` (`{{job.run_id}}`) as `:code_revision` and `:run_id`. The job has no schedule during development, allows only one whole job run at a time, and is safe to rerun. `python -m src.job.local_run` checks the same DAG in a deterministic topological order on DuckDB ([src/job](../../src/job/README.md)).
 
 ## Environments and deployment
 

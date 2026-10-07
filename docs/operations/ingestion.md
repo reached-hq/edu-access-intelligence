@@ -201,7 +201,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 1. Write `config/ingestion/<source_id>.json`: file-name patterns, the column list as a schema version, and the approved deliveries copied from the source card ([config/ingestion/README.md](../../config/ingestion/README.md)).
 2. Generate `etl/02_bronze/01_create_<source_id>_raw.sql` and `90_validate_<source_id>_raw.sql` with the two commands above.
 3. Add the publisher's file names to `NAMES` in `tests/factories/deped_deliveries.py` and a test that loads a made-up delivery (see `tests/test_ingestion_facilities.py`).
-4. Add two tasks to `edu_access_pipeline` in `databricks.yml`, after the last one: the load (`ingest --no-gate`, `run_if: ALL_DONE`) and its gate as a `sql_task` running `etl/02_bronze/90_validate_<source_id>_raw.sql` (`run_if: ALL_SUCCESS`). `tests/test_bundle.py` checks the chain, and that a load without its gate is followed by it.
+4. Add a source lane to `edu_access_pipeline` in `databricks.yml`: the load (`ingest --no-gate`) is an independent root with no `depends_on`, so all sources can start in parallel. Its Bronze gate is a `sql_task` running `etl/02_bronze/90_validate_<source_id>_raw.sql` with `depends_on` pointing only to that load and `run_if: ALL_SUCCESS`. Continue the source's Silver tasks in the same lane. `tests/test_bundle.py` checks that source loads are independent and that every load is followed by its own gate.
 5. Load the real file locally and compare with the source card, then open the pull request, run the job twice on `dev`, and record the evidence.
 
 ## Running on Databricks

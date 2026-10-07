@@ -1,6 +1,6 @@
 """databricks.yml and the Bronze gates must keep every output traceable to its commit.
 
-The chain is: the deploy resolves ${bundle.git.commit} into both the job's
+The lineage path is: the deploy resolves ${bundle.git.commit} into both the job's
 git_source (the code that runs) and its code_revision parameter (the value
 recorded); each task passes the parameter on; each gate stamps it on its rows.
 A break anywhere leaves rows that name the wrong commit, or none, and nobody
@@ -103,20 +103,22 @@ def sql_tasks(jobs):
                 yield job_name, task
 
 
-def test_every_task_after_the_root_declares_dependencies(jobs):
-    """The full DAG may fan in, but it must have one root and no accidental second starting point."""
+def test_source_loads_are_independent_roots(jobs):
+    """Sources are independent: all loads can start in parallel and only their own lanes depend on them."""
     for name, job in jobs.items():
-        tasks = job["tasks"]
-        assert not tasks[0].get("depends_on")
-        for task in tasks[1:]:
-            assert task.get("depends_on"), f"{name}/{task['task_key']} has no dependency"
+        loads = [task for task in job["tasks"] if "spark_python_task" in task]
+        assert loads, f"{name} has no source loads"
+        for task in loads:
+            assert not task.get("depends_on"), f"{name}/{task['task_key']} must be an independent root"
+            assert "run_if" not in task, f"{name}/{task['task_key']} must not wait on another source"
 
 
-def test_each_source_starts_whatever_came_before(jobs):
-    """One source's failure must not stop the next source's load (run_if: ALL_DONE)."""
-    for name, task in python_tasks(jobs):
-        if task.get("depends_on"):
-            assert task.get("run_if") == "ALL_DONE", f"{name}/{task['task_key']} must run even if the previous task failed"
+def test_non_source_tasks_declare_dependencies(jobs):
+    """Only source loads are roots; every transform or check names its required upstream task."""
+    for name, job in jobs.items():
+        for task in job["tasks"]:
+            if "spark_python_task" not in task:
+                assert task.get("depends_on"), f"{name}/{task['task_key']} has no dependency"
 
 
 def test_a_load_that_skips_its_gate_is_followed_by_it(jobs, repo_root):
