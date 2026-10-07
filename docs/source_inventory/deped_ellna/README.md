@@ -21,8 +21,8 @@ Raw files are kept outside git. Row count excludes the CSV header.
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
 | `Early-Language-Literacy-and-Numeracy-Assessment-ELLNA.zip` | Official publisher ZIP | n/a | 181,924 | n/a | `d998d5c1af37c29a3247ae3e7f5d4d9aa3b0f34f94db391f55c1a8f587b7f124` | Direct download from the official DepEd URL on 2026-10-03 |
-| `Early-Language-Literacy-and-Numeracy-Assessment-ELLNA.zip` | Repackaged shared-storage ZIP | n/a | 183,613 | n/a | `5d293e40da87491528388ed87a618212cb2544071328670b680cad346f9edecb` | Team-managed shared raw storage |
-| `ellna_2023-24_selected.csv` | CSV | UTF-8-compatible ASCII, LF | 728,685 | 5,752 | `a379ccd0cf48bf3ff1174fc76374627bd92f71d31f49fa73e59c9f57b1390dc2` | Member of both ZIP packages; shared package retained in team-managed raw storage |
+| `Early-Language-Literacy-and-Numeracy-Assessment-ELLNA.zip` | Repackaged shared-storage ZIP | n/a | 183,613 | n/a | `5d293e40da87491528388ed87a618212cb2544071328670b680cad346f9edecb` | Databricks volume `/Volumes/edu_access/00-source/raw/deped/`; checksum verified 2026-10-06 |
+| `ellna_2023-24_selected.csv` | CSV | UTF-8-compatible ASCII, LF | 728,685 | 5,752 | `a379ccd0cf48bf3ff1174fc76374627bd92f71d31f49fa73e59c9f57b1390dc2` | Member of the ZIP in Databricks volume `/Volumes/edu_access/00-source/raw/deped/` |
 
 The profiled CSV and included README are byte-for-byte identical to the corresponding members of the official DepEd ZIP downloaded on 2026-10-03. The shared-storage ZIP was repackaged and therefore has a different size and outer checksum. Both package hashes are retained so the packaging-lineage difference remains reproducible after the shared file is replaced. Verify the member hashes before using either package, and replace the shared copy with the untouched publisher archive when practical.
 
@@ -32,7 +32,7 @@ The profiled CSV and included README are byte-for-byte identical to the correspo
 |---|---|---|---|
 | Official ELLNA ZIP archive | https://www.deped.gov.ph/wp-content/uploads/Early-Language-Literacy-and-Numeracy-Assessment-ELLNA.zip | `d998d5c1af37c29a3247ae3e7f5d4d9aa3b0f34f94db391f55c1a8f587b7f124` | File packaging, selected-school scope, CSV, and included README |
 | README inside the official ELLNA ZIP | Inside the archive above | `ab5b20350255d125ff96ab8903b732d8abaec4aa0d5fdd01345acafafe0060fc` | Column names, publisher data types, descriptions, score ranges, and documented non-applicable components |
-| Learning Assessment Technical Notes (ELLNA and NATG6), as of 31 March 2025 | https://www.deped.gov.ph/wp-content/uploads/Learning-Assessment-Technical-Notes-ELLNA-and-NATG6.pdf | `828f7e8526b1a5e031abf11ebe38746ae0f14a2d2726b8cd21c42b72b0dd3a95` | ELLNA background, Grade 3 scope, test design, languages, SY 2023-24 modality and administration, scoring, proficiency levels, and limitations, pages 1-6 |
+| Learning Assessment Technical Notes (ELLNA and NATG6), as of 31 March 2025 | https://www.deped.gov.ph/wp-content/uploads/Learning-Assessment-Technical-Notes-ELLNA-and-NATG6.pdf | `828f7e8526b1a5e031abf11ebe38746ae0f14a2d2726b8cd21c42b72b0dd3a95` | ELLNA background, Grade 3 scope, test design, languages, SY 2023-24 modality and administration, scoring, proficiency levels, and limitations, pages 1-6. Raw copy: Databricks volume `/Volumes/edu_access/00-source/raw/deped/`; checksum verified 2026-10-06 |
 
 ## Coverage
 

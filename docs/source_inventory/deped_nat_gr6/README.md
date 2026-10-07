@@ -20,7 +20,8 @@ Raw files are kept outside git. Row count excludes the CSV header.
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `nat_2023-24_selected.csv` | CSV | UTF-8-compatible ASCII, LF | 920,894 | 6,636 | `ddd3e019b0ad952cecce95566aff2ecb7b2b4ff4ce1135a2a1575b14f5f939bf` | Local; governed raw-storage upload pending |
+| `National-Achievement-Test-NAT-Grade-6-2023-2024.zip` | Official publisher ZIP | n/a | 171,391 | n/a | `370eacc1b6ab5f8b8c36c7671a7300c4928255c9a98da4e752f61ba84f2950f0` | Databricks volume `/Volumes/edu_access/00-source/raw/deped/`; checksum verified 2026-10-06 |
+| ↳ `nat_2023-24_selected.csv` | CSV | UTF-8-compatible ASCII, LF | 920,894 | 6,636 | `ddd3e019b0ad952cecce95566aff2ecb7b2b4ff4ce1135a2a1575b14f5f939bf` | Member of the ZIP in Databricks volume `/Volumes/edu_access/00-source/raw/deped/` |
 
 ## Publisher documentation
 
@@ -28,7 +29,7 @@ Raw files are kept outside git. Row count excludes the CSV header.
 |---|---|---|---|
 | Official NAT Grade 6 ZIP archive | https://www.deped.gov.ph/wp-content/uploads/National-Achievement-Test-NAT-Grade-6-2023-2024.zip | `370eacc1b6ab5f8b8c36c7671a7300c4928255c9a98da4e752f61ba84f2950f0` | File packaging, selected-school scope, CSV, and included README |
 | README inside the official ZIP | Inside the archive above | `ab5b20350255d125ff96ab8903b732d8abaec4aa0d5fdd01345acafafe0060fc` | Column names, publisher data types, descriptions, and score ranges |
-| Learning Assessment Technical Notes (ELLNA and NATG6), as of 31 March 2025 | https://www.deped.gov.ph/wp-content/uploads/Learning-Assessment-Technical-Notes-ELLNA-and-NATG6.pdf | `828f7e8526b1a5e031abf11ebe38746ae0f14a2d2726b8cd21c42b72b0dd3a95` | NATG6 background, test design, SY 2023-24 modality and administration, scoring, proficiency, limitations, and planned enhancements, pages 6-10 |
+| Learning Assessment Technical Notes (ELLNA and NATG6), as of 31 March 2025 | https://www.deped.gov.ph/wp-content/uploads/Learning-Assessment-Technical-Notes-ELLNA-and-NATG6.pdf | `828f7e8526b1a5e031abf11ebe38746ae0f14a2d2726b8cd21c42b72b0dd3a95` | NATG6 background, test design, SY 2023-24 modality and administration, scoring, proficiency, limitations, and planned enhancements, pages 6-10. Raw copy: Databricks volume `/Volumes/edu_access/00-source/raw/deped/`; checksum verified 2026-10-06 |
 
 ## Coverage
 
