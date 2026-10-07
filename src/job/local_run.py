@@ -45,7 +45,7 @@ LOCAL_VALUES = {"--backend": "duckdb", "--environment": "local"}
 class TaskResult:
     task_key: str
     kind: str          # python | sql
-    status: str        # succeeded | failed | upstream_failed
+    status: str        # succeeded | failed | upstream_failed | disabled
     seconds: float = 0.0
     detail: str = ""
 
@@ -139,7 +139,11 @@ def run_job(repo_root, landing, db, code_revision, job_key=None, run_id=None, lo
     for task in in_order(job["tasks"]):
         key, kind = task["task_key"], "sql" if "sql_task" in task else "python"
         deps = [results[d["task_key"]].status for d in task.get("depends_on", [])]
-        if task.get("run_if", "ALL_SUCCESS") == "ALL_SUCCESS" and any(s != "succeeded" for s in deps):
+        if task.get("disabled", False):
+            results[key] = TaskResult(key, kind, "disabled")
+        elif task.get("run_if", "ALL_SUCCESS") == "ALL_SUCCESS" and any(s == "disabled" for s in deps):
+            results[key] = TaskResult(key, kind, "disabled")
+        elif task.get("run_if", "ALL_SUCCESS") == "ALL_SUCCESS" and any(s != "succeeded" for s in deps):
             results[key] = TaskResult(key, kind, "upstream_failed")
         else:
             started = time.monotonic()
@@ -166,7 +170,7 @@ def main(argv=None):
         return 3
     revision = resolve_code_revision(REPO_ROOT, args.code_revision)
     results = run_job(REPO_ROOT, Path(landing).expanduser(), args.db, revision, args.job)
-    failed = [r.task_key for r in results if r.status != "succeeded"]
+    failed = [r.task_key for r in results if r.status not in ("succeeded", "disabled")]
     print(f"status: {'failed: ' + ', '.join(failed) if failed else 'succeeded'}")
     return 1 if failed else 0
 

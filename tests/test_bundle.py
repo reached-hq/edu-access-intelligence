@@ -90,7 +90,8 @@ def test_tasks_load_sources_that_have_a_contract(jobs, repo_root, project):
         if task["spark_python_task"]["python_file"] != "src/ingestion/cli.py":
             continue
         source = argument(task, "--source")
-        assert (repo_root / "config" / "ingestion" / f"{source}.json").is_file(), f"{source} has no contract"
+        contract = repo_root / "config" / "ingestion" / f"{source}.json"
+        assert contract.is_file() or task.get("disabled") is True, f"{source} has no contract and must be disabled"
         assert argument(task, "--landing") == project["raw_volume_path"]
         assert argument(task, "--backend") == "spark"
 
@@ -102,14 +103,13 @@ def sql_tasks(jobs):
                 yield job_name, task
 
 
-def test_tasks_run_one_after_another(jobs):
-    """Parallel tasks would compete for Free Edition's serverless capacity, so every task
-    waits for the one listed before it: one chain, one task at a time."""
+def test_every_task_after_the_root_declares_dependencies(jobs):
+    """The full DAG may fan in, but it must have one root and no accidental second starting point."""
     for name, job in jobs.items():
         tasks = job["tasks"]
-        for previous, task in zip(tasks, tasks[1:]):
-            assert [d["task_key"] for d in task.get("depends_on", [])] == [previous["task_key"]], (
-                f"{name}/{task['task_key']} must depend on {previous['task_key']} only")
+        assert not tasks[0].get("depends_on")
+        for task in tasks[1:]:
+            assert task.get("depends_on"), f"{name}/{task['task_key']} has no dependency"
 
 
 def test_each_source_starts_whatever_came_before(jobs):
@@ -128,11 +128,20 @@ def test_a_load_that_skips_its_gate_is_followed_by_it(jobs, repo_root):
             if "spark_python_task" not in task or "--no-gate" not in task["spark_python_task"]["parameters"]:
                 continue
             source = argument(task, "--source")
-            table = json.loads((repo_root / "config" / "ingestion" / f"{source}.json").read_text())["bronze_table"]
+            registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text(encoding="utf-8"))
+            table = next(entry["bronze"]["table"] for entry in registry["source_tables"]
+                         if entry["source_id"] == source)
             gate = tasks[i + 1] if i + 1 < len(tasks) else {}
             assert gate.get("sql_task", {}).get("file", {}).get("path") == f"etl/02_bronze/90_validate_{table}.sql", (
                 f"{name}/{task['task_key']} skips its gate, so the next task must run 90_validate_{table}.sql")
             assert gate.get("run_if") == "ALL_SUCCESS"
+
+
+def test_placeholder_tasks_are_disabled(jobs, repo_root):
+    for name, task in sql_tasks(jobs):
+        path = repo_root / task["sql_task"]["file"]["path"]
+        if path.read_text(encoding="utf-8").lstrip().startswith("-- PLACEHOLDER:"):
+            assert task.get("disabled") is True, f"{name}/{task['task_key']} runs placeholder SQL"
 
 
 def test_sql_tasks_run_committed_files_on_the_warehouse(jobs, repo_root):

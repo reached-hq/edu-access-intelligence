@@ -45,7 +45,7 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     deliver(repo, landing, "deped_facilities")
     db = tmp_path / "job.duckdb"
     results = run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None)
-    assert set(statuses(results).values()) == {"succeeded"}
+    assert set(statuses(results).values()) == {"succeeded", "disabled"}
     _, job = load_job(repo)
     assert [r.task_key for r in results] == [t["task_key"] for t in in_order(job["tasks"])]
     store = DuckDBStore(db)
@@ -60,7 +60,7 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     db = tmp_path / "job.duckdb"
     run_job(repo, landing, db, REVISION, log=lambda *_: None)
     results = run_job(repo, landing, db, REVISION, log=lambda *_: None)
-    assert set(statuses(results).values()) == {"succeeded"}
+    assert set(statuses(results).values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
