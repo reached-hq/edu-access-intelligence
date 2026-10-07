@@ -1,8 +1,8 @@
-# Evidence: PSA Poverty Stat ingestion is idempotent and incremental (local, made-up workbooks)
+# Evidence: PSA Poverty Stat ingestion is idempotent and incremental (local: made-up workbooks and the real workbook)
 
 Issue #83 · local only (DuckDB) · 2026-10-07, Manila time (UTC+8) · run by Claude for @catweyine, to be rerun by a reviewer
 
-> **Scope of this evidence.** Made-up workbooks shaped like the real one (`tests/factories/psa_workbooks.py`), the real `psa_poverty_stat` contract rules, and the real `etl/` SQL, on an in-memory DuckDB. It does **not** show that the real workbook passes the layout checks, and it is **not** a Databricks run. Both are still to do (see "What this does not prove").
+> **Scope of this evidence.** Two local runs on DuckDB: (1) made-up workbooks shaped like the real one (`tests/factories/psa_workbooks.py`) for the scenarios a single file cannot show (new year, backfill, changed file, crash); (2) the real workbook, loaded twice. It is **not** a Databricks run (see "What this does not prove").
 
 ## The claim
 
@@ -113,11 +113,43 @@ Output (exit code 0). Run IDs are random per execution. Each fixture workbook ha
 | Provenance | The traced row gives file, workbook SHA-256, sheet, Excel row 9, row kind, batch, run; its blank estimate stays `''` |
 | Known issues kept, not fixed | WARN results with the profiled count beside each |
 
+## Real workbook (local DuckDB)
+
+On 2026-10-07 the real workbook was loaded twice with the command line, at commit `1fdb7ae` (recorded as `code_revision` on every row). The branch was later rewritten to remove commit-message trailers only; its counterpart `5a80a8a` has the identical tree, into a fresh local DuckDB file. The file was a copy of the team's workbook under another name (`2_2023_SAE_with_PSGC_noHUC_06Feb2026_1.xlsx`); its SHA-256 is `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026` and its size 369,977 bytes, both equal to the source card, so the pipeline identified it as the approved delivery by checksum.
+
+```bash
+python -m src.ingestion.cli ingest --source psa_poverty_stat --landing <raw root>
+```
+
+```text
+===== RUN 1
+  psa_poverty_stat__2018-2021-2023__303fb0e87bff       load   initial     succeeded inserted=  1641 bronze=  1641
+status: succeeded          (exit 0)
+===== RUN 2
+  psa_poverty_stat__2018-2021-2023__303fb0e87bff       skip   initial     skipped   inserted=     0 bronze=  1641
+      already loaded; same SHA-256
+status: succeeded          (exit 0)
+```
+
+| Check | Expected (profile, card) | Bronze |
+|---|---|---|
+| Rows by kind | unit 1,612, region_banner 18, title 1, header 4, footer 6 | 1,612 / 18 / 1 / 4 / 6 |
+| Excel rows; pipeline duplicates; rows missing provenance | 1..1641; 0; 0 | 1..1641; 0; 0 |
+| Body and footer boundaries (O-1) | body rows 6 to 1635; footer from 1636 | 6 to 1635; 1636 |
+| `PSGC ID` 5 digits / 6 digits / distinct (O-2) | 1,073 / 539 / 1,612 | 1,073 / 539 / 1,612 |
+| Kalayaan, Excel row 641 (O-5) | ID `175321`, estimates blank | `175321`, `''` |
+| Zero or negative lower limits (O-7) | Adams 2018 `0`, Port Area 2021 `0`, Ivana 2023 negative | `0`, `0`, `-2.4063453271442992E-2` (as stored) |
+| Units with a 2023 estimate; highest 2023 (X-2) | 1,611; Siayan 67.8 | 1,611; Siayan 67.829368 |
+| Title and footer rows | title, 3 notes, source line | rows 1 and 1636 to 1641 kept as received |
+| Checks recorded for the load run | no FAIL | 31 PASS, 10 WARN, 0 FAIL |
+| Attempts log | load, then skip | `load` 1,641 inserted, then `skip` 0 |
+
+Known-issue WARNs, actual against profiled: `psgc_id_leading_zero_lost` 1,073 / 1,073; `unit_rows_without_estimates` 1 / 1; `province_label_continued` 1 / 1; `lower_limit_zero_or_negative` 3 / 3; `se_disagrees_with_cv` 2018 6 / 6, 2021 133 / 133, 2023 1 / 1; `cv_over_20` 2018 171 / 171, 2021 84 / 84, 2023 156 / 156.
+
 ## What this does not prove
 
-- That the real workbook (`303fb0e8…`) passes the layout checks: the merged-header groups, the footer at row 1636, 1,630 body rows, 1,641 rows in the used range A1:S1641. The checks follow the profile's description (O-1); no one has run them on the real file yet. Run `python -m src.ingestion.cli ingest --source psa_poverty_stat` with `RAW_DATA_DIR` set, twice, and record the output here.
 - Databricks behavior: `ALTER TABLE … ADD COLUMN` on the existing control tables, the replaced `current_batches` view, Delta column names with `%` and `/`, and reading the workbook from `/Volumes/`. These are confirmed only by the `dev` job run (`docs/operations/ingestion.md`, PSA section).
 
 ## How to reproduce
 
-From the repository root, in VS Code's terminal with the virtual environment active, run the two commands above. Nothing needs raw data or credentials.
+From the repository root, in VS Code's terminal with the virtual environment active, run the commands above. The tests and the demo need no raw data or credentials; the real-workbook run needs the workbook under `$RAW_DATA_DIR/psa/` (or `--landing`).

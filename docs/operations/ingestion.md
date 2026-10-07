@@ -2,7 +2,7 @@
 
 How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below).
 
-**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs. `psa_poverty_stat`: built and tested locally with made-up workbooks only; **not yet run on the real workbook or on Databricks** (see its section).
+**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs. `psa_poverty_stat`: built and tested locally with made-up workbooks, and loaded locally from the real workbook (1,641 rows, then a skip); **not yet run on Databricks** (see its section).
 
 ## The flow
 
@@ -408,7 +408,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 
 `psa_poverty_stat` loads through the same pipeline as DepEd, from its own contract, `config/ingestion/psa_poverty_stat.json` (`format: xlsx_sheet`). What differs is in `src/ingestion/workbook.py` (reading and checking the workbook) and `src/ingestion/formats.py` (period, versions, load type). Decision: D-018.
 
-**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`). **Not yet verified on the real workbook**: the merged-header and footer checks follow the profile's description (O-1) and must be confirmed by one local run on the real file ([commands](#psa-running-locally)). **Not run on Databricks.** The source stays `profiled`.
+**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **Not run on Databricks.** The source stays `profiled`.
 
 ### The flow
 
@@ -646,8 +646,8 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 
 ### Limitations and open questions (PSA)
 
-- Verified only on made-up workbooks; the real-file run and the Databricks run are pending.
-- The merged-header check expects each group in row 2 to be merged across its columns, as the profile describes; if the real file differs, the contract is corrected in review, not the file.
+- Verified on made-up workbooks and on the real workbook locally (DuckDB); the Databricks run is pending.
+- The merged-header check expects each group in row 2 to be merged across its columns, as in the real workbook; a future file laid out differently stops the batch, and the contract is corrected in review, not the file.
 - `known_issue` checks compare against counts from one profile run; they warn, they never block.
 - Update frequency, cross-year comparability (S-3), and the PSGC version of the ID are unverified.
 
