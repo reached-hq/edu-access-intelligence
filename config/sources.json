@@ -145,6 +145,17 @@
       "owner": "catweyine"
     },
     {
+      "source_id": "osm_philippines",
+      "name": "OpenStreetMap Philippines geographic data",
+      "publisher": "OpenStreetMap / Geofabrik",
+      "status": "profiled",
+      "source_system": "Geofabrik OpenStreetMap Philippines extract",
+      "acquisition": "https://download.geofabrik.de/asia/philippines.html",
+      "format": "GeoPackage inside ZIP",
+      "acquired_date": "2026-09-28",
+      "owner": "saraevcldn"
+    },
+    {
       "source_id": "psa_psgc",
       "name": "PSA Philippine Standard Geographic Code (PSGC)",
       "publisher": "Philippine Statistics Authority (PSA)",
