@@ -198,6 +198,17 @@
       "format": "CSV",
       "publication": "2024 Census of Population",
       "owner": "mafelisilda"
-    }
+    },
+    {
+      "source_id": "hdx_boundaries",
+      "name": "Philippine administrative boundaries",
+      "publisher": "UN OCHA",
+      "status": "profiled",
+      "source_system": "Common Operational Dataset – Administrative Boundaries (COD-AB)",
+      "acquisition": "https://data.humdata.org/dataset/cod-ab-phl",
+      "format": "GeoJSON",
+      "coverage": "ADM3 city/municipality and ADM4 barangay",
+      "owner": "saraevcldn"
+      }
   ]
 }
