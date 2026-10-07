@@ -24,6 +24,7 @@ DEFAULT = "deped_enrollment"
 NAMES = {
     "deped_enrollment": ("Enrollment-in-SY-{start}-{end}.zip", "enrollment_{sy}.csv", "Enrollment in SY {start}-{end}"),
     "deped_facilities": ("School-Facilities-in-SY-{start}-{end}.zip", "facilities_{sy}.csv", "School Facilities in SY {start}-{end}"),
+    "deped_personnel": ("School-Personnel-in-SY-{start}-{end}.zip", "personnel_{sy}.csv", "School Personnel in SY {start}-{end}"),
 }
 
 TEXT_VALUES = {
