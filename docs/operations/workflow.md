@@ -58,6 +58,14 @@ The repository also runs these automations (`.github/workflows/triage.yml`):
   Everyone reviews for exactly two authors. To change the table, edit `reviewers.json` in a pull request; the tests keep it balanced.
 
   The workflow also posts a comment that @mentions both reviewers, with the linked issue, the milestone, and what to check before approving. Its opening line and meme rotate by PR number (the pairs are in `.github/scripts/reviewer_comment.py`, the images in `.github/memes/`). If the PR is reopened, the same comment is edited rather than posted again. Drafts get no reviewers and no comment until they are marked ready for review.
+
+A weekly **issue hygiene** report (`.github/workflows/issue-hygiene.yml`, Mondays 09:00 Philippine time, or **Actions** → **Issue hygiene** → **Run workflow**) lists issues whose state disagrees with their sub-issues or the board:
+
+- a closed issue with open sub-issues: reopen it, or finish or move the sub-issues;
+- an open parent whose sub-issues are all closed: check its own acceptance evidence and close it by hand, or add a sub-issue for what is left;
+- an open issue sitting in **Done**: move the card back, or close the issue if it is really finished. The workflow's own token cannot read the organization's board, so this one runs only when the repository has a `PROJECT_READ_TOKEN` secret (a token with read access to this repository's issues and the organization's projects).
+
+It changes nothing. The run fails when there is something to fix, and the list is on the run page.
 - **Issues are not auto-assigned.** Assigning yourself is how you claim an issue.
 
 ### Issue titles
@@ -148,7 +156,7 @@ Say what changed and why, what you ran to check it (with counts when data is inv
 | Check | Fails when |
 |---|---|
 | Repository checks | A test fails: data file committed, `.ipynb` notebook, secret-like text, invalid `config/sources.json`, a source without its documentation folder, or a broken workflow script in `.github/scripts/` |
-| PR links an issue | The description has no `Closes #N` / `Part of #N`, or merging would close a parent issue or more than one issue |
+| PR links an issue | The description has no `Closes #N` / `Part of #N`, links a number that is not an issue in this repository (a typo, or a pull request), or merging would close a parent issue or more than one issue. A link to a closed issue only shows a warning |
 | PR has a milestone | The PR has no milestone and none of its linked issues has one to copy. When a linked issue has one, the check copies it onto the PR and passes |
 | PR declares AI help | The **AI help** section does not tick exactly one option, or ticks **AI helped** without all four gates and a note on what the AI did ([CONTRIBUTING.md, Using AI](../../CONTRIBUTING.md#using-ai)) |
 
@@ -175,6 +183,8 @@ Never force-push `main`.
 
 - At least one teammate who is not the author approves. GitHub does not let you approve your own pull request.
 - Read the code, not just the description. A question ("this reads from the internet; the issue says no network?") is worth more than a quick approval.
+- **Every review conversation must be resolved** before the PR can merge. Resolve a thread once its answer or fix is in.
+- **A new push needs a new approval.** Pushing to the branch dismisses existing approvals, and whoever pushed last cannot be the approver. If you push a fix to a teammate's PR, someone else approves it.
 - **Admin override** (merging without an approval) is for when no teammate can review in time and CI is green. Leave a PR comment saying why. Proposed rule: confirm it with the team.
 - Merging creates a merge commit on `main`, keeps the branch's commits, and deletes the branch.
 
