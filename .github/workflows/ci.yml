@@ -65,6 +65,23 @@ jobs:
             exit 1
           fi
 
+      # A typo'd number fails; a closed issue only warns ('Related to' one is fine).
+      - name: Check the linked issues exist and are open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          ISSUES=$(for n in $(python3 .github/scripts/linked_issues.py); do
+            if issue=$(gh api "repos/$GITHUB_REPOSITORY/issues/$n" \
+                --jq '{number, state, is_pull_request: (.pull_request != null)}' 2>/dev/null); then
+              echo "$issue"
+            else
+              echo "{\"number\": $n, \"missing\": true}"
+            fi
+          done | jq -s .)
+          export ISSUES
+          python3 .github/scripts/linked_issue_states.py
+
       # A sidebar link (Development) closes an issue just like 'Closes', and adding
       # one triggers no event: rerun this check after changing the sidebar.
       - name: Check which issues merging will close

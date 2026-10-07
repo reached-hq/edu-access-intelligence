@@ -206,6 +206,91 @@ def test_missing_sub_issue_summary_counts_as_leaf():
     assert closing_issues.problems([{"number": 5, "title": "x", "subIssuesSummary": None}]) == []
 
 
+# --- linked_issue_states --------------------------------------------------
+
+linked_issue_states = _load("linked_issue_states")
+
+
+def test_open_linked_issue_passes():
+    assert linked_issue_states.problems([{"number": 80, "state": "open", "is_pull_request": False}]) == ([], [])
+
+
+def test_missing_linked_issue_fails():
+    errors, warnings = linked_issue_states.problems([{"number": 9999, "missing": True}])
+    assert len(errors) == 1 and "#9999" in errors[0] and warnings == []
+
+
+def test_linking_a_pull_request_fails():
+    errors, _ = linked_issue_states.problems([{"number": 105, "state": "open", "is_pull_request": True}])
+    assert len(errors) == 1 and "pull request" in errors[0]
+
+
+def test_closed_linked_issue_only_warns():
+    errors, warnings = linked_issue_states.problems([{"number": 30, "state": "closed", "is_pull_request": False}])
+    assert errors == [] and len(warnings) == 1 and "#30" in warnings[0]
+
+
+# --- issue_hygiene --------------------------------------------------------
+
+issue_hygiene = _load("issue_hygiene")
+
+
+def _hygiene_issue(number, state, subs=(), status=None):
+    issue = {
+        "number": number,
+        "title": f"Issue {number}",
+        "url": f"https://github.com/x/y/issues/{number}",
+        "state": state,
+        "subIssues": {"nodes": [{"number": n, "state": s} for n, s in subs]},
+    }
+    if status is not None:
+        issue["projectItems"] = {"nodes": [{"project": {"title": "Board"}, "fieldValueByName": {"name": status}}]}
+    return issue
+
+
+def test_consistent_issues_have_no_findings():
+    issues = [
+        _hygiene_issue(11, "OPEN", [(77, "OPEN"), (80, "CLOSED")], status="In progress"),
+        _hygiene_issue(80, "CLOSED", status="Done"),
+        _hygiene_issue(12, "CLOSED", [(13, "CLOSED")]),
+    ]
+    assert issue_hygiene.findings(issues) == []
+
+
+def test_closed_issue_with_open_sub_issues_is_reported():
+    found = issue_hygiene.findings([_hygiene_issue(11, "CLOSED", [(77, "OPEN"), (78, "OPEN"), (80, "CLOSED")])])
+    assert [h for h, _ in found] == [issue_hygiene.CLOSED_PARENT]
+    assert "#77, #78" in found[0][1] and "#80" not in found[0][1]
+
+
+def test_open_parent_with_all_sub_issues_closed_is_reported():
+    found = issue_hygiene.findings([_hygiene_issue(43, "OPEN", [(85, "CLOSED"), (86, "CLOSED")])])
+    assert [h for h, _ in found] == [issue_hygiene.FINISHED_PARENT]
+    assert "all 2" in found[0][1]
+
+
+def test_open_issue_in_done_is_reported():
+    found = issue_hygiene.findings([_hygiene_issue(85, "OPEN", status="Done")])
+    assert [h for h, _ in found] == [issue_hygiene.OPEN_IN_DONE]
+    assert "Board" in found[0][1]
+
+
+def test_issue_without_sub_issues_or_board_item_is_fine():
+    issue = {"number": 5, "title": "x", "url": "u", "state": "OPEN", "subIssues": None}
+    assert issue_hygiene.findings([issue]) == []
+
+
+def test_summary_says_when_the_board_was_not_checked():
+    text = issue_hygiene.summary([_hygiene_issue(5, "OPEN")], [])
+    assert "Checked 1 issues." in text and "PROJECT_READ_TOKEN" in text
+
+
+def test_summary_lists_board_findings_when_the_board_was_read():
+    issues = [_hygiene_issue(85, "OPEN", status="Done")]
+    text = issue_hygiene.summary(issues, issue_hygiene.findings(issues))
+    assert "PROJECT_READ_TOKEN" not in text and "#85 is open but sits in Done" in text
+
+
 def test_pr_template_defaults_to_part_of(repo_root):
     template = (repo_root / ".github" / "pull_request_template.md").read_text()
     assert re.search(r"(?m)^Part of #\s*$", template)
