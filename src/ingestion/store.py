@@ -33,11 +33,13 @@ def split_statements(sql):
 
 
 OWNER_STATEMENT = re.compile(r"^\s*ALTER\s+(TABLE|VIEW|SCHEMA)\s+\S+\s+OWNER\s+TO\b", re.IGNORECASE)
+DECLARE_VARIABLE = re.compile(r"^\s*DECLARE\s+(OR\s+REPLACE\s+)?VARIABLE\b", re.IGNORECASE)
 
 
 def databricks_only(statement):
-    """Ownership is a Unity Catalog concept; DuckDB has no owners, so these statements are skipped locally."""
-    return bool(OWNER_STATEMENT.match(statement))
+    """Skipped locally. Ownership is a Unity Catalog concept (DuckDB has no owners), and DuckDB
+    needs no DECLARE: its SET VARIABLE creates the session variable."""
+    return bool(OWNER_STATEMENT.match(statement) or DECLARE_VARIABLE.match(statement))
 
 
 def to_duckdb(statement):
@@ -49,6 +51,7 @@ def to_duckdb(statement):
     # Same name, different meaning: Spark replaces every match, DuckDB only the
     # first unless given 'g'. regexp_replace_all is a macro made in DuckDBStore.
     statement = re.sub(r"\bregexp_replace\(", "regexp_replace_all(", statement)
+    statement = re.sub(r"\bsession\.([A-Za-z_]\w*)", r"getvariable('\1')", statement)  # session variables
     statement = re.sub(r"\bcurrent_timestamp\(\)", "(current_timestamp AT TIME ZONE 'UTC')", statement)
     statement = re.sub(r"\bSTRING\b", "VARCHAR", statement)
     statement = re.sub(r"\s+USING\s+DELTA\b", "", statement, flags=re.IGNORECASE)

@@ -530,9 +530,22 @@ def test_silver_sql_uses_only_what_both_engines_share():
 @pytest.mark.parametrize("databricks, duckdb", [
     ("regexp_like(x, '^[0-9]{6}$')", "regexp_matches(x, '^[0-9]{6}$')"),
     ("regexp_replace(x, ' +', ' ')", "regexp_replace_all(x, ' +', ' ')"),
+    ("SELECT session.silver_run_id AS run_id", "SELECT getvariable('silver_run_id') AS run_id"),
 ])
 def test_the_duckdb_translation_of_regular_expressions(databricks, duckdb):
     assert to_duckdb(databricks) == duckdb
+
+
+def test_session_variables_work_locally_as_on_databricks(tmp_path):
+    """A SQL task keeps one value for a whole file in a session variable (DECLARE, then SET from a
+    job parameter); DuckDB skips the DECLARE and reads the variable through getvariable."""
+    sql = tmp_path / "v.sql"
+    sql.write_text("DECLARE OR REPLACE VARIABLE silver_run_id STRING;\n"
+                   "SET VARIABLE silver_run_id = COALESCE(NULLIF(:run_id, ''), 'UNSET');\n"
+                   "CREATE OR REPLACE TEMPORARY VIEW stamped AS SELECT session.silver_run_id AS run_id;\n")
+    store = DuckDBStore()
+    store.run_file(sql, {"run_id": "job-run-7"})
+    assert store.query("SELECT run_id FROM stamped") == [("job-run-7",)]
 
 
 def test_translated_regular_expressions_behave_like_spark():
