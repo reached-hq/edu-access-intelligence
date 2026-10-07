@@ -1,6 +1,7 @@
 """Tests for the scripts the GitHub workflows run (.github/scripts/)."""
 
 import importlib.util
+import re
 
 import pytest
 
@@ -165,6 +166,63 @@ def test_linked_issues(body, expected):
     assert linked_issues.linked_issues(body) == expected
 
 
+# --- closing_issues -------------------------------------------------------
+
+closing_issues = _load("closing_issues")
+
+
+def _issue(number, subs):
+    return {"number": number, "title": f"Issue {number}", "subIssuesSummary": {"total": subs}}
+
+
+def test_closing_a_leaf_issue_passes():
+    assert closing_issues.problems([_issue(80, 0)]) == []
+
+
+def test_closing_nothing_passes():
+    assert closing_issues.problems([]) == []
+
+
+def test_closing_a_parent_issue_fails_and_names_it():
+    found = closing_issues.problems([_issue(11, 8)])
+    assert len(found) == 1
+    assert "#11" in found[0] and "Part of #11" in found[0] and "8 sub-issues" in found[0]
+
+
+def test_closing_more_than_one_leaf_issue_fails_and_names_each():
+    found = closing_issues.problems([_issue(80, 0), _issue(81, 0)])
+    assert len(found) == 1
+    assert "at most one" in found[0] and "#80" in found[0] and "#81" in found[0]
+
+
+def test_multiple_closures_report_count_and_parent_problems():
+    found = closing_issues.problems([_issue(11, 8), _issue(80, 0)])
+    assert len(found) == 2
+    assert "at most one" in found[0]
+    assert "parent issue" in found[1]
+
+
+def test_missing_sub_issue_summary_counts_as_leaf():
+    assert closing_issues.problems([{"number": 5, "title": "x", "subIssuesSummary": None}]) == []
+
+
+def test_pr_template_defaults_to_part_of(repo_root):
+    template = (repo_root / ".github" / "pull_request_template.md").read_text()
+    assert re.search(r"(?m)^Part of #\s*$", template)
+    assert not re.search(r"(?mi)^(?:Closes|Fixes|Resolves) #\s*$", template)
+
+
+def test_issue_templates_use_reorganized_paths(repo_root):
+    text = "\n".join(
+        path.read_text()
+        for path in (repo_root / ".github" / "ISSUE_TEMPLATE").glob("*.md")
+    )
+    assert "docs/source_inventory" not in text
+    assert "notebooks/profiling" not in text
+    assert "docs/data/source-inventory" in text
+    assert "analysis/profiling" in text
+
+
 # --- reviewer_comment -----------------------------------------------------
 
 reviewer_comment = _load("reviewer_comment")
@@ -175,7 +233,7 @@ def test_comment_starts_with_marker_and_mentions_both_reviewers():
     body = reviewer_comment.build(24, "hyenalouise", REVIEWER_PAIR, 23, "01 · Discover")
     assert body.startswith(reviewer_comment.MARKER)
     assert "@maeveylain" in body and "@saraevcldn" in body
-    assert "closes #23" in body and "belongs to 01 · Discover" in body
+    assert "references #23" in body and "belongs to 01 · Discover" in body
 
 
 def test_opener_and_meme_rotate_by_pr_number():

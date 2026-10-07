@@ -4,7 +4,10 @@ What changed and why?
 
 ## Related issue
 
-Closes #
+<!-- Keep Part of #N while any work remains. Change it to Closes #N only when this PR finishes every acceptance criterion of one leaf issue. Never close a parent issue or link one in the Development sidebar. -->
+Part of #
+
+- [ ] Every issue named with `Closes`, `Fixes`, or `Resolves` is a completed leaf issue; otherwise I used no closing keyword.
 
 The milestone is copied from the issue. If the issue has none, set one on both.
 
@@ -46,4 +49,5 @@ Rules: [Using AI](https://github.com/reached-hq/edu-access-intelligence/blob/mai
 
 ## Reviewer notes
 
-What should the reviewer check closely?
+What should the reviewer check closely? If this PR closes an issue, confirm its
+acceptance evidence is complete.
