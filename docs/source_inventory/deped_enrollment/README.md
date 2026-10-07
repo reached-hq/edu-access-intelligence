@@ -72,6 +72,7 @@ Column-by-column descriptions, fill rates, and sample values: [data_dictionary.m
 See [profile.md](profile.md) for evidence.
 
 - **Observed:** no PSGC codes; place names need standardizing before matching (suffixes like "(Capital)", mixed capitalization, extra spaces in 2025-26).
+- **Observed:** about 173 place names per year contain mangled characters (`Ã‘` for `Ñ`), and barangay names appear to be capped at 40 characters.
 - **Observed:** SY 2025-26 differs in encoding, columns, and category labels.
 - **Observed:** Negros Island Region (NIR) appears from SY 2024-25; 2,704 schools moved into it from Regions VI and VII.
 - **Observed:** about 1% of school IDs appear or disappear between consecutive years.

@@ -218,6 +218,21 @@ for t in ENROLLMENT:
     blank = [c for c in count_columns(t) if one(f"SELECT count({c}) FROM {t}") == 0]
     show("O-16", f"{t}: entirely blank count columns = {blank}")
 
+# "Ã‘" is how "Ñ" looks when UTF-8 text was read as Windows-1252 and saved again.
+PLACE = "province LIKE '%Ã%' OR municipality LIKE '%Ã%' OR barangay LIKE '%Ã%'"
+for t in ENROLLMENT:
+    show("O-17", f"{t}: rows with mangled characters in place names = {one(f'SELECT count(*) FROM {t} WHERE {PLACE}')}; "
+         f"distinct places = {one(f'SELECT count(DISTINCT concat_ws({chr(39)}|{chr(39)}, province, municipality, barangay)) FROM {t} WHERE {PLACE}')}; "
+         f"rows with mangled school names = {one(f'SELECT count(*) FROM {t} WHERE school_name LIKE {chr(39)}%Ã%{chr(39)}')}; "
+         f"examples = {[r[0] for r in q(f'SELECT DISTINCT barangay FROM {t} WHERE barangay LIKE {chr(39)}%Ã%{chr(39)} ORDER BY 1 LIMIT 3')]}")
+
+for t in ENROLLMENT:
+    lengths = dict(q(f"SELECT length(barangay), count(*) FROM {t} WHERE length(barangay) >= 38 GROUP BY 1"))
+    show("O-18", f"{t}: longest barangay = {one(f'SELECT max(length(barangay)) FROM {t}')} characters; rows at 38/39/40 characters = "
+         f"{lengths.get(38, 0)}/{lengths.get(39, 0)}/{lengths.get(40, 0)}; distinct 40-character names = "
+         f"{one(f'SELECT count(DISTINCT barangay) FROM {t} WHERE length(barangay) = 40')}; "
+         f"examples = {[r[0] for r in q(f'SELECT DISTINCT barangay FROM {t} WHERE length(barangay) = 40 ORDER BY 1 LIMIT 2')]}")
+
 for t in ENROLLMENT:
     show("S-1", f"{t}: zero-learner schools by sector = {q(f'SELECT sector, count(*) FROM {t} WHERE ({total_expr(count_columns(t))}) = 0 GROUP BY 1 ORDER BY 2 DESC')}")
 
