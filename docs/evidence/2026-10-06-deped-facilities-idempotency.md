@@ -10,6 +10,8 @@ DepEd facilities, the second source, loads through the same pipeline as enrollme
 
 The job `bronze_ingest` at commit `acec94d5546e9b8043da4e21065e45de1f4337f4` (`code_revision` and `git_source.git_commit`), with two tasks in order: `bronze_deped_enrollment`, then `bronze_deped_facilities` (`run_if: ALL_DONE`: it runs even if enrollment fails). The tasks are connected only for order; they share no data, only the control tables. Before the runs, the SQL warehouse was stopped and notebooks detached.
 
+The stored revision remains the exact commit Databricks ran. After the branch was rebased, its counterpart in the current pull request is `d9cb73d0517ed86063cccd8f6d8414726e6c35dd`.
+
 ```bash
 databricks bundle deploy --target dev --profile reached-hq
 ```
