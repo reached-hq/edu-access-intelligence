@@ -13,9 +13,14 @@ the same file again adds nothing, while two identical rows from the publisher
 (different row numbers) are both kept. A hash of the row's content would merge
 those publisher duplicates; the archive's SHA-256 would load a re-zipped copy
 twice.
+
+The provenance columns depend on the contract's format
+(contract.provenance_columns). For a workbook (xlsx_table) the workbook is the
+data file and the row number is the Excel row, so the same pair points at one
+line of the approved sheet.
 """
 
-from src.ingestion.contract import PROVENANCE_COLUMNS
+from src.ingestion.contract import provenance_columns
 from src.ingestion.errors import IngestionError
 from src.ingestion.store import table_name
 
@@ -50,7 +55,7 @@ def source_columns(config):
 
 def bronze_columns(config):
     """[(name, Databricks type)] in table order."""
-    provenance = [(c, PROVENANCE_TYPES.get(c, "STRING")) for c in PROVENANCE_COLUMNS]
+    provenance = [(c, PROVENANCE_TYPES.get(c, "STRING")) for c in provenance_columns(config)]
     return provenance + [(c, "STRING") for c in source_columns(config)]
 
 
@@ -75,7 +80,7 @@ def bronze_ddl(config):
     ]
     columns = bronze_columns(config)
     for i, (name, kind) in enumerate(columns):
-        null = " NOT NULL" if name in PROVENANCE_COLUMNS else ""
+        null = " NOT NULL" if name in provenance_columns(config) else ""
         comma = "," if i < len(columns) - 1 else ""
         lines.append(f"  `{name}` {kind}{null}{comma}")
     props = ",\n".join(f"  '{k}' = '{v}'" for k, v in TABLE_PROPERTIES.items())
@@ -191,6 +196,9 @@ def build_rows(prepared, registry_entry, batch_id, run_id, ingested_at_utc, code
         "ingested_at_utc": ingested_at_utc,
         "code_revision": code_revision,
     }
+    if hasattr(prepared, "provenance"):  # a format with its own provenance columns (xlsx_table.PreparedWorkbook)
+        provenance = {**prepared.provenance(registry_entry), "batch_id": batch_id, "run_id": run_id,
+                      "ingested_at_utc": ingested_at_utc, "code_revision": code_revision}
     absent = {c: None for c in columns if c not in provenance and c not in prepared.header}
     for number, values in prepared.rows:
         row = dict(zip(prepared.header, values))
@@ -217,10 +225,16 @@ def merge_rows(store, config, rows):
 
 
 def reconcile(store, config, prepared):
-    """Post-load checks for one file: [(check_name, ok, expected, actual)]."""
+    """Post-load checks for one file: [(check_name, ok, expected, actual)].
+
+    Row numbers must be exactly the file's: 1..n for a CSV's data rows, the
+    Excel rows of the data (for example 2..43769) for a workbook.
+    """
     sha = prepared.data_member_sha256
     n = len(prepared.rows)
-    nulls = " OR ".join(f"`{c}` IS NULL" for c in PROVENANCE_COLUMNS)
+    numbers = [number for number, _ in prepared.rows]
+    span = (min(numbers), max(numbers)) if numbers else (None, None)
+    nulls = " OR ".join(f"`{c}` IS NULL" for c in provenance_columns(config))
     total, distinct, low, high, missing_provenance = store.query(
         f"SELECT COUNT(*), COUNT(DISTINCT source_row_number), MIN(source_row_number), MAX(source_row_number), "
         f"COUNT(CASE WHEN {nulls} THEN 1 END) "
@@ -228,6 +242,6 @@ def reconcile(store, config, prepared):
     return [
         ("bronze_rows_match_source", total == n, n, total),
         ("no_pipeline_duplicates", total == distinct, 0, total - distinct),
-        ("row_numbers_complete", (low, high) == ((1, n) if n else (None, None)), f"1..{n}", f"{low}..{high}"),
+        ("row_numbers_complete", (low, high) == span, f"{span[0]}..{span[1]}", f"{low}..{high}"),
         ("provenance_complete", missing_provenance == 0, 0, missing_provenance),
     ]

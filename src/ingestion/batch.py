@@ -16,8 +16,11 @@ seen, so "has this exact file been processed?" is one lookup.
 The load type says why a new batch arrived, relative to what already
 succeeded for the source: the first ever (initial), a later school year
 (incremental), an earlier one (backfill), or a new version of a school year
-(revision).
+(revision). A PSGC workbook's period is its publication quarter ('2026-Q2'),
+which sorts the same way, so a 1Q 2026 file loaded after 2Q 2026 is a backfill.
 """
+
+from src.ingestion.contract import delivery_period
 
 RETRYABLE = {"validating", "loading", "failed"}
 
@@ -37,11 +40,11 @@ def choose_action(existing, rerun=False):
 
 
 def load_type(delivery, succeeded_years):
-    """succeeded_years: school years with at least one succeeded batch for this source."""
+    """succeeded_years: periods (school years, or publication quarters) with a succeeded batch for this source."""
     if delivery["delivery_version"] > 1:
         return "revision"
     if not succeeded_years:
         return "initial"
-    if delivery["school_year"] < max(succeeded_years):
+    if delivery_period(delivery) < max(succeeded_years):
         return "backfill"
     return "incremental"

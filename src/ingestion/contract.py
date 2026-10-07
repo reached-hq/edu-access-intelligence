@@ -10,6 +10,13 @@ A delivery is approved by merging its entry in a reviewed pull request. The
 pipeline never adds or edits an entry, so a file it has never been told about
 is refused rather than guessed at. The source's name, system, and URL come from
 the registry (`config/sources.json`) so they are written down once.
+
+A contract's `format` says what a delivery is. `zip_csv` (the default, DepEd)
+is a zip holding one CSV per school year. `xlsx_table` (PSA PSGC) is one
+workbook delivered as is, whose data is one sheet with a single header row,
+one publication period per file; its rules are in xlsx_table.py. The accessors
+below (`delivery_file`, `delivery_sha256`, `delivery_period`) let the pipeline
+treat both alike.
 """
 
 import hashlib
@@ -60,6 +67,35 @@ def _config_error(message):
     return IngestionError("config", "invalid_config", message)
 
 
+FORMATS = ("zip_csv", "xlsx_table")
+
+
+def source_format(config):
+    return config.get("format", "zip_csv")
+
+
+def provenance_columns(config):
+    if source_format(config) == "xlsx_table":
+        from src.ingestion.xlsx_table import PROVENANCE_COLUMNS as XLSX_TABLE_PROVENANCE
+        return XLSX_TABLE_PROVENANCE
+    return PROVENANCE_COLUMNS
+
+
+def delivery_file(delivery):
+    """The approved file as downloaded: the zip for zip_csv, the workbook for xlsx_table."""
+    return delivery.get("archive") or delivery.get("workbook")
+
+
+def delivery_sha256(delivery):
+    return delivery.get("archive_sha256") or delivery.get("workbook_sha256")
+
+
+def delivery_period(delivery):
+    """The period a delivery covers: its school year, or its publication period (e.g. '2026-Q2').
+    The control tables record either one in their `school_year` column."""
+    return delivery.get("school_year") or delivery.get("publication_period")
+
+
 def schema_fingerprint(columns):
     """SHA-256 of the ordered column names: any rename, addition, or reorder changes it."""
     return hashlib.sha256("\n".join(columns).encode("utf-8")).hexdigest()
@@ -81,6 +117,11 @@ def load_source_config(repo_root, source_id):
 
 def validate_config(config, registry_entry):
     """Refuse a contract that could load something ambiguous. Returns nothing; raises on the first problem."""
+    if source_format(config) not in FORMATS:
+        raise _config_error(f"format {config.get('format')!r} is not one of {list(FORMATS)}.")
+    if source_format(config) == "xlsx_table":
+        from src.ingestion.xlsx_table import validate_contract
+        return validate_contract(config, registry_entry)
     missing = CONFIG_FIELDS - config.keys()
     if missing:
         raise _config_error(f"missing fields {sorted(missing)}.")
@@ -206,6 +247,6 @@ def match_schema(config, header):
 
 def find_delivery(config, archive_sha256):
     for d in config["deliveries"]:
-        if d["archive_sha256"] == archive_sha256:
+        if delivery_sha256(d) == archive_sha256:
             return d
     return None

@@ -11,6 +11,11 @@ If the process dies between 2 and 4, the batch stays `loading`. Its rows may
 be in Bronze, but downstream reads only succeeded batches
 (`01-control`.current_batches), and the next run retries it: the MERGE adds
 nothing that is already there, reconciliation passes, and the batch succeeds.
+
+The flow is the same for every delivery format. What differs (which files are
+discovered, how a period is read, how a file is checked) is chosen from the
+contract's `format`: validate.py for a DepEd zip, xlsx_table.py for a PSGC
+workbook.
 """
 
 import re
@@ -19,12 +24,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.ingestion import bronze, control
+from src.ingestion import bronze, control, validate, xlsx_table
 from src.ingestion.archive import sha256_file
 from src.ingestion.batch import batch_id, choose_action, load_type
-from src.ingestion.contract import find_delivery, load_source_config
+from src.ingestion.contract import (
+    delivery_file, delivery_period, delivery_sha256, find_delivery, load_source_config, source_format,
+)
 from src.ingestion.errors import IngestionError
-from src.ingestion.validate import FAIL, PASS, WARN, identify_delivery, prepare_delivery
+from src.ingestion.validate import FAIL, PASS, WARN
 
 PIPELINE_NAME = "bronze_ingest"
 ENVIRONMENTS = ("local", "dev", "prod")
@@ -58,6 +65,15 @@ class RunSummary:
     missing_deliveries: list = field(default_factory=list)
 
 
+# What a delivery file looks like, per format: its extension and the contract's name pattern.
+DELIVERY_FILES = {"zip_csv": ("*.zip", "archive_pattern"), "xlsx_table": ("*.xlsx", "workbook_pattern")}
+
+
+def reader(config):
+    """The module that identifies and prepares this source's files (identify_delivery, prepare_delivery)."""
+    return xlsx_table if source_format(config) == "xlsx_table" else validate
+
+
 def year_from_archive_name(config, name):
     match = re.match(config["archive_pattern"], name)
     if not match:
@@ -66,17 +82,26 @@ def year_from_archive_name(config, name):
     return f"{start}-{str(start + 1)[-2:]}" if int(match["end"]) == start + 1 else None
 
 
+def period_from_name(config, name):
+    """The period a file name states (school year or publication quarter), or None: a label only."""
+    if source_format(config) == "xlsx_table":
+        return xlsx_table.period_from_name(config, name)
+    return year_from_archive_name(config, name)
+
+
 def discover(config, landing_root):
-    """Every zip under the source's landing folder that is named like a delivery
-    or is an approved delivery under another name. The same bytes in two places
-    are one delivery. Ordered by school year, so a first run loads oldest first."""
+    """Every delivery file under the source's landing folder that is named like a
+    delivery or is an approved delivery under another name. The same bytes in two
+    places are one delivery. Ordered by period, so a first run loads oldest first."""
     root = Path(landing_root) / config["landing_dir"]
     if not root.is_dir():
         raise IngestionError("discover", "missing_landing",
                              f"landing folder {root} does not exist. Set --landing (or RAW_DATA_DIR) to the raw root.")
-    approved = {d["archive_sha256"] for d in config["deliveries"]}
-    pattern = re.compile(config["archive_pattern"])
-    paths = sorted(root.rglob("*.zip"))
+    approved = {delivery_sha256(d) for d in config["deliveries"]}
+    glob, pattern_key = DELIVERY_FILES[source_format(config)]
+    pattern = re.compile(config[pattern_key])
+    # Office's lock files ('~$name.xlsx') are not deliveries.
+    paths = sorted(p for p in root.rglob(glob) if not p.name.startswith("~$"))
     named = [path for path in paths if pattern.match(path.name)]
     differently_named = [path for path in paths if not pattern.match(path.name)]
     found = {}
@@ -92,7 +117,7 @@ def discover(config, landing_root):
         if digest in missing_approved:
             found[digest] = path
             missing_approved.remove(digest)
-    return sorted(found.items(), key=lambda item: (year_from_archive_name(config, item[1].name) or "", item[1].name))
+    return sorted(found.items(), key=lambda item: (period_from_name(config, item[1].name) or "", item[1].name))
 
 
 class IngestionRun:
@@ -147,7 +172,10 @@ class IngestionRun:
             self._finish(run, summary, started, deliveries_found=0)
             raise
 
-        self._check_approved_present(summary, {sha for sha, _ in deliveries})
+        if not self._check_approved_present(summary, {sha for sha, _ in deliveries}):
+            run.update(failure_stage="discover", error_message=(
+                f"approved deliveries missing from the landing folder: {', '.join(summary.missing_deliveries)}. "
+                "Upload them to raw storage (never over an existing file), then run again.")[:MAX_MESSAGE])
         for archive_sha256, path in deliveries:
             summary.outcomes.append(self._process(path, archive_sha256))
 
@@ -155,7 +183,8 @@ class IngestionRun:
             self.store.run_file(self.bronze_gate, {"run_id": self.run_id, "code_revision": self.code_revision})
         except Exception as e:  # the gate raises on any FAIL; a broken gate must fail the run too
             summary.gate_error = str(e)[:MAX_MESSAGE]
-            run.update(failure_stage="gate", error_message=summary.gate_error)
+            if not run["failure_stage"]:  # keep an earlier, more specific cause
+                run.update(failure_stage="gate", error_message=summary.gate_error)
         self._finish(run, summary, started, deliveries_found=len(deliveries))
         return summary
 
@@ -177,12 +206,16 @@ class IngestionRun:
 
     def _check_approved_present(self, summary, found):
         """An approved delivery missing from the landing folder was never uploaded or was lost
-        from raw storage. Nothing can be loaded from it, so it is a WARN naming the files."""
+        from raw storage. Nothing can be loaded from it, so it is a WARN naming the files, or a
+        FAIL that fails the run if the contract sets `require_approved_deliveries` (PSGC: one
+        workbook per quarter, so a missing quarter is a gap, not a detail). Returns False on FAIL."""
         approved = self.config["deliveries"]
-        summary.missing_deliveries = [d["archive"] for d in approved if d["archive_sha256"] not in found]
+        summary.missing_deliveries = [delivery_file(d) for d in approved if delivery_sha256(d) not in found]
         missing = ", ".join(summary.missing_deliveries) or "none"
-        self._record_checks(None, [("approved_deliveries_present", WARN if summary.missing_deliveries else PASS,
+        problem = FAIL if self.config.get("require_approved_deliveries") else WARN
+        self._record_checks(None, [("approved_deliveries_present", problem if summary.missing_deliveries else PASS,
                                     len(approved), f"{len(approved) - len(summary.missing_deliveries)}; missing: {missing}")])
+        return not (summary.missing_deliveries and problem == FAIL)
 
     # -- one archive ------------------------------------------------------------
 
@@ -190,7 +223,7 @@ class IngestionRun:
         started = utc_now()
         existing = control.find_batch(self.store, archive_sha256)
         delivery = find_delivery(self.config, archive_sha256)
-        year = delivery["school_year"] if delivery else year_from_archive_name(self.config, path.name)
+        year = delivery_period(delivery) if delivery else period_from_name(self.config, path.name)
         bid = existing["batch_id"] if existing else batch_id(self.source_id, year, archive_sha256)
         batch = dict(existing) if existing else {
             "batch_id": bid, "source_id": self.source_id, "school_year": year, "delivery_version": None,
@@ -234,7 +267,7 @@ class IngestionRun:
         """Record an archive that is not an approved delivery: blocked, or skipped if it is a re-zipped copy."""
         batch = ctx["batch"]
         try:
-            identify_delivery(self.config, ctx["path"])
+            reader(self.config).identify_delivery(self.config, ctx["path"])
         except IngestionError as e:
             refusal = e
         else:
@@ -251,7 +284,7 @@ class IngestionRun:
 
     def _load(self, ctx, action, delivery):
         batch = ctx["batch"]
-        prepared = prepare_delivery(self.config, self.registry_entry, ctx["path"])
+        prepared = reader(self.config).prepare_delivery(self.config, self.registry_entry, ctx["path"])
         batch.update(source_file=prepared.data_member, source_sha256=prepared.data_member_sha256,
                      encoding=prepared.encoding, schema_version=prepared.schema_version,
                      schema_fingerprint=prepared.schema_fingerprint, source_rows=len(prepared.rows))
