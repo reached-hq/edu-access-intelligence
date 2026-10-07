@@ -20,8 +20,9 @@ bronze_deped_enrollment             Python: check and load the deliveries       
 90_validate_deped_enrollment_clean  SQL: one row per check in data_quality_results;
                                          pipeline_runs 'succeeded' or 'failed'; any FAIL fails the task
    │
-   ▼  the next source's load runs whatever happened (ALL_DONE)
-      Integration and Gold read Silver only when the latest silver_build run of the source succeeded
+   ▼  this source lane is complete; other source lanes run independently in parallel
+      90_validate_control is the fan-in; Integration and Gold read Silver only when the
+      latest silver_build run of the source succeeded
 ```
 
 Code: `src/silver/` ([module list](../../src/silver/README.md)). SQL: `etl/03_silver/` ([files](../../etl/03_silver/README.md)), generated from the Bronze contract and the [Silver mapping](../../config/mappings/deped_enrollment.json). Columns: [data dictionary](../data/silver/deped-enrollment-clean.md). The job: D-020; Silver: D-021 to D-025 in [decisions.md](../governance/decisions.md).
@@ -111,7 +112,7 @@ A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR s
 |---|---|---|
 | PASS | As expected | None |
 | WARN | Rows were quarantined (at most 1% of a year) | Recorded; the build stands; the source owner reviews the reasons |
-| FAIL | The Silver tables cannot be trusted | The gate task fails and `pipeline_runs` says `failed`; the tables hold that build until the next run rebuilds them, and Gold must not read them. The next source's load still runs |
+| FAIL | The Silver tables cannot be trusted | The gate task fails and `pipeline_runs` says `failed`; the tables hold that build until the next run rebuilds them, and Gold must not read them. Other source lanes are independent and keep running |
 
 The local run on the real data recorded 110 results, all PASS.
 
@@ -134,13 +135,13 @@ Free Edition's serverless capacity is shared; in the Bronze runs most time was s
 - **Two SQL tasks on the warehouse.** The Bronze gate before them has already started it, so Silver adds two tasks' statements, not a new start-up. No notebook.
 - **No skip.** A file cannot decide to skip itself, and the rebuild is cheap (about a second for 180,500 rows locally), so every run rebuilds (D-025). The saving given up is that work, not a warehouse start.
 - **A build** is about 15 statements: the run stamp (6), the run row, the schema and its owner, the classification view, two `CREATE OR REPLACE` and two owner statements. **The gate** is 5: its start time (2), the checks, the run row, the final check. Locally: about 1.1 s and 0.6 s.
-- **One task at a time.** One chain, no schedule, `max_concurrent_runs: 1`.
+- **Parallel source lanes.** Tasks within this source stay ordered, while unrelated sources may run at the same time. There is no schedule, and `max_concurrent_runs: 1` prevents two whole job runs from overlapping.
 
 Databricks timings will be recorded with the first run (open).
 
 ## Running locally
 
-From the repository root, with the virtual environment active, run the whole job as Databricks would, every task of `databricks.yml` in order, on DuckDB:
+From the repository root, with the virtual environment active, run the whole job on DuckDB in a deterministic dependency order equivalent to the Databricks DAG:
 
 ```bash
 RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run
