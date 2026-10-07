@@ -86,6 +86,7 @@ class Category:
 class SilverSpec:
     source_id: str
     bronze_table: str
+    clean_file: str
     clean_table: str
     quarantine_table: str
     identifier: str
@@ -246,7 +247,8 @@ def build_spec(mapping, contract, registry_entry):
             absent[version] = missing
 
     return SilverSpec(
-        source_id=source_id, bronze_table=contract["bronze_table"], clean_table=mapping["silver_table"],
+        source_id=source_id, bronze_table=contract["bronze_table"], clean_file=registry_entry["silver"]["clean_file"],
+        clean_table=mapping["silver_table"],
         quarantine_table=mapping["quarantine_table"], identifier=identifier,
         identifier_pattern=mapping["identifier"]["pattern"], max_digits=mapping["count_columns"]["max_digits"],
         columns=columns, categories=parsed, boolean_true=true, boolean_false=false, repairs=repairs,

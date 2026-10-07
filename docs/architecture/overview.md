@@ -43,7 +43,7 @@ official download ─▶ 00-source volume ─▶ checksum + approved contract �
 Built and tested locally, Bronze to Silver ([Silver](../operations/silver.md)); not yet run on Databricks:
 
 ```
-Bronze gate passed ─▶ 01_create_<table>: current_batches only ─▶ 03-silver <source>_clean + <source>_quarantine
+Bronze gate passed ─▶ NN_clean_<source>: current_batches only ─▶ 03-silver <source>_clean + <source>_quarantine
                                                                    │
                       90_validate_<table> ◀────────────────────────┘
                          │  data-quality results; pipeline_runs 'succeeded' or 'failed'

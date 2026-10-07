@@ -1,6 +1,6 @@
 """Command line for Silver: print the generated SQL and data dictionary. Run from the repository root.
 
-    python -m src.silver.cli sql        --source deped_enrollment > etl/03_silver/01_create_deped_enrollment_clean.sql
+    python -m src.silver.cli sql        --source deped_enrollment > etl/03_silver/01_clean_deped_enrollment.sql
     python -m src.silver.cli gate       --source deped_enrollment > etl/03_silver/90_validate_deped_enrollment_clean.sql
     python -m src.silver.cli dictionary --source deped_enrollment > docs/data/silver/deped-enrollment-clean.md
 

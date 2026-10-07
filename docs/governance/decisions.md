@@ -195,7 +195,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
 - **Problem:** Free Edition's serverless capacity is shared and limited: in the Bronze runs most of the time was spent waiting for compute, and each small control-table statement took 3 to 13 seconds. Silver must be repeatable and safe to rerun, must never build on a failed Bronze load, and should not spend compute it does not need.
 - **Decision:**
-  - Each source's Silver is two SQL tasks in the job (D-020): `01_create_<table>` right after the source's Bronze gate, then `90_validate_<table>`, each only if the task before it succeeded.
+  - Each source's Silver is two SQL tasks in the job (D-020): `NN_clean_<source>` right after the source's Bronze gate, then `90_validate_<table>`, each only if the task before it succeeded.
   - Silver reads only Bronze rows whose batch is in `current_batches`: after a publisher revision the latest delivery version is current (D-015 default).
   - Every run rebuilds both tables with `CREATE OR REPLACE TABLE ... AS SELECT`. The build file records the run as `running` in `pipeline_runs`; the gate records `succeeded` or `failed` after its checks, counting only its own execution's results. Gold reads Silver only when the latest `silver_build` run of the source succeeded.
   - Approved by Ina on 2026-10-07 with a skip when Bronze is unchanged (#43); revised on 2026-10-08 to rebuild every run (option 1A), when Silver became SQL tasks.

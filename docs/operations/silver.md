@@ -11,7 +11,7 @@ bronze_deped_enrollment             Python: check and load the deliveries       
 90_validate_deped_enrollment_raw    SQL: the Bronze gate                            (SQL warehouse)
    │  only if it passed
    ▼
-01_create_deped_enrollment_clean    SQL: run stamp in session variables; pipeline_runs 'running';
+01_clean_deped_enrollment           SQL: run stamp in session variables; pipeline_runs 'running';
    │                                     rebuild from 01-control.current_batches only:
    │                                       deped_enrollment_clean       one row per school per school year
    │                                       deped_enrollment_quarantine  rows that cannot be trusted, with reasons
@@ -154,7 +154,7 @@ The tables go to `local_state/edu_access.duckdb` (`--db <path>` for another file
 2. Regenerate the three generated files (a test fails until you do):
 
    ```bash
-   python -m src.silver.cli sql --source deped_enrollment > etl/03_silver/01_create_deped_enrollment_clean.sql
+   python -m src.silver.cli sql --source deped_enrollment > etl/03_silver/01_clean_deped_enrollment.sql
    ```
 
    ```bash

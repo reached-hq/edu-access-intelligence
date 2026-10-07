@@ -69,7 +69,7 @@ class Env:
         params = {"run_id": run_id, "code_revision": REVISION, "environment": "local"}
         folder = self.repo / "etl" / "03_silver"
         try:
-            self.store.run_file(folder / "01_create_deped_enrollment_clean.sql", params)
+            self.store.run_file(folder / "01_clean_deped_enrollment.sql", params)
         except Exception as e:
             return SilverResult(run_id, "failed", f"build: {e}")
         if hook:
@@ -471,13 +471,17 @@ MAPPINGS = sorted((REPO_ROOT / "config" / "mappings").glob("*.json"))
 
 @pytest.mark.parametrize("mapping", MAPPINGS, ids=lambda p: p.stem)
 @pytest.mark.parametrize("kind, path, generate", [
-    ("sql", "etl/03_silver/01_create_{table}.sql", build_sql),
+    ("sql", "etl/03_silver/{clean_file}", build_sql),
     ("gate", "etl/03_silver/90_validate_{table}.sql", gate_sql),
     ("dictionary", "docs/data/silver/{doc}.md", dictionary_markdown),
 ])
 def test_silver_files_match_the_mapping(mapping, kind, path, generate):
     spec = load_spec(REPO_ROOT, mapping.stem)
-    target = REPO_ROOT / path.format(table=spec.clean_table, doc=spec.clean_table.replace("_", "-"))
+    target = REPO_ROOT / path.format(
+        table=spec.clean_table,
+        clean_file=spec.clean_file,
+        doc=spec.clean_table.replace("_", "-"),
+    )
     assert target.is_file(), f"missing {target.relative_to(REPO_ROOT)}"
     assert target.read_text(encoding="utf-8") == generate(spec), (
         f"Regenerate: python -m src.silver.cli {kind} --source {mapping.stem} > {target.relative_to(REPO_ROOT)}")

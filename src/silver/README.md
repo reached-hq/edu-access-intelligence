@@ -5,7 +5,7 @@ Code that writes each source's Silver SQL from reviewed configuration. The SQL i
 | Module | What it does |
 |---|---|
 | `spec.py` | Loads the Bronze contract and the Silver mapping (`config/mappings/<source_id>.json`) and classifies every publisher column (identifier, free text, category, boolean, count); stops on any column or label it cannot place |
-| `sql.py` | Generates the build SQL (`01_create_<table>.sql`) and the gate (`90_validate_<table>.sql`) from the spec |
+| `sql.py` | Generates the build SQL (`NN_clean_<source>.sql`) and the gate (`90_validate_<table>.sql`) from the spec |
 | `dictionary.py` | Generates the Silver data dictionary (`docs/data/silver/`) from the spec |
 | `cli.py` | `sql`, `gate`, `dictionary`: print a generated file. Exit code 2 if the contract or mapping is invalid |
 

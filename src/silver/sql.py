@@ -160,7 +160,7 @@ def build_sql(spec):
     clean_columns = [name for name, _ in spec.clean_columns()]
     quarantine_select = ["school_year", spec.identifier, "split(quarantine_reasons, ',') AS quarantine_reasons",
                          *lineage, *run_stamp]
-    lines = header(spec, "Silver build", "sql", f"01_create_{spec.clean_table}.sql") + [
+    lines = header(spec, "Silver build", "sql", spec.clean_file) + [
         "--",
         "-- Rebuilds both Silver tables from the current Bronze batches only (01-control.current_batches:",
         "-- the latest succeeded delivery version of each school year). Bronze is read, never changed.",
