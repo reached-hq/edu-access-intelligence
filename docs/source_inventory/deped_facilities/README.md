@@ -18,7 +18,7 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `School-Facilities-in-SY-2023-2024.zip` | zip | n/a | 757,576 | n/a | `9317af02b595d3a8d7381715780ef183a92da35354bbe0f3796045490e546609` | Local (`raw-data/deped/original/`), pending storage decision (#1) |
+| `School-Facilities-in-SY-2023-2024.zip` | zip | n/a | 757,576 | n/a | `9317af02b595d3a8d7381715780ef183a92da35354bbe0f3796045490e546609` | `/Volumes/edu_access/00-source/raw/deped/` (uploaded 2026-09-30); local copy in `raw-data/deped/original/` |
 | ↳ `facilities_2023-24.csv` | CSV | UTF-8, LF | 11,512,476 | 60,167 | `cd60cc375fe8d4b4b4428fa2bafbe88436bbf7430e577343cfd291607429fb0e` | extracted from the zip |
 
 ## Publisher documentation
@@ -68,6 +68,20 @@ See [profile.md](profile.md) for evidence.
 - **Observed:** 669 public schools that offer elementary have no elementary classroom count, and no school records 0 elementary classrooms.
 - **Observed:** the "instructional classroom" definition here is broader than the one DepEd uses for its classroom-learner ratio.
 - **Suspected:** extreme learner-per-room values point to classroom undercounts or reporting errors.
+
+## Ingestion
+
+| Field | Value |
+|---|---|
+| Contract (approved deliveries, schema versions) | [`config/ingestion/deped_facilities.json`](../../../config/ingestion/deped_facilities.json) |
+| Bronze table | `` edu_access.`02-bronze`.deped_facilities_raw ``: every school year and delivery version, text, with provenance |
+| Schema versions | `v1` (SY 2023-24, 87 columns) |
+| Loaded locally | SY 2023-24, 2026-10-06: 60,167 rows, matching the table above; a second run skipped it. Blanks stay blank: 669 public elementary schools have `es_classrooms_instructional` = `''` (O-4), and none has `'0'` (O-5) |
+| Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; a local copy for profiling stays in `raw-data/deped/original/` |
+| Checksums after upload | Match the table above. The ingestion job hashed the zip in the volume, and the CSV and README inside it, before loading, and refuses any file whose checksum differs; it loaded (job run `588715548188592`, 2026-10-06). The folder's `SHA256SUMS.txt` lists the same value |
+| Loaded on Databricks | Yes, 2026-10-06 (`dev`): 60,167 rows loaded and verified; a second run skipped it ([evidence](../../evidence/2026-10-06-deped-facilities-idempotency.md)) |
+
+How a new school year or a revised file is added: [ingestion.md, Runbook](../../ingestion.md#runbook).
 
 ## Limitations for analysis
 

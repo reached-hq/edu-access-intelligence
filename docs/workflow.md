@@ -234,7 +234,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 - Write every table reference in full, with backticks around the schema: ``edu_access.`02-bronze`.deped_enrollment_raw``.
 - Your own Databricks Git folder, linked to this repository: never share a folder, or you will overwrite each other. **Pending #1:** link your GitHub account in Databricks (User Settings → Linked accounts) first.
 - Notebooks are saved in `.py` source format.
-- Deploying and running the job: Phase 6.
+- Deploying and running the job: the Bronze job (`bronze_ingest`) is defined in `databricks.yml`; how to deploy and run it is in [ingestion.md, Running on Databricks](ingestion.md#running-on-databricks). The full pipeline job is Phase 6.
 
 ---
 

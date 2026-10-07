@@ -18,7 +18,7 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` | xlsx (1 sheet) | n/a (binary workbook; text is Unicode) | 369,977 | 1,630 data rows on sheet `2023_NoHUC_Maguindanao grouped` (rows 6 to 1635 of range A1:S1641; 5 header rows, 6 footer rows): 1,612 city or municipality rows and 18 region banner rows | `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026` | Local (`raw-data/psa/original/`). Team copy: uploaded to `/Volumes/edu_access/00-source/raw/psa/` (see docs/architecture.md, Storage) |
+| `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` | xlsx (1 sheet) | n/a (binary workbook; text is Unicode) | 369,977 | 1,630 data rows on sheet `2023_NoHUC_Maguindanao grouped` (rows 6 to 1635 of range A1:S1641; 5 header rows, 6 footer rows): 1,612 city or municipality rows and 18 region banner rows | `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026` | Team volume: `/Volumes/edu_access/00-source/raw/psa/2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` (uploaded 2026-09-30, SHA-256 verified on the volume, see `/Volumes/edu_access/00-source/raw/psa/SHA256SUMS.txt`). Local copy for profiling: `raw-data/psa/original/` |
 
 The file name carries `06Feb2026`. The PSA press release for these estimates, "881 Cities and Municipalities Recorded Poverty Incidence of 20 Percent or Lower in 2023" (Reference Number 2026-43), is dated 6 February 2026, which matches. The workbook reproduces the press release's figures: for example, 881 of the 1,611 units with a 2023 estimate have poverty incidence of 20 or less, the same count as the headline (`profile.md`, X-2).
 

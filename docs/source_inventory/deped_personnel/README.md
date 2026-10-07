@@ -18,8 +18,8 @@
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `School-Personnel-in-SY-2023-2024.zip` | ZIP | n/a | 782,129 | n/a | `9d1e5adfc33d67244f0d1a796f1b8b1930f5704eadf9f901008da68d7764a817` | Local; migration to governed raw storage pending |
-| ↳ `personnel_2023-24.csv` | CSV | UTF-8 without BOM, LF | 27,335,878 | 60,167 | `5d0dd4a244fc13401787d32f84f21ab5af295bf808f037a3f762efff7d6ed6c5` | Extracted from the ZIP file |
+| `School-Personnel-in-SY-2023-2024.zip` | ZIP | n/a | 782,129 | n/a | `9d1e5adfc33d67244f0d1a796f1b8b1930f5704eadf9f901008da68d7764a817` | Databricks volume `/Volumes/edu_access/00-source/raw/deped/`; checksum verified 2026-10-06 |
+| ↳ `personnel_2023-24.csv` | CSV | UTF-8 without BOM, LF | 27,335,878 | 60,167 | `5d0dd4a244fc13401787d32f84f21ab5af295bf808f037a3f762efff7d6ed6c5` | Member of the ZIP in Databricks volume `/Volumes/edu_access/00-source/raw/deped/` |
 
 ## Publisher documentation
 
