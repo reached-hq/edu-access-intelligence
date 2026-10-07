@@ -38,6 +38,7 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/cross_sour
 | [osm_philippines](osm_philippines/) | OpenStreetMap Philippines geographic data | OpenStreetMap / Geofabrik | profiled | @saraevcldn |
 | [psa_psgc](psa_psgc/) | PSA Philippine Standard Geographic Code (PSGC) | PSA | profiled | @maeveylain |
 | [psa_poverty_stat](psa_poverty_stat/) | PSA city- and municipal-level poverty estimates | PSA | profiled | @maeveylain |
+| [psa_openstat_education](psa_openstat_education/) | PSA OpenSTAT education and literacy tables | PSA | profiled | @hyenalouise |
 | [psa_population_per_barangay](psa_population_per_barangay/) | PSA 2024 population by barangay | PSA | profiled | @mafelisilda |
 | [psa_population_per_age_group](psa_population_per_age_group/) | PSA 2024 household population by age group | PSA | profiled | @mafelisilda |
 | [hdx_boundaries](hdx_boundaries/) | Philippine administrative boundaries | UN OCHA | profiled | @saraevcldn |
