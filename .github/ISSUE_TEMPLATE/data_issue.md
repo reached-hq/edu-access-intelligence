@@ -6,6 +6,13 @@ labels: "data-issue"
 assignees: ""
 ---
 
+## Issue hierarchy
+
+Parent issue, if any:
+
+Use GitHub's native **Add sub-issue** control for child work. Do not replace the
+relationship with a Markdown checklist.
+
 ## Where
 
 - Source / table:

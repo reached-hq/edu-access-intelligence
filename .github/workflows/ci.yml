@@ -44,7 +44,16 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    # Read access to see which issues merging will close, including sidebar links.
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
     steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+
       - name: Check the PR description
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -55,6 +64,22 @@ jobs:
             echo "::error::Add the issue to the PR description, e.g. 'Closes #24' or 'Part of #49'."
             exit 1
           fi
+
+      # A sidebar link (Development) closes an issue just like 'Closes', and adding
+      # one triggers no event: rerun this check after changing the sidebar.
+      - name: Check which issues merging will close
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          CLOSING=$(gh api graphql \
+            -f query='query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) { pullRequest(number: $number) {
+                closingIssuesReferences(first: 50) { nodes { number title subIssuesSummary { total } } } } } }' \
+            -F owner="${GITHUB_REPOSITORY%/*}" -F repo="${GITHUB_REPOSITORY#*/}" -F number="$NUMBER" \
+            --jq '.data.repository.pullRequest.closingIssuesReferences.nodes')
+          export CLOSING
+          python3 .github/scripts/closing_issues.py
 
   ai-help:
     name: PR declares AI help

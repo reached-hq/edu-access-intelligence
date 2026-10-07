@@ -39,7 +39,7 @@ def build(number, author, reviewers, issue=None, milestone=None):
 
     opener, meme, alt = PAIRS[number % len(PAIRS)]
     a, b = (f"@{r}" for r in reviewers[:2])
-    closes = f"closes #{issue}" if issue else "isn't linked to an issue yet"
+    issue_link = f"references #{issue}" if issue else "isn't linked to an issue yet"
     belongs = f"belongs to {milestone}" if milestone else "has no milestone yet"
 
     return f"""{MARKER}
@@ -47,7 +47,7 @@ def build(number, author, reviewers, issue=None, milestone=None):
 
 <img src="{MEME_BASE}{meme}" alt="{alt}" width="250">
 
-This one is from @{author}, {closes}, and {belongs}. Only one approval is needed, so whoever gets to it first takes it, and the other is off the hook.
+This one is from @{author}, {issue_link}, and {belongs}. Only one approval is needed, so whoever gets to it first takes it, and the other is off the hook.
 
 Before you approve, read the Reviewer notes to see what the author wants you to look at closely, check the AI help section (if AI helped, the author should be able to explain every part without it), and make sure CI is green.
 
