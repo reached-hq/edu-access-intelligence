@@ -15,6 +15,9 @@ without pretending that the business problem or analytical questions are final.
 | PSA poverty statistics | `psa_poverty_stat_raw` | `psa_poverty_stat_clean` | `psa_poverty_stat_quarantine` |
 | HDX ADM3 boundaries | `hdx_adm3_raw` | `hdx_adm3_clean` | `hdx_adm3_quarantine` |
 
+Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
+the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
+
 The three enrollment school years belong in one table. `school_year` identifies
 the delivery year; it should not be encoded in separate table names. Likewise,
 the PSGC workbook and its `PSGC` sheet are one logical input, not separate

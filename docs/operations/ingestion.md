@@ -352,13 +352,15 @@ Rebasing or squash-merging a branch does not change a stored `code_revision`, an
 
 ## Handoff to Silver
 
-Bronze preserves; Silver cleans. Silver (#43) should:
+Bronze preserves; Silver cleans. **Built for `deped_enrollment`** (#85; [Silver](silver.md)), locally and on the real data; not yet run on Databricks. As planned here, Silver:
 
-- read only rows whose `batch_id` is in `` `01-control`.current_batches `` (the latest succeeded version per school year);
-- type the counts (all whole numbers, profile O-2) and keep blanks as NULL, never 0;
-- map each year's labels to one set (`True`/`Yes`, `DepEd`/`DepED Managed`, trailing spaces; profile O-8), and normalize place names (profile O-5) with affected counts;
-- resolve publisher duplicates of `school_id` if any appear (none so far, profile O-1), quarantining rather than dropping;
-- keep `batch_id` and `source_row_number` so every Silver row traces back to its Bronze row.
+- reads only rows whose `batch_id` is in `` `01-control`.current_batches `` (the latest succeeded version per school year);
+- types the counts (all whole numbers, profile O-2) and keeps blanks as NULL, never 0;
+- maps each year's labels to one set through a reviewed file (`True`/`Yes`, `DepEd`/`DepED Managed`, trailing spaces; profile O-8), and trims and collapses spaces in place names (profile O-5), recording affected counts;
+- quarantines publisher duplicates of `school_id` rather than dropping them (none so far, profile O-1);
+- keeps `batch_id`, `source_sha256`, and `source_row_number`, so every Silver row traces back to its Bronze row.
+
+The Silver task runs right after this source's Bronze task, only if it succeeded, and skips when `current_batches` has not changed since its last successful build.
 
 ## Runbook
 

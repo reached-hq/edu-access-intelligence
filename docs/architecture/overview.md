@@ -15,7 +15,7 @@ The stage numbers follow one rule: a stage number matches its `etl/` folder and 
 | 00 | Source | Raw files exactly as received | `src/ingestion/` | `` edu_access.`00-source` `` (volume `raw`, no tables) |
 | 01 | Control | Pipeline runs, ingestion batches, DQ results | `etl/01_control/` | `` edu_access.`01-control` `` |
 | 02 | Bronze | Source landed unchanged, plus origin fields | `etl/02_bronze/` | `` edu_access.`02-bronze` `` |
-| 03 | Silver | Typed, standardized, deduplicated, same grain; quarantine | `etl/03_silver/` | `` edu_access.`03-silver` `` (not created yet) |
+| 03 | Silver | Typed, standardized, deduplicated, same grain; quarantine | `etl/03_silver/`, `src/silver/` | `` edu_access.`03-silver` `` (created by the first Silver build) |
 | 04 | Integration | Matching across sources (e.g. to PSGC) | `etl/04_integration/` | `` edu_access.`04-integration` `` (not created yet) |
 | 05 | Gold | Facts and dimensions for the approved question | `etl/05_gold/` | `` edu_access.`05-gold` `` (not created yet) |
 | 06 | Analytics | One dataset per business question | `etl/06_analytics/` | `` edu_access.`06-analytics` `` (not created yet) |
@@ -38,6 +38,16 @@ official download ─▶ 00-source volume ─▶ checksum + approved contract �
                                                      │                                          │
                                                      └──────────── 01-control ◀─────────────────┘
                                       runs, batches, attempts, data-quality results, current_batches
+```
+
+Built and tested locally, Bronze to Silver ([Silver](../operations/silver.md)); not yet run on Databricks:
+
+```
+02-bronze ─▶ current_batches only ─▶ unchanged since last build? ─ yes ─▶ skip
+                                         │ no
+                                         ▼
+                     03-silver: <source>_clean + <source>_quarantine ─▶ gate ─▶ 01-control
+                                                         layer_builds, data-quality results, runs
 ```
 
 ## Sources
@@ -87,9 +97,11 @@ Every check writes one row to `` edu_access.`01-control`.data_quality_results ``
 |---|---|---|
 | PASS | As expected | None |
 | WARN | Worth knowing, not wrong in Bronze (e.g. a publisher's duplicate school) | Recorded; rows are loaded as received; Silver decides |
-| FAIL | The batch or table cannot be trusted | The batch is not marked succeeded, so downstream does not read it; the task that recorded the FAIL fails, and the tasks after it in that source's lane do not run |
+| FAIL | The batch cannot be trusted | The batch is not marked succeeded, so downstream does not read it; the run exits nonzero |
 
 Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#validation).
+
+Silver adds its own gate per source (`etl/03_silver/90_validate_<table>.sql`, `layer = 'silver'`): reconciliation with Bronze per school year (rows and learners), unique non-NULL keys, counts non-negative and integer-typed, NULLs kept as NULL, every label in the reviewed mapping, complete lineage, and the quarantine rate; it also records how many rows each cleaning rule changed or flagged. For Silver, WARN means rows were quarantined (at most 1% of a school year) and the build stands; FAIL means the Silver tables cannot be trusted: the task fails, the run is not marked succeeded, and Gold must not read them. Details: [Silver, The gate](../operations/silver.md#the-gate).
 
 ## Orchestration
 

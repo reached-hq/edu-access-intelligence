@@ -14,6 +14,8 @@ documents should link to it rather than duplicate current-state claims.
 | Understand accepted and provisional decisions | [Decision log](governance/decisions.md) |
 | Understand known limits | [Limitations](governance/limitations.md) |
 | Understand ingestion behavior | [Ingestion](operations/ingestion.md) |
+| Understand Silver cleaning, quarantine, and checks | [Silver](operations/silver.md) |
+| Look up a Silver column | [Silver tables](data/silver/README.md) |
 | Make and review a change | [Workflow](operations/workflow.md) |
 | Apply repository and lakehouse names | [Naming conventions](standards/naming.md) |
 | Find finalized ETL object names | [ETL table registry](standards/tables.md) |
