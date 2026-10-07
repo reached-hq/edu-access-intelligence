@@ -1,0 +1,80 @@
+"""The job in databricks.yml, run locally task by task on made-up deliveries.
+
+What CI can show about the job before Databricks runs it: every task's command
+or SQL file works in the order the job runs them, and run_if stops or continues
+the right tasks. Databricks-only behavior is listed in docs/operations/ingestion.md.
+"""
+
+import json
+import shutil
+
+import pytest
+
+from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
+from src.ingestion.store import DuckDBStore
+from src.job.local_run import in_order, job_parameters, load_job, python_argv, run_job
+
+REVISION = "d" * 40
+CONTROL = "edu_access.`01-control`"
+BRONZE = "edu_access.`02-bronze`.deped_enrollment_raw"
+
+
+@pytest.fixture
+def repo(tmp_path):
+    root = fake_repo(tmp_path / "repo", empty_config("deped_enrollment"))
+    write_config(root, empty_config("deped_facilities"))
+    shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
+    return root
+
+
+def deliver(repo, landing, source_id="deped_enrollment", school_year="2023-24"):
+    """A made-up delivery in the landing folder, approved in the fake repository's contract."""
+    config = json.loads((repo / "config" / "ingestion" / f"{source_id}.json").read_text(encoding="utf-8"))
+    path = make_delivery(landing / "deped" / "original", school_year, source_id=source_id)
+    approve(config, path, school_year)
+    write_config(repo, config)
+
+
+def statuses(results):
+    return {r.task_key: r.status for r in results}
+
+
+def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    deliver(repo, landing, "deped_facilities")
+    db = tmp_path / "job.duckdb"
+    results = run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None)
+    assert set(statuses(results).values()) == {"succeeded"}
+    _, job = load_job(repo)
+    assert [r.task_key for r in results] == [t["task_key"] for t in in_order(job["tasks"])]
+    store = DuckDBStore(db)
+    assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") == [(0,)]
+    store.close()
+
+
+def test_a_second_run_changes_nothing(repo, tmp_path):
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    run_job(repo, landing, db, REVISION, log=lambda *_: None)
+    results = run_job(repo, landing, db, REVISION, log=lambda *_: None)
+    assert set(statuses(results).values()) == {"succeeded"}
+    store = DuckDBStore(db)
+    assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
+    assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
+        == [("load", 1), ("skip", 1)]
+    store.close()
+
+
+def test_python_tasks_get_local_values():
+    _, job = load_job(REPO_ROOT)
+    task = next(t for t in job["tasks"] if "spark_python_task" in t)
+    params = job_parameters(job, REVISION, "job-run-1")
+    argv = python_argv(task, "/tmp/landing", "/tmp/x.duckdb", params)
+    for flag, value in (("--backend", "duckdb"), ("--environment", "local"), ("--landing", "/tmp/landing"),
+                        ("--code-revision", REVISION), ("--db", "/tmp/x.duckdb")):
+        assert argv[argv.index(flag) + 1] == value
+    assert "/Volumes/edu_access/00-source/raw" not in argv
+    assert params["code_revision"] == REVISION
