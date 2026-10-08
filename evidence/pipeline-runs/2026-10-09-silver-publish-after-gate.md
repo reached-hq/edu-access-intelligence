@@ -15,7 +15,9 @@ The DepEd enrollment Silver build writes only the candidate tables (`deped_enrol
 
 The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed with `databricks bundle deploy --target dev --profile reached-hq` from a clean checkout of the pushed commit `acd6416e4b25cbceea60551ff8ca625cbe85f518`. Read back from the job before running: `git_source.git_commit` and the `code_revision` parameter both equal that commit. No other job run was active and the SQL warehouse was stopped. The job was run twice with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`. Times are Manila (UTC+8).
 
-<!-- Screenshot: Job details: Git source at commit acd6416 -->
+Job details: Git source at commit acd6416
+<img width="1457" height="550" alt="image" src="https://github.com/user-attachments/assets/dc3adf0b-a19d-469c-85e4-eb22a9f2d026" />
+
 
 | | Run 1 | Run 2 |
 |---|---|---|
@@ -26,8 +28,11 @@ The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed 
 | `01_clean_deped_enrollment` (into the candidates) | 56 s | 30 s |
 | `90_validate_deped_enrollment_clean` (check, then publish) | 63 s | 47 s |
 
-<!-- Screenshot: Run 1 task graph: every enabled task green -->
-<!-- Screenshot: Run 2 task graph: the same 20 tasks green -->
+#### Run 1 task graph: every enabled task green
+<img width="1461" height="515" alt="image" src="https://github.com/user-attachments/assets/78b08900-1a4a-43cb-8043-ebe92de0a932" />
+
+#### Run 2 task graph: the same 20 tasks green
+<img width="1454" height="496" alt="image" src="https://github.com/user-attachments/assets/b51783b2-4f4d-4457-a347-e4073c9ea314" />
 
 No task waited in a queue. Before this change the gate took 44 to 50 s in four runs ([#85 evidence](2026-10-09-deped-enrollment-silver.md)); publishing (two table copies and two owner statements, plus one more run-row update) adds about 3 to 13 s per run on the warehouse.
 
@@ -66,7 +71,9 @@ The one-query verification from [Silver, Running on Databricks](../../docs/opera
 | published rows from a succeeded run | 180500 | 180500 | OK |
 | candidate rows not published | 0 | 0 | OK |
 
-<!-- Screenshot: Verification query after run 2: 20 rows, all OK -->
+#### Verification query after run 2: 20 rows, all OK
+<img width="1022" height="471" alt="image" src="https://github.com/user-attachments/assets/3ba74370-9657-4e8e-b5de-e05d2d7c40d8" />
+
 
 ### Databricks: the tables
 
@@ -81,12 +88,23 @@ The one-query verification from [Silver, Running on Databricks](../../docs/opera
 | Identical rebuild | Delta versions 5 (run 1) and 6 (run 2) of `deped_enrollment_clean`, without the run stamp: 0 rows in either direction |
 | No row changed by this change | Version 4 (published at `7d93d8e`, before this change) and version 6: 0 rows in either direction |
 
-<!-- Screenshot: Gate results of the two runs: bronze PASS 24, silver PASS 232 -->
-<!-- Screenshot: The gate's results name the two candidate tables -->
-<!-- Screenshot: Tables in 03-silver: the two Silver tables and their two candidates, all owned by reached-hq -->
-<!-- Screenshot: DESCRIBE HISTORY deped_enrollment_clean: versions 5 and 6 are the two runs -->
-<!-- Screenshot: Candidate and published clean table compared: 0 and 0 -->
-<!-- Screenshot: Versions 4 and 6 compared: 0 and 0 -->
+#### Gate results of the two runs: bronze PASS 24, silver PASS 232
+<img width="1014" height="239" alt="image" src="https://github.com/user-attachments/assets/d21c0750-406c-4ca5-a110-bf24fb83a48b" />
+
+#### The gate's results name the two candidate tables 
+<img width="1019" height="213" alt="image" src="https://github.com/user-attachments/assets/7842dec3-11d7-410c-af80-4796d1004d69" />
+
+#### Tables in 03-silver: the two Silver tables and their two candidates, all owned by reached-hq 
+<img width="1017" height="272" alt="image" src="https://github.com/user-attachments/assets/59738868-9ea7-4106-8b4e-ff598a1b3eea" />
+
+#### DESCRIBE HISTORY deped_enrollment_clean: versions 5 and 6 are the two runs 
+<img width="1014" height="288" alt="image" src="https://github.com/user-attachments/assets/6ef0f0c6-18b3-439e-b73f-9d6176f376fa" />
+
+#### Candidate and published clean table compared: 0 and 0 
+<img width="1017" height="262" alt="image" src="https://github.com/user-attachments/assets/b36dc83f-db17-4f48-9c27-278a48d6cc85" />
+
+#### Versions 4 and 6 compared: 0 and 0 
+<img width="1027" height="296" alt="image" src="https://github.com/user-attachments/assets/789f17ed-2519-43f8-802d-96df39bc6dbd" />
 
 ### Local: a build that fails its gate
 
