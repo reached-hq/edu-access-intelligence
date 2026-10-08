@@ -63,6 +63,9 @@ def _xml(path, member, members):
     if member not in members:
         raise IngestionError("workbook", "corrupt_workbook", f"{Path(path).name}: part {member!r} is missing.")
     data = archive.read_member(path, member)
+    # A part in UTF-16 would hide a declaration from the byte search below.
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff") or b"\x00" in data[:4]:
+        raise IngestionError("workbook", "unsafe_workbook", f"{Path(path).name}: part {member!r} is not UTF-8 XML.")
     if b"<!DOCTYPE" in data[:4096].upper() or b"<!ENTITY" in data.upper():
         raise IngestionError("workbook", "unsafe_workbook",
                              f"{Path(path).name}: part {member!r} declares a DTD or entities. Nothing was parsed.")
@@ -97,6 +100,10 @@ def _merge_range(ref):
 def open_sheet(path, sheet_name, expected_sheets, max_uncompressed_bytes):
     """Read one sheet after checking the workbook is safe and has exactly the expected sheets."""
     members = set(archive.list_members(path, max_uncompressed_bytes))  # missing/corrupt/unsafe/too large
+    macros = [m for m in members if Path(m).name.lower() == "vbaproject.bin"]
+    if macros:
+        raise IngestionError("workbook", "macro_enabled_workbook",
+                             f"{Path(path).name} contains macros ({macros[0]}). Macro-enabled workbooks are not loaded.")
     for part in REQUIRED_PARTS:
         if part not in members:
             raise IngestionError("workbook", "corrupt_workbook",
