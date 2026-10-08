@@ -1,6 +1,6 @@
 # Source inventory
 
-One folder per source, created by copying [`_template/`](template/) to `<source_id>/`. A source marked `profiled` or `accepted` needs all three files:
+One folder per source, created by copying [`template/`](template/) to `<source_id>/`. A source marked `profiled` or `accepted` needs all three files:
 
 | File | Contents |
 |---|---|
