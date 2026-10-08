@@ -296,7 +296,6 @@ resources:
 
         # 04 - PSA PSGC workbook, PSGC sheet
         - task_key: 04_create_psa_psgc_raw
-          disabled: true
           depends_on:
             - task_key: 05_create_current_batches
           run_if: ALL_SUCCESS
@@ -307,7 +306,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: bronze_psa_psgc
-          disabled: true
           depends_on:
             - task_key: 04_create_psa_psgc_raw
           run_if: ALL_SUCCESS
@@ -331,7 +329,6 @@ resources:
               - "{{job.parameters.code_revision}}"
 
         - task_key: 90_validate_psa_psgc_raw
-          disabled: true
           depends_on:
             - task_key: bronze_psa_psgc
           run_if: ALL_SUCCESS
@@ -365,7 +362,6 @@ resources:
 
         # 05 - PSA poverty statistics
         - task_key: 05_create_psa_poverty_stat_raw
-          disabled: true
           depends_on:
             - task_key: 05_create_current_batches
           run_if: ALL_SUCCESS
@@ -376,7 +372,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: bronze_psa_poverty_stat
-          disabled: true
           depends_on:
             - task_key: 05_create_psa_poverty_stat_raw
           run_if: ALL_SUCCESS
@@ -400,7 +395,6 @@ resources:
               - "{{job.parameters.code_revision}}"
 
         - task_key: 90_validate_psa_poverty_stat_raw
-          disabled: true
           depends_on:
             - task_key: bronze_psa_poverty_stat
           run_if: ALL_SUCCESS

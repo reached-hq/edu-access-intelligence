@@ -11,6 +11,7 @@ import shutil
 import pytest
 
 from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
+from factories import psa_workbooks, psgc_workbooks
 from src.ingestion.store import DuckDBStore
 from src.job.local_run import in_order, job_parameters, load_job, python_argv, run_job
 
@@ -23,6 +24,9 @@ BRONZE = "edu_access.`02-bronze`.deped_enrollment_raw"
 def repo(tmp_path):
     root = fake_repo(tmp_path / "repo", empty_config("deped_enrollment"))
     write_config(root, empty_config("deped_facilities"))
+    write_config(root, psa_workbooks.empty_config())   # enabled lanes with no approved delivery yet
+    write_config(root, psgc_workbooks.empty_config())
+    (tmp_path / "landing" / "psa").mkdir(parents=True)  # their landing folder exists, but holds nothing
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 

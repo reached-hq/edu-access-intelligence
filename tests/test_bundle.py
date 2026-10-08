@@ -296,3 +296,24 @@ def test_every_created_object_is_owned_by_the_team_group(repo_root, project):
 def test_bronze_ddl_uses_the_project_group(project):
     from src.ingestion.bronze import OWNER_GROUP
     assert OWNER_GROUP == project["owner_group"]
+
+
+def test_delivered_sources_are_not_disabled(jobs, repo_root):
+    """A source with a contract and real Bronze SQL already runs on main; disabling its
+    create, load or gate task would quietly stop a delivered source."""
+    registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text(encoding="utf-8"))
+    for entry in registry["source_tables"]:
+        source, bronze = entry["source_id"], entry["bronze"]
+        ddl = repo_root / "etl" / "02_bronze" / bronze["create_file"]
+        if not (repo_root / "config" / "ingestion" / f"{source}.json").is_file():
+            continue
+        if ddl.read_text(encoding="utf-8").lstrip().startswith("-- PLACEHOLDER:"):
+            continue
+        for name, job in jobs.items():
+            lane = [task for task in job["tasks"]
+                    if task.get("sql_task", {}).get("file", {}).get("path") in (
+                        f"etl/02_bronze/{bronze['create_file']}", f"etl/02_bronze/90_validate_{bronze['table']}.sql")
+                    or ("spark_python_task" in task and argument(task, "--source") == source)]
+            assert len(lane) == 3, f"{name}: {source} should have a create, load and gate task, found {len(lane)}"
+            for task in lane:
+                assert task.get("disabled") is not True, f"{name}/{task['task_key']} disables delivered source {source}"
