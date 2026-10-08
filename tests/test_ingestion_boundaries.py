@@ -8,13 +8,13 @@ an in-memory DuckDB.
 import pytest
 
 from factories.deped_deliveries import empty_config, fake_repo, registry_entry
-from factories.hdx_geojson import GEOMETRY_TEXT, approve, columns, make_geojson, write_text
+from factories.hdx_geojson import GEOMETRY_TEXT, approve, columns, feature_text, make_geojson, write_text
 from src.ingestion.contract import validate_config
 from src.ingestion.errors import IngestionError
 from src.ingestion.geojson_features import prepare_geojson_delivery
 from src.ingestion.pipeline import IngestionRun
 from src.ingestion.store import DuckDBStore
-from src.ingestion.validate import FAIL, PASS
+from src.ingestion.validate import FAIL, PASS, WARN
 
 SOURCE = "hdx_boundaries"
 REVISION = "c" * 40
@@ -153,3 +153,64 @@ def test_the_admin4_file_beside_it_is_ignored(env):
     make_geojson(inbox, name="phl_admin4.geojson")
     summary = run(DuckDBStore(), config, landing, repo)
     assert [o.archive_name for o in summary.outcomes] == ["phl_admin3.geojson"]
+
+# --- Each advertised check, on a small made-up file ------------------------------------
+
+POINT_TEXT = '{"type": "Point", "coordinates": [120.50, 14.0]}'
+
+
+def collection(path, features, crs=None, byte_order_mark=False):
+    """Write a FeatureCollection from feature texts, optionally with a 'crs' member or a byte-order mark."""
+    crs_member = f', "crs": {crs}' if crs else ""
+    text = f'{{"type": "FeatureCollection"{crs_member}, "features": [\n' + ",\n".join(features) + "\n]}\n"
+    return write_text(path, ("\ufeff" if byte_order_mark else "") + text)
+
+
+def checks_of(config, path, n):
+    approve(config, path, n)
+    return {c.check_name: c for c in prepare(config, path).checks}
+
+
+def test_a_feature_without_geometry_fails(tmp_path):
+    config = empty_config(SOURCE)
+    header = columns()
+    path = collection(tmp_path / "phl_admin3.geojson",
+                      [feature_text(1, header), feature_text(2, header, geometry="null")])
+    check = checks_of(config, path, 2)["geometry_not_null"]
+    assert (check.status, check.actual) == (FAIL, "1")
+
+
+@pytest.mark.parametrize("crs, status", [
+    (None, PASS),  # no crs member: RFC 7946 means WGS 84
+    ('{"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}}', PASS),
+    ('{"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::3123"}}', FAIL),  # a projected CRS
+])
+def test_coordinates_must_be_wgs84(tmp_path, crs, status):
+    config = empty_config(SOURCE)
+    path = collection(tmp_path / "phl_admin3.geojson", [feature_text(1, columns())], crs=crs)
+    assert checks_of(config, path, 1)["crs_is_wgs84"].status == status
+
+
+def test_a_nested_property_is_refused(tmp_path):
+    config = empty_config(SOURCE)
+    nested = '{"type": "Feature", "properties": {"adm3_pcode": "PH9900001", "names": {"en": "Test"}}, "geometry": null}'
+    path = collection(tmp_path / "phl_admin3.geojson", [nested])
+    approve(config, path, 1)
+    refused("nested_property", prepare, config, path)
+
+
+def test_a_byte_order_mark_is_a_warning_and_the_file_still_loads(tmp_path):
+    config = empty_config(SOURCE)
+    path = collection(tmp_path / "phl_admin3.geojson", [feature_text(1, columns())], byte_order_mark=True)
+    checks = checks_of(config, path, 1)
+    assert checks["no_byte_order_mark"].status == WARN
+    assert not [c for c in checks.values() if c.status == FAIL]
+
+
+def test_an_unexpected_geometry_type_is_a_warning(tmp_path):
+    config = empty_config(SOURCE)
+    header = columns()
+    path = collection(tmp_path / "phl_admin3.geojson",
+                      [feature_text(1, header), feature_text(2, header, geometry=POINT_TEXT)])
+    check = checks_of(config, path, 2)["geometry_types_allowed"]
+    assert (check.status, check.actual) == (WARN, "Point 1")
