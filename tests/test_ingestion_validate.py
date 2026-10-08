@@ -74,7 +74,12 @@ def test_contract_matches_the_source_card_row_by_row(repo_root, path):
         repo_root / "docs" / "data" / "source-inventory" / path.stem / "README.md"
     ).read_text(encoding="utf-8")
     lines = card.splitlines()
-    for d in json.loads(path.read_text(encoding="utf-8"))["deliveries"]:
+    config = json.loads(path.read_text(encoding="utf-8"))
+    if config.get("format") == "xlsx_sheet":
+        return _workbook_matches_the_card(config, lines)
+    if config.get("format") == "xlsx_table":
+        return _workbook_table_matches_the_card(config, lines)
+    for d in config["deliveries"]:
         archive_rows = [line for line in lines if d["archive_sha256"] in line]
         assert len(archive_rows) == 1, f"{d['archive']}: its checksum must be on exactly one card row"
         assert f"`{d['archive']}`" in archive_rows[0], f"{d['archive']}: checksum is on another file's row"
@@ -88,6 +93,32 @@ def test_contract_matches_the_source_card_row_by_row(repo_root, path):
 
         for name, digest in d["document_sha256"].items():
             assert digest in card, f"{d['archive']}: {name} checksum is not on the card"
+
+
+def _workbook_matches_the_card(config, lines):
+    """A workbook's card row holds its name, checksum, sheet, and the profiled row counts."""
+    for d in config["deliveries"]:
+        rows = [line for line in lines if d["workbook_sha256"] in line]
+        assert len(rows) == 1, f"{d['workbook']}: its checksum must be on exactly one card row"
+        row = rows[0]
+        body = d["body_rows"]["last"] - d["body_rows"]["first"] + 1
+        assert f"`{d['workbook']}`" in row, f"{d['workbook']}: checksum is on another file's row"
+        assert f"`{d['sheet']}`" in row, f"{d['workbook']}: sheet {d['sheet']!r} is not on its card row"
+        for label, n in (("data rows", body), ("unit rows", d["unit_rows"]), ("banner rows", d["banner_rows"])):
+            assert f"{n:,}" in row, f"{d['workbook']}: {label} {n:,} is not on its card row"
+        assert f"range {d['used_range']}" in row, f"{d['workbook']}: used range {d['used_range']} is not on its card row"
+        rows_text = f"rows {d['body_rows']['first']} to {d['body_rows']['last']}"
+        assert rows_text in row, f"{d['workbook']}: {rows_text!r} is not on its card row"
+
+
+def _workbook_table_matches_the_card(config, lines):
+    """An xlsx_table workbook (PSGC): name, checksum, data rows and range on one card row."""
+    for d in config["deliveries"]:
+        rows = [line for line in lines if d["workbook_sha256"] in line]
+        assert len(rows) == 1, f"{d['workbook']}: its checksum must be on exactly one card row"
+        assert f"`{d['workbook']}`" in rows[0], f"{d['workbook']}: checksum is on another file's row"
+        assert f"{d['row_count']:,}" in rows[0], f"{d['workbook']}: row count {d['row_count']:,} is not on its card row"
+        assert d["range"] in rows[0], f"{d['workbook']}: range {d['range']} is not on its card row"
 
 
 def test_v2_adds_columns_without_reordering_v1():

@@ -55,6 +55,25 @@ class PreparedDelivery:
     def failed_checks(self):
         return [c for c in self.checks if c.status == FAIL]
 
+    def provenance(self, registry_entry):
+        """The provenance values shared by every row of this delivery (bronze.build_rows adds the rest)."""
+        return {
+            "source_id": self.source_id,
+            "source_system": registry_entry["source_system"],
+            "source_url": registry_entry["acquisition"],
+            "school_year": self.school_year,
+            "delivery_version": self.delivery_version,
+            "source_archive": self.archive_name,
+            "source_archive_sha256": self.archive_sha256,
+            "source_file": self.data_member,
+            "source_sha256": self.data_member_sha256,
+            "schema_version": self.schema_version,
+            "schema_fingerprint": self.schema_fingerprint,
+        }
+
+    def row_provenance(self, number):
+        return {}
+
 
 def identify_delivery(config, archive_path):
     """Return (approved delivery, archive SHA-256), or stop if the file is not approved."""

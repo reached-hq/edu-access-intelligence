@@ -1,0 +1,90 @@
+{
+  "source_id": "psa_psgc",
+  "format": "xlsx_table",
+  "bronze_table": "psa_psgc_raw",
+  "landing_dir": "psa",
+  "workbook_pattern": "^PSGC-(?P<quarter>[1-4])Q-(?P<year>[0-9]{4})-Publication-Datafile\\.xlsx$",
+  "data_sheet": "PSGC",
+  "expected_sheets": ["Metadata", "National Summary", "Prov Sum", "PSGC", "Notes", "Coding Structure"],
+  "period_source": {
+    "sheet": "Metadata",
+    "label": "Publication date:"
+  },
+  "max_uncompressed_bytes": 100000000,
+  "identifier_column": "psgc_code",
+  "identifier_pattern": "^[0-9]{10}$",
+  "identifier_number_cells_profiled": 84,
+  "error_cells_profiled": 1,
+  "required_columns": ["psgc_code", "name", "geographic_level"],
+  "require_approved_deliveries": true,
+  "master_reference_period": "2026-Q2",
+  "schema_versions": {
+    "v1": {
+      "columns": [
+        "psgc_code",
+        "name",
+        "correspondence_code",
+        "geographic_level",
+        "old_names",
+        "city_class",
+        "income_classification",
+        "urban_rural",
+        "population",
+        "column_j_footnote",
+        "status"
+      ],
+      "source_headers": [
+        "10-digit PSGC",
+        "Name",
+        "Correspondence Code",
+        "Geographic Level",
+        "Old names",
+        "City Class",
+        "Income\nClassification (DOF DO No. 074.2024)",
+        "Urban / Rural\n(based on 2020 CPH)",
+        "2024 Population",
+        "",
+        "Status"
+      ]
+    }
+  },
+  "quality_checks": [
+    {"name": "blank_geographic_level", "check": "blank", "column": "geographic_level", "profiled": 2, "finding": "O-2"},
+    {"name": "blank_correspondence_code", "check": "blank", "column": "correspondence_code", "profiled": 50, "finding": "O-3"},
+    {"name": "population_not_whole_number", "check": "not_whole_number", "column": "population", "profiled": 1, "finding": "O-4"},
+    {"name": "population_zero", "check": "equals", "value": "0", "column": "population", "profiled": 12, "finding": "O-4"},
+    {"name": "income_class_dash", "check": "equals", "value": "-", "column": "income_classification", "profiled": 8, "finding": "O-7"},
+    {"name": "income_class_starred", "check": "ends_with", "value": "*", "column": "income_classification", "profiled": 6, "finding": "O-7"},
+    {"name": "urban_rural_dash", "check": "equals", "value": "-", "column": "urban_rural", "profiled": 38, "finding": "O-8"},
+    {"name": "name_trailing_space", "check": "ends_with", "value": " ", "column": "name", "profiled": 2855, "finding": "O-9"},
+    {"name": "column_j_footnote_filled", "check": "not_blank", "column": "column_j_footnote", "profiled": 19, "finding": "O-6"}
+  ],
+  "national_summary": {
+    "sheet": "National Summary",
+    "total_row_label": "PHILIPPINES",
+    "level_labels": {"Prov": "PROV.", "City": "CITIES", "Mun": "MUN.", "Bgy": "BGY."},
+    "population_label_prefix": "POPULATION"
+  },
+  "hierarchy": {
+    "level_column": "geographic_level",
+    "population_column": "population",
+    "no_province_region_prefix": "13",
+    "levels": {"region": "Reg", "province": "Prov", "city": "City", "municipality": "Mun", "barangay": "Bgy"}
+  },
+  "deliveries": [
+    {
+      "publication_period": "2026-Q2",
+      "publication_date": "2026-06-30",
+      "delivery_version": 1,
+      "supersedes": null,
+      "workbook": "PSGC-2Q-2026-Publication-Datafile.xlsx",
+      "workbook_sha256": "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d",
+      "sheet": "PSGC",
+      "range": "A1:K43769",
+      "schema_version": "v1",
+      "row_count": 43768,
+      "documented_population_abroad": 1708,
+      "retrieved_at_utc": "2026-09-27T23:41Z"
+    }
+  ]
+}

@@ -4,6 +4,10 @@
 # Integration -> Gold -> Analytics DAG. Tasks whose implementation is still a
 # placeholder stay in the graph with disabled: true and are enabled only after
 # their contract, transform, and validation gate are implemented and reviewed.
+#
+# Change the job by changing this file and deploying, not by editing it in the
+# workspace: a UI edit does not reach this file, and the next deploy overwrites it.
+# Commands and checks: docs/operations/ingestion.md, "Running on Databricks".
 bundle:
   name: edu-access-intelligence
 
@@ -828,6 +832,8 @@ resources:
             client: "2"
 
 targets:
+  # Name the host explicitly, so a deploy cannot land in whichever workspace
+  # the CLI happens to be logged in to.
   dev:
     mode: development
     default: true
