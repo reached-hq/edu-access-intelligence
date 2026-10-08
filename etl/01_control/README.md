@@ -12,7 +12,7 @@ Tables that record pipeline runs, ingestion batches, and data-quality results. T
 
 Batch statuses: `validating` → `loading` → `succeeded`, or `failed` (retried by the next run), `blocked` (not an approved delivery), `skipped` (a re-zipped copy of an approved file). The `succeeded` status is written last, after Bronze is reconciled, so it marks the batch as committed (D-015).
 
-Files follow `NN_<verb>_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)). The Databricks job runs them as explicit bootstrap tasks before its source lanes. Standalone ingestion creates them automatically unless `--no-setup` is passed, so a manual first run needs no separate setup.
+Files follow `NN_<verb>_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)). The Databricks job runs them as explicit bootstrap tasks before its source lanes, with `add_control_columns` (`src/ingestion/cli.py columns`) between the tables and the view, so tables created before a column was added gain it before the view reads it. Standalone ingestion creates them automatically unless `--no-setup` is passed, so a manual first run needs no separate setup.
 
 `logical_dataset`, `estimate_years_covered` and `source_sheet` (in `ingestion_batches`; the first two also in `ingestion_batch_attempts`) were added for workbook sources (D-018). They are NULL for school-year sources. Tables created before them gain them from `src/ingestion/control.py` (`ADDED_COLUMNS`, `ALTER TABLE … ADD COLUMN` only if missing) before the view is replaced.
 

@@ -105,7 +105,9 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 | Task | Type | Runs on | Runs when |
 |---|---|---|---|
-| `01_create_pipeline_runs` through `05_create_current_batches` | SQL | SQL warehouse | At job start, once, in order |
+| `01_create_pipeline_runs` through `04_create_data_quality_results` | SQL | SQL warehouse | At job start, once, in order |
+| `add_control_columns`: add columns that older control tables lack (`src/ingestion/cli.py columns`) | Python | serverless job compute | The control tables exist |
+| `05_create_current_batches` | SQL | SQL warehouse | The columns it reads exist |
 | `NN_create_<table>_raw` | SQL | SQL warehouse | Control setup succeeded; all source DDL tasks fan out in parallel |
 | `bronze_<source_id>`: check each delivery against its contract, load, reconcile (`src/ingestion/cli.py ingest --no-gate --no-setup`) | Python | serverless job compute | That source's raw table exists |
 | `90_validate_<table>_raw`: the Bronze gate (`etl/02_bronze/90_validate_<table>_raw.sql`) | SQL | SQL warehouse | The load succeeded |

@@ -16,7 +16,7 @@ Code that checks a raw delivery and turns it into rows for Bronze. Raw files in 
 | `control.py` | Writes to the control tables in `etl/01_control/` |
 | `pipeline.py` | One run for one source, whatever its format: discover, decide, validate, load, reconcile, record, then the Bronze gate (unless the job runs it as its own task: `--no-gate`) |
 | `store.py` | Where tables live: `DuckDBStore` locally and in tests, `SparkStore` on Databricks; both run the same `etl/` SQL (D-017) |
-| `cli.py` | `ingest`, `status`, `ddl`, `gate` from the command line, with exit codes |
+| `cli.py` | `ingest`, `status`, `columns`, `ddl`, `gate` from the command line, with exit codes |
 | `revision.py` | `code_revision`: the commit that produced a row (from the job parameter on Databricks, from git locally, `UNSET` otherwise) |
 | `errors.py` | `IngestionError(stage, code, message)` and the command-line exit codes |
 
