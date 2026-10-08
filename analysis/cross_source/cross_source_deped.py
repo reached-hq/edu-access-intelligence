@@ -184,6 +184,10 @@ SPLITS = {"MAGUINDANAO": ["Maguindanao del Norte", "Maguindanao del Sur"]}
 # Reviewed aliases for DepEd city or municipality names that differ from PSGC beyond the tiers.
 LOCALITY_ALIASES = {
     "TONDO": "1380601000",  # Tondo I/II, a Manila sub-municipality
+    "KALOOKAN CITY": "1380100000",  # City of Caloocan
+    "OZAMIS CITY": "1004210000",  # City of Ozamiz
+    "BARAUEN": "0803710000",  # Burauen
+    "BALIUAG": "0301403000",  # City of Baliwag
 }
 if set(LOCALITY_ALIASES.values()) - {u.id for u in localities}:
     sys.exit("A locality alias points to a code that is not a PSGC city, municipality, or sub-municipality.")

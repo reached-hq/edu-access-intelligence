@@ -10,17 +10,13 @@ Every DepEd province, city or municipality, and barangay name that did not match
 | City or municipality |  | BATANGAS | SANTO TOMAS |  | unmatched | 51 |
 | City or municipality |  | BOHOL | PRES. CARLOS P. GARCIA (PITOGO) |  | unmatched | 30 |
 | City or municipality |  | BUKIDNON | ANTAPAN |  | unmatched | 33 |
-| City or municipality |  | BULACAN | BALIUAG |  | unmatched | 66 |
 | City or municipality |  | CEBU | PINAMUNGAHAN |  | unmatched | 37 |
 | City or municipality |  | DAVAO DEL NORTE | SAN ISIDRO |  | unmatched | 19 |
 | City or municipality |  | ISABELA | CABANGAN |  | unmatched | 36 |
 | City or municipality |  | LANAO DEL SUR | SULTAN GUMANDER (PICONG) |  | unmatched | 19 |
-| City or municipality |  | LEYTE | BARAUEN |  | unmatched | 69 |
 | City or municipality |  | MAGUINDANAO | DATU MONTAWAL (PAGAGAWAN) |  | unmatched | 16 |
 | City or municipality |  | MASBATE | PIO V. CORPUZ (LIMBUHAN) |  | unmatched | 24 |
 | City or municipality |  | MISAMIS OCCIDENTAL | DON VICTORIANO CHIONGBIAN |  | unmatched | 14 |
-| City or municipality |  | MISAMIS OCCIDENTAL | OZAMIS CITY |  | unmatched | 83 |
-| City or municipality |  | NCR THIRD DISTRICT | KALOOKAN CITY |  | unmatched | 319 |
 | City or municipality |  | NUEVA VIZCAYA | BAGBAG |  | unmatched | 32 |
 | City or municipality |  | PALAWAN | RIZAL (MARCOS) |  | unmatched | 52 |
 | City or municipality |  | PAMPANGA | SANTO TOMAS |  | unmatched | 14 |
@@ -212,6 +208,7 @@ Every DepEd province, city or municipality, and barangay name that did not match
 | Barangay | BARMM | LANAO DEL SUR | LUMBATAN | BETA | unmatched | 1 |
 | Barangay | BARMM | LANAO DEL SUR | LUMBATAN | TRINGUN | unmatched | 1 |
 | Barangay | Region VIII | LEYTE | ABUYOG | ANIBONGAN | unmatched | 1 |
+| Barangay | Region VIII | LEYTE | BARAUEN | HIBONAWAN | unmatched | 2 |
 | Barangay | Region VIII | LEYTE | DAGAMI | HITUMNOG | unmatched | 1 |
 | Barangay | Region VIII | LEYTE | DAGAMI | MARAGONDONG | unmatched | 1 |
 | Barangay | Region VIII | LEYTE | DAGAMI | SANTO DOMINGO | unmatched | 1 |
@@ -271,6 +268,7 @@ Every DepEd province, city or municipality, and barangay name that did not match
 | Barangay | NCR | NCR THIRD DISTRICT | CITY OF VALENZUELA | CANUMAY | ambiguous | 7 |
 | Barangay | NCR | NCR THIRD DISTRICT | CITY OF VALENZUELA | HEN. T. DE LEON | unmatched | 16 |
 | Barangay | NCR | NCR THIRD DISTRICT | KALOOKAN CITY |  | no barangay given | 1 |
+| Barangay | NCR | NCR THIRD DISTRICT | KALOOKAN CITY | BARANGAY 176 | ambiguous | 31 |
 | Barangay | Region VI | NEGROS OCCIDENTAL | BACOLOD CITY (Capital) |  | no barangay given | 1 |
 | Barangay | Region VI | NEGROS OCCIDENTAL | CANDONI |  | no barangay given | 1 |
 | Barangay | BARMM | NORTH COTABATO | ALEOSAN | DUNGUAN | unmatched | 2 |

@@ -63,7 +63,7 @@ A finding ID such as `A-5` or `Y-6` is printed by a script in front of the numbe
 | `HB-n` | `cross_source_hdx_boundaries.py` | COD-AB (HDX) boundaries against PSGC |
 | `O-n`, `X-n`, `S-n` | each source's own profiling script | That source's `profile.md`: observed findings, cross-checks, and suspected findings |
 
-Example: the coverage matrix says enrollment matches PSGC at 97.1% in SY 2024-25, with evidence "Re-run (Y-6)". Run `cross_source_deped_years.py` and read the line that starts `[Y-6] SY 2024-25`.
+Example: the coverage matrix says enrollment matches PSGC at 98.0% in SY 2024-25, with evidence "Re-run (Y-6)". Run `cross_source_deped_years.py` and read the line that starts `[Y-6] SY 2024-25`.
 
 ## How the work was done
 
