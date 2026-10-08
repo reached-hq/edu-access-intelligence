@@ -83,9 +83,26 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
-        - task_key: 05_create_current_batches
+        # CREATE TABLE IF NOT EXISTS adds no column to an existing table, and
+        # Databricks has no ADD COLUMN IF NOT EXISTS: columns added after a table
+        # was first created (control.ADDED_COLUMNS) are added here, once, before
+        # the view that reads them is replaced and before the lanes fan out.
+        - task_key: add_control_columns
           depends_on:
             - task_key: 04_create_data_quality_results
+          run_if: ALL_SUCCESS
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            source: GIT
+            parameters:
+              - columns
+              - --backend
+              - spark
+
+        - task_key: 05_create_current_batches
+          depends_on:
+            - task_key: add_control_columns
           run_if: ALL_SUCCESS
           sql_task:
             file:

@@ -44,17 +44,13 @@ def create_tables(store, repo_root):
 
 
 def add_missing_columns(store):
-    """Databricks has no ADD COLUMN IF NOT EXISTS, so check first. Parallel job loads may
-    race to add the same column on their first run: the loser carries on if it is there now."""
+    """Databricks has no ADD COLUMN IF NOT EXISTS, so check first. In the job this runs once,
+    as its own task (`cli.py columns`), before the views are replaced and the lanes fan out."""
     for table, columns in ADDED_COLUMNS.items():
         existing = {name for name, _ in store.columns(SCHEMA, table)}
         for name, kind in columns:
             if name not in existing:
-                try:
-                    store.sql(f"ALTER TABLE {table_name(SCHEMA, table)} ADD COLUMN `{name}` {kind}")
-                except Exception:
-                    if name not in {n for n, _ in store.columns(SCHEMA, table)}:
-                        raise
+                store.sql(f"ALTER TABLE {table_name(SCHEMA, table)} ADD COLUMN `{name}` {kind}")
 
 
 def _upsert(store, table, key, row):

@@ -12,6 +12,7 @@ import pytest
 
 from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
 from factories import psa_workbooks, psgc_workbooks
+from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job.local_run import in_order, job_parameters, load_job, python_argv, run_job
 
@@ -78,9 +79,30 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     store.close()
 
 
+def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path):
+    """Control tables created before D-018 and D-020 lack logical_dataset and job_run_id. The job
+    adds them before replacing current_batches, which reads logical_dataset (#113 review)."""
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    store = DuckDBStore(db)
+    for path in sorted((repo / "etl" / "01_control").glob("0[1-4]_*.sql")):
+        store.run_file(path)
+    for table, columns in ADDED_COLUMNS.items():
+        for name, _ in columns:
+            store.sql(f"ALTER TABLE {CONTROL}.{table} DROP COLUMN {name}")
+    store.close()
+    results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None))
+    assert results["add_control_columns"] == "succeeded"
+    assert set(results.values()) == {"succeeded", "disabled"}
+    store = DuckDBStore(db)
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1'") == [(4,)]
+    store.close()
+
+
 def test_python_tasks_get_local_values():
     _, job = load_job(REPO_ROOT)
-    task = next(t for t in job["tasks"] if "spark_python_task" in t)
+    task = next(t for t in job["tasks"] if t.get("spark_python_task", {}).get("parameters", [None])[0] == "ingest")
     params = job_parameters(job, REVISION, "job-run-1")
     argv = python_argv(task, "/tmp/landing", "/tmp/x.duckdb", params)
     for flag, value in (("--backend", "duckdb"), ("--environment", "local"), ("--landing", "/tmp/landing"),

@@ -160,8 +160,6 @@ class IngestionRun:
         if self.setup_tables:
             control.create_tables(self.store, self.repo_root)
             self.store.run_file(self.bronze_ddl)
-        else:  # CREATE TABLE IF NOT EXISTS in the job's SQL tasks adds no column to an existing table
-            control.add_missing_columns(self.store)
         bronze.add_missing_columns(self.store, self.config)
 
         started = utc_now()

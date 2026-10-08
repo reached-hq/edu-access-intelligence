@@ -42,6 +42,13 @@ def python_tasks(jobs):
                 yield job_name, task
 
 
+def loads(jobs):
+    """The source loads: `cli.py ingest` tasks (the job's other Python task adds control columns)."""
+    for job_name, task in python_tasks(jobs):
+        if task["spark_python_task"]["parameters"][0] == "ingest":
+            yield job_name, task
+
+
 def argument(task, flag):
     args = task["spark_python_task"]["parameters"]
     return args[args.index(flag) + 1] if flag in args else None
@@ -73,7 +80,7 @@ def test_each_job_runs_the_commit_it_records(jobs):
 
 
 def test_each_task_passes_the_revision_and_target_on(jobs):
-    for name, task in python_tasks(jobs):
+    for name, task in loads(jobs):
         assert argument(task, "--code-revision") == PARAMETER, f"{name}/{task['task_key']} does not pass code_revision"
         assert argument(task, "--environment") == "${bundle.target}", (
             f"{name}/{task['task_key']} must record the deploy target as its environment")
@@ -85,8 +92,7 @@ def test_each_load_records_the_job_run_its_gate_uses(jobs):
     for name, job in jobs.items():
         parameters = {p["name"]: p["default"] for p in job.get("parameters", [])}
         assert parameters.get("run_id") == "{{job.run_id}}"
-        for task in job["tasks"]:
-            if task.get("spark_python_task", {}).get("python_file") == "src/ingestion/cli.py":
+        for _, task in loads({name: job}):
                 assert argument(task, "--job-run-id") == "{{job.parameters.run_id}}", (
                     f"{name}/{task['task_key']} does not record the job run its gate uses")
 
@@ -98,9 +104,7 @@ def test_python_tasks_read_their_file_from_git(jobs):
 
 
 def test_tasks_load_sources_that_have_a_contract(jobs, repo_root, project):
-    for name, task in python_tasks(jobs):
-        if task["spark_python_task"]["python_file"] != "src/ingestion/cli.py":
-            continue
+    for name, task in loads(jobs):
         source = argument(task, "--source")
         contract = repo_root / "config" / "ingestion" / f"{source}.json"
         assert contract.is_file() or task.get("disabled") is True, f"{source} has no contract and must be disabled"
@@ -128,9 +132,9 @@ def test_source_lanes_fan_out_after_control_bootstrap(jobs, repo_root):
     tables = {entry["source_id"]: entry["bronze"]["table"] for entry in registry["source_tables"]}
     for name, job in jobs.items():
         tasks = {task["task_key"]: task for task in job["tasks"]}
-        loads = [task for task in job["tasks"] if "spark_python_task" in task]
-        assert loads, f"{name} has no source loads"
-        for load in loads:
+        lane_loads = [task for job_name, task in loads({name: job})]
+        assert lane_loads, f"{name} has no source loads"
+        for load in lane_loads:
             source = argument(load, "--source")
             ddl_path = f"etl/02_bronze/{next(p.name for p in (repo_root / 'etl' / '02_bronze').glob('*_create_*.sql') if p.name.endswith(f'_create_{tables[source]}.sql'))}"
             ddl = next(task for task in job["tasks"] if task.get("sql_task", {}).get("file", {}).get("path") == ddl_path)
@@ -198,9 +202,39 @@ def test_a_load_that_skips_its_gate_is_followed_by_it(jobs, repo_root):
 
 
 def test_job_loads_leave_table_setup_to_explicit_sql_tasks(jobs):
-    for name, task in python_tasks(jobs):
+    for name, task in loads(jobs):
         assert "--no-setup" in task["spark_python_task"]["parameters"], (
             f"{name}/{task['task_key']} would repeat shared DDL inside a parallel source load")
+
+
+def test_control_columns_are_added_before_any_view_is_replaced(jobs, repo_root):
+    """A view that reads a column added after its table was created fails on older tables
+    unless the column is added first; CREATE TABLE IF NOT EXISTS never adds it."""
+    for name, job in jobs.items():
+        tasks = {task["task_key"]: task for task in job["tasks"]}
+
+        def upstream(key):
+            seen, todo = set(), [key]
+            while todo:
+                for dep in tasks[todo.pop()].get("depends_on", []):
+                    if dep["task_key"] not in seen:
+                        seen.add(dep["task_key"])
+                        todo.append(dep["task_key"])
+            return seen
+
+        adders = [key for key, task in tasks.items()
+                  if task.get("spark_python_task", {}).get("parameters", [None])[0] == "columns"]
+        assert len(adders) == 1, f"{name}: expected one control-columns task, found {adders}"
+        assert not tasks[adders[0]].get("disabled")
+        assert argument(tasks[adders[0]], "--backend") == "spark"
+        tables = {key for key, task in tasks.items()
+                  if task.get("sql_task", {}).get("file", {}).get("path", "").startswith("etl/01_control/0")
+                  and "CREATE OR REPLACE VIEW" not in (repo_root / task["sql_task"]["file"]["path"]).read_text()}
+        assert tables <= upstream(adders[0]), f"{name}: add columns only after every control table exists"
+        for key, task in tasks.items():
+            path = task.get("sql_task", {}).get("file", {}).get("path", "")
+            if "CREATE OR REPLACE VIEW" in ((repo_root / path).read_text() if path else ""):
+                assert adders[0] in upstream(key), f"{name}/{key} replaces a view before columns are added"
 
 
 def test_placeholder_tasks_are_disabled(jobs, repo_root):

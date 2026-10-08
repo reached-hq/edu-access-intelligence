@@ -407,40 +407,24 @@ def test_a_job_load_can_be_joined_to_its_gate_task(env):
         GROUP BY r.status""") == [("succeeded", 3, 0)]
 
 
-def test_a_job_load_adds_job_run_id_to_an_existing_control_table(env):
-    """Dev's pipeline_runs predates job_run_id, and the job's CREATE TABLE IF NOT EXISTS adds no
-    column, so a load with --no-setup adds it before recording its run."""
-    env.deliver("2023-24")
-    env.run()
-    env.store.sql(f"ALTER TABLE {CONTROL}.pipeline_runs DROP COLUMN job_run_id")
-    summary = env.run(run_gate=False, setup_tables=False, job_run_id="job-run-8")
-    assert env.one(f"SELECT job_run_id FROM {CONTROL}.pipeline_runs WHERE run_id = '{summary.run_id}'") == "job-run-8"
-
-
-class RacingStore:
-    """Another parallel load adds the column just before this one's ALTER, which then fails."""
-    def __init__(self, store, add_first):
-        self.store, self.add_first = store, add_first
-
-    def columns(self, schema, table):
-        return self.store.columns(schema, table)
-
-    def sql(self, statement):
-        if statement.startswith("ALTER TABLE"):
-            if self.add_first:
-                self.store.sql(statement)
-            raise RuntimeError("concurrent metadata change")
-        return self.store.sql(statement)
-
-
-def test_adding_a_control_column_survives_a_parallel_load_adding_it_first(env):
-    control.create_tables(env.store, env.repo)
-    env.store.sql(f"ALTER TABLE {CONTROL}.pipeline_runs DROP COLUMN job_run_id")
-    control.add_missing_columns(RacingStore(env.store, add_first=True))
-    assert "job_run_id" in {name for name, _ in env.store.columns("01-control", "pipeline_runs")}
-    env.store.sql(f"ALTER TABLE {CONTROL}.pipeline_runs DROP COLUMN job_run_id")
-    with pytest.raises(RuntimeError):  # a failure that did not add the column is not hidden
-        control.add_missing_columns(RacingStore(env.store, add_first=False))
+def test_columns_adds_what_older_control_tables_lack(tmp_path):
+    """Tables created before D-018 and D-020 lack their columns; `cli.py columns` adds them,
+    and running it again changes nothing."""
+    db = tmp_path / "t.duckdb"
+    store = DuckDBStore(db)
+    for path in sorted((REPO_ROOT / "etl" / "01_control").glob("0[1-4]_*.sql")):
+        store.run_file(path)
+    for table, columns in control.ADDED_COLUMNS.items():
+        for name, _ in columns:
+            store.sql(f"ALTER TABLE {CONTROL}.{table} DROP COLUMN {name}")
+    store.close()
+    for _ in range(2):
+        assert cli.main(["columns", "--db", str(db)]) == 0
+    store = DuckDBStore(db)
+    for table, columns in control.ADDED_COLUMNS.items():
+        have = {name for name, _ in store.columns("01-control", table)}
+        assert {name for name, _ in columns} <= have, table
+    store.close()
 
 
 def test_an_approved_file_missing_from_landing_is_reported(env):
