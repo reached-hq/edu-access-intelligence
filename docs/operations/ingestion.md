@@ -2,7 +2,7 @@
 
 How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` is a third format, `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below). `hdx_boundaries` (ADM3) is a fourth format, `geojson_features`: one GeoJSON file per boundary edition ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below).
 
-**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs. `psa_poverty_stat`: built and tested locally with made-up workbooks, and loaded locally from the real workbook (1,641 rows, then a skip); **not yet run on Databricks** (see its section). `hdx_boundaries`: built and tested locally with made-up GeoJSON, and loaded locally from the real file (1,642 rows, then a skip); **not yet run on Databricks**.
+**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs. `psa_poverty_stat`: built and tested locally with made-up workbooks, and loaded locally from the real workbook (1,641 rows, then a skip); **not yet run on Databricks** (see its section). `hdx_boundaries`: built and tested locally, loaded locally from the real file, and **verified on Databricks `dev`** on 2026-10-08 (1,642 rows, then two skips).
 
 ## The flow
 
@@ -1032,7 +1032,7 @@ For codes only in the new quarter, look for their `correspondence_code` among th
 
 `hdx_boundaries` loads through the same pipeline from its own contract, `config/ingestion/hdx_boundaries.json` (`format: geojson_features`). What differs is in `src/ingestion/geojson_features.py` (reading and checking the GeoJSON file) and the `GeojsonFeatures` class in `src/ingestion/formats.py`. Only the ADM3 file (cities and municipalities) is loaded; the ADM4 file beside it is not. Decision: D-020.
 
-**Status:** implemented and tested locally with made-up GeoJSON (`tests/test_ingestion_boundaries.py`), and **verified locally on the real file** on 2026-10-08: 1,642 rows loaded (feature positions 1 to 1,642, every `valid_on` 2025-02-13, no missing geometry), 24 PASS, 0 WARN, 0 FAIL, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-local-idempotency.md)). **Not run on Databricks.** The source stays `profiled`.
+**Status:** implemented and tested locally with made-up GeoJSON (`tests/test_ingestion_boundaries.py`), and **verified locally on the real file** on 2026-10-08: 1,642 rows loaded (feature positions 1 to 1,642, every `valid_on` 2025-02-13, no missing geometry), 24 PASS, 0 WARN, 0 FAIL, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-local-idempotency.md)). **Verified on Databricks `dev`** on 2026-10-08 at commit `67ea4a2`: 1,642 rows loaded, every count equal to the local runs, 0 FAIL, then two runs skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md)).The source stays `profiled`.
 
 ### The flow (boundaries)
 
@@ -1166,7 +1166,9 @@ python -m src.ingestion.cli ddl --source hdx_boundaries > etl/02_bronze/01_creat
 python -m src.ingestion.cli gate --source hdx_boundaries > etl/02_bronze/90_validate_hdx_adm3_raw.sql
 ```
 
-### Databricks confirmation (boundaries, not yet done)
+### Databricks confirmation (boundaries)
+
+**Done on 2026-10-08** (`dev`, job runs `275546090497316` then `990080691102176` and `370044913196063`, commit `67ea4a2`): load 1,642, then two skips; [evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md). The first attempt (`555332578823580`) failed before loading anything, because the shared `dev` control tables carried #47's `job_run_id` column; #81's `control.py` fix (`7c0464b`) is included here.
 
 `databricks.yml` has a task, `bronze_hdx_boundaries`, after `bronze_psa_psgc` (`run_if: ALL_DONE`). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The file is already on the volume (card: `admin_boundaries/`). This change adds no column to the control tables. Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice. The other tasks run first and skip their files.
 
