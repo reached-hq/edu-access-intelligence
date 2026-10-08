@@ -224,6 +224,8 @@ checks AS (
 SELECT check_name, expected, actual, CASE WHEN expected = actual THEN 'OK' ELSE 'CHECK' END AS result FROM checks;
 ```
 
+After a run that failed its gate, four rows show `CHECK` by design, because they describe that latest run: `checks in the last run not PASS` (its FAIL results), `rows from the last run` (0: nothing of it was published), `last silver run` (`failed`), and `candidate rows not published` (the failed build waits in the candidate table). `published rows from a succeeded run` stays OK: the Silver tables still hold the last good build. To check that build instead, read `data_quality_results` for its `run_id`.
+
 Column types, in Unity Catalog only (expect `INT` 66):
 
 ```sql
