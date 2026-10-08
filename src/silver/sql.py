@@ -107,7 +107,7 @@ def header(spec, what, command, path):
 def build_sql(spec):
     source = spec.source_id
     view = f"{source}_classified"
-    clean, quarantine = silver_ref(spec.clean_table), silver_ref(spec.quarantine_table)
+    clean, quarantine = silver_ref(spec.clean_candidate), silver_ref(spec.quarantine_candidate)
     lineage = [name for name, _ in LINEAGE]
     run_stamp = [name for name, _ in RUN_STAMP]
     counts = spec.counts
@@ -169,14 +169,14 @@ def build_sql(spec):
                          *lineage, *run_stamp]
     lines = header(spec, "Silver build", "sql", spec.clean_file) + [
         "--",
-        "-- Rebuilds both Silver tables from the current Bronze batches only (01-control.current_batches:",
+        "-- Rebuilds the two candidate tables from the current Bronze batches only (01-control.current_batches:",
         "-- the latest succeeded delivery version of each school year). Bronze is read, never changed.",
         "-- Every current Bronze row ends in exactly one of the two tables:",
-        f"--   {spec.clean_table}       one row per school per school year, typed and standardized;",
-        f"--   {spec.quarantine_table}  rows that cannot be trusted, with their reasons.",
-        "-- Each CREATE OR REPLACE is one atomic Delta commit, but the pair is not, so the run is",
-        "-- trusted only once the gate (the next task) records it succeeded in pipeline_runs",
-        "-- (docs/operations/silver.md). It rebuilds on every run (D-025).",
+        f"--   {spec.clean_candidate}       one row per school per school year, typed and standardized;",
+        f"--   {spec.quarantine_candidate}  rows that cannot be trusted, with their reasons.",
+        f"-- The Silver tables ({spec.clean_table}, {spec.quarantine_table}) are never written here:",
+        "-- the gate (the next task) checks the candidates and publishes them only if every check passes,",
+        "-- so a failed build never replaces the last good one. It rebuilds on every run (D-025).",
         "--",
         "-- Parameters, supplied by the job (or src/job/local_run.py):",
         "--   :run_id         the job run; every row built here, and the gate's results, carry it",
@@ -262,7 +262,7 @@ def build_sql(spec):
 def gate_sql(spec):
     source = spec.source_id
     counts = spec.counts
-    clean_name, quarantine_name = dq_table_name(spec.clean_table), dq_table_name(spec.quarantine_table)
+    clean_name, quarantine_name = dq_table_name(spec.clean_candidate), dq_table_name(spec.quarantine_candidate)
     lineage = [name for name, _ in LINEAGE]
     stamp = [name for name, _ in RUN_STAMP]
     categories = spec.of_kind(CATEGORY)
@@ -412,11 +412,12 @@ def gate_sql(spec):
     missing_lineage = " OR ".join(f"{name} IS NULL" for name in ["school_year", *lineage, *stamp])
     lines = header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [
         "--",
-        "-- The job task after the Silver build. Each check writes one row to data_quality_results;",
-        "-- then the run's pipeline_runs row records 'succeeded' or 'failed', and the last statement",
-        "-- fails the task on any FAIL, so nothing downstream runs.",
-        "-- PASS: as expected. WARN: recorded, the build stands (quarantined rows exist).",
-        "-- FAIL: the Silver tables cannot be trusted. Results hold counts, never row values.",
+        "-- The job task after the Silver build. It checks the candidate tables the build wrote, one row",
+        "-- per check in data_quality_results. On any FAIL it records the run 'failed' and stops the task",
+        "-- before publishing, so the Silver tables keep the last build that passed and nothing downstream",
+        "-- runs. Otherwise it copies the candidates to the Silver tables and records the run 'succeeded'.",
+        "-- PASS: as expected. WARN: recorded, the build is published (quarantined rows exist).",
+        "-- FAIL: the candidate cannot be trusted and is not published. Results hold counts, never row values.",
         "--",
         "-- Parameters, supplied by the job (or src/job/local_run.py):",
         "--   :run_id         the job run that built the tables",
@@ -438,8 +439,8 @@ def gate_sql(spec):
         "bronze AS (",
         f"  SELECT r.* FROM {bronze_ref(spec)} AS r JOIN cur ON r.batch_id = cur.batch_id",
         "),",
-        f"clean AS (SELECT * FROM {silver_ref(spec.clean_table)}),",
-        f"quarantined AS (SELECT * FROM {silver_ref(spec.quarantine_table)}),",
+        f"clean AS (SELECT * FROM {silver_ref(spec.clean_candidate)}),",
+        f"quarantined AS (SELECT * FROM {silver_ref(spec.quarantine_candidate)}),",
         "-- Current Bronze rows, each marked if Silver set it aside.",
         "b AS (",
         "  SELECT bronze.*, q.source_row_number IS NOT NULL AS in_quarantine",
@@ -505,8 +506,7 @@ def gate_sql(spec):
         "SELECT * FROM checks",
         ") AS results;",
         "",
-        "-- How the run ended. 'succeeded' is the last write of a good build: Gold reads Silver",
-        "-- only when the latest silver_build run of the source succeeded.",
+        "-- A failed build: record it before stopping. The Silver tables are not touched.",
         f"MERGE INTO {CONTROL}.pipeline_runs AS t",
         "USING (",
         "  SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails",
@@ -515,14 +515,11 @@ def gate_sql(spec):
         "    AND checked_at_utc >= session.silver_gate_started_at_utc",
         ") AS s",
         f"ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = {lit(source)}",
-        "WHEN MATCHED THEN UPDATE SET",
-        "  status = CASE WHEN s.fails = 0 THEN 'succeeded' ELSE 'failed' END,",
-        "  finished_at_utc = current_timestamp(),",
-        "  failure_stage = CASE WHEN s.fails = 0 THEN NULL ELSE 'gate' END,",
-        "  error_message = CASE WHEN s.fails = 0 THEN NULL",
-        "                       ELSE CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results' END;",
+        "WHEN MATCHED AND s.fails > 0 THEN UPDATE SET",
+        "  status = 'failed', finished_at_utc = current_timestamp(), failure_stage = 'gate',",
+        "  error_message = CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results';",
         "",
-        "-- Stop here if anything failed in this execution.",
+        "-- Stop here, before publishing, if anything failed in this execution.",
         "SELECT CASE WHEN COUNT(*) > 0",
         f"            THEN raise_error('Silver gate failed for {source}: ' || CAST(COUNT(*) AS STRING)",
         "                             || ' FAIL result(s) in data_quality_results for run ' || :run_id)",
@@ -530,6 +527,27 @@ def gate_sql(spec):
         f"FROM {CONTROL}.data_quality_results",
         f"WHERE run_id = :run_id AND source_id = {lit(source)} AND layer = 'silver' AND status = 'FAIL'",
         "  AND checked_at_utc >= session.silver_gate_started_at_utc;",
+        "",
+        "-- Every check passed: publish. Quarantine first, then clean, the table Gold reads. Each copy is",
+        "-- one atomic Delta commit, but the pair is not, so the run is 'succeeded' only after both. If the",
+        "-- task dies in between, the run stays 'running', and Gold trusts a Silver table only when the",
+        "-- run_id its rows carry is a succeeded silver_build run (D-025).",
+        f"CREATE OR REPLACE TABLE {silver_ref(spec.quarantine_table)} USING DELTA AS",
+        f"SELECT * FROM {silver_ref(spec.quarantine_candidate)};",
+        "",
+        f"ALTER TABLE {silver_ref(spec.quarantine_table)} OWNER TO `{OWNER_GROUP}`;",
+        "",
+        f"CREATE OR REPLACE TABLE {silver_ref(spec.clean_table)} USING DELTA AS",
+        f"SELECT * FROM {silver_ref(spec.clean_candidate)};",
+        "",
+        f"ALTER TABLE {silver_ref(spec.clean_table)} OWNER TO `{OWNER_GROUP}`;",
+        "",
+        "-- Published: the run succeeded.",
+        f"MERGE INTO {CONTROL}.pipeline_runs AS t",
+        "USING (SELECT :run_id AS run_id) AS s",
+        f"ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = {lit(source)}",
+        "WHEN MATCHED THEN UPDATE SET",
+        "  status = 'succeeded', finished_at_utc = current_timestamp(), failure_stage = NULL, error_message = NULL;",
         "",
     ]
     return "\n".join(lines)
