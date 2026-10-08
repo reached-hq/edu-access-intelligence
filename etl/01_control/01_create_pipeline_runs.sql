@@ -5,8 +5,9 @@ CREATE SCHEMA IF NOT EXISTS edu_access.`01-control`;
 ALTER SCHEMA edu_access.`01-control` OWNER TO `reached-hq`;
 
 CREATE TABLE IF NOT EXISTS edu_access.`01-control`.pipeline_runs (
-  run_id STRING NOT NULL,              -- UUID, one per invocation
-  pipeline_name STRING NOT NULL,       -- e.g. 'bronze_ingest' (a source's Bronze load)
+  run_id STRING NOT NULL,              -- bronze_ingest: UUID, one per load. silver_build: the job run id,
+                                       -- shared by every source's build in that job run (D-020)
+  pipeline_name STRING NOT NULL,       -- 'bronze_ingest' (a source's Bronze load) or 'silver_build'
   source_id STRING NOT NULL,
   environment STRING NOT NULL,         -- local | dev | prod (deploy target, not a branch)
   status STRING NOT NULL,              -- running | succeeded | failed
