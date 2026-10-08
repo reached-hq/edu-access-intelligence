@@ -50,6 +50,8 @@ def test_known_source_table_names_are_registered(repo_root):
         assert bronze["table"].endswith("_raw")
         assert silver["table"].endswith("_clean")
         assert silver["quarantine_table"].endswith("_quarantine")
+        assert silver["candidate_table"] == silver["table"] + "_candidate"
+        assert silver["candidate_quarantine_table"] == silver["quarantine_table"] + "_candidate"
         assert SQL_FILE.fullmatch(bronze["create_file"])
         assert SQL_FILE.fullmatch(silver["clean_file"])
         prefix = f"{number:02d}_"
