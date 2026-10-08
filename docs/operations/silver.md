@@ -2,7 +2,7 @@
 
 How the Bronze rows of each source's current deliveries become one clean, typed, validated table, what each rule changes, what is set aside, and how each run is recorded. The first source built this way is `deped_enrollment` (#85).
 
-**Status:** two SQL tasks of the job `edu_access_pipeline`, built and tested locally, and run on the real Bronze data of all three school years (2026-10-08). **Not yet run on Databricks**; the steps are under [Running on Databricks](#running-on-databricks).
+**Status:** two SQL tasks of the job `edu_access_pipeline`, built and tested locally, and run by the job on the real Bronze data of all three school years (2026-10-09, [evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md)). **Not yet run on Databricks**; the steps are under [Running on Databricks](#running-on-databricks).
 
 ## The flow
 
@@ -118,7 +118,7 @@ The local run on the real data recorded 110 results, all PASS.
 
 ## Every run rebuilds, and every run is recorded
 
-Silver rebuilds both tables on every job run with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches (D-025): the same Bronze gives the same rows, so a rerun changes nothing but the run stamp, and a revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. On the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `5d9ecaf14baac697071e884851af3161` on every run.
+Silver rebuilds both tables on every job run with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches (D-025): the same Bronze gives the same rows, so a rerun changes nothing but the run stamp, and a revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. On the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `311b445851533467fd7e669d3cf6e537` after both of two job runs ([evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md), with the query).
 
 Each table is one Delta commit; the pair is not, so the run row is the commit marker, as `ingestion_batches` is for Bronze. Its `run_id` is the job run id, which every source's build in that job run shares, so the row is keyed by `run_id`, `pipeline_name`, and `source_id`, and `job_run_id` stays NULL (D-020):
 

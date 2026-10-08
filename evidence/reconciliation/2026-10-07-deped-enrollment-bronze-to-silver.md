@@ -2,6 +2,8 @@
 
 Issue #85 · local run (DuckDB), not Databricks · 2026-10-07 · checked by @hyenalouise
 
+**Superseded** by [the 2026-10-09 record](2026-10-09-deped-enrollment-bronze-to-silver.md). This run used the earlier design, which skipped Silver when Bronze was unchanged; Silver now rebuilds on every run (D-025). Kept as the record of what ran at the commit below.
+
 ## The claim
 
 Silver built from the real Bronze data of all three school years keeps every current Bronze row (clean + quarantined = Bronze, per school year), moves no learner (totals equal Bronze and the profile's O-3), passes every gate check, and a second run with the same Bronze batches skips without touching the tables. A forced rebuild gives identical content.
