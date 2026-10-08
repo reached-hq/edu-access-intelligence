@@ -200,7 +200,7 @@ This is the capstone's core loop: a dataset is not useful until it has been insp
 4. **Do not open raw files in Excel and save them** ([terminal_setup.md, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)).
 5. **Read the publisher's documentation** (README files, technical notes) before profiling.
 6. **Profile with a script** in `analysis/profiling/`, reading `RAW_DATA_DIR` and verifying checksums first. See `profile_deped.py` for the pattern: every result prints under a finding ID.
-7. **Document** in `docs/data/source-inventory/<source_id>/`: copy `_template/`, fill in `README.md` (the card) and `profile.md` (findings with evidence, **observed** vs **suspected**), and generate `data_dictionary.md` with a script (every column: the publisher's description, the team's labeled interpretation where the publisher is silent, and observed fill rate and samples). See `dictionary_deped.py` for the pattern.
+7. **Document** in `docs/data/source-inventory/<source_id>/`: copy `template/`, fill in `README.md` (the card) and `profile.md` (findings with evidence, **observed** vs **suspected**), and generate `data_dictionary.md` with a script (every column: the publisher's description, the team's labeled interpretation where the publisher is silent, and observed fill rate and samples). See `dictionary_deped.py` for the pattern.
 8. **Register** the source in `config/sources.json`.
 9. **Open a pull request** with the script's output as evidence.
 
