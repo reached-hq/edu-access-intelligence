@@ -107,6 +107,12 @@ def python_argv(task, landing, db, params):
     return args + ["--db", str(db)]
 
 
+def failure_detail(e):
+    """The error's first line, or its type when it has no message, so a failed task always says why."""
+    lines = str(e).splitlines()
+    return (lines[0] if lines else type(e).__name__)[:300]
+
+
 def run_python(task, repo_root, landing, db, params):
     path = task["spark_python_task"]["python_file"]
     module = importlib.import_module(path[:-3].replace("/", "."))
@@ -125,7 +131,7 @@ def run_sql(task, repo_root, db, params):
     try:
         store.run_file(path, params)
     except Exception as e:  # a gate's raise_error fails the task, as on Databricks
-        return "failed", str(e).splitlines()[0][:300]
+        return "failed", failure_detail(e)
     finally:
         store.close()
     return "succeeded", ""
@@ -156,7 +162,7 @@ def run_job(repo_root, landing, db, code_revision, job_key=None, run_id=None, lo
             except Exception as e:
                 # Databricks records a crashed task as failed, then still runs
                 # independent branches. The local runner must do the same.
-                status, detail = "failed", str(e).splitlines()[0][:300]
+                status, detail = "failed", failure_detail(e)
             results[key] = TaskResult(key, kind, status, round(time.monotonic() - started, 3), detail)
         r = results[key]
         log(f"  {key:40} {kind:6} {r.status:16} {r.seconds:>7.2f}s  {r.detail}")

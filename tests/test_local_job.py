@@ -132,7 +132,8 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     store.close()
 
 
-def test_a_crashed_python_task_fails_and_an_independent_source_still_runs(repo, tmp_path, monkeypatch):
+@pytest.mark.parametrize("error", [RuntimeError("made-up Python task crash"), RuntimeError()], ids=["message", "no-message"])
+def test_a_crashed_python_task_fails_and_an_independent_source_still_runs(repo, tmp_path, monkeypatch, error):
     landing = tmp_path / "landing"
     deliver(repo, landing)
     deliver(repo, landing, "deped_facilities")
@@ -140,7 +141,7 @@ def test_a_crashed_python_task_fails_and_an_independent_source_still_runs(repo, 
 
     def crash_enrollment(task, *args):
         if task["task_key"] == "bronze_deped_enrollment":
-            raise RuntimeError("made-up Python task crash")
+            raise error
         return real_run_python(task, *args)
 
     monkeypatch.setattr(local_run, "run_python", crash_enrollment)
