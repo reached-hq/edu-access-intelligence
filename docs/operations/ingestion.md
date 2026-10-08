@@ -408,7 +408,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 
 `psa_psgc` loads through the same pipeline as DepEd, from its own contract, [`config/ingestion/psa_psgc.json`](../../config/ingestion/psa_psgc.json) (`format: xlsx_table`). What differs is in [`src/ingestion/xlsx_table.py`](../../src/ingestion/xlsx_table.py): reading the workbook, the quarter, the header mapping and the checks. Decision: D-019.
 
-**Status:** built and tested locally with made-up workbooks (`tests/test_ingestion_psgc.py`), and loaded locally from the real 2Q 2026 workbook: 43,768 rows, every count equal to the source card, 0 FAIL, then a skip ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-psgc-local-idempotency.md)). **Not run on Databricks.** The source stays `profiled`.
+**Status:** built and tested locally with made-up workbooks (`tests/test_ingestion_psgc.py`), and loaded locally from the real 2Q 2026 workbook: 43,768 rows, every count equal to the source card, 0 FAIL, then a skip ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-psgc-local-idempotency.md)). **Verified on Databricks `dev`** on 2026-10-08 at commit `cb274bf`: 43,768 rows loaded, every count equal to the local runs, 0 FAIL, then a skip ([evidence](../../evidence/pipeline-runs/2026-10-08-psa-psgc-databricks-idempotency.md)). The source stays `profiled`.
 
 ### The flow (PSGC)
 
@@ -619,9 +619,11 @@ python -m src.ingestion.cli ddl --source psa_psgc > etl/02_bronze/01_create_psa_
 python -m src.ingestion.cli gate --source psa_psgc > etl/02_bronze/90_validate_psa_psgc_raw.sql
 ```
 
-### Databricks confirmation (PSGC, not yet done)
+### Databricks confirmation (PSGC)
 
-`databricks.yml` has a third task, `bronze_psa_psgc`, after facilities (`run_if: ALL_DONE`). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). This change adds no column to the control tables. Then, as for DepEd ([Running on Databricks](#running-on-databricks)):
+**Done on 2026-10-08** (`dev`, job runs `468579404509795` then `96808622487518`, commit `cb274bf`): load 43,768, then skip; [evidence](../../evidence/pipeline-runs/2026-10-08-psa-psgc-databricks-idempotency.md). The first attempt failed because the shared control tables already carried #109's columns; `control.py` now writes NULL to columns it does not set.
+
+`databricks.yml` has a third task, `bronze_psa_psgc`, after facilities (`run_if: ALL_DONE`). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). This change adds no column to the control tables, and works whether or not they carry #109's columns. Then, as for DepEd ([Running on Databricks](#running-on-databricks)):
 
 ```bash
 databricks bundle validate --target dev --profile reached-hq
@@ -750,7 +752,7 @@ For codes only in the new quarter, look for their `correspondence_code` among th
 
 ### Limitations (PSGC)
 
-- Verified on made-up workbooks and on the real workbook locally (DuckDB, D-017). The Databricks `dev` run is pending, so Delta column mapping, Unity Catalog permissions and reading the workbook from `/Volumes/` are not yet confirmed for this source.
+- Verified on made-up workbooks, on the real workbook locally (DuckDB, D-017), and on Databricks `dev` (2026-10-08): column mapping, reading from `/Volumes/` and Unity Catalog permissions are confirmed; a single-table commit under a real mid-load failure is not tested. Re-issue, new-quarter and backfill behavior is proven with made-up workbooks only.
 - The National Summary and hierarchy checks rely on the layout those sheets have in 2Q 2026 (a header row with `PROV.`, `CITIES`, `MUN.`, `BGY.`; a `PHILIPPINES` row). If PSA changes it, the run reports `national_summary_readable` WARN instead of comparing.
 - The quarter rule assumes the `Metadata` publication date falls inside the quarter named in the file (2Q 2026: 30 June 2026). If PSA starts writing the release date instead, the batch stops as `period_mismatch`, and the rule is revisited; the file is never renamed to pass.
 - Only one quarter is acquired, so re-issue behavior is unobserved; the rules above are the safe default.
