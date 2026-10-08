@@ -1,0 +1,57 @@
+name: Issue hygiene
+
+# Weekly report of issues whose state disagrees with their sub-issues or the board:
+# closed issues with open sub-issues, open parents whose sub-issues are all closed,
+# and (with a PROJECT_READ_TOKEN secret) open issues sitting in Done. It changes
+# nothing. The run fails when there is something to fix, and the list is on the run
+# page. Rules: docs/operations/workflow.md, "Linking the issue".
+on:
+  schedule:
+    - cron: "0 1 * * 1" # Mondays, 09:00 Philippine time
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  report:
+    name: Report issue state problems
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+
+      # The board belongs to the organization, which the workflow's own token cannot
+      # read. With a PROJECT_READ_TOKEN secret (read access to this repository's issues
+      # and the organization's projects), each issue's board status is fetched too.
+      # Without it, the Done report is skipped.
+      - name: Fetch issues
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_READ_TOKEN || github.token }}
+          READ_BOARD: ${{ secrets.PROJECT_READ_TOKEN != '' }}
+        run: |
+          board=''
+          if [ "$READ_BOARD" = true ]; then
+            board='projectItems(first: 10) { nodes { project { title }
+              fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } }'
+          fi
+          gh api graphql --paginate \
+            -f query="query(\$owner: String!, \$repo: String!, \$endCursor: String) {
+              repository(owner: \$owner, name: \$repo) {
+                issues(first: 50, after: \$endCursor) {
+                  pageInfo { hasNextPage endCursor }
+                  nodes { number title url state
+                    subIssues(first: 50) { nodes { number state url } }
+                    $board } } } }" \
+            -F owner="${GITHUB_REPOSITORY%/*}" -F repo="${GITHUB_REPOSITORY#*/}" \
+            --jq '.data.repository.issues.nodes[]' | jq -s . > issues.json
+          echo "Fetched $(jq length issues.json) issues."
+
+      - name: Report
+        env:
+          ISSUES_FILE: issues.json
+        run: python3 .github/scripts/issue_hygiene.py

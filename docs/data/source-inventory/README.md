@@ -35,6 +35,7 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/data/cross
 | [ched_graduates](ched_graduates/) | CHED graduates by region, program level and sex | CHED | profiled | @catweyine |
 | [ched_school_count](ched_school_count/) | CHED higher education institutions by region and type | CHED | profiled | @catweyine |
 | [ched_student_faculty_ratio](ched_student_faculty_ratio/) | CHED student-faculty ratio by region | CHED | profiled | @catweyine |
+| [dti_cmci](dti_cmci/) | Cities and Municipalities Competitiveness Index (CMCI) | DTI | profiled | @saraevcldn |
 | [osm_philippines](osm_philippines/) | OpenStreetMap Philippines geographic data | OpenStreetMap / Geofabrik | profiled | @saraevcldn |
 | [psa_psgc](psa_psgc/) | PSA Philippine Standard Geographic Code (PSGC) | PSA | profiled | @maeveylain |
 | [psa_poverty_stat](psa_poverty_stat/) | PSA city- and municipal-level poverty estimates | PSA | profiled | @maeveylain |

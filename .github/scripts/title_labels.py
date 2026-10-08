@@ -1,7 +1,7 @@
 """Labels for an issue, read from the tag at the start of its title.
 
 The mapping follows how the team has labeled issues so far. Every tag in
-docs/workflow.md (Issue titles) has a label.
+docs/operations/workflow.md (Issue titles) has a label.
 
     python .github/scripts/title_labels.py "[BRONZE] Load sources"   ->  infra
 """
