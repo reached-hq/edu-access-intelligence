@@ -108,3 +108,22 @@ Attempts of both job runs: only skip / skipped, 0 inserted
 ## How to reproduce
 
 From a clean checkout of `819a248` (or later on this branch), with the `reached-hq` profile signed in, notebooks detached and the run announced: the three commands above, the last one twice. Then the queries in [docs/operations/ingestion.md](../../docs/operations/ingestion.md#running-on-databricks).
+
+## Repeated after adding control columns before the view (`bb040a9`)
+
+Review found that `05_create_current_batches` reads `logical_dataset`, but only a load added the D-018 columns, and loads run after the view task: on control tables created before #109 the view task failed, all 12 lane tasks were `upstream_failed`, and rerunning could not fix it. Commit `4026bfe` adds one Python task, `add_control_columns` (`cli.py columns`), between `04_create_data_quality_results` and `05_create_current_batches`; it also adds `job_run_id`, so loads no longer add columns.
+
+**Locally**, control tables were created from the SQL at `d9dd28b` (before #109) and the job run on them with the real files. Before the fix: `Binder Error: Referenced column "logical_dataset" not found` in `05_create_current_batches`, 12 tasks `upstream_failed`, and the same on a rerun. After the fix: both runs succeeded with 0 failed tasks.
+
+**On Databricks `dev`**, the job was redeployed at `bb040a9b1eaec564ffa5e3c5184d6ae6349c2` (read back from the job: 63 tasks, 18 enabled, `05_create_current_batches` after `add_control_columns`) and run twice. Dev's tables already had every column, so this shows the task runs on Databricks without changing the result; the old-table case is shown only locally.
+
+| | Run 3 | Run 4 |
+|---|---|---|
+| Job run (`job_run_id`) | `471206277550325` | `374205222997457` |
+| Whole job | 21:39:10 to 21:42:40 (13:39:10 to 13:42:40 UTC), 3 min 31 s, `SUCCESS` | 21:43:13 to 21:45:15 (13:43:13 to 13:45:15 UTC), 2 min 1 s, `SUCCESS` |
+| Tasks | 18 `SUCCESS` on the first attempt, 45 disabled | same |
+| `add_control_columns` | 47 s (mostly serverless start-up) | 19 s |
+| Loads | all skipped: enrollment 3, the others 1; 0 inserted | same |
+| Each load joined to its gate | 4 of 4: 3 gate checks, 0 FAIL, 0 WARN | same |
+
+Bronze still has 180,500 / 60,167 / 1,641 / 43,768 rows, none ingested after 13:39 UTC, and no FAIL was written to `data_quality_results` after it.
