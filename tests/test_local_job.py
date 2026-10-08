@@ -14,6 +14,7 @@ from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_re
 from factories import psa_workbooks, psgc_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
+from src.job import local_run
 from src.job.local_run import in_order, job_parameters, load_job, python_argv, run_job
 
 REVISION = "d" * 40
@@ -129,3 +130,22 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
                        "AND status = 'FAIL' ORDER BY 1") == [
         ("no_pipeline_duplicates",), ("rows_have_a_known_batch",), ("succeeded_batches_reconcile",)]
     store.close()
+
+
+def test_a_crashed_python_task_fails_and_an_independent_source_still_runs(repo, tmp_path, monkeypatch):
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    deliver(repo, landing, "deped_facilities")
+    real_run_python = local_run.run_python
+
+    def crash_enrollment(task, *args):
+        if task["task_key"] == "bronze_deped_enrollment":
+            raise RuntimeError("made-up Python task crash")
+        return real_run_python(task, *args)
+
+    monkeypatch.setattr(local_run, "run_python", crash_enrollment)
+    results = statuses(run_job(repo, landing, tmp_path / "job.duckdb", REVISION, log=lambda *_: None))
+
+    assert results["bronze_deped_enrollment"] == "failed"
+    assert results["90_validate_deped_enrollment_raw"] == "upstream_failed"
+    assert results["bronze_deped_facilities"] == "succeeded"

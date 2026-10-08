@@ -148,10 +148,15 @@ def run_job(repo_root, landing, db, code_revision, job_key=None, run_id=None, lo
             results[key] = TaskResult(key, kind, "upstream_failed")
         else:
             started = time.monotonic()
-            if kind == "sql":
-                status, detail = run_sql(task, repo_root, db, params)
-            else:
-                status, detail = run_python(task, repo_root, landing, db, params)
+            try:
+                if kind == "sql":
+                    status, detail = run_sql(task, repo_root, db, params)
+                else:
+                    status, detail = run_python(task, repo_root, landing, db, params)
+            except Exception as e:
+                # Databricks records a crashed task as failed, then still runs
+                # independent branches. The local runner must do the same.
+                status, detail = "failed", str(e).splitlines()[0][:300]
             results[key] = TaskResult(key, kind, status, round(time.monotonic() - started, 3), detail)
         r = results[key]
         log(f"  {key:40} {kind:6} {r.status:16} {r.seconds:>7.2f}s  {r.detail}")

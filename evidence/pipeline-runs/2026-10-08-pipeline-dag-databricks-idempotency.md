@@ -38,7 +38,7 @@ Every load printed "already loaded; same SHA-256". The four loads ran in paralle
 
 Run 1 task graph: control setup, then four parallel lanes, every enabled task green
 <img width="1470" height="624" alt="image" src="https://github.com/user-attachments/assets/956d0dee-2ee6-4e57-946e-22835651fc97" />
-<br> 
+<br>
 
 Run 2 task graph: the same 17 tasks green
 <img width="1470" height="619" alt="image" src="https://github.com/user-attachments/assets/a4af5aea-d278-4d33-8326-e1d4dcf512f7" />
