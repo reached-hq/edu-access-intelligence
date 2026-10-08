@@ -27,7 +27,7 @@ from json.decoder import scanstring
 from pathlib import Path
 
 from src.ingestion import archive
-from src.ingestion.contract import match_schema, schema_fingerprint
+from src.ingestion.contract import find_delivery, match_schema, schema_fingerprint
 from src.ingestion.errors import IngestionError
 from src.ingestion.reader import decode
 from src.ingestion.validate import (
@@ -214,9 +214,32 @@ def geojson_checks(config, delivery, header, rows, facts):
 
 # -- The delivery -----------------------------------------------------------------
 
+def identify_geojson_delivery(config, path):
+    """Return (approved delivery, SHA-256), or stop if the file is not approved.
+
+    Like validate.identify_delivery, without looking inside the file as a zip."""
+    path = Path(path)
+    if not path.is_file():
+        raise IngestionError("identify", "missing_archive", f"{path} does not exist.")
+    digest = archive.sha256_file(path)
+    delivery = find_delivery(config, digest)
+    if delivery:
+        return delivery, digest
+    same_name = [d for d in config["deliveries"] if d["archive"] == path.name]
+    if same_name:
+        approved = ", ".join(f"v{d['delivery_version']} {d['archive_sha256'][:12]}" for d in same_name)
+        raise IngestionError("identify", "checksum_mismatch",
+                             f"{path.name} has SHA-256 {digest}, which is not approved (approved: {approved}). "
+                             "If the download is damaged, download it again. If the publisher revised the file, "
+                             "approve it as the next delivery_version with 'supersedes' set; the earlier version is kept.")
+    raise IngestionError("identify", "unregistered_delivery",
+                         f"{path.name} (SHA-256 {digest}) is not an approved delivery. "
+                         "Profile it, then add it to the source config in a pull request.")
+
+
 def prepare_geojson_delivery(config, registry_entry, path):
     """From an approved GeoJSON file to checked rows, or a refusal saying why."""
-    delivery, digest = identify_delivery(config, path)
+    delivery, digest = identify_geojson_delivery(config, path)
     path = Path(path)
     size = path.stat().st_size
     if size > config["max_uncompressed_bytes"]:
