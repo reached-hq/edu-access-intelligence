@@ -36,9 +36,13 @@ The last command was run twice. The landing folder held the same approved delive
 
 Every load printed "already loaded; same SHA-256". The four loads ran in parallel after their own raw-table DDL; no lane waited for another: their `pipeline_runs` rows started within 0.61 s of each other in run 1 (09:26:58.133 to 09:26:58.741 UTC) and within 0.25 s in run 2 (09:31:27.673 to 09:31:27.918 UTC).
 
-<!-- Screenshot: Run 1 task graph: control setup, then four parallel lanes, every enabled task green -->
+Run 1 task graph: control setup, then four parallel lanes, every enabled task green
+<img width="1470" height="624" alt="image" src="https://github.com/user-attachments/assets/956d0dee-2ee6-4e57-946e-22835651fc97" />
+<br> 
 
-<!-- Screenshot: Run 2 task graph: the same 17 tasks green -->
+Run 2 task graph: the same 17 tasks green
+<img width="1470" height="619" alt="image" src="https://github.com/user-attachments/assets/a4af5aea-d278-4d33-8326-e1d4dcf512f7" />
+
 
 ## Results
 
@@ -48,9 +52,7 @@ Queried read-only through the SQL warehouse after both runs, on 2026-10-08. The 
 
 `DESCRIBE TABLE edu_access.`01-control`.pipeline_runs` ends with `job_run_id string`. The table predates the column, and the job's `CREATE TABLE IF NOT EXISTS` adds none, so the first run's loads added it (`control.add_missing_columns`). All four loads started in parallel and none failed or retried, so adding the column did not break a parallel lane. Whether two lanes actually raced for it cannot be seen from the run. The 48 `pipeline_runs` rows written before these runs all have `job_run_id` NULL.
 
-<!-- Screenshot: DESCRIBE pipeline_runs: job_run_id string is the last column -->
-
-<!-- Screenshot: Rows before these runs: 48, none with job_run_id -->
+<img width="1023" height="397" alt="image" src="https://github.com/user-attachments/assets/4e1df786-8b65-4a0c-89cc-9e3676a05463" />
 
 ### 2. Each load joins to its gate
 
@@ -63,11 +65,16 @@ Queried read-only through the SQL warehouse after both runs, on 2026-10-08. The 
 
 Gate checks are the rows under `job_run_id`; FAIL counts include the load's own checks under its `run_id`. No WARN in either run: a skip checks no batch. For the latest job run the four sources together recorded 4 × PASS for each of `approved_deliveries_present`, `no_pipeline_duplicates`, `rows_have_a_known_batch` and `succeeded_batches_reconcile`. No FAIL was written to `data_quality_results` after 09:00 UTC.
 
-<!-- Screenshot: Loads of both job runs: 8 rows, all succeeded, 0 loaded, all skipped, code_revision 819a248 -->
+<img width="1023" height="451" alt="image" src="https://github.com/user-attachments/assets/0175287c-c69b-40e4-b31b-23cac20f02b5" />
+<br>
 
-<!-- Screenshot: A load's true outcome: 8 rows, each with 3 gate checks and 0 FAIL -->
+A load's true outcome: 8 rows, each with 3 gate checks and 0 FAIL
+<img width="1018" height="449" alt="image" src="https://github.com/user-attachments/assets/f25c7cbe-5a4d-4e29-aec4-c4d96d419c38" />
+<br>
 
-<!-- Screenshot: Checks for the latest job run: 16 rows, all PASS -->
+Checks for the latest job run: 16 rows, all PASS
+<img width="1016" height="586" alt="image" src="https://github.com/user-attachments/assets/77b94a89-093e-4f96-83f9-554d31a5d4de" />
+<br>
 
 ### 3. Nothing inserted (idempotency)
 
@@ -80,9 +87,13 @@ Gate checks are the rows under `job_run_id`; FAIL counts include the load's own 
 
 `ingestion_batch_attempts` for both job runs holds only `skip` / `skipped` attempts with 0 rows inserted: enrollment 3, the other sources 1 each, per run.
 
-<!-- Screenshot: Bronze row counts, and 0 rows ingested after 09:00 UTC in every table -->
+Bronze row counts, and 0 rows ingested after 09:00 UTC in every table
+<img width="1021" height="388" alt="image" src="https://github.com/user-attachments/assets/77b3b2ab-ad83-4bb4-ac4c-7a3faa80b9b4" />
+<br>
 
-<!-- Screenshot: Attempts of both job runs: only skip / skipped, 0 inserted -->
+Attempts of both job runs: only skip / skipped, 0 inserted
+<img width="1023" height="416" alt="image" src="https://github.com/user-attachments/assets/33ac036d-c702-4b2a-979e-9c0fedfcf2ed" />
+
 
 ## The same job, locally, on the real files
 
