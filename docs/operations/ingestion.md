@@ -290,9 +290,23 @@ SELECT COUNT(*) - COUNT(DISTINCT source_sha256, source_row_number) FROM edu_acce
 SELECT source_archive, source_file, source_sha256, source_row_number, batch_id, run_id, ingested_at_utc, code_revision
 FROM edu_access.`02-bronze`.deped_enrollment_raw WHERE school_year = '2025-26' AND source_row_number = 1;
 
--- Checks for the latest run: expect no FAIL
-SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
-WHERE run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs) ORDER BY status, check_name;
+-- Checks for the latest job run: expect no FAIL. Each load writes its batch checks under its own
+-- run_id, and each Bronze gate task writes under the job run id (D-020), so read both
+WITH latest AS (SELECT MAX_BY(job_run_id, started_at_utc) AS job_run_id FROM edu_access.`01-control`.pipeline_runs WHERE job_run_id IS NOT NULL)
+SELECT source_id, check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
+WHERE run_id IN (SELECT job_run_id FROM latest
+                 UNION ALL SELECT run_id FROM edu_access.`01-control`.pipeline_runs WHERE job_run_id = (SELECT job_run_id FROM latest))
+ORDER BY source_id, status, check_name;
+
+-- A load's true outcome: pipeline_runs alone can say succeeded when its gate task failed.
+-- gate_checks = 0 for a job run means its gate task has not run (a manual run gates inside the load)
+SELECT r.source_id, r.started_at_utc, r.status AS load_status, r.job_run_id,
+       COUNT_IF(q.run_id = r.job_run_id) AS gate_checks,
+       COUNT_IF(q.status = 'FAIL') AS failed_checks, COUNT_IF(q.status = 'WARN') AS warned_checks
+FROM edu_access.`01-control`.pipeline_runs AS r
+LEFT JOIN edu_access.`01-control`.data_quality_results AS q
+  ON q.run_id IN (r.run_id, r.job_run_id) AND q.source_id = r.source_id AND q.layer = 'bronze'
+GROUP BY ALL ORDER BY r.started_at_utc DESC;
 
 -- Column mapping is on (needed for the column name with spaces)
 SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_enrollment_raw ('delta.columnMapping.mode');
@@ -599,8 +613,11 @@ FROM edu_access.`02-bronze`.psa_poverty_stat_raw;
 
 -- Checks for the PSA batch: expect no FAIL, and WARNs at the profiled counts
 SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
-WHERE source_id = 'psa_poverty_stat' AND run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs
-                                                  WHERE source_id = 'psa_poverty_stat') ORDER BY status, check_name;
+WHERE source_id = 'psa_poverty_stat'
+  AND run_id IN (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_poverty_stat'
+                 UNION ALL  -- the gate task's rows, under the job run id (D-020)
+                 SELECT MAX_BY(job_run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_poverty_stat')
+ORDER BY status, check_name;
 
 -- Where one row came from
 SELECT source_file, source_sha256, source_sheet, source_row_number, source_row_kind, batch_id, run_id, code_revision
@@ -936,7 +953,9 @@ FROM edu_access.`02-bronze`.psa_psgc_raw WHERE publication_period = '2026-Q2';
 -- Checks for the latest PSGC run: expect no FAIL, and the WARNs at their profiled counts
 SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
 WHERE source_id = 'psa_psgc'
-  AND run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_psgc')
+  AND run_id IN (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_psgc'
+                 UNION ALL  -- the gate task's rows, under the job run id (D-020)
+                 SELECT MAX_BY(job_run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_psgc')
 ORDER BY status, check_name;
 
 -- Where one row came from: Excel row 2 of sheet PSGC

@@ -4,7 +4,7 @@ Tables that record pipeline runs, ingestion batches, and data-quality results. T
 
 | File | Object | Holds |
 |---|---|---|
-| `01_create_pipeline_runs.sql` | `pipeline_runs` | One row per run: source, environment, status, timings, batch counts, failure, `code_revision` |
+| `01_create_pipeline_runs.sql` | `pipeline_runs` | One row per run: source, environment, status, timings, batch counts, failure, `code_revision`, and `job_run_id` (the Databricks job run whose gate task checked it; D-020) |
 | `02_create_ingestion_batches.sql` | `ingestion_batches` | The processed-file manifest: one row per distinct archive (by SHA-256) and its current state. Upserted with MERGE |
 | `03_create_ingestion_batch_attempts.sql` | `ingestion_batch_attempts` | Append-only: one row per batch per run, including skips and blocks |
 | `04_create_data_quality_results.sql` | `data_quality_results` | Append-only: one row per check (PASS, WARN, FAIL), counts only, never row values. Columns follow #42 |
