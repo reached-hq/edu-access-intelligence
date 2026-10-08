@@ -41,3 +41,22 @@ A delivery is approved by merging its entry in a reviewed pull request, never by
 4. Add the delivery entry, copying the values from the source card. `tests/test_ingestion_validate.py` fails unless each value here matches the card row of its own file: the zip's name and checksum, and the CSV's name, checksum, row count, and encoding.
 
 A file whose name matches an approved delivery but whose SHA-256 does not is refused as `checksum_mismatch`. It is either damaged (download it again) or revised by the publisher (approve it as the next `delivery_version`; the earlier version is kept).
+
+## Workbook contracts (`"format": "xlsx_sheet"`)
+
+`psa_poverty_stat.json` describes one xlsx workbook per delivery instead of a zip (D-018). It has `workbook_pattern` instead of the archive and member patterns, `label_column` (the column that alone fills a region banner row), and `known_issues`. Each schema version adds a `layout`:
+
+| Layout field | Meaning (PSA v1) |
+|---|---|
+| `first_data_row` | First body row (6) |
+| `group_row`, `group_fill_from_column` | Row of the merged group labels (2), carried across the group from column D on |
+| `sub_row`, `sub_row_columns` | Row 4 labels used only in these columns (A: `ID`; M to R: `Lower Limit`/`Upper Limit`) |
+| `year_row` | Row of the years (5) |
+| `width`, `ignored_columns` | 18 columns (A to R); column S must be empty |
+| `footer_marker` | The body ends before the first row whose column A starts with `Notes:` |
+| `value_columns_from` | First estimate column (D) |
+
+Each approved workbook pins `logical_dataset`, `estimate_years` (must equal the years in its schema's column names), `delivery_version`, `supersedes`, `workbook`, `workbook_sha256`, `sheet` (and `expected_sheets` if it has more than one), `used_range` (the sheet's declared range, e.g. `A1:S1641`; every row of it is loaded), `schema_version`, `body_rows` (`first`, `last`), `unit_rows`, `banner_rows`, optional `blank_rows`, `footer_rows`, and `retrieved_at_utc`. Versions count 1, 2, 3 per `logical_dataset`; two datasets may not share an estimate year, so a republished year is approved as a revision with `supersedes`. A revision must keep every estimate year of the version it supersedes (it may add years); `current_batches` makes one version per dataset current, so a dropped year would disappear from Silver. `tests/test_ingestion_validate.py` fails unless the workbook's name, checksum, sheet, and row counts are on its source card row.
+
+`known_issues` lists publisher quirks found in profiling. Each is recorded as a WARN with its profiled count beside the actual count; none blocks a batch, and none changes a value. Checks available: `identifier_shorter_than`, `unit_rows_all_values_blank`, `label_equals`, `number_at_most`, `number_above`, `se_disagrees_with_cv` (see `src/ingestion/workbook.py`).
+

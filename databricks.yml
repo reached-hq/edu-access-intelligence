@@ -3,7 +3,7 @@
 # Change the job by changing this file and deploying, not by editing it in the
 # workspace: a UI edit does not reach this file, and the next deploy overwrites it.
 #
-# Jobs so far: bronze_ingest (#11), one task per source. Dashboards come in milestone 04 (Serve).
+# Jobs so far: bronze_ingest (#11), one task per source (DepEd enrollment, DepEd facilities, PSA Poverty Stat, COD-AB ADM3 boundaries). Dashboards come in milestone 04 (Serve).
 # Commands and checks: docs/operations/ingestion.md, "Running on Databricks".
 bundle:
   name: edu-access-intelligence
@@ -89,9 +89,36 @@ resources:
               - --code-revision
               - "{{job.parameters.code_revision}}"
 
-        - task_key: bronze_hdx_boundaries
+        # PSA Poverty Stat: one xlsx workbook with three estimate years
+        # (config/ingestion/psa_poverty_stat.json). Same command, its own
+        # contract; reads /Volumes/edu_access/00-source/raw/psa/.
+        - task_key: bronze_psa_poverty_stat
           depends_on:
             - task_key: bronze_deped_facilities
+          run_if: ALL_DONE
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            source: GIT
+            parameters:
+              - ingest
+              - --backend
+              - spark
+              - --source
+              - psa_poverty_stat
+              - --landing
+              - /Volumes/edu_access/00-source/raw
+              - --environment
+              - ${bundle.target}
+              - --code-revision
+              - "{{job.parameters.code_revision}}"
+
+        # COD-AB administrative boundaries, ADM3: one GeoJSON file
+        # (config/ingestion/hdx_boundaries.json). Same command, its own
+        # contract; reads /Volumes/edu_access/00-source/raw/admin_boundaries/.
+        - task_key: bronze_hdx_boundaries
+          depends_on:
+            - task_key: bronze_psa_poverty_stat
           run_if: ALL_DONE
           environment_key: ingestion
           spark_python_task:
