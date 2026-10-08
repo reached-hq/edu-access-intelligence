@@ -116,7 +116,7 @@ The one-query verification from [Silver, Running on Databricks](../../docs/opera
 | Gate | | stopped: `labels_mapped_sector` FAIL, 1 row in SY 2025-26 |
 | `pipeline_runs` for `local-fail` | | `failed`, stage `gate`, "1 FAIL result(s) in data_quality_results" |
 
-Before this change the same failure replaced every school year of the published build: 0 rows of the last good build remained ([#85 review](https://github.com/reached-hq/edu-access-intelligence/pull/112)).
+Before this change, the same steps at `7d93d8e` (the Silver SQL of #112) on a scratch copy of a database built by two local job runs at that commit replaced every school year of the published build: all 180,500 rows of `deped_enrollment_clean` then carried the failed run `local-fail-old`, 0 rows of the last good run remained, and 0 published rows came from a succeeded run (#119).
 
 ## Why it holds
 
