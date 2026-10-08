@@ -25,6 +25,7 @@ with contextlib.redirect_stdout(io.StringIO()):
 
 schools = deped["schools"]  # SY 2023-24, Philippine Schools Overseas already excluded
 loc_result = deped["loc_result"]
+city_or_municipality = deped["city_or_municipality"]
 sector = dict(deped["q"]("SELECT school_id, sector FROM enr"))
 psgc = deped["psgc_rows"]
 if [psgc[0].get(i, "").strip() for i in (6, 9)] != ["City Class", "2024 Population"]:
@@ -65,7 +66,8 @@ for r in rows:
 if len(no_poverty) != 44:
     sys.exit(f"Expected the 44 units named in psa_poverty_stat X-1, found {len(no_poverty)}.")
 
-located = [(sid, loc_result[(prov, mun)][1]) for sid, _, prov, mun, _ in schools if loc_result[(prov, mun)][1]]
+# Manila's sub-municipalities roll up to the City of Manila (an HUC) before the lookup (C-4).
+located = [(sid, city_or_municipality(loc_result[(prov, mun)][1])) for sid, _, prov, mun, _ in schools if loc_result[(prov, mun)][1]]
 gap = collections.Counter(no_poverty[u.id] for _, u in located if u.id in no_poverty)
 gap_public = collections.Counter(no_poverty[u.id] for sid, u in located if u.id in no_poverty and sector[sid] == "Public")
 public = sum(1 for s in sector.values() if s == "Public")
@@ -90,3 +92,14 @@ barangays = [r for r in rows if level(r) == "Bgy"]
 zeros = collections.Counter(regions[r.get(1, "")[:2]] for r in barangays if population(r) == 0)
 show("C-3", f"PSGC barangays: {len(barangays):,}; their 2024 population sums to {sum(population(r) or 0 for r in barangays):,}; "
      f"zero-population barangays: {sum(zeros.values())}: {dict(zeros)}")
+
+# %% C-4: schools whose matched locality is a Manila sub-municipality
+# PSGC 2Q 2026 codes the City of Manila's 14 districts as sub-municipalities (SubMun), and their
+# barangays carry the district's code in digits 6-7, so "first 7 digits plus 000" gives the district,
+# not the city. CMCI, poverty, and the boundaries treat Manila as one city or municipality.
+submun = collections.Counter(loc_result[(prov, mun)][1].name for _, _, prov, mun, _ in schools
+                             if loc_result[(prov, mun)][1] and loc_result[(prov, mun)][1].level == "SubMun")
+submun_public = sum(1 for sid, _, prov, mun, _ in schools
+                    if loc_result[(prov, mun)][1] and loc_result[(prov, mun)][1].level == "SubMun" and sector[sid] == "Public")
+show("C-4", f"schools matched to a Manila sub-municipality, rolled up to the City of Manila: {sum(submun.values())} "
+     f"(public {submun_public}) in {len(submun)} sub-municipalities: {dict(submun.most_common())}")

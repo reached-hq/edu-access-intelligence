@@ -56,7 +56,7 @@ A finding ID such as `A-5` or `Y-6` is printed by a script in front of the numbe
 | `A-n` | `cross_source_deped.py` | DepEd SY 2023-24 place names to PSGC 2Q 2026 |
 | `B-n` | `cross_source_deped.py` | DepEd `school_id` joins between enrollment, facilities, personnel, ELLNA, and NAT Grade 6 |
 | `Y-n` | `cross_source_deped_years.py` | DepEd enrollment across the three acquired school years |
-| `C-n` | `cross_source_coverage.py` | Checks that span sources: schools without a poverty estimate (C-1), Special Geographic Area schools (C-2), PSGC population (C-3) |
+| `C-n` | `cross_source_coverage.py` | Checks that span sources: schools without a poverty estimate (C-1), Special Geographic Area schools (C-2), PSGC population (C-3), Manila sub-municipalities rolled up to the City of Manila (C-4) |
 | `BP-n` | `cross_source_psa_population_per_barangay.py` | PSA barangay population against PSGC |
 | `AG-n` | `cross_source_psa_population_per_age_group.py` | PSA age-group population's OpenSTAT codes against PSGC |
 | `CM-n` | `cross_source_dti_cmci.py` | CMCI LGUs against PSGC |

@@ -215,6 +215,15 @@ def barangay_candidates(locality):
     return barangays_by_parent[locality.id[:5] if locality.id[5:] == "00000" else locality.id[:7]]
 
 
+units_by_id = {u.id: u for u in units}
+
+
+def city_or_municipality(locality):
+    """The city or municipality a matched locality belongs to: a Manila sub-municipality
+    (SubMun, such as Sampaloc) rolls up to the City of Manila; every other locality is itself."""
+    return units_by_id[locality.id[:5] + "00000"] if locality.level == "SubMun" else locality
+
+
 # %% A: match every SY 2023-24 school's place names
 raw_schools = q("SELECT school_id, region, province, municipality, barangay FROM enr")
 schools = [(i, r, repair(p), repair(m), repair(b)) for i, r, p, m, b in raw_schools]
