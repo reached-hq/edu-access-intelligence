@@ -14,7 +14,7 @@ The unmatched and ambiguous names are listed in [deped_psgc_unmatched.md](genera
 
 ## Summary
 
-1. **96.9% of schools match PSGC 2Q 2026 down to barangay** (58,289 of 60,134). Only 77.5% match on the strict rule (exact or old name at every level); the rest need documented rules for how DepEd writes names. 1,845 schools stay unmatched or ambiguous and are listed, not forced.
+1. **97.1% of schools match PSGC 2Q 2026 down to barangay** (58,374 of 60,134). Only 77.5% match on the strict rule (exact or old name at every level); the rest need documented rules for how DepEd writes names. 1,760 schools stay unmatched or ambiguous and are listed, not forced.
 2. **Most failures are naming conventions, not missing places.** DepEd adds former names in brackets, leaves out "City" for places that became cities, files independent cities under their geographic province, and groups NCR into four districts that are not PSGC units.
 3. **3,306 matched schools change region between SY 2023-24 and 2Q 2026**, all from the Negros Island Region and Sulu moves, plus 112 Special Geographic Area schools. Region must come from DepEd's own column for SY 2023-24 results.
 4. **DepEd's own place names have two data problems:** 173 names (260 schools) contain mangled characters, and 13 barangay names (24 schools) are exactly 40 characters long, which looks like truncation.
@@ -34,6 +34,7 @@ The [psa_psgc card](../source-inventory/psa_psgc/README.md#version-used-and-sy-2
 - **NCR district:** DepEd's four NCR districts are matched against every NCR city, municipality, and Manila sub-municipality.
 - **Documented split:** DepEd's single `MAGUINDANAO` is matched against Maguindanao del Norte and del Sur.
 - **Independent city:** a city not found in its DepEd province is looked up among the 33 independent cities, which PSGC codes at province level (`CEBU CITY` under `CEBU` matches `City of Cebu`). If the province itself is unmatched, every city is searched.
+- **Reviewed alias:** a city or municipality name that differs from PSGC beyond these tiers maps to one PSGC code, only inside the province it was found in. One so far: `TONDO` to `Tondo I/II` (`1380601000`), a Manila sub-municipality.
 - **Truncated at 40:** a 40-character barangay name may match the one PSGC barangay in its city or municipality that starts with it. No name matched this way in SY 2023-24.
 
 The 33 Philippine Schools Overseas are excluded (A-1).
@@ -43,18 +44,18 @@ The 33 Philippine Schools Overseas are excluded (A-1).
 | Level | Distinct names | Exact | Old name | Folded | Brackets dropped | Word City ignored | Other documented rule | Unmatched | Ambiguous |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Province (A-2) | 87 | 78 | 3 | 0 | 0 | — | 5 | 1 | 0 |
-| City or municipality (A-3) | 1,647 | 1,529 | 1 | 4 | 69 | 7 | 18 | 19 | 0 |
-| Barangay (A-4) | 34,465 | 30,449 | 13 | 133 | 2,891 | 0 | 0 | 411 | 9 |
+| City or municipality (A-3) | 1,647 | 1,529 | 1 | 4 | 69 | 7 | 19 | 18 | 0 |
+| Barangay (A-4) | 34,465 | 30,520 | 13 | 133 | 2,891 | 0 | 0 | 411 | 9 |
 
 - **Provinces:** the 5 under "other documented rule" are the 4 NCR districts and `MAGUINDANAO`. The 3 old-name matches are `COMPOSTELA VALLEY` (Davao de Oro), `WESTERN SAMAR` (Samar), and `NORTH COTABATO` (Cotabato). `CITY OF COTABATO` has no PSGC province; its 83 schools still match through the City of Cotabato in Maguindanao del Norte.
-- **Cities and municipalities:** the 18 under "other documented rule" are 17 independent cities and the City of Cotabato. The largest unmatched are spelling differences: `KALOOKAN CITY` (319 schools; PSGC `City of Caloocan`), `OZAMIS CITY` (83; `City of Ozamiz`), `BARAUEN` (69; `Burauen`), and `BALIUAG` (66; `City of Baliwag`). `TONDO` (85) is `Tondo I/II` in PSGC.
-- **Barangays:** 529 barangay names (1,022 schools) were not attempted because their city or municipality is unmatched. 30 names (37 schools) are blank.
+- **Cities and municipalities:** the 19 under "other documented rule" are 17 independent cities, the City of Cotabato, and `TONDO` (85 schools), a reviewed alias for PSGC `Tondo I/II`. The largest unmatched are spelling differences: `KALOOKAN CITY` (319 schools; PSGC `City of Caloocan`), `OZAMIS CITY` (83; `City of Ozamiz`), `BARAUEN` (69; `Burauen`), and `BALIUAG` (66; `City of Baliwag`).
+- **Barangays:** 458 barangay names (937 schools) were not attempted because their city or municipality is unmatched. 30 names (37 schools) are blank.
 - **Ambiguous barangays** fit more than one PSGC barangay in the same city. PSGC tells Sorsogon City's duplicates apart by district (`Balogo (Sorsogon East District)` and `Balogo (Bacon District)`), while DepEd writes only `BALOGO`. In Navotas and Valenzuela, one DepEd name is the old name of two PSGC barangays: `TANGOS` (Tangos North and South), `TANZA` (Tanza 1 and 2), and `CANUMAY` (Canumay East and West).
 
 ### What it means for joins
 
-- **School share (A-5):** 58,289 of 60,134 schools (96.9%) reach a barangay code; 52,852 (87.9%) have an exact city or municipality match; 46,614 (77.5%) match on the strict rule: exact or old name at every level, with the NCR district and Maguindanao split rules allowed at province level, since those provinces cannot match exactly.
-- **Unmatched (A-12):** 1,845 schools are left: 1,022 under an unmatched city or municipality, 726 with an unmatched barangay, 60 with an ambiguous barangay, and 37 with no barangay given. All are listed with their school counts.
+- **School share (A-5):** 58,374 of 60,134 schools (97.1%) reach a barangay code; 52,852 (87.9%) have an exact city or municipality match; 46,614 (77.5%) match on the strict rule: exact or old name at every level, with the NCR district and Maguindanao split rules allowed at province level, since those provinces cannot match exactly.
+- **Unmatched (A-12):** 1,760 schools are left: 937 under an unmatched city or municipality, 726 with an unmatched barangay, 60 with an ambiguous barangay, and 37 with no barangay given. All are listed with their school counts.
 - **Regions (A-8, A-9):** 3,306 matched schools have a different region in 2Q 2026: 1,602 from Region VI and 1,123 from Region VII to the Negros Island Region, 469 Sulu schools from BARMM to Region IX, and 112 schools that DepEd lists under BARMM but files in `NORTH COTABATO`, which now match Cotabato municipalities in Region XII. Negros and Siquijor match to barangay for 2,723 of 2,725 schools, and Sulu for 463 of 469.
 - **Special Geographic Area (A-11):** those 112 schools sit in the old Cotabato municipalities in DepEd (Aleosan, Carmen, Kabacan, Midsayap, Pigkawayan, Pikit). Only 7 of their barangays are found under those municipalities, which fits PSGC 2Q 2026 listing the area's eight new municipalities separately (codes starting `19999`).
 

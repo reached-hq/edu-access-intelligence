@@ -16,7 +16,7 @@ The [deped_enrollment profile](../source-inventory/deped_enrollment/profile.md) 
 
 ## Summary
 
-1. **The later years match PSGC as well as SY 2023-24.** 97.1% of schools reach a PSGC barangay in both SY 2024-25 and 2025-26, against 96.9% in SY 2023-24, with the same rules. Across the two later years, only 23 unmatched names were matched or absent in SY 2023-24.
+1. **The later years match PSGC as well as SY 2023-24.** 97.3% of schools reach a PSGC barangay in both SY 2024-25 and 2025-26, against 97.1% in SY 2023-24, with the same rules. Across the two later years, only 23 unmatched names were matched or absent in SY 2023-24.
 2. **Most category labels in SY 2025-26 are renamed, each one to one.** `sector` (`SUC/LUC` only), `school_management` (all but `LUC`), `annex_status`, and the three `offers_*` columns each have a clean old-to-new mapping on the same schools. A small number of schools also really change category every year.
 3. **SY 2025-26 leaves counts blank instead of 0** for levels a school does not offer: the Senior High School columns for 47,352 schools and the Kinder to Grade 10 columns for 1,403. Earlier years write 0.
 4. **Regions move twice.** 2,704 kept schools move from Regions VI and VII to the Negros Island Region in SY 2024-25, and 477 Sulu schools move from BARMM to Region IX in SY 2025-26. DepEd's own region is therefore a different map in each year.
@@ -105,9 +105,9 @@ The city and municipality changes are of three kinds:
 
 | School year | Schools (overseas excluded) | Matched to barangay | City or municipality unmatched | Barangay unmatched | Ambiguous | No barangay given |
 |---|---:|---:|---:|---:|---:|---:|
-| 2023-24 | 60,134 | 58,289 (96.9%) | 1,022 | 726 | 60 | 37 |
-| 2024-25 | 60,094 | 58,364 (97.1%) | 964 | 678 | 58 | 30 |
-| 2025-26 | 60,168 | 58,449 (97.1%) | 971 | 681 | 60 | 7 |
+| 2023-24 | 60,134 | 58,374 (97.1%) | 937 | 726 | 60 | 37 |
+| 2024-25 | 60,094 | 58,443 (97.3%) | 885 | 678 | 58 | 30 |
+| 2025-26 | 60,168 | 58,527 (97.3%) | 893 | 681 | 60 | 7 |
 
 Names that are unmatched in a later year but were matched or absent in SY 2023-24 (23, all listed):
 
@@ -115,7 +115,7 @@ Names that are unmatched in a later year but were matched or absent in SY 2023-2
 - **`MALITA` under `DAVAO DEL SUR`** in SY 2025-26: Malita is in Davao Occidental, so the province looks wrong in DepEd's file.
 - **16 barangay rows (12 distinct names),** for example `LIGAS II`, `P.F. ESPIRITU III`, and `ZAPOTE I` in Bacoor and `POBLACION` in Taguig. Four of them are unmatched in both later years. The Bacoor names are the older numbering: PSGC 2Q 2026 lists 47 Bacoor barangays, several with an older name in `Old names` (`Ligas 2`, formerly `Ligas III`), so a numbered DepEd name can point to a different PSGC barangay and is rightly left unmatched.
 
-For the same school in consecutive years, the matched barangay code is the same for 57,696 schools (2023-24 to 2024-25) and 57,843 (2024-25 to 2025-26). It differs for 37 and 56 schools.
+For the same school in consecutive years, the matched barangay code is the same for 57,775 schools (2023-24 to 2024-25) and 57,921 (2024-25 to 2025-26). It differs for 37 and 56 schools.
 
 ## What it means for joins
 

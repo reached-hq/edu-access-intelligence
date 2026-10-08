@@ -17,7 +17,6 @@ Every DepEd province, city or municipality, and barangay name that did not match
 | City or municipality |  | LANAO DEL SUR | SULTAN GUMANDER (PICONG) |  | unmatched | 19 |
 | City or municipality |  | LEYTE | BARAUEN |  | unmatched | 69 |
 | City or municipality |  | MAGUINDANAO | DATU MONTAWAL (PAGAGAWAN) |  | unmatched | 16 |
-| City or municipality |  | MANILA, NCR, FIRST DISTRICT | TONDO |  | unmatched | 85 |
 | City or municipality |  | MASBATE | PIO V. CORPUZ (LIMBUHAN) |  | unmatched | 24 |
 | City or municipality |  | MISAMIS OCCIDENTAL | DON VICTORIANO CHIONGBIAN |  | unmatched | 14 |
 | City or municipality |  | MISAMIS OCCIDENTAL | OZAMIS CITY |  | unmatched | 83 |

@@ -109,6 +109,9 @@ show("run", f"{PSGC_FILE}: {len(units):,} units, checksum OK")
 #   - A city not found inside its DepEd province is looked up among the 33 independent
 #     cities (PSGC gives them province-level codes); if the province itself is unmatched,
 #     among every city.
+#   - "reviewed alias": a city or municipality name that differs from PSGC beyond these
+#     tiers is mapped to one PSGC code (LOCALITY_ALIASES), only inside the province it
+#     was found in.
 
 
 def repair(text):
@@ -178,6 +181,12 @@ for u in units:
         barangays_by_parent[u.id[:7]].append(u)
         barangays_by_parent[u.id[:5]].append(u)
 SPLITS = {"MAGUINDANAO": ["Maguindanao del Norte", "Maguindanao del Sur"]}
+# Reviewed aliases for DepEd city or municipality names that differ from PSGC beyond the tiers.
+LOCALITY_ALIASES = {
+    "TONDO": "1380601000",  # Tondo I/II, a Manila sub-municipality
+}
+if set(LOCALITY_ALIASES.values()) - {u.id for u in localities}:
+    sys.exit("A locality alias points to a code that is not a PSGC city, municipality, or sub-municipality.")
 
 
 def match_province(name):
@@ -191,6 +200,9 @@ def match_province(name):
 
 
 def match_locality(name, prefixes):
+    alias = LOCALITY_ALIASES.get(base(name))
+    if alias and any(alias.startswith(p) for p in prefixes):
+        return "reviewed alias", next(u for u in localities if u.id == alias)
     tier, unit = match(name, [u for u in localities if any(u.id.startswith(p) for p in prefixes)])
     if tier == "unmatched":
         tier, unit = match(name, independent if prefixes else cities)
