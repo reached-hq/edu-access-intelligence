@@ -128,3 +128,25 @@ The runs above used uncommitted code (`-dirty`). They were repeated after the wo
 Checked in the database afterwards, all equal to the first runs and to the source card: 43,768 rows, Excel rows 2 to 43,769, 43,768 distinct codes; levels 42,010 / 1,493 / 149 / 82 / 18 / 14 / 2 blank; 50 blank correspondence codes, `#N/A` 1, population `0` 12, `-` urban/rural 38, 2,855 trailing spaces, 19 column-J footnotes, 29,620 leading-zero codes, 0 codes not exactly 10 digits; 0 pipeline duplicates; 0 rows missing provenance; every Bronze row carries the one commit. The 11 WARNs are the same checks at the same counts as the table in [Checks](#4-checks). Attempts: `load succeeded 43768`, then `skip skipped 0`. `current_batches`: `2026-Q2`, version 1, `psa_psgc__2026-Q2__31892bc2bdde`.
 
 This resolves the second limitation above. The Databricks `dev` run is still not done.
+
+## Repeated at the merged commit (after #109)
+
+On 2026-10-08 this branch was merged with `main`, which by then included #109 (PSA Poverty Stat, D-018). The merge moved PSGC onto `main`'s shared format layer (`formats.py`, `workbook.open_sheet`) and changed the data-quality rule after review: a known characteristic is now PASS at its profiled count and WARN only when the count changes. The runs were repeated at merge commit `bfa3c14b4a70d39a88ee377ad81de59b4c4d2b19` (clean working tree), on a fresh database, from VS Code's PowerShell terminal:
+
+```bash
+.\.venv\Scripts\python.exe -m src.ingestion.cli ingest --source psa_psgc --db local_state/psgc_merged.duckdb
+```
+
+| | Run 1 | Run 2 |
+|---|---|---|
+| `run_id` | `2b097641-35eb-46d2-aaaa-031d74e43dc7` | `12ea3b57-e7ce-4b2c-b33d-951395703891` |
+| Started (UTC) | 2026-10-08 06:25:08 | 2026-10-08 06:27:03 |
+| Action, outcome | `load`, `initial`, `succeeded` | `skip`, `skipped` ("already loaded; same SHA-256") |
+| Rows inserted | **43,768** | **0** |
+| Pipeline time (`duration_seconds`) | 9.3 s | 0.3 s |
+| Checks | **40 PASS**, 0 WARN, 0 FAIL | 4 PASS |
+| `code_revision` | `bfa3c14…2b19` | `bfa3c14…2b19` |
+
+Run 1 has 40 checks, not 41 as above: the merged code reads the workbook through the shared opener, which loads a formula's cached result and counts formulas (`formula_cells`, PASS at 0), so the separate `formula_cells_have_values` check is gone. The 11 earlier WARNs are now PASS because each count equals its profiled count (`dq_*`, `psgc_code_stored_as_number` 84, `error_cells` 1).
+
+Checked in the database afterwards, all equal to the earlier runs and to the source card: 43,768 rows, Excel rows 2 to 43,769, 43,768 distinct codes; levels 42,010 / 1,493 / 149 / 82 / 18 / 14 / 2 blank; 50 blank correspondence codes, `#N/A` 1, population `0` 12, `-` urban/rural 38, 2,855 trailing spaces, 19 column-J footnotes, 29,620 leading-zero codes, 0 codes not exactly 10 digits; 0 pipeline duplicates; 0 rows missing provenance; one commit on every row. The batch row now also fills D-018's columns: `school_year` `2026-Q2`, `logical_dataset` NULL, `estimate_years_covered` NULL, `source_sheet` `PSGC`; attempts carry NULL for the first two. `current_batches`: `2026-Q2`, version 1.

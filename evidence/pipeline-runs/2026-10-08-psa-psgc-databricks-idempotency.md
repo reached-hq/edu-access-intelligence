@@ -86,3 +86,21 @@ DepEd Bronze still has 180,500 enrollment rows and 60,167 facilities rows; both 
 ## How to reproduce
 
 From a clean checkout of `cb274bf` (or later on this branch), with the `reached-hq` profile signed in, notebooks detached and the run announced: the three commands above, the last one twice. Then the validation queries in [docs/operations/ingestion.md](../../docs/operations/ingestion.md#validation-queries-psgc).
+
+## Repeated at the merged commit (after #109)
+
+After this branch was merged with `main` (including #109), the job was redeployed and run twice at merge commit `bfa3c14b4a70d39a88ee377ad81de59b4c4d2b19`, the code that will merge. The deployed job's `git_commit` and `code_revision` were both `bfa3c14…`, and it had four tasks: `bronze_deped_enrollment`, `bronze_deped_facilities`, `bronze_psa_poverty_stat` (from #109), `bronze_psa_psgc`, each after the previous one with `run_if: ALL_DONE`. The run was announced, as before.
+
+| | Run 1 | Run 2 |
+|---|---|---|
+| Job run | `164635696195` | `801279430383461` |
+| Whole job | 14:33:46 to 14:38:42 (06:33:46 to 06:38:42 UTC), 4 min 56 s, `SUCCESS` | 14:45:06 to 14:48:45 (06:45:06 to 06:48:45 UTC), 3 min 39 s, `SUCCESS` |
+| DepEd enrollment | skip ×3, 0 inserted (Bronze 60,167 / 60,129 / 60,204) | same |
+| DepEd facilities | skip, 0 inserted (Bronze 60,167) | same |
+| PSA Poverty Stat | skip, 0 inserted (Bronze 1,641) | same |
+| PSGC pipeline `run_id` | `f3d52399-e84c-4897-8369-c2082c48b669` | `bca49ab2-ce71-47cc-8acb-50da7dfa1860` |
+| PSGC | `skip`, 0 inserted, Bronze 43,768, "already loaded; same SHA-256" | same |
+
+Every task succeeded on its first attempt, so every Bronze gate (which raises on any FAIL) passed. Counts are from each task's own output; the SQL warehouse was stopped and was not started for this check. Nothing was inserted, so the table-level results above (rows, levels, duplicates, provenance) are unchanged.
+
+**What this does and does not show.** At `bfa3c14`, on Databricks, the merged code recognises the batch loaded at `cb274bf` by its checksum and adds nothing, alongside the three other sources. It does **not** re-read and re-load the workbook on Databricks: the full load path at the merged commit is shown only by the local runs ([local evidence](2026-10-07-psa-psgc-local-idempotency.md#repeated-at-the-merged-commit-after-109)). A skip does not rewrite the batch row, so on `dev` the PSGC row in `ingestion_batches` still has `source_sheet` NULL (written at `cb274bf`), where the merged code writes `PSGC`; a `--rerun` of the batch, or the next delivery, would fill it.
