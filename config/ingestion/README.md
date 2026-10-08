@@ -72,3 +72,35 @@ Each approved workbook pins `logical_dataset`, `estimate_years` (must equal the 
 
 Each approved delivery pins the same fields as a zip delivery, but `archive` and `data_member` are both the file name, `archive_sha256` and `data_member_sha256` are both the file's SHA-256, `document_sha256` is `{}`, and `school_year` holds the file's reference date (`2025-02-13`), not a school year.
 
+## Workbook contracts (`format: xlsx_table`)
+
+`psa_psgc.json` describes one xlsx workbook per publication quarter, delivered as is (no zip around it). The rules are in `src/ingestion/xlsx_table.py`; the decision is D-019.
+
+| Field | Meaning |
+|---|---|
+| `format` | `xlsx_table`. Absent means `zip_csv`, the DepEd shape above |
+| `workbook_pattern` | Publisher file name with named groups `quarter` and `year`, e.g. `PSGC-2Q-2026-Publication-Datafile.xlsx`. Searched for under `landing_dir` at any depth |
+| `data_sheet`, `expected_sheets` | The sheet that holds the data, and every sheet the workbook should have. A sheet not in the list stops the batch (`unexpected_sheet`: it may hold data); a listed sheet that is missing is a WARN |
+| `period_source` | Where the publication date is: the sheet and the label in column A (`Metadata`, `Publication date:`). Its quarter must equal the file name's |
+| `identifier_column`, `identifier_pattern` | Bronze name of the code and its exact pattern as stored text (`^[0-9]{10}$`). A code stored as a number passes only if its stored digits already match; nothing is padded |
+| `identifier_number_cells_profiled`, `error_cells_profiled` | How many codes the profile found stored as numbers (84), and how many error cells (1, the `#N/A` population). PASS at these counts, WARN when they change |
+| `require_approved_deliveries` | `true`: an approved workbook missing from the landing folder fails the run |
+| `master_reference_period` | The quarter the team uses as the master geographic reference (D-012). Must be an approved quarter; changed only by a team decision, never by loading |
+| `schema_versions` | Each version has `columns` (snake_case Bronze names) and `source_headers` (the exact header cells, line breaks included; `""` for an empty header cell), in the same order. The header must equal one version's `source_headers` exactly |
+| `quality_checks` | Known publisher characteristics with their profiled count: `blank`, `not_blank`, `equals`, `ends_with`, `not_whole_number` on one column. PASS at the profiled count, WARN when the count changes; never FAIL |
+| `national_summary`, `hierarchy` | How to read the workbook's own summary sheet and the levels, for the WARN checks against it and the code-prefix hierarchy |
+
+Each approved workbook pins:
+
+| Field | Meaning |
+|---|---|
+| `publication_period` | e.g. `2026-Q2`. Must equal the quarter in the file name |
+| `publication_date` | ISO date from the `Metadata` sheet, inside that quarter |
+| `delivery_version`, `supersedes` | `1` for the first delivery of a quarter. A re-issued file for the same quarter is `2`, with `supersedes` set to version 1's `workbook_sha256` |
+| `workbook`, `workbook_sha256` | The file as downloaded |
+| `sheet`, `range` | The data sheet and its exact used range, e.g. `A1:K43769`: the header row plus `row_count` rows, one column per schema column |
+| `schema_version`, `row_count` | Which header it has, and its data rows; Bronze must reconcile to it |
+| `documented_population_abroad` | The publisher's documented gap between the regions and the national population (`Notes` D.2: 1,708) |
+| `retrieved_at_utc` | When the file was downloaded |
+
+To approve a new quarter, follow the PSGC runbook in [docs/operations/ingestion.md](../../docs/operations/ingestion.md#runbook-psgc). `tests/test_ingestion_validate.py` fails unless the workbook's name, checksum, row count and range sit on one row of the source card.

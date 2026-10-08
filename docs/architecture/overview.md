@@ -31,7 +31,7 @@ The stage numbers follow one rule: a stage number matches its `etl/` folder and 
 
 <!-- TODO(Phase 5): diagram from sources to dashboards. -->
 
-Built so far, Source to Bronze ([ingestion](../operations/ingestion.md)), for zips (DepEd), workbooks (PSA Poverty Stat), and GeoJSON (COD-AB boundaries):
+Built so far, Source to Bronze ([ingestion](../operations/ingestion.md)), for zips (DepEd), workbooks (PSA Poverty Stat and PSA PSGC), and GeoJSON (COD-AB boundaries):
 
 ```
 official download ─▶ 00-source volume ─▶ checksum + approved contract ─▶ validate ─▶ MERGE ─▶ 02-bronze
@@ -39,6 +39,8 @@ official download ─▶ 00-source volume ─▶ checksum + approved contract �
                                                      └──────────── 01-control ◀─────────────────┘
                                       runs, batches, attempts, data-quality results, current_batches
 ```
+
+Four delivery formats share this flow, chosen by the source's contract: a zip with one CSV per school year (DepEd, `zip_csv`), a workbook sheet covering several estimate years (`psa_poverty_stat`, `xlsx_sheet`, D-018), an xlsx workbook per publication quarter (`psa_psgc`, `xlsx_table`, D-019), and one GeoJSON file per boundary edition (`hdx_boundaries`, `geojson_features`, D-020). Only discovery, the period, and how a file is read and checked differ.
 
 ## Sources
 
@@ -76,12 +78,12 @@ Raw files go to the managed volume `` edu_access.`00-source`.raw ``, one folder 
 │   ├── SHA256SUMS.txt
 │   └── ...                                         other PSA files
 └── admin_boundaries/
-    ├── phl_admin3.geojson                  hdx_boundaries (ADM3), uploaded <date>
+    ├── phl_admin3.geojson                  hdx_boundaries (ADM3), uploaded <2026-10-06>
     ├── phl_admin4.geojson                  ADM4, not ingested
     └── SHA256SUMS.txt
 ```
 
-Ingestion identifies files by SHA-256, not by path (D-014). A PSA workbook is one delivery covering several estimate years (D-018). A COD-AB boundary file is one GeoJSON delivery whose geometry is kept as text (D-020).
+Ingestion identifies files by SHA-256, not by path (D-014). A PSA Poverty Stat workbook is one delivery covering several estimate years (D-018); a PSGC workbook is one delivery per publication quarter (D-019). PSA replaces the quarterly PSGC file at a stable URL, so a re-download goes into a dated subfolder and never over the earlier file. A COD-AB boundary file is one GeoJSON delivery whose geometry is kept as text (D-020).
 
 This is provisional (D-009): if the mentor approves the course R2 bucket, an R2-backed volume is added next to it. Local copies for profiling live outside the repository in `raw-data/` ([terminal setup, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)).
 
@@ -103,7 +105,7 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 <!-- TODO(Phase 6): task order for the full pipeline. -->
 
-`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (DepEd enrollment, DepEd facilities, PSA Poverty Stat) (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
+`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (DepEd enrollment, DepEd facilities, PSA Poverty Stat, PSA PSGC, COD-AB ADM3 boundaries) (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
 
 ## Environments and deployment
 

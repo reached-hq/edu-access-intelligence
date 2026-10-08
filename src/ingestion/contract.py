@@ -6,7 +6,7 @@
 - the approved deliveries, each pinned to its file's SHA-256, schema version,
   and row count.
 
-Two delivery formats exist (`format` in the contract):
+Four delivery formats exist (`format` in the contract):
 
 - `zip_csv` (the default; DepEd): a zip holding one CSV and its documents,
   one school year per delivery, versions counted per school year.
@@ -14,6 +14,14 @@ Two delivery formats exist (`format` in the contract):
   header, region banner rows and a footer, and several estimate years in one
   wide row. Versions are counted per `logical_dataset`, because a delivery
   covers a set of estimate years rather than one period (see workbook.py).
+- `xlsx_table` (PSA PSGC): one workbook per publication quarter, one sheet
+  with a single header row whose exact cells map to Bronze column names.
+  Versions are counted per quarter, which the control tables hold in their
+  `school_year` column (D-019; see xlsx_table.py).
+- `geojson_features` (COD-AB boundaries): one GeoJSON FeatureCollection file,
+  not zipped, so the file is both the delivery and the data file. Its period is
+  the boundary reference date (`valid_on`), held in `school_year` like the PSGC
+  quarter, and the geometry is kept as raw text (D-020).
 
 A delivery is approved by merging its entry in a reviewed pull request. The
 pipeline never adds or edits an entry, so a file it has never been told about
@@ -28,7 +36,7 @@ from pathlib import Path
 
 from src.ingestion.errors import IngestionError
 
-FORMATS = ("zip_csv", "xlsx_sheet", "geojson_features")
+FORMATS = ("zip_csv", "xlsx_sheet", "xlsx_table", "geojson_features")
 # A geojson_features delivery's period is its reference date (valid_on), not a school year.
 REFERENCE_DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 SUPPORTED_ENCODINGS = {"utf-8", "cp1252"}
@@ -125,6 +133,9 @@ def source_format(config):
 
 
 def provenance_columns(config):
+    if source_format(config) == "xlsx_table":
+        from src.ingestion.xlsx_table import PROVENANCE_COLUMNS as XLSX_TABLE_PROVENANCE  # avoids a circular import
+        return XLSX_TABLE_PROVENANCE
     return XLSX_PROVENANCE_COLUMNS if source_format(config) == "xlsx_sheet" else PROVENANCE_COLUMNS
 
 
@@ -172,6 +183,9 @@ def validate_config(config, registry_entry):
         raise _config_error(f"format {config.get('format')!r} is not one of {list(FORMATS)}.")
     if source_format(config) == "xlsx_sheet":
         return validate_xlsx_config(config, registry_entry)
+    if source_format(config) == "xlsx_table":
+        from src.ingestion.xlsx_table import validate_contract  # avoids a circular import
+        return validate_contract(config, registry_entry)
     missing = CONFIG_FIELDS - config.keys()
     if missing:
         raise _config_error(f"missing fields {sorted(missing)}.")

@@ -1,12 +1,12 @@
 """What differs between delivery formats, so pipeline.py has one flow for every source.
 
-| | `zip_csv` (DepEd) | `xlsx_sheet` (PSA Poverty Stat) |
-|---|---|---|
-| Discovered files | `*.zip` named like `archive_pattern` | `*.xlsx` named like `workbook_pattern` |
-| Period | one school year, from two file names | several estimate years, from the header |
-| Versions counted per | school year | logical dataset |
-| Load type | by school year (batch.load_type) | by year set (batch.load_type_for_years) |
-| Checks | validate.prepare_delivery | workbook.prepare_workbook |
+| | `zip_csv` (DepEd) | `xlsx_sheet` (PSA Poverty Stat) | `xlsx_table` (PSA PSGC) | `geojson_features` (COD-AB boundaries) |
+|---|---|---|---|---|
+| Discovered files | `*.zip` named like `archive_pattern` | `*.xlsx` named like `workbook_pattern` | `*.xlsx` named like `workbook_pattern` | `*.geojson` named like `archive_pattern` |
+| Period | one school year, from two file names | several estimate years, from the header | one publication quarter, from the file name and the `Metadata` sheet | one reference date, from the approved delivery (`valid_on`) |
+| Versions counted per | school year | logical dataset | quarter (held in `school_year`, D-019) | reference date (held in `school_year`, D-020) |
+| Load type | by school year (batch.load_type) | by year set (batch.load_type_for_years) | by quarter (batch.load_type) | by reference date (batch.load_type) |
+| Checks | validate.prepare_delivery | workbook.prepare_workbook | xlsx_table.prepare_delivery | geojson_features.prepare_geojson_delivery |
 
 Anything not in this table is shared: identity by SHA-256, the control tables,
 the insert-only MERGE, reconciliation, the Bronze gate.
@@ -19,8 +19,7 @@ from src.ingestion import control
 from src.ingestion.batch import load_type, load_type_for_years
 from src.ingestion.contract import source_format, years_label
 from src.ingestion.validate import identify_delivery, prepare_delivery
-from src.ingestion import workbook
-from src.ingestion import geojson_features
+from src.ingestion import geojson_features, workbook, xlsx_table
 
 
 class ZipCsv:
@@ -99,10 +98,52 @@ class XlsxSheet:
         return workbook.prepare_workbook(self.config, registry_entry, path)
 
 
-class GeojsonFeatures(ZipCsv):
-    """One GeoJSON file, not zipped (hdx_boundaries). Period: the reference date in the contract.
-    Versions and load type work as for a school year, with the date as the period."""
+class XlsxTable:
+    """PSA PSGC: one workbook per publication quarter (D-019).
 
+    The quarter goes where DepEd has its school year (`school_year` in the
+    control tables): quarters sort the same way, so load types, backfills and
+    current_batches work as for school years. logical_dataset and
+    estimate_years_covered do not apply (NULL); source_sheet is the data sheet.
+    """
+    glob = "*.xlsx"
+    pattern_key = "workbook_pattern"
+
+    def __init__(self, config):
+        self.config = config
+
+    def period_from_name(self, name):
+        return xlsx_table.period_from_name(self.config, name)
+
+    def describe(self, delivery, path):
+        quarter = delivery["publication_period"] if delivery else self.period_from_name(Path(path).name)
+        return {"school_year": quarter, "logical_dataset": None, "estimate_years_covered": None,
+                "source_sheet": delivery["sheet"] if delivery else None, "period": quarter}
+
+    def expected_rows(self, delivery):
+        return delivery["row_count"]
+
+    def load_type(self, store, source_id, delivery):
+        return load_type({**delivery, "school_year": delivery["publication_period"]},
+                         control.succeeded_years(store, source_id))
+
+    def blocked_is_revision(self, store, source_id, batch, path):
+        return batch["school_year"] in control.succeeded_years(store, source_id)
+
+    def identify(self, path):
+        return xlsx_table.identify_delivery(self.config, path)
+
+    def prepare(self, registry_entry, path):
+        return xlsx_table.prepare_delivery(self.config, registry_entry, path)
+
+
+class GeojsonFeatures(ZipCsv):
+    """COD-AB boundaries: one GeoJSON file, not zipped (D-020).
+
+    The reference date (valid_on) goes where DepEd has its school year, as the
+    PSGC quarter does, so versions, load types and current_batches work as for
+    school years. The date comes from the approved delivery, never the name.
+    """
     glob = "*.geojson"
     pattern_key = "archive_pattern"
 
@@ -122,5 +163,6 @@ class GeojsonFeatures(ZipCsv):
 
 
 def for_config(config):
-    return {"zip_csv": ZipCsv, "xlsx_sheet": XlsxSheet,
+    """The format's class. An unknown format raises KeyError rather than being read as another format."""
+    return {"zip_csv": ZipCsv, "xlsx_sheet": XlsxSheet, "xlsx_table": XlsxTable,
             "geojson_features": GeojsonFeatures}[source_format(config)](config)

@@ -162,7 +162,10 @@ class IngestionRun:
             self._finish(run, summary, started, deliveries_found=0)
             raise
 
-        self._check_approved_present(summary, {sha for sha, _ in deliveries})
+        if not self._check_approved_present(summary, {sha for sha, _ in deliveries}):
+            run.update(failure_stage="discover", error_message=(
+                f"approved deliveries missing from the landing folder: {', '.join(summary.missing_deliveries)}. "
+                "Upload them to raw storage (never over an existing file), then run again.")[:MAX_MESSAGE])
         for archive_sha256, path in deliveries:
             summary.outcomes.append(self._process(path, archive_sha256))
 
@@ -170,7 +173,8 @@ class IngestionRun:
             self.store.run_file(self.bronze_gate, {"run_id": self.run_id, "code_revision": self.code_revision})
         except Exception as e:  # the gate raises on any FAIL; a broken gate must fail the run too
             summary.gate_error = str(e)[:MAX_MESSAGE]
-            run.update(failure_stage="gate", error_message=summary.gate_error)
+            if not run["failure_stage"]:  # keep an earlier, more specific cause
+                run.update(failure_stage="gate", error_message=summary.gate_error)
         self._finish(run, summary, started, deliveries_found=len(deliveries))
         return summary
 
@@ -192,12 +196,16 @@ class IngestionRun:
 
     def _check_approved_present(self, summary, found):
         """An approved delivery missing from the landing folder was never uploaded or was lost
-        from raw storage. Nothing can be loaded from it, so it is a WARN naming the files."""
+        from raw storage. Nothing can be loaded from it, so it is a WARN naming the files, or a
+        FAIL that fails the run if the contract sets `require_approved_deliveries` (PSGC: one
+        workbook per quarter, so a missing quarter is a gap, not a detail). Returns False on FAIL."""
         approved = self.config["deliveries"]
         summary.missing_deliveries = [delivery_file(d) for d in approved if delivery_sha256(d) not in found]
         missing = ", ".join(summary.missing_deliveries) or "none"
-        self._record_checks(None, [("approved_deliveries_present", WARN if summary.missing_deliveries else PASS,
+        problem = FAIL if self.config.get("require_approved_deliveries") else WARN
+        self._record_checks(None, [("approved_deliveries_present", problem if summary.missing_deliveries else PASS,
                                     len(approved), f"{len(approved) - len(summary.missing_deliveries)}; missing: {missing}")])
+        return not (summary.missing_deliveries and problem == FAIL)
 
     # -- one archive ------------------------------------------------------------
 

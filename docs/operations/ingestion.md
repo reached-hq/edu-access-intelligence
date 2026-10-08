@@ -1,6 +1,6 @@
 # Ingestion: Source → Control → Bronze
 
-How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `hdx_boundaries` (ADM3) is the first GeoJSON source: a third delivery format ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below).
+How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` is a third format, `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below). `hdx_boundaries` (ADM3) is a fourth format, `geojson_features`: one GeoJSON file per boundary edition ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below).
 
 **Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs. `psa_poverty_stat`: built and tested locally with made-up workbooks, and loaded locally from the real workbook (1,641 rows, then a skip); **not yet run on Databricks** (see its section). `hdx_boundaries`: built and tested locally with made-up GeoJSON, and loaded locally from the real file (1,642 rows, then a skip); **not yet run on Databricks**.
 
@@ -659,13 +659,382 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 | How long are superseded versions kept? | Forever | Not yet logged |
 | Should Silver clip negative lower limits, or only flag them? | Flag only | Silver issue |
 
+## PSA PSGC (xlsx workbook, one per quarter)
+
+`psa_psgc` loads through the same pipeline as DepEd, from its own contract, [`config/ingestion/psa_psgc.json`](../../config/ingestion/psa_psgc.json) (`format: xlsx_table`). What differs is in [`src/ingestion/xlsx_table.py`](../../src/ingestion/xlsx_table.py): reading the workbook, the quarter, the header mapping and the checks. Decision: D-019.
+
+**Status:** built and tested locally with made-up workbooks (`tests/test_ingestion_psgc.py`), and loaded locally from the real 2Q 2026 workbook: 43,768 rows, every count equal to the source card, 0 FAIL, then a skip ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-psgc-local-idempotency.md)). **Verified on Databricks `dev`** on 2026-10-08 at commit `cb274bf`: 43,768 rows loaded, every count equal to the local runs, 0 FAIL, then a skip ([evidence](../../evidence/pipeline-runs/2026-10-08-psa-psgc-databricks-idempotency.md)). The source stays `profiled`.
+
+### The flow (PSGC)
+
+```
+psa.gov.ph/classification/psgc            (official quarterly xlsx; no API, no scraping)
+   │  download by hand; never rename, open-and-save, or convert
+   ▼
+00 Source   /Volumes/edu_access/00-source/raw/psa/[<download date>/]PSGC-<n>Q-<yyyy>-Publication-Datafile.xlsx
+   │  discover PSGC-*Q-*-Publication-Datafile.xlsx → SHA-256 → approved?   (config/ingestion/psa_psgc.json)
+   ▼
+   │  open safely → sheet PSGC → exact header = a schema version → quarter from the name = Metadata date
+   │  → every row 2..last as stored text → checks (FAIL blocks; WARN records)
+01 Control  pipeline_runs · ingestion_batches · ingestion_batch_attempts · data_quality_results
+   │  MERGE → reconcile → succeeded → Bronze gate
+   ▼
+02 Bronze   edu_access.`02-bronze`.psa_psgc_raw    (every quarter, every version, text, with provenance)
+   │
+   ▼  Silver reads only batches in `01-control`.current_batches, and the quarter named in master_reference_period
+```
+
+### The nine questions, for `psa_psgc`
+
+| Question | Answer |
+|---|---|
+| What should be ingested? | Every data row of sheet `PSGC` of the approved workbook: 2Q 2026 is `A1:K43769`, 1 header row and 43,768 rows (all levels from region to barangay, sub-municipalities, and 2 rows with a blank level), all 11 columns including the unnamed column J. `Metadata` and `National Summary` are read for checks only; `Prov Sum`, `Notes` and `Coding Structure` (an image) are publisher documentation and stay in Source |
+| How often does it arrive? | Quarterly (`Metadata`: "Ongoing (updated quarterly)"). Downloaded by hand when the team decides to take a new quarter; never on a schedule |
+| What identifies a new delivery? | A workbook SHA-256 not seen before. Its quarter comes from the file name (`PSGC-2Q-2026-…` is `2026-Q2`) and must equal the quarter of the `Metadata` publication date and the approved entry |
+| What indicates that an existing delivery changed? | The same quarter (same file name) with a different SHA-256. PSA replaces the file at a stable URL, so a re-download can carry new bytes under the old name. The workbook has no `updated_at`, and none is invented |
+| Has this exact file already been processed? | `ingestion_batches.status = 'succeeded'` for its `archive_sha256` (the workbook's). The next run then records a `skip` |
+| Does the team need to retain previous versions? | Yes. Every quarter is a complete snapshot, codes change between quarters (Negros Island Region, Sulu: D-012), and a re-issued quarter is a correction to compare against. Source keeps every file (D-016); Bronze keeps every quarter and every version (D-015) |
+| Is the delivery valid? | The checks under [PSGC validation](#psgc-validation) |
+| Can the ingestion be safely rerun? | Yes: a succeeded workbook is skipped; a forced rerun inserts nothing; an interrupted or failed one is retried and the MERGE adds only missing rows |
+| Where did every resulting row come from? | `source_file`, `source_sha256`, `source_sheet`, `source_row_number` (the Excel row) and `publication_period`, joined by `batch_id` and `run_id` to the control tables, with `code_revision` for the code |
+
+### Identity (PSGC)
+
+| Level | Identified by | Why |
+|---|---|---|
+| Delivery (batch) | Workbook SHA-256; `batch_id` = `psa_psgc__<quarter>__<sha256[:12]>`, e.g. `psa_psgc__2026-Q2__31892bc2bdde` | Same bytes, same batch, wherever the file sits |
+| Logical period | `source_id` + publication quarter + `delivery_version` | A re-issued quarter is version 2, never a silent replacement |
+| Bronze row | `source_sha256` + `source_row_number` (the Excel row, 2 to 43,769) | A rerun inserts nothing. The contract approves one sheet per workbook, so the pair is unique; `source_sheet` is recorded but not needed in the key |
+| Schema | `schema_version` + `schema_fingerprint` (SHA-256 of the exact header cells, line breaks included) | Any change to any header cell changes it |
+| Code | `code_revision` | The commit that ran ([above](#code_revision)) |
+
+The control tables have one period column, `school_year`. For `psa_psgc` it holds the publication quarter (`2026-Q2`): a documented convention rather than a new column (D-019). Quarters sort like school years, so `current_batches`, backfill detection and every existing query work unchanged, and no shared table changes. Bronze names the column properly: `publication_period`.
+
+**Why a row is not identified by its PSGC code.** The code identifies a place, not a row of a delivery. Keyed on the code, a MERGE would update rows in place when the next quarter arrives, turning Bronze into a latest-state table and destroying the quarterly history that D-012 and the Negros and Sulu comparison depend on; it would also merge a code the publisher listed twice, hiding a source duplicate. Keyed on (file checksum, Excel row), every quarter and version is kept as delivered, and the code's uniqueness is checked instead (`psgc_code_unique_in_file`). The cost: a re-issued quarter that changes one value reloads all 43,768 rows as a new version, which is acceptable at this size.
+
+### Storage layout (PSGC)
+
+The first download stays flat in the publisher folder; any later download, whether a new quarter or a re-download of a published one, goes into a dated subfolder under its original name (D-016):
+
+```
+/Volumes/edu_access/00-source/raw/psa/
+├── PSGC-2Q-2026-Publication-Datafile.xlsx      first download, uploaded 2026-09-30, checksum verified
+├── PSGC-Q4_2023-API-all.csv                    D-012 comparison only; not ingested
+├── 2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx   psa_poverty_stat, not this source
+├── SHA256SUMS.txt
+└── 2027-01-15/                                 a later download (example date)
+    ├── PSGC-3Q-2026-Publication-Datafile.xlsx
+    └── SHA256SUMS.txt
+```
+
+This matters for PSA in particular: the quarterly file is replaced at a stable URL, so a same-named file with different bytes must never overwrite the original. The pipeline searches `raw/psa/` at any depth for names like `PSGC-<n>Q-<yyyy>-Publication-Datafile.xlsx` (`workbook_pattern` in the contract; no path is hardcoded) and identifies files by checksum, so the other PSA files are not touched, and Office lock files (`~$…`) are ignored.
+
+### Checksum verification (PSGC)
+
+A workbook is loaded only if its SHA-256 equals an approved `workbook_sha256` in the contract, copied from the source card in a reviewed pull request (D-014). The 2Q 2026 checksum `31892bc2…ca5d` is on the card and in `SHA256SUMS.txt`; `tests/test_ingestion_validate.py` fails if the contract's checksum, file name, row count and range are not on the same card row. An approved name with other bytes is `blocked` as `checksum_mismatch`; an unknown file is `blocked` as `unregistered_delivery`.
+
+### Header and schema versions (PSGC)
+
+The header is matched exactly, cell by cell, against the contract's `source_headers`; nothing is normalized. Each source header maps to a fixed Bronze name, so the exact text is kept in the contract and the Bronze names stay stable:
+
+| Column | Exact source header (`v1`) | Bronze column |
+|---|---|---|
+| A | `10-digit PSGC` | `psgc_code` |
+| B | `Name` | `name` |
+| C | `Correspondence Code` | `correspondence_code` |
+| D | `Geographic Level` | `geographic_level` |
+| E | `Old names` | `old_names` |
+| F | `City Class` | `city_class` |
+| G | `Income` + line break + `Classification (DOF DO No. 074.2024)` | `income_classification` |
+| H | `Urban / Rural` + line break + `(based on 2020 CPH)` | `urban_rural` |
+| I | `2024 Population` | `population` |
+| J | (empty styled cell; the column holds footnote text and markers) | `column_j_footnote` |
+| K | `Status` | `status` |
+
+Anything else stops the batch. A header equal to a known version other than the approved one is `schema_version_mismatch` (known drift). Any other change is `unknown_schema_drift`, with the changed cells named in the message: a line break normalized away, a header added to column J, or a moved, added or removed column.
+
+**Expected future evolution.** Two headers embed version-specific text: the DOF order (`DOF DO No. 074.2024`) and the census (`based on 2020 CPH`, `2024 Population`). A new DOF order or census will change them. That fails as drift until someone profiles the new quarter and adds `v2` to the contract on purpose, with the new `source_headers` and the same Bronze columns, so Silver can tell from `schema_version` which order or census a value belongs to (`test_a_new_schema_version_loads_into_the_same_bronze_columns`). A genuinely new column gets a new Bronze column, added from the contract (`ALTER TABLE … ADD COLUMN`).
+
+<a id="psgc-validation"></a>
+### PSGC validation
+
+Blocking, before anything reaches Bronze (`failed` or `blocked`; nothing loaded; the run fails):
+
+| Check | On failure |
+|---|---|
+| Workbook exists and its SHA-256 is approved | `missing_archive`; `blocked`: `checksum_mismatch`, `unregistered_delivery` |
+| Opens through the shared `workbook.open_sheet`: a zip with no `..`, absolute, linked or encrypted parts, under 100 MB expanded; an xlsx; no macros; no XML part with a DTD, entities, or a non-UTF-8 encoding | `corrupt_archive`, `unsafe_member`, `archive_too_large`, `corrupt_workbook`, `macro_enabled_workbook`, `unsafe_workbook` |
+| Sheet `PSGC` exists and has cells; no sheet the contract does not list (a new sheet may hold data) | `missing_sheet`, `empty_sheet`, `unexpected_sheet` |
+| The quarter: file name, `Metadata` "Publication date:" and the approval agree | `period_undeterminable`, `period_mismatch` |
+| Header equals a schema version exactly, and the approved one | `unknown_schema_drift`, `schema_version_mismatch` |
+| Row count nonzero and equal to the approval; used range equal to the approved range | FAIL `row_count_nonzero`, `row_count_matches_approved`, `range_matches_approved` |
+| `psgc_code` on every row, matching `^[0-9]{10}$` as stored text | FAIL `psgc_code_not_blank`, `psgc_code_format` |
+| A code stored as a number is accepted only if its stored digits are already 10 digits; never padded | FAIL `psgc_code_number_cells_match_format` |
+| No mojibake (`Ã±` for `ñ`, as in the Q4_2023 API file) and no replacement characters | FAIL `text_mojibake` |
+| The approved workbook is in the landing folder (`require_approved_deliveries`) | FAIL `approved_deliveries_present`; the run fails at stage `discover` |
+
+After the MERGE (`bronze.reconcile`), before the batch is marked succeeded: Bronze rows for the workbook equal the sheet's data rows, Excel rows run exactly 2..last with none repeated, and no provenance column is NULL. Then the generated gate (`etl/02_bronze/90_validate_psa_psgc_raw.sql`) checks the whole table: no pipeline duplicates, every row has a known batch, every succeeded batch reconciles.
+
+Recorded, not blocking (WARN; rows loaded as received; whether any should block is an [open question](#open-questions-psgc)):
+
+| Check | 2Q 2026 | Finding |
+|---|---|---|
+| `psgc_code_unique_in_file` (source duplicates) | 0 | O-1; kept in Bronze if they appear, and Silver stops on them (below) |
+| `duplicate_rows_in_file` | 0 | O-1 |
+| `psgc_code_stored_as_number` | 84 (all 10 digits) | found 2026-10-07 |
+| `level_count_{prov,city,mun,bgy}_matches_national_summary`, read from the same workbook | 82 / 149 / 1,493 / 42,010, all equal | O-5 |
+| `region_population_reconciles_to_national` (national minus the sum of regions, against the approved `documented_population_abroad`) | 1,708 = 1,708 | O-4, `Notes` D.2 |
+| `hierarchy_*`: barangays without their city or municipality; provinces, cities and municipalities without their region; non-NCR municipalities without their province; provinces in NCR | 0, 0, 0, 0 | O-10 |
+| `dq_blank_geographic_level` / `dq_blank_correspondence_code` | 2 / 50 | O-2 / O-3 |
+| `dq_population_not_whole_number` / `dq_population_zero` / `error_cells` | 1 / 12 / 1 | O-4 |
+| `dq_income_class_dash` / `dq_income_class_starred` | 8 / 6 | O-7 |
+| `dq_urban_rural_dash` | 38 | O-8 |
+| `dq_name_trailing_space` | 2,855 | O-9 |
+| `dq_column_j_footnote_filled` | 19 | O-6 |
+| `sheets_match_contract` (a documentation sheet missing; an extra sheet already stopped the batch) | the six sheets | |
+| `formula_cells`, `error_cells` | 0, 1 (the `#N/A` population) | a formula's cached result is loaded; nothing is recalculated |
+
+A known characteristic is PASS when its count equals the profiled count and WARN when the count changes, with the profiled count beside the actual one: a normal run is quiet, and a new quarter that changes a count stands out. When a new quarter is profiled and approved, update the profiled counts in the contract with it. The National Summary values are read from each workbook, never hardcoded. Results hold counts only, never row values.
+
+### Bronze table (PSGC)
+
+``edu_access.`02-bronze`.psa_psgc_raw`` (generated: `etl/02_bronze/01_create_psa_psgc_raw.sql`): 16 provenance columns, then the 11 source columns, all as text.
+
+| Provenance column | Meaning |
+|---|---|
+| `source_id`, `source_system`, `source_url` | From the registry (`config/sources.json`); the URL is the acquisition page |
+| `publication_period`, `publication_date`, `delivery_version` | The quarter (`2026-Q2`), the `Metadata` publication date (`2026-06-30`), and which delivery of that quarter |
+| `source_file`, `source_sha256`, `source_sheet`, `source_row_number` | The workbook, its checksum, the sheet (`PSGC`), and the **Excel row number** (the header is row 1, data starts at 2), so anyone can open the workbook at the exact line |
+| `schema_version`, `schema_fingerprint` | Which header it had (fingerprint of the exact header cells) |
+| `batch_id`, `run_id`, `ingested_at_utc`, `code_revision` | The batch, the run, when, and the commit |
+
+Every cell is kept as the text the publisher stored: text exactly (trailing spaces, line breaks, Unicode such as `Tañong`), errors as their text (`#N/A`), blanks as `''`. **Numbers keep their stored digits**; the rule is the cell's stored value, not Excel's display. The population column uses an accounting format that adds thousands separators and shows `0` as `-`. Reproducing the display would turn the 12 zero-population barangays into the same `-` the publisher uses for "unknown" in other columns, so Bronze keeps `0`, and `1489` rather than `1,489` (`test_values_stay_exactly_as_received`). No trimming, typing, padding, level assignment, class splitting or name normalization happens in Bronze.
+
+### Retry, rerun, backfill, revision (quarters)
+
+| Term | Example | What happens |
+|---|---|---|
+| Skip | 2Q 2026 again | Attempt logged `skip`; 0 rows |
+| Retry | A batch that failed (for example an approval with a wrong count, later fixed) or was interrupted | Picked up automatically; the MERGE adds only missing rows; `attempt_count` goes up |
+| Rerun | `--rerun psa_psgc__2026-Q2__31892bc2bdde` | Validated and merged again; 0 rows |
+| New quarter | 3Q 2026 after 2Q 2026 | `load_type = incremental`; earlier quarters untouched |
+| Backfill | 1Q 2026 downloaded after 2Q 2026 | `load_type = backfill`; earlier rows untouched |
+| Revised delivery | PSA re-issues 2Q 2026 under the same name | Before approval: `blocked`, `checksum_mismatch`, `load_type = revision`; the run fails; nothing is overwritten. After approval as `delivery_version: 2` with `supersedes` set to v1's `workbook_sha256`: loaded beside v1, and `current_batches` points to v2 for 2026-Q2 (D-015 default) |
+
+Each quarter is a complete snapshot of the classification, so a new quarter is a new period, never a revision of the last one. **Which quarter is the master reference is not decided by loading**: it is `master_reference_period` in the contract (`2026-Q2`, D-012), validated to be an approved quarter, and changed only by a reviewed pull request after a team decision. A newer or backfilled quarter therefore never moves it (tested in the demonstration). `current_batches` answers a different question: the latest succeeded version of each quarter.
+
+All seven steps, on made-up workbooks: `tests/test_ingestion_psgc.py::test_psgc_idempotency_demonstration` (load, skip, both attempts in the log, a new quarter, a backfill, a re-issue blocked and then approved as v2, a new DOF header failing as drift).
+
+### Failure and recovery (PSGC)
+
+| Failure | Stage / code | Exit | What you do |
+|---|---|---|---|
+| Landing folder missing | `discover` / `missing_landing` | 3 | Set `RAW_DATA_DIR` or `--landing` to the raw root |
+| Approved workbook missing from the folder | FAIL `approved_deliveries_present`; run stage `discover` | 1 | Upload it (dated subfolder, never over a file) |
+| Checksum differs from the approval | `identify` / `checksum_mismatch`, `blocked` | 1 | Damaged: download again. Re-issued: profile, approve as the next version |
+| Unknown workbook | `identify` / `unregistered_delivery`, `blocked` | 1 | Profile it, approve it |
+| Corrupt xlsx | `archive` / `corrupt_archive`; `workbook` / `corrupt_workbook` | 1 | Download again and compare the checksum |
+| Unsafe zip parts, too large, macros, DTD or entities | `archive` / `unsafe_member`, `archive_too_large`; `workbook` / `macro_enabled_workbook`, `unsafe_workbook` | 1 | Do not open it; tell the team and PSA |
+| Sheet `PSGC` missing, or empty | `workbook` / `missing_sheet`; `parse` / `empty_sheet` | 1 | Inspect the file; profile it |
+| Header drift, known or unknown | `schema` / `schema_version_mismatch`, `unknown_schema_drift` | 1 | Profile; add a schema version in a pull request |
+| A code lost its leading zero, or a number-stored code is not 10 digits | FAIL `psgc_code_format`, `psgc_code_number_cells_match_format` | 1 | Never pad; check the download; ask PSA |
+| Quarter not determinable, or name and `Metadata` disagree | `period` / `period_undeterminable`, `period_mismatch` | 1 | Check the name and the `Metadata` sheet; never rename the file to make it pass |
+| Same workbook again | `skip` | 0 | Nothing |
+| Process dies mid-load | Batch stays `loading`; not in `current_batches` | (crash) | Run again: it is retried and completed |
+| Partial Bronze write | Reconciliation FAIL; `failed` | 1 | Run again: the MERGE adds the missing rows only |
+| Same quarter, changed bytes | `blocked`, `load_type = revision` | 1 | Approve as `delivery_version: 2` after review |
+| Databricks unavailable | `setup` / `store_unavailable` | 3 | Run locally, or `databricks auth login --profile reached-hq` |
+| `prod` while the source is `profiled` | `config` / `source_not_accepted` | 2 | Use `dev` until the team accepts it |
+
+### Running locally (PSGC)
+
+From the repository root, with the project's own interpreter. In PowerShell, first check that `python -c "import sys; print(sys.executable)"` points into this repository's `.venv`.
+
+```bash
+python -m pytest tests -q
+```
+
+```bash
+python -m src.ingestion.cli ingest --source psa_psgc
+```
+
+```bash
+python -m src.ingestion.cli status --source psa_psgc
+```
+
+`RAW_DATA_DIR` must be set (or `--landing` given), with the workbook somewhere under `$RAW_DATA_DIR/psa/`. Expected on the real file: `load initial succeeded inserted=43768`, then on the second run `skip`, `inserted=0`. Result on 2026-10-07: [evidence](../../evidence/pipeline-runs/2026-10-07-psa-psgc-local-idempotency.md).
+
+After changing the contract's schema, regenerate the SQL (a test fails until you do). In Windows PowerShell 5.1, `>` writes UTF-16 and `Out-File -Encoding utf8` adds a byte-order mark; run these from Git Bash, or pipe to `Out-File -Encoding ascii`:
+
+```bash
+python -m src.ingestion.cli ddl --source psa_psgc > etl/02_bronze/01_create_psa_psgc_raw.sql
+```
+
+```bash
+python -m src.ingestion.cli gate --source psa_psgc > etl/02_bronze/90_validate_psa_psgc_raw.sql
+```
+
+### Databricks confirmation (PSGC)
+
+**Done on 2026-10-08** (`dev`, job runs `468579404509795` then `96808622487518`, commit `cb274bf`): load 43,768, then skip; [evidence](../../evidence/pipeline-runs/2026-10-08-psa-psgc-databricks-idempotency.md). The first attempt failed because the shared `dev` control tables already carried D-018's columns before #109 merged; with #109 merged, `main` handles those columns itself.
+
+`databricks.yml` has a third task, `bronze_psa_psgc`, after facilities (`run_if: ALL_DONE`). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). This change adds no column to the control tables, and works whether or not they carry #109's columns. Then, as for DepEd ([Running on Databricks](#running-on-databricks)):
+
+```bash
+databricks bundle validate --target dev --profile reached-hq
+```
+
+```bash
+databricks bundle deploy --target dev --profile reached-hq
+```
+
+```bash
+databricks bundle summary --target dev --profile reached-hq
+```
+
+```bash
+databricks bundle run bronze_ingest --target dev --profile reached-hq
+```
+
+Run the last command twice: the second run must skip every file. The DepEd tasks run first and skip their files.
+
+### Validation queries (PSGC)
+
+```sql
+-- Batches: expect 2026-Q2 v1 succeeded, expected = source = bronze = 43768
+SELECT batch_id, school_year AS publication_period, delivery_version, load_type, status, attempt_count,
+       expected_rows, source_rows, bronze_rows, error_code
+FROM edu_access.`01-control`.ingestion_batches WHERE source_id = 'psa_psgc' ORDER BY school_year, delivery_version;
+
+-- Load then skip: expect 'load' 43768 in run 1, 'skip' 0 in run 2
+SELECT r.started_at_utc, a.action, a.outcome, a.rows_inserted, a.code_revision
+FROM edu_access.`01-control`.ingestion_batch_attempts AS a JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
+WHERE a.source_id = 'psa_psgc' ORDER BY r.started_at_utc;
+
+-- Rows per quarter and version
+SELECT publication_period, delivery_version, COUNT(*) FROM edu_access.`02-bronze`.psa_psgc_raw GROUP BY ALL ORDER BY 1, 2;
+
+-- No pipeline duplicates: expect 0
+SELECT COUNT(*) - COUNT(DISTINCT source_sha256, source_row_number) FROM edu_access.`02-bronze`.psa_psgc_raw;
+
+-- Units by level, as in the workbook's National Summary: expect Bgy 42010, Mun 1493, City 149, Prov 82, Reg 18, SubMun 14, '' 2
+SELECT geographic_level, COUNT(*) FROM edu_access.`02-bronze`.psa_psgc_raw WHERE publication_period = '2026-Q2' GROUP BY 1 ORDER BY 2 DESC;
+
+-- Kept as received: expect 50, 1, 12, 38, 2855, 29620, 0
+SELECT COUNT_IF(correspondence_code = ''), COUNT_IF(population = '#N/A'), COUNT_IF(population = '0'),
+       COUNT_IF(urban_rural = '-'), COUNT_IF(name LIKE '% '), COUNT_IF(psgc_code LIKE '0%'),
+       COUNT_IF(NOT psgc_code RLIKE '^[0-9]{10}$')
+FROM edu_access.`02-bronze`.psa_psgc_raw WHERE publication_period = '2026-Q2';
+
+-- Checks for the latest PSGC run: expect no FAIL, and the WARNs at their profiled counts
+SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
+WHERE source_id = 'psa_psgc'
+  AND run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_psgc')
+ORDER BY status, check_name;
+
+-- Where one row came from: Excel row 2 of sheet PSGC
+SELECT source_file, source_sha256, source_sheet, source_row_number, publication_period, batch_id, run_id, code_revision
+FROM edu_access.`02-bronze`.psa_psgc_raw WHERE publication_period = '2026-Q2' AND source_row_number = 2;
+
+-- Column mapping is on
+SHOW TBLPROPERTIES edu_access.`02-bronze`.psa_psgc_raw ('delta.columnMapping.mode');
+```
+
+### Handoff to Silver (PSGC, not built here)
+
+Bronze preserves; Silver cleans. Silver (`psa_psgc_clean`) should:
+
+- read only rows whose `batch_id` is in `current_batches`, and use the quarter in the contract's `master_reference_period` (2Q 2026, D-012) as the reference; other quarters are for comparison;
+- trim names (2,855 trailing spaces), keeping the original in Bronze;
+- type `population`: `#N/A` becomes NULL with a flag; `0` stays 0; never read a blank or `-` as 0;
+- split `income_classification` into the class and `retained_after_downgrade` (the `*`, `Notes` B); keep `-` as unknown;
+- keep `urban_rural` `-` as unknown, never rural; report the urban share with its denominator;
+- assign a level to the 2 blank-level rows (City of Isabela, Special Geographic Area) only by a documented rule, or leave them unassigned with a flag;
+- derive parent codes from the prefix (region 2 digits, province 5, city or municipality 7) and assert them; handle NCR (no provinces) and the special rows explicitly;
+- exclude `column_j_footnote` from the model, but note that province populations exclude the cities it names;
+- **stop on any duplicate `psgc_code` within a quarter's current version**: PSGC is what Integration joins to, so a duplicate would multiply joined rows. Bronze keeps both rows and records `psgc_code_unique_in_file`; Silver's gate must fail, and the duplicates are resolved by a documented rule or by the publisher, never by keeping one at random (none in 2Q 2026);
+- keep `schema_version`, so the DOF order and census behind each value stay known;
+- for DepEd SY 2023-24, apply the D-012 matching rules: never match on region; match a barangay only inside its own city or municipality; then try `old_names` inside the same parent; flag unmatched or ambiguous names and never force a match; record the PSGC version (`publication_period`, `delivery_version`) used for each match;
+- keep `batch_id` and `source_row_number` on every row.
+
+Downstream consumers: Sara's geographic lane, including `hdx_boundaries` (ADM3; 1,500 of 1,642 codes matched in its profile, O-11), and the PSA population and poverty sources, whose IDs are joined to PSGC in Integration.
+
+### Runbook (PSGC)
+
+**1. How do I add a new PSGC quarter?**
+Download it from https://psa.gov.ph/classification/psgc; do not rename it, open-and-save it, or convert it. Record its SHA-256 and retrieval time, then upload it to `raw/psa/<download date>/` (list the folder first; never over an existing file) with that folder's `SHA256SUMS.txt`. Profile it (`analysis/profiling/profile_psgc.py`, with its name and checksum), update the source card, and add the delivery to `config/ingestion/psa_psgc.json` in a pull request: `publication_period`, `publication_date`, `workbook`, `workbook_sha256`, `sheet`, `range`, `schema_version`, `row_count`, `documented_population_abroad`, `retrieved_at_utc`. If the header changed (a new DOF order or census), add a schema version and regenerate the SQL. Run the job. A newer quarter loads as `incremental`, an older one as `backfill`; `master_reference_period` does not change.
+
+**2. How do I know whether it was already processed?**
+`python -m src.ingestion.cli status --source psa_psgc`, or the first validation query. `succeeded` for its batch (its SHA-256) means processed.
+
+**3. What happens if PSA re-issues the same quarter under the same filename?**
+Download it into a new dated folder. Its bytes do not match the approved checksum, so the batch is `blocked` (`checksum_mismatch`, `load_type = revision`) and the run fails; nothing is overwritten. Compare it with the first version (question 8). If the change is real, approve it as `delivery_version: 2` with `supersedes` set to v1's `workbook_sha256`. Both versions stay in Bronze, and `current_batches` moves to v2 for that quarter (D-015 default; see the open questions).
+
+**4. How do I inspect a failed batch?**
+
+```sql
+SELECT batch_id, status, failure_stage, error_code, error_message, attempt_count, last_run_id
+FROM edu_access.`01-control`.ingestion_batches
+WHERE source_id = 'psa_psgc' AND status IN ('failed', 'blocked', 'loading');
+```
+
+Then its checks: ``SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results WHERE batch_id = '<batch_id>'``. Messages hold counts, checksums and header text, never row values.
+
+**5. How do I safely rerun it?**
+Fix the cause and run the same command again: a `failed` or `loading` batch is retried, and the MERGE adds only missing rows. To repeat a succeeded batch on purpose, add `--rerun <batch_id>` (it adds 0 rows).
+
+**6. How do I verify the Bronze output against the workbook's own `National Summary`?**
+The run records it: `level_count_*_matches_national_summary` and `region_population_reconciles_to_national` must be PASS (both read their expected values from the same workbook). Also run the units-by-level query above and compare it with the `National Summary` sheet: 82 provinces, 149 cities, 1,493 municipalities, 42,010 barangays for 2Q 2026.
+
+**7. How do I prove a rerun created no duplicates?**
+Run twice. The attempts query shows `load` then `skip` with 0 rows, the row count per quarter does not change, and the duplicate query returns 0. Locally, `tests/test_ingestion_psgc.py::test_psgc_idempotency_demonstration` and `test_rerun_adds_no_pipeline_duplicates` prove it with made-up workbooks.
+
+**8. When a new quarter arrives, how is it compared with the previous one before anyone considers changing the master reference (D-012)?**
+Load it (loading never makes it the master), then compare the two quarters in Bronze by code:
+
+```sql
+WITH a AS (SELECT * FROM edu_access.`02-bronze`.psa_psgc_raw
+           WHERE batch_id IN (SELECT batch_id FROM edu_access.`01-control`.current_batches WHERE school_year = '2026-Q3')),
+     b AS (SELECT * FROM edu_access.`02-bronze`.psa_psgc_raw
+           WHERE batch_id IN (SELECT batch_id FROM edu_access.`01-control`.current_batches WHERE school_year = '2026-Q2'))
+SELECT COUNT_IF(b.psgc_code IS NULL) AS only_in_new,
+       COUNT_IF(a.psgc_code IS NULL) AS only_in_old,
+       COUNT_IF(a.psgc_code IS NOT NULL AND b.psgc_code IS NOT NULL AND trim(a.name) <> trim(b.name)) AS renamed,
+       COUNT_IF(a.psgc_code IS NOT NULL AND b.psgc_code IS NOT NULL AND a.geographic_level <> b.geographic_level) AS level_changed
+FROM a FULL OUTER JOIN b ON a.psgc_code = b.psgc_code;
+```
+
+For codes only in the new quarter, look for their `correspondence_code` among the codes only in the old one; that is how the Negros and Sulu moves showed up (X-1). Write the counts and the reasons on the source card and the issue. Only then may the team decide to change `master_reference_period`, in a pull request with a decision-log entry; until then 2Q 2026 stays the master.
+
+### Limitations (PSGC)
+
+- Verified on made-up workbooks, on the real workbook locally (DuckDB, D-017), and on Databricks `dev` (2026-10-08): column mapping, reading from `/Volumes/` and Unity Catalog permissions are confirmed; a single-table commit under a real mid-load failure is not tested. Re-issue, new-quarter and backfill behavior is proven with made-up workbooks only.
+- The National Summary and hierarchy checks rely on the layout those sheets have in 2Q 2026 (a header row with `PROV.`, `CITIES`, `MUN.`, `BGY.`; a `PHILIPPINES` row). If PSA changes it, the run reports `national_summary_readable` WARN instead of comparing.
+- The quarter rule assumes the `Metadata` publication date falls inside the quarter named in the file (2Q 2026: 30 June 2026). If PSA starts writing the release date instead, the batch stops as `period_mismatch`, and the rule is revisited; the file is never renamed to pass.
+- Only one quarter is acquired, so re-issue behavior is unobserved; the rules above are the safe default.
+- The control tables' period column is named `school_year` and holds the quarter for this source (D-019).
+
+<a id="open-questions-psgc"></a>
+### Open questions (PSGC)
+
+| Question | Default until decided | Where |
+|---|---|---|
+| Should any data-quality result block (for example a National Summary mismatch, or a source-duplicate code)? | All WARN; only the identifier, shape, period, header and safety checks block | Team |
+| When PSA re-issues a quarter, is the latest version always current, or does it need review first? | Latest succeeded version | D-015 |
+| Should historical PSGC versions served by the PSA API (e.g. `PSGC-Q4_2023-API-all.csv`) be ingested as Bronze? | No: the API file was used only for the D-012 comparison | Team |
+| How long are superseded quarters and versions kept? | Forever | Not yet logged |
+| Should the control tables get a generic `period` column instead of the `school_year` convention? | Keep the convention; no shared DDL change | D-019, Ina |
+| When does the master reference move from 2Q 2026? | Never by loading; only by a team decision after the question-8 comparison | D-012 |
+| Does `psa_psgc` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
+| What is the `Correspondence Code`, and why are 84 codes stored as numbers in the workbook? | Kept as stored; to ask the publisher | Source card |
+
 ## Administrative boundaries (COD-AB ADM3 GeoJSON)
 
 `hdx_boundaries` loads through the same pipeline from its own contract, `config/ingestion/hdx_boundaries.json` (`format: geojson_features`). What differs is in `src/ingestion/geojson_features.py` (reading and checking the GeoJSON file) and the `GeojsonFeatures` class in `src/ingestion/formats.py`. Only the ADM3 file (cities and municipalities) is loaded; the ADM4 file beside it is not. Decision: D-020.
 
 **Status:** implemented and tested locally with made-up GeoJSON (`tests/test_ingestion_boundaries.py`), and **verified locally on the real file** on 2026-10-08: 1,642 rows loaded (feature positions 1 to 1,642, every `valid_on` 2025-02-13, no missing geometry), 24 PASS, 0 WARN, 0 FAIL, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-local-idempotency.md)). **Not run on Databricks.** The source stays `profiled`.
 
-### The flow
+### The flow (boundaries)
 
 ```
 data.humdata.org COD-AB page               (official GeoJSON; no API, no scraping)
@@ -684,7 +1053,7 @@ data.humdata.org COD-AB page               (official GeoJSON; no API, no scrapin
    ▼  Silver reads only batches in `01-control`.current_batches
 ```
 
-### The nine questions
+### The nine questions, for `hdx_boundaries`
 
 | Question | Answer |
 |---|---|
@@ -698,12 +1067,12 @@ data.humdata.org COD-AB page               (official GeoJSON; no API, no scrapin
 | Can it be rerun safely? | Yes: a succeeded file is skipped; a forced rerun inserts nothing; an interrupted run is retried and the MERGE adds only missing rows |
 | Where did each row come from? | `source_file`, `source_sha256`, `source_row_number` (the feature's position in the file), plus `batch_id`, `run_id`, `code_revision` |
 
-### Identity
+### Identity (boundaries)
 
 | Level | Identified by | Why |
 |---|---|---|
 | Delivery (batch) | File SHA-256; `batch_id` = `hdx_boundaries__2025-02-13__f682747fbb26` | Same bytes, same batch, wherever the file sits |
-| Logical period | `school_year` = the reference date `2025-02-13`, + `delivery_version` | The file's date, not a school year; stored in the same column DepEd uses for its period. Every feature's `valid_on` must equal it |
+| Logical period | `school_year` = the reference date `2025-02-13`, + `delivery_version` | The file's date, not a school year; stored in the control tables' period column, as PSGC stores its quarter (D-019). Every feature's `valid_on` must equal it |
 | Bronze row | `source_sha256` + `source_row_number` (feature position, 1 to 1,642) | A rerun inserts nothing; two identical features would both be kept |
 | Schema | `schema_version` + `schema_fingerprint` of the 32 column names (31 properties, then `geometry`) | Any renamed, added, removed, or reordered property changes it |
 
@@ -711,7 +1080,7 @@ Because there is no zip, `archive` and `data_member` in the contract name the sa
 
 Why not `adm3_pcode` as the row key? A MERGE keyed on the code would overwrite a municipality's row when a new edition arrives, turning Bronze into a latest-state table and losing the edition that earlier results used.
 
-### Layout as a versioned contract
+### Layout as a versioned contract (boundaries)
 
 Schema `v1` pins what the profile found, and anything else stops the batch:
 
@@ -729,6 +1098,7 @@ Schema `v1` pins what the profile found, and anything else stops the batch:
 
 **Geometry is kept as the raw GeoJSON text**, in the last column, `geometry`: not parsed, simplified, or reprojected. Parsing it into a spatial type would mean choosing a library, a precision, and a validity rule now, and any of those could change a shape silently. As text it is exactly the file's characters, so Silver can parse it with whatever the team chooses and always check it against the raw file.
 
+<a id="boundaries-validation"></a>
 ### Boundaries validation
 
 Before Bronze, in addition to the layout above:
@@ -748,9 +1118,9 @@ On the real file every one of these passed: no WARN and no FAIL.
 
 After the MERGE: Bronze rows for the file equal the features (1,642), row numbers run 1..1642 with no repeats, and every provenance column is filled. Then the generated gate (`etl/02_bronze/90_validate_hdx_adm3_raw.sql`) checks the whole table.
 
-### Bronze table
+### Bronze table (boundaries)
 
-`edu_access.`02-bronze`.hdx_adm3_raw` (generated: `etl/02_bronze/01_create_hdx_adm3_raw.sql`): the same provenance columns as DepEd, then the 31 properties and `geometry`, all as text. `source_archive` and `source_file` are both `phl_admin3.geojson`.
+``edu_access.`02-bronze`.hdx_adm3_raw`` (generated: `etl/02_bronze/01_create_hdx_adm3_raw.sql`): the same provenance columns as DepEd, then the 31 properties and `geometry`, all as text. `source_archive` and `source_file` are both `phl_admin3.geojson`.
 
 Rows are merged in chunks of at most `max_stage_bytes` (64 MB), because one polygon can be megabytes: the largest is 11.7 million characters. Each chunk is its own MERGE, so a run that stops part-way leaves the batch `loading`, and the retry adds only the missing rows. Locally, DuckDB's JSON row limit (16 MB by default) is raised to 1 GB so a large polygon fits.
 
@@ -768,7 +1138,7 @@ The file is 555 MB. The reader never decodes the whole `features` list at once, 
 | Revised delivery | The same edition re-published with changes (same name, other bytes) | Before approval: `blocked`, `checksum_mismatch`, run fails, nothing overwritten. After approval as `delivery_version: 2` with `supersedes`: loaded beside v1; `current_batches` points to v2 |
 
 <a id="boundaries-running-locally"></a>
-### Running locally
+### Running locally (boundaries)
 
 In VS Code's terminal, from the repository root, with the virtual environment active:
 
@@ -796,9 +1166,9 @@ python -m src.ingestion.cli ddl --source hdx_boundaries > etl/02_bronze/01_creat
 python -m src.ingestion.cli gate --source hdx_boundaries > etl/02_bronze/90_validate_hdx_adm3_raw.sql
 ```
 
-### Databricks confirmation (not yet done)
+### Databricks confirmation (boundaries, not yet done)
 
-`databricks.yml` has a task, `bronze_hdx_boundaries`, after `bronze_psa_poverty_stat` (`run_if: ALL_DONE`). Before running it: the change is reviewed and merged, the run is announced to the team, and the CLI profile `reached-hq` works. The file is already on the volume (card: `admin_boundaries/`). Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
+`databricks.yml` has a task, `bronze_hdx_boundaries`, after `bronze_psa_psgc` (`run_if: ALL_DONE`). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The file is already on the volume (card: `admin_boundaries/`). This change adds no column to the control tables. Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice. The other tasks run first and skip their files.
 
 What only this run can prove (D-017): that serverless has enough memory for the 1.7 GB peak, and that 64 MB chunks go through Spark Connect.
 
@@ -834,7 +1204,7 @@ SELECT source_file, source_sha256, source_row_number, adm3_pcode, adm3_name, adm
 FROM edu_access.`02-bronze`.hdx_adm3_raw WHERE source_row_number = 1;
 ```
 
-### Handoff to Silver (not built here)
+### Handoff to Silver (boundaries, not built here)
 
 Silver should:
 
@@ -864,7 +1234,7 @@ FROM edu_access.`01-control`.ingestion_batches
 WHERE source_id = 'hdx_boundaries' AND status IN ('failed', 'blocked', 'loading');
 ```
 
-Then its checks: `SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results WHERE batch_id = '<batch_id>'`.
+Then its checks: ``SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results WHERE batch_id = '<batch_id>'``.
 
 **5. How do I safely rerun it?**
 Fix the cause and run again: a `failed` or `loading` batch is retried and the MERGE adds only missing rows. To repeat a succeeded batch on purpose: `--rerun <batch_id>` (adds 0 rows).
@@ -885,7 +1255,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 
 | Question | Default until decided | Where |
 |---|---|---|
-| Should `school_year` be renamed to a generic `period` for non-school sources? | Keep the column; it holds the reference date `2025-02-13` | Team |
+| Should `school_year` be renamed to a generic `period` for non-school sources? | Keep the column; it holds the reference date `2025-02-13` | D-019, D-020, Ina |
 | Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | D-020 |
 | Should ADM4 (`phl_admin4.geojson`) be ingested? | Not now | Team (owner @saraevcldn) |
 | Are 64 MB chunks right for Free Edition serverless? | 64 MB | Databricks confirmation run |
