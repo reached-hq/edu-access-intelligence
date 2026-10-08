@@ -113,6 +113,30 @@ resources:
               - --code-revision
               - "{{job.parameters.code_revision}}"
 
+        # PSA PSGC: one xlsx workbook per publication quarter
+        # (config/ingestion/psa_psgc.json, format xlsx_table). Same command, its
+        # own contract; reads /Volumes/edu_access/00-source/raw/psa/.
+        - task_key: bronze_psa_psgc
+          depends_on:
+            - task_key: bronze_psa_poverty_stat
+          run_if: ALL_DONE
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            source: GIT
+            parameters:
+              - ingest
+              - --backend
+              - spark
+              - --source
+              - psa_psgc
+              - --landing
+              - /Volumes/edu_access/00-source/raw
+              - --environment
+              - ${bundle.target}
+              - --code-revision
+              - "{{job.parameters.code_revision}}"
+
       environments:
         - environment_key: ingestion
           spec:
