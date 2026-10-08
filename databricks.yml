@@ -21,10 +21,9 @@ resources:
     edu_access_pipeline:
       name: edu_access_pipeline
       description: >-
-        Validates and ingests six approved education and geography sources,
-        promotes valid current batches through Silver and Integration, and
-        builds governed Gold and Analytics outputs. Unimplemented tasks remain
-        visible but disabled.
+        Validates and ingests six approved education and geography sources
+        through Bronze. The unimplemented Silver, Integration, Gold, and
+        Analytics tasks remain visible but disabled.
 
       parameters:
         - name: code_revision

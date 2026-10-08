@@ -65,9 +65,9 @@ def test_personnel_load_tolerates_new_nullable_control_columns(tmp_path):
     repo = fake_repo(tmp_path / "repo", config)
     store = DuckDBStore()
     control.create_tables(store, repo)
-    store.sql("ALTER TABLE edu_access.`01-control`.pipeline_runs ADD COLUMN job_run_id STRING")
+    store.sql("ALTER TABLE edu_access.`01-control`.pipeline_runs ADD COLUMN future_nullable STRING")
 
     summary = run(store, repo, tmp_path)
 
     assert summary.status == "succeeded"
-    assert store.query("SELECT job_run_id FROM edu_access.`01-control`.pipeline_runs") == [(None,)]
+    assert store.query("SELECT future_nullable FROM edu_access.`01-control`.pipeline_runs") == [(None,)]
