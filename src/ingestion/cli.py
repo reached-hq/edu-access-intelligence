@@ -1,6 +1,7 @@
 """Command line for ingestion. Run from the repository root.
 
     python -m src.ingestion.cli ingest --source deped_enrollment
+    python -m src.ingestion.cli ingest --source psa_poverty_stat
     python -m src.ingestion.cli status --source deped_enrollment
     python -m src.ingestion.cli ddl    --source deped_enrollment > etl/02_bronze/01_create_deped_enrollment_raw.sql
     python -m src.ingestion.cli gate   --source deped_enrollment > etl/02_bronze/90_validate_deped_enrollment_raw.sql
@@ -68,7 +69,7 @@ def cmd_ingest(args):
         store.close()
     print(f"run {summary.run_id}  source={args.source}  environment={args.environment}  code_revision={revision}")
     for o in summary.outcomes:
-        print(f"  {o.batch_id:44} {o.action:6} {o.load_type or '-':11} {o.outcome:9} "
+        print(f"  {o.batch_id:52} {o.action:6} {o.load_type or '-':11} {o.outcome:9} "
               f"inserted={o.rows_inserted if o.rows_inserted is not None else '-':>6} "
               f"bronze={o.bronze_rows if o.bronze_rows is not None else '-':>6}"
               + (f"\n      {o.message}" if o.outcome in ("failed", "blocked") or o.action == "skip" and o.message else ""))
@@ -84,18 +85,20 @@ def cmd_status(args):
     config, _ = load_source_config(REPO_ROOT, args.source)
     store = _store(args)
     try:
+        # The period is the school year, or the estimate years for a workbook source.
         rows = store.records(
-            f"SELECT batch_id, school_year, delivery_version, load_type, status, attempt_count, source_rows, "
-            f"bronze_rows, error_code FROM {table_name(control.SCHEMA, control.BATCHES)} "
-            f"WHERE source_id = '{config['source_id']}' ORDER BY school_year, delivery_version, batch_id")
+            f"SELECT batch_id, COALESCE(school_year, estimate_years_covered) AS period, delivery_version, load_type, "
+            f"status, attempt_count, source_rows, bronze_rows, error_code "
+            f"FROM {table_name(control.SCHEMA, control.BATCHES)} "
+            f"WHERE source_id = '{config['source_id']}' ORDER BY period, delivery_version, batch_id")
     except Exception:
         print("No control tables yet: nothing has been ingested into this database.")
         return EXIT_OK
     finally:
         store.close()
-    print(f"{'batch_id':44} {'year':7} {'ver':>3} {'load_type':11} {'status':10} {'tries':>5} {'source':>7} {'bronze':>7}  error")
+    print(f"{'batch_id':52} {'period':14} {'ver':>3} {'load_type':11} {'status':10} {'tries':>5} {'source':>7} {'bronze':>7}  error")
     for r in rows:
-        print(f"{r['batch_id']:44} {r['school_year'] or '-':7} {r['delivery_version'] or '-':>3} "
+        print(f"{r['batch_id']:52} {r['period'] or '-':14} {r['delivery_version'] or '-':>3} "
               f"{r['load_type'] or '-':11} {r['status']:10} {r['attempt_count']:>5} "
               f"{r['source_rows'] if r['source_rows'] is not None else '-':>7} "
               f"{r['bronze_rows'] if r['bronze_rows'] is not None else '-':>7}  {r['error_code'] or ''}")

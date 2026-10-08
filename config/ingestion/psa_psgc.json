@@ -14,6 +14,7 @@
   "identifier_column": "psgc_code",
   "identifier_pattern": "^[0-9]{10}$",
   "identifier_number_cells_profiled": 84,
+  "error_cells_profiled": 1,
   "required_columns": ["psgc_code", "name", "geographic_level"],
   "require_approved_deliveries": true,
   "master_reference_period": "2026-Q2",

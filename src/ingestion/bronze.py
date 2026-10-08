@@ -1,5 +1,10 @@
 """Bronze: every delivery's rows as received, plus where each row came from.
 
+The provenance columns depend on the delivery format (contract.provenance_columns):
+a DepEd zip records its archive, CSV and school year; a PSA workbook records
+its sheet, its estimate years and logical dataset, and each row's kind in the
+sheet layout (title, header, unit, region banner, footer). Identity is the same for both.
+
 One table per source holds every school year and every delivery version. Its
 columns are the provenance fields, then the union of the publisher columns of
 all schema versions in the contract, in the order they first appeared. A
@@ -12,12 +17,10 @@ SHA-256 and its row number. The insert-only MERGE on that pair means loading
 the same file again adds nothing, while two identical rows from the publisher
 (different row numbers) are both kept. A hash of the row's content would merge
 those publisher duplicates; the archive's SHA-256 would load a re-zipped copy
-twice.
-
-The provenance columns depend on the contract's format
-(contract.provenance_columns). For a workbook (xlsx_table) the workbook is the
-data file and the row number is the Excel row, so the same pair points at one
-line of the approved sheet.
+twice. For a workbook the data file is the workbook itself, and the row number
+is the Excel row, so (source_sha256, source_row_number) points at one line of
+the sheet; a contract approves exactly one sheet per workbook, which keeps that
+pair unique (a second sheet would need source_sheet in the key).
 """
 
 from src.ingestion.contract import provenance_columns
@@ -179,31 +182,14 @@ def add_missing_columns(store, config):
 
 
 def build_rows(prepared, registry_entry, batch_id, run_id, ingested_at_utc, code_revision, columns):
-    provenance = {
-        "source_id": prepared.source_id,
-        "source_system": registry_entry["source_system"],
-        "source_url": registry_entry["acquisition"],
-        "school_year": prepared.school_year,
-        "delivery_version": prepared.delivery_version,
-        "source_archive": prepared.archive_name,
-        "source_archive_sha256": prepared.archive_sha256,
-        "source_file": prepared.data_member,
-        "source_sha256": prepared.data_member_sha256,
-        "schema_version": prepared.schema_version,
-        "schema_fingerprint": prepared.schema_fingerprint,
-        "batch_id": batch_id,
-        "run_id": run_id,
-        "ingested_at_utc": ingested_at_utc,
-        "code_revision": code_revision,
-    }
-    if hasattr(prepared, "provenance"):  # a format with its own provenance columns (xlsx_table.PreparedWorkbook)
-        provenance = {**prepared.provenance(registry_entry), "batch_id": batch_id, "run_id": run_id,
-                      "ingested_at_utc": ingested_at_utc, "code_revision": code_revision}
+    provenance = prepared.provenance(registry_entry)
+    provenance.update(batch_id=batch_id, run_id=run_id, ingested_at_utc=ingested_at_utc, code_revision=code_revision)
     absent = {c: None for c in columns if c not in provenance and c not in prepared.header}
     for number, values in prepared.rows:
         row = dict(zip(prepared.header, values))
         row.update(absent)
         row.update(provenance)
+        row.update(prepared.row_provenance(number))
         row["source_row_number"] = number
         yield row
 
@@ -227,8 +213,9 @@ def merge_rows(store, config, rows):
 def reconcile(store, config, prepared):
     """Post-load checks for one file: [(check_name, ok, expected, actual)].
 
-    Row numbers must be exactly the file's: 1..n for a CSV's data rows, the
-    Excel rows of the data (for example 2..43769) for a workbook.
+    Row numbers must be exactly the file's: 1..n data rows for a CSV, the
+    Excel rows of the whole sheet (for example 1..1641) for a workbook. For a
+    workbook, each row kind (units, banners, header, footer) is reconciled too.
     """
     sha = prepared.data_member_sha256
     n = len(prepared.rows)
@@ -239,9 +226,16 @@ def reconcile(store, config, prepared):
         f"SELECT COUNT(*), COUNT(DISTINCT source_row_number), MIN(source_row_number), MAX(source_row_number), "
         f"COUNT(CASE WHEN {nulls} THEN 1 END) "
         f"FROM {bronze_table(config)} WHERE source_sha256 = '{sha}'")[0]
-    return [
+    results = [
         ("bronze_rows_match_source", total == n, n, total),
         ("no_pipeline_duplicates", total == distinct, 0, total - distinct),
         ("row_numbers_complete", (low, high) == span, f"{span[0]}..{span[1]}", f"{low}..{high}"),
         ("provenance_complete", missing_provenance == 0, 0, missing_provenance),
     ]
+    if hasattr(prepared, "row_kinds"):
+        expected = dict(sorted(prepared.kind_counts().items()))
+        actual = dict(store.query(
+            f"SELECT source_row_kind, COUNT(*) FROM {bronze_table(config)} WHERE source_sha256 = '{sha}' "
+            "GROUP BY source_row_kind ORDER BY source_row_kind"))
+        results.append(("bronze_row_kinds_match_source", actual == expected, expected, actual))
+    return results

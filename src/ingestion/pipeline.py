@@ -1,5 +1,8 @@
 """One ingestion run for one source: discover, decide, validate, load, reconcile, record.
 
+The flow is the same for every source; what differs by delivery format (a
+DepEd zip or a PSA workbook) is in formats.py.
+
 The order of writes matters because Delta commits one table at a time:
 
 1. the batch is marked `validating`, then `loading` (ingestion_batches);
@@ -11,11 +14,6 @@ If the process dies between 2 and 4, the batch stays `loading`. Its rows may
 be in Bronze, but downstream reads only succeeded batches
 (`01-control`.current_batches), and the next run retries it: the MERGE adds
 nothing that is already there, reconciliation passes, and the batch succeeds.
-
-The flow is the same for every delivery format. What differs (which files are
-discovered, how a period is read, how a file is checked) is chosen from the
-contract's `format`: validate.py for a DepEd zip, xlsx_table.py for a PSGC
-workbook.
 """
 
 import re
@@ -24,12 +22,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.ingestion import bronze, control, validate, xlsx_table
+from src.ingestion import bronze, control, formats
 from src.ingestion.archive import sha256_file
-from src.ingestion.batch import batch_id, choose_action, load_type
-from src.ingestion.contract import (
-    delivery_file, delivery_period, delivery_sha256, find_delivery, load_source_config, source_format,
-)
+from src.ingestion.batch import batch_id, choose_action
+from src.ingestion.contract import delivery_file, delivery_sha256, find_delivery, load_source_config
 from src.ingestion.errors import IngestionError
 from src.ingestion.validate import FAIL, PASS, WARN
 
@@ -65,43 +61,30 @@ class RunSummary:
     missing_deliveries: list = field(default_factory=list)
 
 
-# What a delivery file looks like, per format: its extension and the contract's name pattern.
-DELIVERY_FILES = {"zip_csv": ("*.zip", "archive_pattern"), "xlsx_table": ("*.xlsx", "workbook_pattern")}
-
-
-def reader(config):
-    """The module that identifies and prepares this source's files (identify_delivery, prepare_delivery)."""
-    return xlsx_table if source_format(config) == "xlsx_table" else validate
-
-
 def year_from_archive_name(config, name):
-    match = re.match(config["archive_pattern"], name)
-    if not match:
-        return None
-    start = int(match["start"])
-    return f"{start}-{str(start + 1)[-2:]}" if int(match["end"]) == start + 1 else None
+    return formats.ZipCsv(config).period_from_name(name)
 
 
-def period_from_name(config, name):
-    """The period a file name states (school year or publication quarter), or None: a label only."""
-    if source_format(config) == "xlsx_table":
-        return xlsx_table.period_from_name(config, name)
-    return year_from_archive_name(config, name)
+def _sort_key(config, path):
+    """Oldest period first, so a first run loads in time order: school year from
+    the name for zips; for workbooks the approved estimate years, else the name."""
+    fmt = formats.for_config(config)
+    return (fmt.period_from_name(path.name) or "", path.name)
 
 
 def discover(config, landing_root):
     """Every delivery file under the source's landing folder that is named like a
     delivery or is an approved delivery under another name. The same bytes in two
-    places are one delivery. Ordered by period, so a first run loads oldest first."""
+    places are one delivery. Ordered oldest period first."""
+    fmt = formats.for_config(config)
     root = Path(landing_root) / config["landing_dir"]
     if not root.is_dir():
         raise IngestionError("discover", "missing_landing",
                              f"landing folder {root} does not exist. Set --landing (or RAW_DATA_DIR) to the raw root.")
     approved = {delivery_sha256(d) for d in config["deliveries"]}
-    glob, pattern_key = DELIVERY_FILES[source_format(config)]
-    pattern = re.compile(config[pattern_key])
+    pattern = re.compile(config[fmt.pattern_key])
     # Office's lock files ('~$name.xlsx') are not deliveries.
-    paths = sorted(p for p in root.rglob(glob) if not p.name.startswith("~$"))
+    paths = sorted(p for p in root.rglob(fmt.glob) if not p.name.startswith("~$"))
     named = [path for path in paths if pattern.match(path.name)]
     differently_named = [path for path in paths if not pattern.match(path.name)]
     found = {}
@@ -117,7 +100,13 @@ def discover(config, landing_root):
         if digest in missing_approved:
             found[digest] = path
             missing_approved.remove(digest)
-    return sorted(found.items(), key=lambda item: (period_from_name(config, item[1].name) or "", item[1].name))
+    def period(item):
+        delivery = find_delivery(config, item[0])
+        if delivery and "estimate_years" in delivery:
+            return (min(delivery["estimate_years"]), item[1].name)
+        return _sort_key(config, item[1])
+
+    return sorted(found.items(), key=period)
 
 
 class IngestionRun:
@@ -133,6 +122,7 @@ class IngestionRun:
         self.rerun_batch_ids = set(rerun_batch_ids)
         self.hook = hook or (lambda stage: None)
         self.config, self.registry_entry = load_source_config(repo_root, source_id)
+        self.format = formats.for_config(self.config)
         self.source_id = source_id
         if environment == "prod" and self.registry_entry["status"] != "accepted":
             raise IngestionError("config", "source_not_accepted",
@@ -223,10 +213,12 @@ class IngestionRun:
         started = utc_now()
         existing = control.find_batch(self.store, archive_sha256)
         delivery = find_delivery(self.config, archive_sha256)
-        year = delivery_period(delivery) if delivery else period_from_name(self.config, path.name)
-        bid = existing["batch_id"] if existing else batch_id(self.source_id, year, archive_sha256)
+        period = self.format.describe(delivery, path)
+        bid = existing["batch_id"] if existing else batch_id(self.source_id, period["period"], archive_sha256)
         batch = dict(existing) if existing else {
-            "batch_id": bid, "source_id": self.source_id, "school_year": year, "delivery_version": None,
+            "batch_id": bid, "source_id": self.source_id, "school_year": period["school_year"],
+            "logical_dataset": period["logical_dataset"], "estimate_years_covered": period["estimate_years_covered"],
+            "source_sheet": period["source_sheet"], "delivery_version": None,
             "supersedes_archive_sha256": None, "load_type": None, "status": None,
             "archive_path": path.relative_to(self.landing_root).as_posix(), "archive_name": path.name,
             "archive_sha256": archive_sha256, "source_file": None, "source_sha256": None, "encoding": None,
@@ -249,10 +241,11 @@ class IngestionRun:
             return self._attempt(ctx, "skip", "skipped", message="already loaded; same SHA-256")
 
         keep_type = action in ("retry", "rerun") and batch.get("load_type")
+        batch.update({k: v for k, v in period.items() if k != "period"})
         batch.update(
             delivery_version=delivery["delivery_version"], supersedes_archive_sha256=delivery["supersedes"],
-            load_type=batch["load_type"] if keep_type else load_type(delivery, control.succeeded_years(self.store, self.source_id)),
-            expected_rows=delivery["row_count"], status="validating", attempt_count=batch["attempt_count"] + 1,
+            load_type=batch["load_type"] if keep_type else self.format.load_type(self.store, self.source_id, delivery),
+            expected_rows=self.format.expected_rows(delivery), status="validating", attempt_count=batch["attempt_count"] + 1,
             rows_inserted=None, bronze_rows=None, failure_stage=None, error_code=None, error_message=None,
         )
         control.save_batch(self.store, batch)
@@ -267,13 +260,13 @@ class IngestionRun:
         """Record an archive that is not an approved delivery: blocked, or skipped if it is a re-zipped copy."""
         batch = ctx["batch"]
         try:
-            reader(self.config).identify_delivery(self.config, ctx["path"])
+            self.format.identify(ctx["path"])
         except IngestionError as e:
             refusal = e
         else:
             raise AssertionError(f"{ctx['path']} was identified although it is not approved")
         skipped = refusal.code == "repackaged_delivery"
-        if not skipped and batch["school_year"] in control.succeeded_years(self.store, self.source_id):
+        if not skipped and self.format.blocked_is_revision(self.store, self.source_id, batch, ctx["path"]):
             batch["load_type"] = "revision"  # changed bytes for a period already loaded
         batch.update(status="skipped" if skipped else "blocked", attempt_count=batch["attempt_count"] + 1,
                      failure_stage=None if skipped else refusal.stage, error_code=refusal.code,
@@ -284,7 +277,7 @@ class IngestionRun:
 
     def _load(self, ctx, action, delivery):
         batch = ctx["batch"]
-        prepared = reader(self.config).prepare_delivery(self.config, self.registry_entry, ctx["path"])
+        prepared = self.format.prepare(self.registry_entry, ctx["path"])
         batch.update(source_file=prepared.data_member, source_sha256=prepared.data_member_sha256,
                      encoding=prepared.encoding, schema_version=prepared.schema_version,
                      schema_fingerprint=prepared.schema_fingerprint, source_rows=len(prepared.rows))
@@ -329,7 +322,8 @@ class IngestionRun:
         inserted = batch["rows_inserted"] if action in LOAD_ACTIONS else 0
         control.add_attempt(self.store, {
             "run_id": self.run_id, "batch_id": batch["batch_id"], "source_id": self.source_id,
-            "school_year": batch["school_year"], "archive_name": batch["archive_name"],
+            "school_year": batch["school_year"], "logical_dataset": batch.get("logical_dataset"),
+            "estimate_years_covered": batch.get("estimate_years_covered"), "archive_name": batch["archive_name"],
             "archive_sha256": batch["archive_sha256"], "action": action, "load_type": batch["load_type"],
             "outcome": outcome, "started_at_utc": ctx["started"], "finished_at_utc": finished,
             "duration_seconds": (finished - ctx["started"]).total_seconds(),
@@ -338,7 +332,7 @@ class IngestionRun:
             "error_message": (message or "")[:MAX_MESSAGE] or None, "environment": self.environment,
             "code_revision": self.code_revision,
         })
-        return BatchOutcome(batch["batch_id"], batch["archive_name"], batch["school_year"], action,
+        return BatchOutcome(batch["batch_id"], batch["archive_name"], batch["school_year"] or batch.get("estimate_years_covered"), action,
                             batch["load_type"], outcome, inserted,
                             batch["bronze_rows"], message)
 

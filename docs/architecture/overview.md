@@ -31,7 +31,7 @@ The stage numbers follow one rule: a stage number matches its `etl/` folder and 
 
 <!-- TODO(Phase 5): diagram from sources to dashboards. -->
 
-Built so far, Source to Bronze ([ingestion](../operations/ingestion.md)):
+Built so far, Source to Bronze ([ingestion](../operations/ingestion.md)), for zips (DepEd) and workbooks (PSA Poverty Stat):
 
 ```
 official download ─▶ 00-source volume ─▶ checksum + approved contract ─▶ validate ─▶ MERGE ─▶ 02-bronze
@@ -64,18 +64,22 @@ Raw files go to the managed volume `` edu_access.`00-source`.raw ``, one folder 
 
 ```
 /Volumes/edu_access/00-source/raw/
-└── deped/
-    ├── Enrollment-in-SY-2023-2024.zip      first downloads, uploaded 2026-09-30
-    ├── Enrollment-in-SY-2024-2025.zip
-    ├── Enrollment-in-SY-2025-2026.zip
-    ├── SHA256SUMS.txt                      covers every file in this folder
-    ├── ...                                 other DepEd sources
-    └── 2027-08-15/                         a later download (example date)
-        ├── Enrollment-in-SY-2026-2027.zip
-        └── SHA256SUMS.txt
+├── deped/
+│   ├── Enrollment-in-SY-2023-2024.zip      first downloads, uploaded 2026-09-30
+│   ├── Enrollment-in-SY-2024-2025.zip
+│   ├── Enrollment-in-SY-2025-2026.zip
+│   ├── SHA256SUMS.txt                      covers every file in this folder
+│   ├── ...                                 other DepEd sources
+│   └── 2027-08-15/                         a later download (example date)
+│       ├── Enrollment-in-SY-2026-2027.zip
+│       └── SHA256SUMS.txt
+└── psa/
+    ├── 2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx   psa_poverty_stat, uploaded 2026-09-30
+    ├── SHA256SUMS.txt
+    └── ...                                         other PSA files
 ```
 
-Ingestion identifies files by SHA-256, not by path (D-014). The same layout holds for `raw/psa/`: PSA replaces the quarterly PSGC file at a stable URL, so a re-download goes into a dated subfolder and never over the earlier file.
+Ingestion identifies files by SHA-256, not by path (D-014). A PSA Poverty Stat workbook is one delivery covering several estimate years (D-018); a PSGC workbook is one delivery per publication quarter (D-019). PSA replaces the quarterly PSGC file at a stable URL, so a re-download goes into a dated subfolder and never over the earlier file.
 
 This is provisional (D-009): if the mentor approves the course R2 bucket, an R2-backed volume is added next to it. Local copies for profiling live outside the repository in `raw-data/` ([terminal setup, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)).
 
@@ -97,7 +101,7 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 <!-- TODO(Phase 6): task order for the full pipeline. -->
 
-`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (`deped_enrollment`, `deped_facilities`, `psa_psgc`; `src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
+`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (DepEd enrollment, DepEd facilities, PSA Poverty Stat, PSA PSGC) (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
 
 ## Environments and deployment
 

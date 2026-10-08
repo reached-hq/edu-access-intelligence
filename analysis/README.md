@@ -8,6 +8,7 @@ they are not production pipeline tasks.
 |---|---|
 | `profiling/` | Inspect one source and generate its profile or data dictionary |
 | `cross_source/` | Compare sources, test joinability, and generate exception lists |
+| `demo/` | Presentation walkthroughs that run the real pipeline code on made-up inputs; no raw data, no credentials |
 
 Reusable code shared by more than one program belongs in `src/profiling/`.
 Production ingestion belongs in `src/ingestion/`, and production transformations

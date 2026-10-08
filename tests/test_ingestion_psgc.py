@@ -265,9 +265,15 @@ def test_missing_psgc_sheet_is_refused(tmp_path):
     assert "PSGC" in error.message
 
 
-def test_extra_sheet_is_recorded_not_loaded(tmp_path):
+def test_a_sheet_the_contract_does_not_list_stops_the_batch(tmp_path):
+    """The shared opener (workbook.open_sheet) refuses it: a new sheet may hold data."""
     config, path = _approved(tmp_path, sheets=["Metadata", "National Summary", "Prov Sum", "PSGC", "Notes",
                                                "Coding Structure", "New Sheet"])
+    refused("unexpected_sheet", prepare_delivery, config, registry_entry(), path)
+
+
+def test_a_missing_documentation_sheet_is_recorded(tmp_path):
+    config, path = _approved(tmp_path, sheets=["Metadata", "National Summary", "PSGC"])
     assert by_name(prepare_delivery(config, registry_entry(), path))["sheets_match_contract"].status == WARN
 
 
@@ -406,10 +412,12 @@ def test_mojibake_detection(text, broken):
     assert mojibake(text) is broken
 
 
-def test_formula_without_a_stored_result_fails(tmp_path):
+def test_formula_cells_are_counted_not_recalculated(tmp_path):
     rows = default_rows()
     rows[3][8] = ("formula", "SUM(I1:I2)")
-    assert by_name(prepared_for(tmp_path, rows=rows)[0])["formula_cells_have_values"].status == FAIL
+    prepared = prepared_for(tmp_path, rows=rows)[0]
+    assert (by_name(prepared)["formula_cells"].status, by_name(prepared)["formula_cells"].actual) == (WARN, "1")
+    assert prepared.rows[3][1][8] == "", "no cached result: loaded as stored (blank), never recalculated"
 
 
 # --- The publication quarter ------------------------------------------------------------
@@ -458,8 +466,25 @@ def test_quality_counts_are_recorded_as_warnings(tmp_path):
                 "dq_income_class_starred": "1", "dq_urban_rural_dash": "1", "dq_name_trailing_space": "1",
                 "dq_column_j_footnote_filled": "2"}
     assert {k: checks[k].actual for k in expected} == expected
-    assert all(checks[k].status == WARN for k in expected)
-    assert "profiled: 2, O-2" in checks["dq_blank_geographic_level"].expected
+    # Where the made-up workbook's count differs from the real profile it is a WARN that shows the change;
+    # its one '#N/A' population equals the profiled 1, so that check passes.
+    assert {k for k in expected if checks[k].status == PASS} == {"dq_population_not_whole_number"}
+    assert all(checks[k].status == WARN for k in expected if k != "dq_population_not_whole_number")
+    assert checks["dq_blank_geographic_level"].expected == "2 (profiled, O-2)"
+
+
+def test_a_count_equal_to_the_profile_passes(tmp_path):
+    """Sara's review: a known characteristic at its profiled count is PASS; only a change is a WARN."""
+    config = empty_config()
+    for check in config["quality_checks"]:
+        check["profiled"] = {"blank_geographic_level": 1, "blank_correspondence_code": 2, "population_not_whole_number": 1,
+                             "population_zero": 1, "income_class_dash": 1, "income_class_starred": 1,
+                             "urban_rural_dash": 1, "name_trailing_space": 1, "column_j_footnote_filled": 2}[check["name"]]
+    config["identifier_number_cells_profiled"], config["error_cells_profiled"] = 1, 1
+    path = make_workbook(tmp_path)
+    approve(config, path)
+    checks = by_name(prepare_delivery(config, registry_entry(), path))
+    assert not [c for c in checks.values() if c.status != PASS], [c for c in checks.values() if c.status != PASS]
 
 
 def test_counts_reconcile_with_the_workbooks_own_national_summary(tmp_path):
@@ -715,50 +740,28 @@ def test_cli_exit_code_for_a_blocked_workbook(tmp_path, capsys, monkeypatch):
     assert "unregistered_delivery" not in capsys.readouterr().err  # reported per batch on stdout, not a crash
 
 
-# --- Shared control tables that gained columns this code does not know (Databricks dev, #109) ------
+# --- The control columns added by D-018 (#109) ---------------------------------------
 
-ADDED_BY_109 = {"ingestion_batches": ["logical_dataset", "estimate_years_covered", "source_sheet"],
-                "ingestion_batch_attempts": ["logical_dataset", "estimate_years_covered"]}
-
-
-def _add_109_columns(store, repo):
-    from src.ingestion import control
-    control.create_tables(store, repo)
-    for table, columns in ADDED_BY_109.items():
-        for column in columns:
-            store.sql(f"ALTER TABLE {CONTROL}.{table} ADD COLUMN {column} STRING")
-
-
-def test_psgc_loads_into_control_tables_with_extra_nullable_columns(env):
-    _add_109_columns(env.store, env.repo)
-    env.deliver()
-    first = env.run()
-    assert first.status == "succeeded" and env.bronze_rows() == N
-    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.ingestion_batches WHERE logical_dataset IS NULL") == 1
-    assert env.run().outcomes[0].action == "skip"
-
-
-def test_deped_loads_into_control_tables_with_extra_nullable_columns(tmp_path):
-    from factories import deped_deliveries as deped
-
-    config = deped.empty_config()
-    repo = deped.fake_repo(tmp_path / "repo", config)
-    store = DuckDBStore()
-    _add_109_columns(store, repo)
-    path = deped.make_delivery(tmp_path / "landing" / "deped" / "original", "2023-24", n_rows=3)
-    deped.approve(config, path, "2023-24")
-    deped.write_config(repo, config)
-    summary = IngestionRun(store, repo, "deped_enrollment", tmp_path / "landing", "local", REVISION).execute()
-    assert summary.status == "succeeded"
-    assert store.query(f"SELECT COUNT(*) FROM edu_access.`02-bronze`.deped_enrollment_raw")[0][0] == 3
-
-
-def test_a_saved_row_keeps_values_in_columns_this_code_does_not_set(env):
-    from src.ingestion import control
-    _add_109_columns(env.store, env.repo)
-    env.deliver()
+def test_psgc_control_rows_fill_the_workbook_columns(env):
+    """main creates logical_dataset, estimate_years_covered and source_sheet (D-018). PSGC has no estimate
+    years, so the first two are NULL; source_sheet is the data sheet, as in Bronze. current_batches
+    partitions by COALESCE(school_year, logical_dataset), so it still keeps one version per quarter."""
+    env.deliver("2026-Q2")
+    env.deliver("2026-Q3")
     env.run()
-    env.store.sql(f"UPDATE {CONTROL}.ingestion_batches SET logical_dataset = 'set_by_other_code'")
-    batch = control.find_batch(env.store, env.config["deliveries"][0]["workbook_sha256"])
-    control.save_batch(env.store, batch)
-    assert env.one(f"SELECT logical_dataset FROM {CONTROL}.ingestion_batches") == "set_by_other_code"
+    rows = env.q(f"SELECT school_year, logical_dataset, estimate_years_covered, source_sheet "
+                 f"FROM {CONTROL}.ingestion_batches ORDER BY school_year")
+    assert rows == [("2026-Q2", None, None, "PSGC"), ("2026-Q3", None, None, "PSGC")]
+    attempts = env.q(f"SELECT DISTINCT logical_dataset, estimate_years_covered FROM {CONTROL}.ingestion_batch_attempts")
+    assert attempts == [(None, None)]
+    assert env.q(f"SELECT school_year FROM {CONTROL}.current_batches WHERE source_id = 'psa_psgc' ORDER BY 1") == [
+        ("2026-Q2",), ("2026-Q3",)]
+
+
+def test_an_unknown_format_is_not_read_as_another_one():
+    """Sara's review: formats.for_config looks the format up, so a new format fails loudly."""
+    from src.ingestion import formats
+    config = real_config()
+    config["format"] = "geojson_features"
+    with pytest.raises(KeyError):
+        formats.for_config(config)

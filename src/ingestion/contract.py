@@ -3,20 +3,26 @@
 `config/ingestion/<source_id>.json` holds, per source:
 
 - the schema versions, each an ordered list of the publisher's column names;
-- the approved deliveries, each pinned to its archive and data-file SHA-256,
-  encoding, schema version, and row count.
+- the approved deliveries, each pinned to its file's SHA-256, schema version,
+  and row count.
+
+Two delivery formats exist (`format` in the contract):
+
+- `zip_csv` (the default; DepEd): a zip holding one CSV and its documents,
+  one school year per delivery, versions counted per school year.
+- `xlsx_sheet` (PSA Poverty Stat): one workbook, one sheet with a merged
+  header, region banner rows and a footer, and several estimate years in one
+  wide row. Versions are counted per `logical_dataset`, because a delivery
+  covers a set of estimate years rather than one period (see workbook.py).
+- `xlsx_table` (PSA PSGC): one workbook per publication quarter, one sheet
+  with a single header row whose exact cells map to Bronze column names.
+  Versions are counted per quarter, which the control tables hold in their
+  `school_year` column (D-019; see xlsx_table.py).
 
 A delivery is approved by merging its entry in a reviewed pull request. The
 pipeline never adds or edits an entry, so a file it has never been told about
 is refused rather than guessed at. The source's name, system, and URL come from
 the registry (`config/sources.json`) so they are written down once.
-
-A contract's `format` says what a delivery is. `zip_csv` (the default, DepEd)
-is a zip holding one CSV per school year. `xlsx_table` (PSA PSGC) is one
-workbook delivered as is, whose data is one sheet with a single header row,
-one publication period per file; its rules are in xlsx_table.py. The accessors
-below (`delivery_file`, `delivery_sha256`, `delivery_period`) let the pipeline
-treat both alike.
 """
 
 import hashlib
@@ -26,9 +32,14 @@ from pathlib import Path
 
 from src.ingestion.errors import IngestionError
 
+FORMATS = ("zip_csv", "xlsx_sheet", "xlsx_table")
 SUPPORTED_ENCODINGS = {"utf-8", "cp1252"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SCHOOL_YEAR = re.compile(r"^[0-9]{4}-[0-9]{2}$")
+ESTIMATE_YEAR = re.compile(r"^[0-9]{4}$")
+LOGICAL_DATASET = re.compile(r"^[a-z][a-z0-9_]*$")
+# A column whose name ends in a four-digit year belongs to that estimate year.
+YEAR_SUFFIX = re.compile(r" ([0-9]{4})$")
 
 # Columns the pipeline adds to every Bronze row. A publisher column with one of
 # these names would be overwritten, so the contract may not contain one.
@@ -51,6 +62,33 @@ PROVENANCE_COLUMNS = (
     "code_revision",
 )
 
+# The same idea for a workbook. There is no archive around the data, so the
+# workbook is both the delivery and the source file; the sheet and the Excel
+# row number say where in it a row was. A delivery covers several estimate
+# years, so there is no school_year: the years are delivery metadata, never a
+# value assigned to a wide row as if it were one year. source_row_kind says
+# what the row is in the sheet's layout (title, header, unit, region banner, footer); it is
+# read from the layout, not from the values, and changes no source column.
+XLSX_PROVENANCE_COLUMNS = (
+    "source_id",
+    "source_system",
+    "source_url",
+    "logical_dataset",
+    "estimate_years_covered",
+    "delivery_version",
+    "source_file",
+    "source_sha256",
+    "source_sheet",
+    "source_row_number",
+    "source_row_kind",
+    "schema_version",
+    "schema_fingerprint",
+    "batch_id",
+    "run_id",
+    "ingested_at_utc",
+    "code_revision",
+)
+
 DELIVERY_FIELDS = {
     "school_year", "delivery_version", "supersedes", "archive", "archive_sha256",
     "data_member", "data_member_sha256", "document_sha256", "encoding",
@@ -63,11 +101,25 @@ CONFIG_FIELDS = {
 }
 
 
+XLSX_DELIVERY_FIELDS = {
+    "logical_dataset", "estimate_years", "delivery_version", "supersedes", "workbook", "workbook_sha256",
+    "sheet", "used_range", "schema_version", "body_rows", "unit_rows", "banner_rows", "footer_rows",
+    "retrieved_at_utc",
+}
+USED_RANGE = re.compile(r"^A1:([A-Z]+)([0-9]+)$")
+XLSX_CONFIG_FIELDS = {
+    "source_id", "format", "bronze_table", "landing_dir", "workbook_pattern", "max_uncompressed_bytes",
+    "identifier_column", "identifier_pattern", "label_column", "required_columns", "schema_versions",
+    "known_issues", "deliveries",
+}
+LAYOUT_FIELDS = {
+    "first_data_row", "group_row", "group_fill_from_column", "sub_row", "sub_row_columns", "year_row",
+    "width", "ignored_columns", "footer_marker", "value_columns_from",
+}
+
+
 def _config_error(message):
     return IngestionError("config", "invalid_config", message)
-
-
-FORMATS = ("zip_csv", "xlsx_table")
 
 
 def source_format(config):
@@ -76,13 +128,13 @@ def source_format(config):
 
 def provenance_columns(config):
     if source_format(config) == "xlsx_table":
-        from src.ingestion.xlsx_table import PROVENANCE_COLUMNS as XLSX_TABLE_PROVENANCE
+        from src.ingestion.xlsx_table import PROVENANCE_COLUMNS as XLSX_TABLE_PROVENANCE  # avoids a circular import
         return XLSX_TABLE_PROVENANCE
-    return PROVENANCE_COLUMNS
+    return XLSX_PROVENANCE_COLUMNS if source_format(config) == "xlsx_sheet" else PROVENANCE_COLUMNS
 
 
 def delivery_file(delivery):
-    """The approved file as downloaded: the zip for zip_csv, the workbook for xlsx_table."""
+    """The approved file's name: the zip for zip_csv, the workbook for xlsx_sheet."""
     return delivery.get("archive") or delivery.get("workbook")
 
 
@@ -90,10 +142,14 @@ def delivery_sha256(delivery):
     return delivery.get("archive_sha256") or delivery.get("workbook_sha256")
 
 
-def delivery_period(delivery):
-    """The period a delivery covers: its school year, or its publication period (e.g. '2026-Q2').
-    The control tables record either one in their `school_year` column."""
-    return delivery.get("school_year") or delivery.get("publication_period")
+def estimate_years_of(columns):
+    """Estimate years named by a header, in order: from columns ending in a four-digit year."""
+    return sorted({m.group(1) for m in (YEAR_SUFFIX.search(c) for c in columns) if m})
+
+
+def years_label(years):
+    """How a set of estimate years is written in control tables and batch ids: '2018,2021,2023'."""
+    return ",".join(sorted(years))
 
 
 def schema_fingerprint(columns):
@@ -119,8 +175,10 @@ def validate_config(config, registry_entry):
     """Refuse a contract that could load something ambiguous. Returns nothing; raises on the first problem."""
     if source_format(config) not in FORMATS:
         raise _config_error(f"format {config.get('format')!r} is not one of {list(FORMATS)}.")
+    if source_format(config) == "xlsx_sheet":
+        return validate_xlsx_config(config, registry_entry)
     if source_format(config) == "xlsx_table":
-        from src.ingestion.xlsx_table import validate_contract
+        from src.ingestion.xlsx_table import validate_contract  # avoids a circular import
         return validate_contract(config, registry_entry)
     missing = CONFIG_FIELDS - config.keys()
     if missing:
@@ -131,24 +189,8 @@ def validate_config(config, registry_entry):
         if not registry_entry.get(field):
             raise _config_error(f"registry entry for {config['source_id']} has no {field!r}; provenance would be blank.")
 
+    _check_schema_versions(config)
     versions = config["schema_versions"]
-    if not versions:
-        raise _config_error("no schema versions.")
-    for name, version in versions.items():
-        columns = version.get("columns") or []
-        if not columns:
-            raise _config_error(f"schema {name} has no columns.")
-        if len(set(columns)) != len(columns):
-            raise _config_error(f"schema {name} repeats a column name.")
-        clash = sorted(set(columns) & set(PROVENANCE_COLUMNS))
-        if clash:
-            raise _config_error(f"schema {name} has publisher columns named like provenance fields: {clash}.")
-        absent = [c for c in config["required_columns"] if c not in columns]
-        if absent:
-            raise _config_error(f"schema {name} lacks required column(s) {absent}.")
-    fingerprints = [schema_fingerprint(v["columns"]) for v in versions.values()]
-    if len(set(fingerprints)) != len(fingerprints):
-        raise _config_error("two schema versions have identical columns.")
 
     seen_archive, seen_member, seen_version = set(), set(), set()
     by_year = {}
@@ -250,3 +292,150 @@ def find_delivery(config, archive_sha256):
         if delivery_sha256(d) == archive_sha256:
             return d
     return None
+
+
+def _check_schema_versions(config):
+    versions = config["schema_versions"]
+    if not versions:
+        raise _config_error("no schema versions.")
+    provenance = provenance_columns(config)
+    for name, version in versions.items():
+        columns = version.get("columns") or []
+        if not columns:
+            raise _config_error(f"schema {name} has no columns.")
+        if len(set(columns)) != len(columns):
+            raise _config_error(f"schema {name} repeats a column name.")
+        clash = sorted(set(columns) & set(provenance))
+        if clash:
+            raise _config_error(f"schema {name} has publisher columns named like provenance fields: {clash}.")
+        absent = [c for c in config["required_columns"] if c not in columns]
+        if absent:
+            raise _config_error(f"schema {name} lacks required column(s) {absent}.")
+    fingerprints = [schema_fingerprint(v["columns"]) for v in versions.values()]
+    if len(set(fingerprints)) != len(fingerprints):
+        raise _config_error("two schema versions have identical columns.")
+
+
+def validate_xlsx_config(config, registry_entry):
+    """The xlsx_sheet rules. A delivery covers a set of estimate years, so:
+
+    - versions are counted per logical_dataset (1, 2, 3...), each revision
+      naming the workbook it supersedes;
+    - a revision keeps every estimate year of the version it supersedes:
+      current_batches makes one version per logical_dataset current, so a
+      year a revision dropped would vanish from Silver while still in Bronze;
+    - two logical datasets may not share an estimate year: a workbook that
+      republishes a year already approved is a new version of that dataset,
+      never a second, silent copy of the year.
+    """
+    missing = XLSX_CONFIG_FIELDS - config.keys()
+    if missing:
+        raise _config_error(f"missing fields {sorted(missing)}.")
+    if config["source_id"] != registry_entry.get("source_id"):
+        raise _config_error("source_id differs from the registry entry.")
+    for field in ("source_system", "acquisition"):
+        if not registry_entry.get(field):
+            raise _config_error(f"registry entry for {config['source_id']} has no {field!r}; provenance would be blank.")
+    try:
+        re.compile(config["workbook_pattern"])
+        re.compile(config["identifier_pattern"])
+    except re.error as e:
+        raise _config_error(f"invalid pattern: {e}.")
+    _check_schema_versions(config)
+    for name, version in config["schema_versions"].items():
+        layout = version.get("layout") or {}
+        absent = LAYOUT_FIELDS - layout.keys()
+        if absent:
+            raise _config_error(f"schema {name} layout is missing {sorted(absent)}.")
+        if len(version["columns"]) != layout["width"]:
+            raise _config_error(f"schema {name} has {len(version['columns'])} columns but layout width {layout['width']}.")
+        for column in (config["identifier_column"], config["label_column"]):
+            if column not in version["columns"][: layout["value_columns_from"] - 1]:
+                raise _config_error(f"schema {name}: {column!r} must be a column before the value columns.")
+        if not estimate_years_of(version["columns"]):
+            raise _config_error(f"schema {name}: no column ends in an estimate year.")
+
+    from src.ingestion.workbook import KNOWN_ISSUE_CHECKS  # avoids a circular import at module load
+    for issue in config["known_issues"]:
+        if issue.get("check") not in KNOWN_ISSUE_CHECKS:
+            raise _config_error(f"known issue {issue.get('name')!r}: check {issue.get('check')!r} is not one of {sorted(KNOWN_ISSUE_CHECKS)}.")
+        for field in ("name", "finding", "profiled"):
+            if field not in issue:
+                raise _config_error(f"known issue {issue.get('name')!r} is missing {field!r}.")
+        for column in issue.get("columns", []):
+            if not any(column in v["columns"] for v in config["schema_versions"].values()):
+                raise _config_error(f"known issue {issue['name']!r} names unknown column {column!r}.")
+
+    pattern = re.compile(config["workbook_pattern"])
+    seen_sha, seen_version = set(), set()
+    by_dataset = {}
+    for d in config["deliveries"]:
+        label = f"delivery {d.get('workbook')!r}"
+        missing = XLSX_DELIVERY_FIELDS - d.keys()
+        if missing:
+            raise _config_error(f"{label} is missing {sorted(missing)}.")
+        if not SHA256.match(str(d["workbook_sha256"])):
+            raise _config_error(f"{label}: workbook_sha256 is not a lowercase SHA-256.")
+        if not pattern.match(d["workbook"]):
+            raise _config_error(f"{label}: name does not match workbook_pattern {config['workbook_pattern']!r}, so it would not be discovered.")
+        if not LOGICAL_DATASET.match(str(d["logical_dataset"])):
+            raise _config_error(f"{label}: logical_dataset must be snake_case.")
+        years = d["estimate_years"]
+        if not years or any(not ESTIMATE_YEAR.match(str(y)) for y in years) or years != sorted(set(years)):
+            raise _config_error(f"{label}: estimate_years must be sorted, distinct four-digit years as text.")
+        if d["schema_version"] not in config["schema_versions"]:
+            raise _config_error(f"{label}: schema_version {d['schema_version']!r} is not defined.")
+        version = config["schema_versions"][d["schema_version"]]
+        if estimate_years_of(version["columns"]) != years:
+            raise _config_error(f"{label}: estimate_years {years} differ from the years in schema "
+                                f"{d['schema_version']} {estimate_years_of(version['columns'])}.")
+        first, last = d["body_rows"].get("first"), d["body_rows"].get("last")
+        if first != version["layout"]["first_data_row"] or not isinstance(last, int) or last < first:
+            raise _config_error(f"{label}: body_rows must run from the layout's first data row to a later row.")
+        counts = [d["unit_rows"], d["banner_rows"], d.get("blank_rows", 0), d["footer_rows"]]
+        if any(not isinstance(n, int) or n < 0 for n in counts) or d["unit_rows"] == 0:
+            raise _config_error(f"{label}: unit, banner, blank and footer row counts must be whole numbers, units > 0.")
+        if d["unit_rows"] + d["banner_rows"] + d.get("blank_rows", 0) != last - first + 1:
+            raise _config_error(f"{label}: unit + banner + blank rows must equal the body rows {first}..{last}.")
+        used = USED_RANGE.match(str(d["used_range"]))
+        if not used or int(used.group(2)) != last + d["footer_rows"]:
+            raise _config_error(f"{label}: used_range must be 'A1:<column><row>' ending at the last footer row "
+                                f"({last} + {d['footer_rows']} footer rows).")
+        if d["workbook_sha256"] in seen_sha:
+            raise _config_error(f"{label}: workbook_sha256 is approved twice.")
+        key = (d["logical_dataset"], d["delivery_version"])
+        if key in seen_version:
+            raise _config_error(f"{label}: delivery_version {d['delivery_version']} of {d['logical_dataset']} is used twice.")
+        seen_sha.add(d["workbook_sha256"])
+        seen_version.add(key)
+        by_dataset.setdefault(d["logical_dataset"], []).append(d)
+
+    for dataset, deliveries in by_dataset.items():
+        deliveries.sort(key=lambda d: d["delivery_version"])
+        for i, d in enumerate(deliveries, start=1):
+            if d["delivery_version"] != i:
+                raise _config_error(f"{dataset}: delivery versions must be 1, 2, 3...; found {[x['delivery_version'] for x in deliveries]}.")
+            previous = deliveries[i - 2]["workbook_sha256"] if i > 1 else None
+            if d["supersedes"] != previous:
+                want = f"supersedes = {previous!r}" if previous else "supersedes = null"
+                raise _config_error(f"{dataset} version {i} must have {want}.")
+            if i > 1:
+                dropped = sorted(set(deliveries[i - 2]["estimate_years"]) - set(d["estimate_years"]))
+                if dropped:
+                    raise _config_error(
+                        f"{dataset} version {i} covers {d['estimate_years']} and drops {dropped} from version "
+                        f"{i - 1}. current_batches makes one version of a logical dataset current, so the dropped "
+                        "years would disappear from Silver while still in Bronze. A revision must keep every "
+                        "estimate year of the version it supersedes; if the publisher dropped a year, record a "
+                        "team decision first.")
+
+    names = sorted(by_dataset)
+    for i, a in enumerate(names):
+        years_a = {y for d in by_dataset[a] for y in d["estimate_years"]}
+        for b in names[i + 1:]:
+            shared = sorted(years_a & {y for d in by_dataset[b] for y in d["estimate_years"]})
+            if shared:
+                raise _config_error(
+                    f"logical datasets {a!r} and {b!r} both cover {shared}. A workbook that republishes an "
+                    "approved estimate year is a revision: approve it as the next delivery_version of the "
+                    "dataset it overlaps, with 'supersedes' set, or record a team decision first.")

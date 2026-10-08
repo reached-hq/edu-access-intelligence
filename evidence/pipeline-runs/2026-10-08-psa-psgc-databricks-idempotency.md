@@ -34,7 +34,7 @@ The last command was run twice. The landing folder `/Volumes/edu_access/00-sourc
 
 ### The failed attempt before these runs
 
-The first deployment, at commit `2da9a99`, ran as job run `780199342841699` (12:50 to 12:55, 04:50 to 04:55 UTC) and **failed** in all three tasks, each retried once by the job: `KeyError: 'logical_dataset'` while writing to `01-control.ingestion_batches`. The shared control tables on `dev` had already gained `logical_dataset`, `estimate_years_covered` and `source_sheet` from the #109 branch's run on 2026-10-07 (last altered by catherine.balane@ftwfoundation.org), which code on `main` does not set. Nothing was loaded: it left an empty `psa_psgc_raw` table and unfinished `running` rows in `pipeline_runs` (two for `psa_psgc`, kept as the honest record). Commit `cb274bf` fixed it (`control.py` writes NULL to control-table columns a row does not name; tests in `tests/test_ingestion_psgc.py` reproduce the Databricks table shape) and was redeployed before the two runs above.
+The first deployment, at commit `2da9a99`, ran as job run `780199342841699` (12:50 to 12:55, 04:50 to 04:55 UTC) and **failed** in all three tasks, each retried once by the job: `KeyError: 'logical_dataset'` while writing to `01-control.ingestion_batches`. The shared control tables on `dev` had already gained `logical_dataset`, `estimate_years_covered` and `source_sheet` from the #109 branch's run on 2026-10-07 (@catweyine), which code on `main` did not yet set. Nothing was loaded: it left an empty `psa_psgc_raw` table and unfinished `running` rows in `pipeline_runs` (two for `psa_psgc`, kept as the honest record). Commit `cb274bf` fixed it (`control.py` writes NULL to control-table columns a row does not name; tests in `tests/test_ingestion_psgc.py` reproduce the Databricks table shape) and was redeployed before the two runs above.
 
 ## Results
 
@@ -81,7 +81,7 @@ DepEd Bronze still has 180,500 enrollment rows and 60,167 facilities rows; both 
 ## Limitations
 
 - One quarter only. Re-issue, new-quarter and backfill behavior is proven locally with made-up workbooks, not on Databricks.
-- The shared control tables carry columns from an unmerged pull request (#109); the fix in `cb274bf` makes this code tolerate them, and #109 and #111 still need to be reconciled (#77).
+- This record covers commit `cb274bf`. #109 merged into `main` later the same day, and this branch was then merged with `main`, which changed the shared code these runs exercised (`formats.py`, `contract.py`, `control.py`). The `control.py` change made at `cb274bf` was dropped in that merge, because `main` now creates and fills those columns itself. Runs at the merged commit are recorded separately.
 
 ## How to reproduce
 

@@ -1,15 +1,17 @@
 # Ingestion
 
-Code that checks a raw delivery and turns it into rows for Bronze. Raw files in `00-source` are read, never modified, and never extracted to disk.
+Code that checks a raw delivery and turns it into rows for Bronze. Raw files in `00-source` are read, never modified, and never extracted to disk. Two delivery formats: `zip_csv` (DepEd: a zip with one CSV) and `xlsx_sheet` (PSA Poverty Stat: one workbook sheet with a merged header, banners, and a footer).
 
 | Module | What it does |
 |---|---|
-| `contract.py` | Loads and validates `config/ingestion/<source_id>.json`: its `format`, schema versions, approved deliveries, school year from the file names; accessors so both formats look alike to the pipeline |
+| `contract.py` | Loads and validates `config/ingestion/<source_id>.json`: schema versions, approved deliveries, school year from the file names; for workbooks, layout, estimate years, and versions per logical dataset (`xlsx_sheet`) or per quarter (`xlsx_table`) |
+| `workbook.py` | `prepare_workbook`: opens an xlsx safely (zip checks, no DTDs), reads one sheet as stored text, builds the column names from the merged header, finds the body and footer, classifies unit and banner rows, and runs the layout, identifier, and known-issue checks |
+| `xlsx_table.py` | Format `xlsx_table` (PSA PSGC): one sheet with a single header row, read through `workbook.open_sheet` as stored text; the quarter from the file name checked against the `Metadata` sheet; the exact header mapped to Bronze names; the checks (D-019) |
+| `formats.py` | What differs by format (discovery pattern, period, load type, checks), so `pipeline.py` has one flow |
 | `archive.py` | SHA-256 of a file; opens a zip safely (no `..`, absolute paths, symbolic links, or encrypted members; size limit); finds the data file and documents by name |
 | `reader.py` | Decodes with the encoding approved for those exact bytes, strictly; parses the CSV keeping every value as text and blanks as `''`; numbers data rows from 1 |
 | `validate.py` | `prepare_delivery`: from an archive on disk to checked rows, or a refusal saying why. Row checks return PASS, WARN, or FAIL |
-| `xlsx_table.py` | Format `xlsx_table` (PSA PSGC): opens a workbook safely, reads one sheet's cells as stored text, the quarter from the file name checked against the `Metadata` sheet, the exact header mapped to Bronze names, and the checks (D-019) |
-| `batch.py` | `batch_id` (same bytes, same id), and the action for a delivery: load, skip, retry, or rerun; and its load type: initial, incremental, backfill, or revision |
+| `batch.py` | `batch_id` (same bytes, same id), and the action for a delivery: load, skip, retry, or rerun; and its load type: initial, incremental, backfill, or revision (by school year, or by estimate-year set for workbooks) |
 | `bronze.py` | Bronze columns and DDL from the contract, provenance on every row, the insert-only MERGE, and reconciliation against the file |
 | `control.py` | Writes to the control tables in `etl/01_control/` |
 | `pipeline.py` | One run for one source, whatever its format: discover, decide, validate, load, reconcile, record, then the Bronze gate |

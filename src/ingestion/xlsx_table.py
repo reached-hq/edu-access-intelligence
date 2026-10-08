@@ -13,10 +13,11 @@ has the same shape as validate.prepare_delivery, so pipeline.py runs both alike.
 | Row number | data row, from 1 | Excel row, from 2, so a Bronze row points at one line of the sheet |
 | Header | publisher names are the Bronze columns | exact publisher text (with its line breaks, and '' for an unnamed column) mapped to Bronze names in the contract |
 
-Opening the workbook safely: the zip checks of archive.list_members (no '..',
-absolute, linked or encrypted parts; under the contract's size limit); macro
-parts are refused; any XML part that declares a DTD or entities, or is not
-UTF-8, is refused before it is parsed.
+Every sheet is opened by the shared, safe opener, workbook.open_sheet (the
+same one the PSA Poverty Stat format uses): the zip checks of
+archive.list_members (no '..', absolute, linked or encrypted parts; under the
+contract's size limit), no macros, no XML part with a DTD, entities or a
+non-UTF-8 encoding, and no sheet the contract does not list.
 
 Every cell is kept as the text stored in the file, never as Excel displays it:
 
@@ -42,16 +43,17 @@ hold counts, never row values.
 import hashlib
 import json
 import re
-import xml.etree.ElementTree as ET
+import zipfile
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
-from src.ingestion import archive
+from src.ingestion import archive, workbook
 from src.ingestion.errors import IngestionError
 from src.ingestion.validate import FAIL, PASS, WARN, CheckResult
-from src.profiling.xlsx import M, R, column_letter, column_number, rich_text
+from src.profiling.xlsx import column_letter, column_number
+from src.profiling.xlsx import sheet_names as profiling_sheet_names
 
 # Columns the pipeline adds to every PSGC Bronze row. source_row_number is the
 # Excel row (the header is row 1, so data starts at 2). The workbook is both the
@@ -80,8 +82,6 @@ PERIOD = re.compile(r"^(?P<year>[0-9]{4})-Q(?P<quarter>[1-4])$")
 ISO_DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 RANGE = re.compile(r"^A1:(?P<column>[A-Z]{1,3})(?P<row>[1-9][0-9]*)$")
 BRONZE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
-REQUIRED_PARTS = ("xl/workbook.xml", "xl/_rels/workbook.xml.rels")
-TEXT_KINDS = {"s": "text", "inlineStr": "text", "str": "text", "n": "number", "b": "boolean", "e": "error", "d": "date"}
 DATE_FORMATS = ("%d %B %Y", "%B %d, %Y", "%B %d %Y", "%d %b %Y", "%Y-%m-%d")
 
 CONFIG_FIELDS = {
@@ -238,132 +238,49 @@ def validate_contract(config, registry_entry):
         raise _config_error("master_reference_period must be null while no delivery is approved.")
 
 
-# --- Reading the workbook safely -----------------------------------------------------
+# --- Reading the workbook: through the shared, safe opener (workbook.open_sheet) ---
 
-@dataclass
-class Cell:
-    text: str
-    kind: str          # text | number | boolean | error | date
-    formula: bool = False
-
-
-@dataclass
-class Sheet:
-    cells: dict        # {row: {column: Cell}}, blank cells omitted
-    formulas_without_value: int = 0
-
-    @property
-    def last_row(self):
-        return max(self.cells, default=0)
-
-    @property
-    def last_column(self):
-        return max((c for row in self.cells.values() for c in row), default=0)
-
-    def text(self, row, column):
-        cell = self.cells.get(row, {}).get(column)
-        return cell.text if cell else ""
+def open_sheet(config, path, sheet_name):
+    """One sheet, read by workbook.open_sheet: the zip checks, no macros, no DTDs or entities, UTF-8
+    XML only, and no sheet the contract does not list. Cells are {row: {column: (text, stored type)}}."""
+    return workbook.open_sheet(path, sheet_name, config["expected_sheets"], config["max_uncompressed_bytes"])
 
 
-class Workbook:
-    def __init__(self, path, max_uncompressed_bytes):
-        self.path = Path(path)
-        self.name = self.path.name
-        self.members = set(archive.list_members(path, max_uncompressed_bytes))  # missing/corrupt/unsafe/too large
-        for member in self.members:
-            if PurePosixPath(member).name.lower() == "vbaproject.bin":
-                raise IngestionError("workbook", "macro_enabled_workbook",
-                                     f"{self.name} contains macros ({member}). Macro-enabled workbooks are not loaded.")
-        for part in REQUIRED_PARTS:
-            if part not in self.members:
-                raise IngestionError("workbook", "corrupt_workbook",
-                                     f"{self.name} is a zip but not an xlsx workbook (no {part!r}).")
-        workbook = self._xml("xl/workbook.xml")
-        sheets = workbook.find(M + "sheets")
-        self._sheets = [(s.get("name"), s.get(R + "id")) for s in (sheets if sheets is not None else [])]
-        self._rels = {r.get("Id"): r.get("Target") for r in self._xml("xl/_rels/workbook.xml.rels")}
-        self._strings = None
+def sheet_names(path):
+    """Sheet names in workbook order. Called only after open_sheet has checked the file."""
+    with zipfile.ZipFile(path) as zf:
+        return profiling_sheet_names(zf)
 
-    def _xml(self, member):
-        if member not in self.members:
-            raise IngestionError("workbook", "corrupt_workbook", f"{self.name}: part {member!r} is missing.")
-        data = archive.read_member(self.path, member)
-        if data[:2] in (b"\xff\xfe", b"\xfe\xff") or b"\x00" in data[:4]:
-            raise IngestionError("workbook", "unsafe_workbook", f"{self.name}: part {member!r} is not UTF-8 XML.")
-        declared = re.match(rb'^\s*<\?xml[^>]*encoding="([^"]+)"', data)
-        if declared and declared.group(1).lower() not in (b"utf-8", b"utf8"):
-            raise IngestionError("workbook", "unsafe_workbook",
-                                 f"{self.name}: part {member!r} declares encoding {declared.group(1).decode()!r}, not UTF-8.")
-        if b"<!DOCTYPE" in data or b"<!ENTITY" in data:
-            raise IngestionError("workbook", "unsafe_workbook",
-                                 f"{self.name}: part {member!r} declares a DTD or entities. Nothing was parsed.")
-        try:
-            return ET.fromstring(data)
-        except ET.ParseError as e:
-            raise IngestionError("workbook", "corrupt_workbook", f"{self.name}: part {member!r} is not valid XML ({e}).")
 
-    @property
-    def sheet_names(self):
-        return [name for name, _ in self._sheets]
+def cell_text(sheet, row, column):
+    return sheet.cells.get(row, {}).get(column, ("", ""))[0]
 
-    def strings(self):
-        if self._strings is None:
-            self._strings = []
-            if "xl/sharedStrings.xml" in self.members:
-                self._strings = [rich_text(si) for si in self._xml("xl/sharedStrings.xml").findall(M + "si")]
-        return self._strings
 
-    def sheet(self, sheet_name):
-        rid = dict(self._sheets).get(sheet_name)
-        if sheet_name not in self.sheet_names:
-            raise IngestionError("workbook", "missing_sheet",
-                                 f"{self.name} has no sheet {sheet_name!r}; sheets: {self.sheet_names}.")
-        target = (self._rels.get(rid) or "").lstrip("/")
-        target = target if target.startswith("xl/") else "xl/" + target
-        root = self._xml(target)
-        strings = self.strings()
-        sheet = Sheet({})
-        row_number = 0
-        for row in root.iter(M + "row"):
-            row_number = int(row.get("r", row_number + 1))
-            values, column = {}, 0
-            for c in row.findall(M + "c"):
-                ref = c.get("r")
-                column = column_number(ref) if ref else column + 1
-                t = c.get("t") or "n"
-                v = c.find(M + "v")
-                formula = c.find(M + "f") is not None
-                if t == "s" and v is not None:
-                    try:
-                        text = strings[int(v.text)]
-                    except (IndexError, TypeError, ValueError):
-                        raise IngestionError("workbook", "corrupt_workbook",
-                                             f"{self.name}: cell {column_letter(column)}{row_number} points at a missing shared string.")
-                elif t == "inlineStr":
-                    inline = c.find(M + "is")
-                    text = rich_text(inline) if inline is not None else ""
-                else:
-                    text = (v.text or "") if v is not None else ""
-                if formula and v is None:
-                    sheet.formulas_without_value += 1
-                if text != "":
-                    values[column] = Cell(text, TEXT_KINDS.get(t, t), formula)
-            if values:
-                sheet.cells[row_number] = values
-        return sheet
+def cell_kind(sheet, row, column):
+    """'number', 'error', 'text', or 'blank', from the cell's stored type (`t`)."""
+    cell = sheet.cells.get(row, {}).get(column)
+    if cell is None:
+        return "blank"
+    return {"n": "number", "e": "error"}.get(cell[1], "text")
+
+
+def last_row(sheet):
+    return max(sheet.cells, default=0)
+
+
+def last_column(sheet):
+    return max((c for row in sheet.cells.values() for c in row), default=0)
 
 
 # --- The publication period --------------------------------------------------------
 
-def _parse_publication_date(cell):
-    if cell is None:
-        return None
-    if cell.kind == "number":  # an Excel date serial
+def _parse_publication_date(text, kind):
+    if kind == "number":  # an Excel date serial
         try:
-            return date(1899, 12, 30) + timedelta(days=int(float(cell.text)))
+            return date(1899, 12, 30) + timedelta(days=int(float(text)))
         except (ValueError, OverflowError):
             return None
-    text = " ".join(cell.text.split())
+    text = " ".join(text.split())
     for fmt in DATE_FORMATS:
         try:
             return datetime.strptime(text, fmt).date()
@@ -372,31 +289,27 @@ def _parse_publication_date(cell):
     return None
 
 
-def read_publication_date(config, book):
+def read_publication_date(config, path, names):
     """The publication date on the metadata sheet: the value right of the label in column A."""
     source = config["period_source"]
-    if source["sheet"] not in book.sheet_names:
+    if source["sheet"] not in names:
         raise IngestionError("period", "period_undeterminable",
-                             f"{book.name} has no {source['sheet']!r} sheet, so its publication date cannot be checked.")
-    sheet = book.sheet(source["sheet"])
+                             f"{Path(path).name} has no {source['sheet']!r} sheet, so its publication date cannot be checked.")
+    sheet = open_sheet(config, path, source["sheet"])
     label = source["label"].strip().lower()
     for row in sorted(sheet.cells):
-        if sheet.text(row, 1).strip().lower() == label:
-            found = _parse_publication_date(sheet.cells[row].get(2))
+        if cell_text(sheet, row, 1).strip().lower() == label:
+            found = _parse_publication_date(cell_text(sheet, row, 2), cell_kind(sheet, row, 2))
             if found is None:
                 raise IngestionError("period", "period_undeterminable",
-                                     f"{book.name}: {source['sheet']!r} row {row} has {source['label']!r} but no readable date "
-                                     f"({sheet.text(row, 2)!r}).")
+                                     f"{Path(path).name}: {source['sheet']!r} row {row} has {source['label']!r} but no "
+                                     f"readable date ({cell_text(sheet, row, 2)!r}).")
             return found
     raise IngestionError("period", "period_undeterminable",
-                         f"{book.name}: no {source['label']!r} row in {source['sheet']!r}, so the quarter cannot be confirmed.")
+                         f"{Path(path).name}: no {source['label']!r} row in {source['sheet']!r}, so the quarter cannot be confirmed.")
 
 
 # --- Data-quality checks: recorded, never corrections ----------------------------------
-
-def _count(rows, index, predicate):
-    return sum(1 for _, values in rows if predicate(values[index]))
-
 
 QUALITY_CHECKS = {
     "blank": lambda v, arg: v == "",
@@ -407,23 +320,25 @@ QUALITY_CHECKS = {
 }
 
 
-def read_national_summary(config, book):
+def read_national_summary(config, path, names):
     """{'Prov': 82, ..., 'population': 112729484} from the workbook's own summary sheet, or (None, reason)."""
     spec = config["national_summary"]
-    if spec["sheet"] not in book.sheet_names:
+    if spec["sheet"] not in names:
         return None, f"no {spec['sheet']!r} sheet"
-    sheet = book.sheet(spec["sheet"])
+    sheet = open_sheet(config, path, spec["sheet"])
 
     def norm(text):
         return " ".join(text.split())
 
+    def row_texts(r):
+        return {norm(text) for text, _ in sheet.cells[r].values()}
+
     wanted = set(spec["level_labels"].values())
-    header = next((r for r in sorted(sheet.cells) if wanted <= {norm(c.text) for c in sheet.cells[r].values()}), None)
-    total = next((r for r in sorted(sheet.cells)
-                  if any(norm(c.text) == spec["total_row_label"] for c in sheet.cells[r].values())), None)
+    header = next((r for r in sorted(sheet.cells) if wanted <= row_texts(r)), None)
+    total = next((r for r in sorted(sheet.cells) if spec["total_row_label"] in row_texts(r)), None)
     if header is None or total is None:
         return None, f"header row with {sorted(wanted)} or the {spec['total_row_label']!r} row not found"
-    columns = {norm(c.text): col for col, c in sheet.cells[header].items()}
+    columns = {norm(text): col for col, (text, _) in sheet.cells[header].items()}
     population = next((col for name, col in columns.items() if name.startswith(spec["population_label_prefix"])), None)
     if population is None:
         return None, f"no column starting {spec['population_label_prefix']!r}"
@@ -431,7 +346,7 @@ def read_national_summary(config, book):
     found["population"] = population
     values = {}
     for key, col in found.items():
-        text = sheet.text(total, col).strip()
+        text = cell_text(sheet, total, col).strip()
         if not re.fullmatch(r"[0-9]+", text):
             return None, f"{spec['total_row_label']!r} row has no whole number under {key!r}"
         values[key] = int(text)
@@ -470,11 +385,11 @@ class PreparedWorkbook:
     rows: list                     # [(Excel row number, [text per column])]
     kinds: dict = field(default_factory=dict)   # {Excel row: [cell kind per column]}
     checks: list = field(default_factory=list)
-    encoding = "utf-8"             # xlsx XML parts; any other declared encoding is refused
+    encoding = "utf-8"             # xlsx XML parts; any other encoding is refused by the opener
 
     @property
     def school_year(self):
-        return self.publication_period   # the control tables' period column (see contract.delivery_period)
+        return self.publication_period   # the control tables' period column (D-019)
 
     @property
     def data_member(self):
@@ -552,17 +467,17 @@ def match_header(config, header, approved_version):
 def prepare_delivery(config, registry_entry, path):
     delivery, digest = identify_delivery(config, path)
     path = Path(path)
-    book = Workbook(path, config["max_uncompressed_bytes"])
-    sheet = book.sheet(delivery["sheet"])  # missing_sheet
+    sheet = open_sheet(config, path, delivery["sheet"])  # safety checks, missing_sheet, unexpected_sheet
     if not sheet.cells:
         raise IngestionError("parse", "empty_sheet", f"{path.name}: sheet {delivery['sheet']!r} has no cells, not even a header.")
+    names = sheet_names(path)
 
     # The quarter: from the name, from the Metadata sheet, and in the approval. All three must agree.
     named = period_from_name(config, path.name)
     if named is None:
         raise IngestionError("period", "period_undeterminable",
                              f"{path.name} does not match {config['workbook_pattern']!r}, so its quarter is unknown.")
-    published = read_publication_date(config, book)
+    published = read_publication_date(config, path, names)
     if quarter_of(published) != named:
         raise IngestionError("period", "period_mismatch",
                              f"the file name says {named} but {config['period_source']['sheet']!r} gives publication "
@@ -572,18 +487,17 @@ def prepare_delivery(config, registry_entry, path):
                              f"the workbook is {named}, published {published.isoformat()}; the approved delivery says "
                              f"{delivery['publication_period']}, published {delivery['publication_date']}.")
 
-    # The header: every cell of row 1, exactly as stored, to the last column used anywhere.
+    # The header: every cell of row 1, exactly as stored, to the last column used in that row.
     version = config["schema_versions"][delivery["schema_version"]]
     width = max(len(version["columns"]), max(sheet.cells.get(1, {}), default=0))
-    header = [sheet.text(1, c) for c in range(1, width + 1)]
+    header = [cell_text(sheet, 1, c) for c in range(1, width + 1)]
     schema = match_header(config, header, delivery["schema_version"])
     columns = version["columns"]
 
     rows, kinds = [], {}
-    for number in range(2, sheet.last_row + 1):   # every row up to the last one holding a value, blanks kept
-        cells = sheet.cells.get(number, {})
-        rows.append((number, [cells[c].text if c in cells else "" for c in range(1, len(columns) + 1)]))
-        kinds[number] = [cells[c].kind if c in cells else "blank" for c in range(1, len(columns) + 1)]
+    for number in range(2, last_row(sheet) + 1):   # every row up to the last one holding a value, blanks kept
+        rows.append((number, [cell_text(sheet, number, c) for c in range(1, len(columns) + 1)]))
+        kinds[number] = [cell_kind(sheet, number, c) for c in range(1, len(columns) + 1)]
 
     prepared = PreparedWorkbook(
         source_id=config["source_id"],
@@ -602,29 +516,35 @@ def prepare_delivery(config, registry_entry, path):
         rows=rows,
         kinds=kinds,
     )
-    prepared.checks = check_workbook(config, delivery, book, sheet, prepared)
+    prepared.checks = check_workbook(config, delivery, path, names, sheet, prepared)
     return prepared
 
 
-def check_workbook(config, delivery, book, sheet, prepared):
+def check_workbook(config, delivery, path, names, sheet, prepared):
     checks = []
 
     def add(name, ok, expected, actual, warn_only=False):
         status = PASS if ok else (WARN if warn_only else FAIL)
         checks.append(CheckResult(name, status, str(expected), str(actual)))
 
+    def profiled(name, count, expected, finding=None):
+        """A known characteristic: PASS at its profiled count, WARN when the count changes, never FAIL."""
+        expected = 0 if expected is None else expected
+        label = f"{expected} (profiled{', ' + finding if finding else ''})"
+        add(name, count == expected, label, count, warn_only=True)
+
     rows, header = prepared.rows, prepared.header
     n = len(rows)
 
     # Shape: exactly what was profiled and approved.
-    actual_range = f"A1:{column_letter(max(sheet.last_column, len(header)))}{sheet.last_row}"
+    actual_range = f"A1:{column_letter(max(last_column(sheet), len(header)))}{last_row(sheet)}"
     add("row_count_nonzero", n > 0, "> 0", n)
     add("row_count_matches_approved", n == delivery["row_count"], delivery["row_count"], n)
     add("range_matches_approved", actual_range == delivery["range"], delivery["range"], actual_range)
     missing = [c for c in config["required_columns"] if c not in header]
     add("required_columns_present", not missing, config["required_columns"], f"missing {missing}" if missing else "all present")
-    sheets = book.sheet_names
-    add("sheets_match_contract", sheets == config["expected_sheets"], config["expected_sheets"], sheets, warn_only=True)
+    # A sheet the contract does not list already stopped the batch (unexpected_sheet); a missing documentation sheet is a WARN.
+    add("sheets_match_contract", names == config["expected_sheets"], config["expected_sheets"], names, warn_only=True)
 
     # The identifier: present, exactly the pattern as stored, never padded.
     key = config["identifier_column"]
@@ -637,10 +557,9 @@ def check_workbook(config, delivery, book, sheet, prepared):
         f"0 not matching {config['identifier_pattern']}", sum(1 for v in ids if v != "" and not pattern.fullmatch(v)))
     add(f"{key}_number_cells_match_format", all(pattern.fullmatch(v) for v in stored_as_number),
         "0 number-stored codes that lost digits", sum(1 for v in stored_as_number if not pattern.fullmatch(v)))
-    profiled = config.get("identifier_number_cells_profiled")
-    add(f"{key}_stored_as_number", not stored_as_number,
-        f"0 (profiled: {profiled}; accepted only when the stored digits match, never padded)", len(stored_as_number),
-        warn_only=True)
+    profiled(f"{key}_stored_as_number", len(stored_as_number), config.get("identifier_number_cells_profiled"),
+             "accepted only when the stored digits match; never padded")
+    # Source duplicates are kept in Bronze and recorded; Silver stops on any (docs: Handoff to Silver).
     add(f"{key}_unique_in_file", len(set(ids)) == n, 0, sum(c - 1 for c in Counter(ids).values() if c > 1), warn_only=True)
     add("duplicate_rows_in_file", len({tuple(v) for _, v in rows}) == n, 0, n - len({tuple(v) for _, v in rows}), warn_only=True)
 
@@ -648,27 +567,25 @@ def check_workbook(config, delivery, book, sheet, prepared):
     texts = [v for _, values in rows for v in values] + prepared.source_header
     add("text_mojibake", not any(mojibake(t) for t in texts), 0, sum(1 for t in texts if mojibake(t)))
 
-    # Cells: no recalculation happens here, so a formula must carry its stored result.
-    formulas = sum(1 for r in sheet.cells.values() for c in r.values() if c.formula)
+    # Cells: nothing is recalculated here; a formula's cached result is what is loaded.
     errors = sum(1 for number in prepared.kinds for k in prepared.kinds[number] if k == "error")
-    add("formula_cells_have_values", sheet.formulas_without_value == 0, 0, sheet.formulas_without_value)
-    add("formula_cells", formulas == 0, 0, formulas, warn_only=True)
-    add("error_cells", errors == 0, 0, errors, warn_only=True)
+    profiled("formula_cells", sheet.formulas, 0)
+    profiled("error_cells", errors, config.get("error_cells_profiled"))
 
-    # Known publisher characteristics: WARN with the profiled count, so a change is visible.
+    # Known publisher characteristics: PASS at the profiled count, WARN when it changes.
     for check in config["quality_checks"]:
         if check["column"] not in header:
             continue
-        count = _count(rows, header.index(check["column"]),
-                       lambda v, c=check: QUALITY_CHECKS[c["check"]](v, c.get("value")))
-        add(f"dq_{check['name']}", count == 0, f"0 (profiled: {check['profiled']}, {check['finding']})", count, warn_only=True)
+        index = header.index(check["column"])
+        count = sum(1 for _, values in rows if QUALITY_CHECKS[check["check"]](values[index], check.get("value")))
+        profiled(f"dq_{check['name']}", count, check["profiled"], check["finding"])
 
     if "national_summary" in config and "hierarchy" in config:
-        checks.extend(reconcile_with_workbook(config, delivery, book, prepared))
+        checks.extend(reconcile_with_workbook(config, delivery, path, names, prepared))
     return checks
 
 
-def reconcile_with_workbook(config, delivery, book, prepared):
+def reconcile_with_workbook(config, delivery, path, names, prepared):
     """WARN-level checks against the workbook itself: its National Summary and the code hierarchy (profile O-4, O-5, O-10)."""
     checks = []
 
@@ -685,7 +602,7 @@ def reconcile_with_workbook(config, delivery, book, prepared):
     by_level = Counter(level for _, level, _ in units)
     codes = {code for code, _, _ in units}
 
-    summary, reason = read_national_summary(config, book)
+    summary, reason = read_national_summary(config, path, names)
     if summary is None:
         add("national_summary_readable", False, "readable", reason)
     else:
