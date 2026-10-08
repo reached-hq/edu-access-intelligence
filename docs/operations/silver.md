@@ -2,7 +2,7 @@
 
 How the Bronze rows of each source's current deliveries become one clean, typed, validated table, what each rule changes, what is set aside, and how each run is recorded. The first source built this way is `deped_enrollment` (#85).
 
-**Status:** two SQL tasks of the job `edu_access_pipeline`, built and tested locally, and run by the job on the real Bronze data of all three school years (2026-10-09, [evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md)). **Not yet run on Databricks**; the steps are under [Running on Databricks](#running-on-databricks).
+**Status:** two SQL tasks of the job `edu_access_pipeline`, built and tested locally, and run by the job on the real Bronze data of all three school years (2026-10-09, [evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md)). Run on Databricks `dev` on 2026-10-09 at `7d93d8e`: two job runs, every check OK, identical rows ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md)).
 
 ## The flow
 
@@ -139,7 +139,7 @@ Free Edition's serverless capacity is shared; in the Bronze runs most time was s
 - **A build** is about 15 statements: the run stamp (6), the run row, the schema and its owner, the classification view, two `CREATE OR REPLACE` and two owner statements. **The gate** is 5: its start time (2), the checks, the run row, the final check. Locally: about 1.1 s and 0.6 s.
 - **Parallel source lanes.** Tasks within this source stay ordered, while unrelated sources may run at the same time. There is no schedule, and `max_concurrent_runs: 1` prevents two whole job runs from overlapping.
 
-Databricks timings will be recorded with the first run (open).
+On Databricks `dev` the build took 30 to 42 s and the gate 44 to 50 s, with no queue or setup time ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md)): the warehouse's time per statement, not the 180,500 rows.
 
 ## Running locally
 
@@ -172,14 +172,14 @@ The tables go to `local_state/edu_access.duckdb` (`--db <path>` for another file
 
 ## Running on Databricks
 
-**Not yet run.** The deliberate confirmation run (D-008), after the branch is pushed:
+**Run on `dev` on 2026-10-09** at `7d93d8e` ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md)). The deliberate confirmation run (D-008), repeated after any change to the Silver SQL, after the branch is pushed:
 
 1. From a clean checkout of the pushed commit, announce the run, detach notebooks, leave the SQL warehouse stopped (the job starts it).
 2. `databricks bundle validate --target dev --profile reached-hq`, then `databricks bundle deploy --target dev --profile reached-hq`; confirm in `databricks bundle summary` that `git_commit` and `code_revision` both equal `git rev-parse HEAD`.
 3. `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` twice. In both runs the Bronze loads skip (already loaded), the gates pass, and Silver rebuilds.
 4. Check with the queries below, then record the evidence in `evidence/pipeline-runs/<date>-deped-enrollment-silver.md` in the layout of the Bronze evidence, with per-task timings (job start, task start and end, queue and setup time) so waiting for compute is told apart from work.
 
-What only Databricks can show: Spark's behavior for the shared SQL (`regexp_like`, `translate`, `chr(160)`, session variables, the CTE inside `INSERT`, `MERGE` with variables), job parameters reaching SQL file tasks, `CREATE OR REPLACE TABLE` and ownership on existing Unity Catalog tables, and the real cost of the warehouse tasks.
+What only Databricks can show, all confirmed by the 2026-10-09 runs: Spark's behavior for the shared SQL (`regexp_like`, `translate`, `chr(160)`, session variables, the CTE inside `INSERT`, `MERGE` with variables), job parameters reaching SQL file tasks, `CREATE OR REPLACE TABLE` and ownership on existing Unity Catalog tables, and the real cost of the warehouse tasks.
 
 All checks in one query, each marked `OK` or `CHECK`, for the three approved deliveries after two runs. Replace the commit with the one that ran:
 
@@ -210,7 +210,7 @@ checks AS (
   UNION ALL SELECT 'rows from the last run', '180500', CAST(COUNT_IF(run_id = (SELECT run_id FROM last_run)) AS STRING) FROM c
   UNION ALL SELECT 'rows from another commit', '0', CAST(COUNT_IF(code_revision <> '<commit that ran>') AS STRING) FROM c
   UNION ALL SELECT 'last silver run', 'succeeded', MAX(status) FROM pr WHERE run_id = (SELECT run_id FROM last_run)
-  UNION ALL SELECT 'silver runs succeeded', '2', CAST(COUNT_IF(status = 'succeeded') AS STRING) FROM pr
+  UNION ALL SELECT 'silver runs succeeded at this commit', '2', CAST(COUNT_IF(status = 'succeeded' AND code_revision = '<commit that ran>') AS STRING) FROM pr
 )
 SELECT check_name, expected, actual, CASE WHEN expected = actual THEN 'OK' ELSE 'CHECK' END AS result FROM checks;
 ```
@@ -248,7 +248,7 @@ What Integration still has to do: match `province`, `municipality`, and `baranga
 
 ## Limitations
 
-- Not yet run on Databricks: Spark has not executed this SQL.
+- On Databricks only `dev` has run it, and only with nothing to quarantine: a quarantined row and a failing gate are shown by the local tests, not on Databricks.
 - `region` and the other categories are gated, so any new label stops Silver until it is reviewed, by design.
 - Every run rebuilds every school year, and starts the SQL warehouse; fine at 180,000 rows, revisit for larger sources.
 - After a failed gate the Silver tables hold the failed build until the next run; Gold must check the run status first.

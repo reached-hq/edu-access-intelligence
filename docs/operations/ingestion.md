@@ -370,7 +370,7 @@ Rebasing or squash-merging a branch does not change a stored `code_revision`, an
 
 ## Handoff to Silver
 
-Bronze preserves; Silver cleans. **Built for `deped_enrollment`** (#85; [Silver](silver.md)), locally and on the real data; not yet run on Databricks. As planned here, Silver:
+Bronze preserves; Silver cleans. **Built for `deped_enrollment`** (#85; [Silver](silver.md)), locally and on the real data, and on Databricks `dev` ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md)). As planned here, Silver:
 
 - reads only rows whose `batch_id` is in `` `01-control`.current_batches `` (the latest succeeded version per school year);
 - types the counts (all whole numbers, profile O-2) and keeps blanks as NULL, never 0;

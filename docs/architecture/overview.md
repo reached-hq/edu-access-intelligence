@@ -42,7 +42,7 @@ official download ─▶ 00-source volume ─▶ checksum + approved contract �
 
 Two delivery formats share this flow, chosen by the source's contract: a zip with one CSV per school year (DepEd), and an xlsx workbook per publication quarter (`psa_psgc`, format `xlsx_table`, D-019). Only discovery, the period, and how a file is read and checked differ.
 
-Built and tested locally, Bronze to Silver ([Silver](../operations/silver.md)); not yet run on Databricks:
+Built, Bronze to Silver ([Silver](../operations/silver.md)), and run on Databricks `dev` for DepEd enrollment:
 
 ```
 Bronze gate passed ─▶ NN_clean_<source>: current_batches only ─▶ 03-silver <source>_clean + <source>_quarantine
