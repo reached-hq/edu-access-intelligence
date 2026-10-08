@@ -10,19 +10,19 @@ Silver built from the real Bronze data of all three school years keeps every cur
 
 ## What was run
 
-Commit `98c5ce3eae981bf94c6a45f32e7d4c9ed51e9cee`, clean checkout (no `-dirty`), macOS 26.3.1, Python 3.12.14, DuckDB 1.4.5, a fresh database file in a scratch folder. The approved deliveries were read from `raw-data/` (checksums verified by the loader, as on the source card). The whole job ran twice, in the order of the Databricks DAG:
+Commit `44840ad85cd316be0dd9a047cd05e9149b0f1d33`, clean checkout (no `-dirty`), macOS 26.3.1, Python 3.12.14, DuckDB 1.4.5, a fresh database file in a scratch folder. The approved deliveries were read from `raw-data/` (checksums verified by the loader, as on the source card). The whole job ran twice, in the order of the Databricks DAG:
 
 ```bash
 RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run --db <scratch>.duckdb
 ```
 
-Then `python -m pytest tests -q` (455 passed).
+Then `python -m pytest tests -q` (464 passed).
 
 | Step | Result | Task time |
 |---|---|---:|
 | Run 1: `bronze_deped_enrollment` | 60,167 + 60,129 + 60,204 rows loaded, `succeeded` | 7.4 s |
 | Run 1: `01_clean_deped_enrollment` | 180,500 Bronze rows → 180,500 clean, 0 quarantined | 1.1 s |
-| Run 1: `90_validate_deped_enrollment_clean` | 110 checks, all PASS; run `succeeded` | 0.6 s |
+| Run 1: `90_validate_deped_enrollment_clean` | 110 checks, all PASS; run `succeeded` | 0.7 s |
 | Run 2: `bronze_deped_enrollment` | all three files `skip`, 0 rows inserted | 0.1 s |
 | Run 2: `01_clean_deped_enrollment` | rebuilt: 180,500 clean, 0 quarantined | 1.1 s |
 | Run 2: `90_validate_deped_enrollment_clean` | 110 checks, all PASS; run `succeeded` | 0.6 s |
@@ -67,13 +67,13 @@ The 2026-10-07 hash was computed differently, so the two values are not comparab
 
 ## Why it holds
 
-1. Silver reads Bronze only through `current_batches`, and each row goes to exactly one of the two tables by a reasons string that is never NULL ([build SQL](https://github.com/reached-hq/edu-access-intelligence/blob/98c5ce3eae981bf94c6a45f32e7d4c9ed51e9cee/etl/03_silver/01_clean_deped_enrollment.sql)).
+1. Silver reads Bronze only through `current_batches`, and each row goes to exactly one of the two tables by a reasons string that is never NULL ([build SQL](https://github.com/reached-hq/edu-access-intelligence/blob/44840ad85cd316be0dd9a047cd05e9149b0f1d33/etl/03_silver/01_clean_deped_enrollment.sql)).
 2. Both tables are rebuilt with `CREATE OR REPLACE TABLE ... AS SELECT` from the same current batches, so the same Bronze gives the same rows; only the run stamp changes.
-3. The gate recomputes rows, learners, blank cells, labels, and lineage from Bronze and compares them with Silver per school year, then records the run `succeeded` or `failed` from its own execution's results ([gate](https://github.com/reached-hq/edu-access-intelligence/blob/98c5ce3eae981bf94c6a45f32e7d4c9ed51e9cee/etl/03_silver/90_validate_deped_enrollment_clean.sql)).
+3. The gate recomputes rows, learners, blank cells, labels, and lineage from Bronze and compares them with Silver per school year, then records the run `succeeded` or `failed` from its own execution's results ([gate](https://github.com/reached-hq/edu-access-intelligence/blob/44840ad85cd316be0dd9a047cd05e9149b0f1d33/etl/03_silver/90_validate_deped_enrollment_clean.sql)).
 
 ## Also shown by tests
 
-`tests/test_silver.py` (made-up deliveries through the real Bronze pipeline): blank stays NULL, absent columns, label and boolean mapping, whitespace and repairs, flags, NULL-safe filters, quarantine of negative, non-whole, duplicated, blank, NULL, and malformed values with their reasons, the 1% FAIL, an unmapped label failing the gate, a blank turned into 0 caught by the gate, a lost or stale row caught, a revised delivery replacing its year, every run rebuilding the same tables, a run marked `succeeded` only after its gate, and a repaired run judged by its own checks. `tests/test_local_job.py`: Silver is skipped when its Bronze gate fails.
+`tests/test_silver.py` (made-up deliveries through the real Bronze pipeline): blank stays NULL, absent columns, label and boolean mapping, whitespace and repairs, flags, NULL-safe filters, quarantine of negative, non-whole, duplicated, blank, NULL, and malformed values with their reasons, the 1% FAIL, an unmapped label failing the gate, on a clean or a quarantined row, a blank turned into 0 caught by the gate, a lost or stale row caught, each check the cleaning rules cannot trip failing a build that breaks it, a revised delivery replacing its year, every run rebuilding the same tables, a run marked `succeeded` only after its gate, and a repaired run judged by its own checks. `tests/test_local_job.py`: Silver is skipped when its Bronze gate fails.
 
 ## What this does not prove
 
