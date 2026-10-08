@@ -44,7 +44,7 @@ Both profiling scripts verify the SHA-256 values before reading the files and st
 - **Period:** the control tables' `school_year` column holds the file's reference date, `2025-02-13` (`valid_on`), the same way the PSA sources store their own periods there. Every feature's `valid_on` must equal it.
 - **Blocking checks:** the approved checksum, a FeatureCollection with the contract's properties in order, a geometry on every feature, the reference date, and WGS 84 coordinates. **WARN:** a geometry type other than Polygon or MultiPolygon, or a byte-order mark.
 - **`phl_admin4.geojson` is not ingested** in this step. The contract's file pattern matches only `phl_admin3.geojson`, so the ADM4 file beside it is ignored (`test_the_admin4_file_beside_it_is_ignored`). Adding it later is a separate contract and table.
-- **Not yet run:** the local load of the real file and the Databricks confirmation run are pending.
+- **Verified locally** on 2026-10-08 (1,642 rows, then a skip; 0 WARN, 0 FAIL); the Databricks confirmation run is pending.
 - **Status stays `profiled`** until the team accepts the source.
 
 ## Publisher documentation
