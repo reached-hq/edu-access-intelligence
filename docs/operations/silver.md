@@ -236,6 +236,7 @@ What Gold must respect:
 
 - Read Silver only when the latest `silver_build` run of the source in `pipeline_runs` succeeded (its rows carry that `run_id`).
 - `is_overseas`: exclude from any geographic analysis; their place names are placeholders in SY 2025-26.
+- Suspected over-reporting (profile S-4): schools 410978, 410977, and 410472 report Grade 11 strands that grow 5 to 23 times in a year, to the largest counts in the data. Silver keeps them as published; decide whether strand- and school-level results include them.
 - `enrollment_status`: `all_zero` and `no_counts` schools are kept in Silver; decide per measure whether they count as schools (S-1).
 - `barangay_possibly_truncated` and NULL `barangay`: barangay-level results for these schools are uncertain.
 - NULL counts: "not published"; in SY 2025-26 usually "level not offered". Use `schema_version` to tell a column the year lacks from a blank, and NULL-safe filters (`IS NOT TRUE`) on nullable booleans.

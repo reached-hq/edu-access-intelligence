@@ -236,6 +236,22 @@ for t in ENROLLMENT:
 for t in ENROLLMENT:
     show("S-1", f"{t}: zero-learner schools by sector = {q(f'SELECT sector, count(*) FROM {t} WHERE ({total_expr(count_columns(t))}) = 0 GROUP BY 1 ORDER BY 2 DESC')}")
 
+STRANDS = ("abm", "arts", "gas", "humss", "maritime", "sports", "stem", "tvl", "unique")
+
+
+def strand_total(table, grade, strand):
+    return f"coalesce(try_cast({table}.{grade}_{strand}_male AS BIGINT), 0) + coalesce(try_cast({table}.{grade}_{strand}_female AS BIGINT), 0)"
+
+
+for before, after in zip(ENROLLMENT, ENROLLMENT[1:]):
+    jumps = []
+    for s in STRANDS:
+        jumps += q(f"""SELECT a.school_id, '{s}', {strand_total('b', 'g11', s)}, {strand_total('a', 'g11', s)}, {strand_total('a', 'g12', s)}
+                       FROM {after} AS a JOIN {before} AS b ON a.school_id = b.school_id
+                       WHERE {strand_total('a', 'g11', s)} >= 1000 AND {strand_total('a', 'g11', s)} >= 5 * {strand_total('b', 'g11', s)}""")
+    show("S-4", f"{before} -> {after}: Grade 11 strands with 1,000+ learners and 5x the year before "
+         f"(school, strand, G11 before, G11 after, G12 after) = {sorted(jumps)}")
+
 # %% deped_facilities
 print("\n=== deped_facilities ===")
 

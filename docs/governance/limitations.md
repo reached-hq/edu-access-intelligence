@@ -6,6 +6,7 @@ What the data and methods can and cannot support, with evidence. Filled in as fi
 
 - **DepEd enrollment SY 2025-26 publishes blanks where earlier years publish 0.** All 47,232 schools that do not offer senior high have blank senior-high counts, 1,403 schools have blank kindergarten-to-grade-10 counts, and 46 schools publish no count at all. Silver keeps these NULL (D-023), so totals are unaffected, but a school-level comparison across years must not read NULL as zero. Evidence: [Silver](../operations/silver.md#what-the-bronze-data-showed-beyond-the-profile).
 - **Schools with no learners are kept, flagged.** 115 / 24 / 0 schools publish only zeros and 0 / 0 / 46 publish no count (SY 2023-24 / 2024-25 / 2025-26); whether they are closed or non-reporting is unknown (profile S-1). Gold decides per measure whether they count (`enrollment_status`).
+- **Suspected: three private schools in Maguindanao report implausible Grade 11 growth.** Schools 410978, 410977, and 410472 report a Grade 11 strand (HUMSS or Arts) that grows 5 to 23 times in one year, to 4,000 to 7,900 learners, and Grade 12 counts that do not follow the previous year's Grade 11 (profile S-4). Silver keeps the counts as published (D-023): they are below the plausible maximum, and Silver does not compare years. Gold must decide whether strand- and school-level results include these schools, and say so.
 
 ## Measurement
 
