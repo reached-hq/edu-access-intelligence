@@ -20,6 +20,7 @@ from src.ingestion.batch import load_type, load_type_for_years
 from src.ingestion.contract import source_format, years_label
 from src.ingestion.validate import identify_delivery, prepare_delivery
 from src.ingestion import workbook
+from src.ingestion import geojson_features
 
 
 class ZipCsv:
@@ -98,5 +99,28 @@ class XlsxSheet:
         return workbook.prepare_workbook(self.config, registry_entry, path)
 
 
+class GeojsonFeatures(ZipCsv):
+    """One GeoJSON file, not zipped (hdx_boundaries). Period: the reference date in the contract.
+    Versions and load type work as for a school year, with the date as the period."""
+
+    glob = "*.geojson"
+    pattern_key = "archive_pattern"
+
+    def period_from_name(self, name):
+        return None  # the reference date comes from the approved delivery, never the name
+
+    def describe(self, delivery, path):
+        period = delivery["school_year"] if delivery else None
+        return {"school_year": period, "logical_dataset": None, "estimate_years_covered": None,
+                "source_sheet": None, "period": period}
+
+    def identify(self, path):
+        return geojson_features.identify_geojson_delivery(self.config, path)
+
+    def prepare(self, registry_entry, path):
+        return geojson_features.prepare_geojson_delivery(self.config, registry_entry, path)
+
+
 def for_config(config):
-    return {"zip_csv": ZipCsv, "xlsx_sheet": XlsxSheet}[source_format(config)](config)
+    return {"zip_csv": ZipCsv, "xlsx_sheet": XlsxSheet,
+            "geojson_features": GeojsonFeatures}[source_format(config)](config)

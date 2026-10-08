@@ -28,7 +28,9 @@ from pathlib import Path
 
 from src.ingestion.errors import IngestionError
 
-FORMATS = ("zip_csv", "xlsx_sheet")
+FORMATS = ("zip_csv", "xlsx_sheet", "geojson_features")
+# A geojson_features delivery's period is its reference date (valid_on), not a school year.
+REFERENCE_DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 SUPPORTED_ENCODINGS = {"utf-8", "cp1252"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SCHOOL_YEAR = re.compile(r"^[0-9]{4}-[0-9]{2}$")
@@ -181,6 +183,9 @@ def validate_config(config, registry_entry):
 
     _check_schema_versions(config)
     versions = config["schema_versions"]
+    geojson = source_format(config) == "geojson_features"
+    if geojson:
+        _validate_geojson(config)
 
     seen_archive, seen_member, seen_version = set(), set(), set()
     by_year = {}
@@ -189,8 +194,9 @@ def validate_config(config, registry_entry):
         missing = DELIVERY_FIELDS - d.keys()
         if missing:
             raise _config_error(f"{label} is missing {sorted(missing)}.")
-        if not SCHOOL_YEAR.match(d["school_year"]):
-            raise _config_error(f"{label}: school_year {d['school_year']!r} is not like '2023-24'.")
+        period, example = (REFERENCE_DATE, "'2025-02-13'") if geojson else (SCHOOL_YEAR, "'2023-24'")
+        if not period.match(d["school_year"]):
+            raise _config_error(f"{label}: school_year {d['school_year']!r} is not like {example}.")
         checksums = [("archive_sha256", d["archive_sha256"]), ("data_member_sha256", d["data_member_sha256"])]
         checksums += [(f"document_sha256[{k}]", v) for k, v in d["document_sha256"].items()]
         for field, value in checksums:
@@ -215,6 +221,9 @@ def validate_config(config, registry_entry):
         seen_member.add(d["data_member_sha256"])
         seen_version.add(key)
         by_year.setdefault(d["school_year"], []).append(d)
+        if geojson:
+            _check_direct_file(config, d, label)
+            continue
         try:
             resolve_school_year(config, d["archive"], d["data_member"], expected=d["school_year"])
         except IngestionError as e:
@@ -231,6 +240,37 @@ def validate_config(config, registry_entry):
             if d["supersedes"] != previous:
                 want = f"supersedes = {previous!r}" if previous else "supersedes = null"
                 raise _config_error(f"{year} version {i} must have {want}.")
+
+
+GEOJSON_FIELDS = {"geometry_types", "period_column"}
+
+
+def _validate_geojson(config):
+    """A geojson_features source: one file, geometry last, a period column to check against."""
+    missing = GEOJSON_FIELDS - config.keys()
+    if missing:
+        raise _config_error(f"a geojson_features source needs {sorted(missing)}.")
+    if config["document_members"]:
+        raise _config_error("a geojson_features delivery is one file; document_members must be [].")
+    if not config["geometry_types"]:
+        raise _config_error("geometry_types must list at least one GeoJSON geometry type.")
+    stage = config.get("max_stage_bytes")
+    if stage is not None and (not isinstance(stage, int) or stage <= 0):
+        raise _config_error("max_stage_bytes must be a positive whole number.")
+    for name, version in config["schema_versions"].items():
+        columns = version["columns"]
+        if columns[-1] != "geometry" or columns.count("geometry") != 1:
+            raise _config_error(f"schema {name}: 'geometry' must be the last column, once.")
+        if config["period_column"] not in columns:
+            raise _config_error(f"schema {name} lacks the period column {config['period_column']!r}.")
+
+
+def _check_direct_file(config, d, label):
+    """A single-file delivery is its own data file, so both names and both checksums agree."""
+    if not re.fullmatch(config["archive_pattern"], d["archive"]):
+        raise _config_error(f"{label}: does not match archive_pattern {config['archive_pattern']!r}.")
+    if d["data_member"] != d["archive"] or d["data_member_sha256"] != d["archive_sha256"]:
+        raise _config_error(f"{label}: data_member and data_member_sha256 must equal archive and archive_sha256.")
 
 
 def resolve_school_year(config, archive_name, member_name, expected=None):
