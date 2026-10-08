@@ -10,6 +10,8 @@ The two Silver SQL tasks of `edu_access_pipeline`, run by Spark on the SQL wareh
 
 The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed with `databricks bundle deploy --target dev --profile reached-hq` from a clean checkout of the pushed commit `7d93d8ee51efd82a714b3b07ed6c985c5aecede8`. Read back from the job before running: `git_source.git_commit` and the `code_revision` parameter both equal that commit, and the two Silver tasks are enabled. No other job run was active and the SQL warehouse was stopped. The job was then run twice with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`. Times are Manila (UTC+8).
 
+<!-- Screenshot: Job details: Git source at commit 7d93d8e, the two Silver tasks enabled -->
+
 | | Run 1 | Run 2 |
 |---|---|---|
 | Job run (`run_id` of the Silver rows) | `938255750884504` | `366050291737676` |
@@ -22,6 +24,9 @@ The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed 
 | `90_validate_deped_enrollment_clean` | 50 s | 44 s |
 
 No task waited in a queue, and only the Python tasks had setup time (at most 3 s). The Silver build is about one second of work locally; on the warehouse it takes 30 to 42 s, which is the cost of its statements, not of the data.
+
+<!-- Screenshot: Run 1 task graph: control setup, four parallel Bronze lanes, then 01_clean_deped_enrollment and 90_validate_deped_enrollment_clean, every enabled task green -->
+<!-- Screenshot: Run 2 task graph: the same 20 tasks green -->
 
 ## Results
 
@@ -50,6 +55,8 @@ The one-query verification from [Silver, Running on Databricks](../../docs/opera
 
 `dev` holds two more succeeded `silver_build` runs, at `e9b3a47` (below), so the check counts the runs of the commit that ran.
 
+<!-- Screenshot: Verification query after run 2: 18 rows, all OK -->
+
 Also checked on the warehouse:
 
 | Check | Result |
@@ -61,11 +68,22 @@ Also checked on the warehouse:
 | Identical rebuild | Delta versions 3 (run 1) and 4 (run 2) of `deped_enrollment_clean`, without `run_id`, `cleaned_at_utc`, and `code_revision`: 0 rows in either `EXCEPT ALL` direction |
 | No real row changed by the last fixes | Version 2 (built at `e9b3a47`, before the BIGINT sums and the plausible maximum) and version 4: 0 rows in either direction |
 
+<!-- Screenshot: Gate results of the two runs: bronze PASS 24, silver PASS 232 -->
+<!-- Screenshot: The new checks in run 2: counts_within_plausible_max 3, quarantine_reason_count_above_plausible_max 3, all PASS -->
+<!-- Screenshot: Loads of run 2: 4 rows, all succeeded, 0 loaded (enrollment skipped 3, the others 1) -->
+<!-- Screenshot: Column types: INT 66 -->
+<!-- Screenshot: Owners: deped_enrollment_clean and deped_enrollment_quarantine owned by reached-hq -->
+<!-- Screenshot: DESCRIBE HISTORY deped_enrollment_clean: versions 3 and 4 are the two runs -->
+<!-- Screenshot: Versions 3 and 4 compared: 0 and 0 -->
+<!-- Screenshot: Versions 2 and 4 compared: 0 and 0 -->
+
 What these runs confirm that the local runs could not (D-017): Spark runs the generated SQL as DuckDB does, including session variables read by a temporary view, `translate` with `chr(160)`, `regexp_like`, `regexp_replace`, the CTE inside `INSERT`, `MERGE` with session variables, job parameters reaching both SQL file tasks, and `CREATE OR REPLACE TABLE` with ownership handed to the group on existing Unity Catalog tables.
 
 ## Earlier runs at `e9b3a47`
 
 Before the BIGINT sums, the plausible maximum, and finding S-4, the job was deployed at `e9b3a474a7c47c19681beeb033cc0da634079362` and run twice (`264658514180258`, `429750819114716`, 2026-10-09 00:49 to 01:12 Manila). Both runs `SUCCESS`; the same verification gave every check OK with 110 gate checks (the two new checks did not exist yet), and versions 1 and 2 were identical. In the first of those runs `add_control_columns` took 730 s instead of 16 to 49 s, all of it counted as execution with no queue; the next run took 16 s. It was serverless start-up on Free Edition, not this change, which does not touch that task.
+
+<!-- Screenshot: Run 264658514180258 (e9b3a47): add_control_columns at about 12 minutes, the start-up delay -->
 
 ## Limitations
 
