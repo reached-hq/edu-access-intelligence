@@ -1,6 +1,7 @@
 """DepEd personnel contract, Bronze loading, and rerun behavior."""
 
 from factories.deped_deliveries import approve, columns, empty_config, fake_repo, make_delivery, make_rows
+from src.ingestion import control
 from src.ingestion.pipeline import IngestionRun
 from src.ingestion.store import DuckDBStore
 from src.ingestion.validate import PASS, prepare_delivery
@@ -55,3 +56,18 @@ def test_personnel_loads_once_preserves_blanks_and_has_provenance(tmp_path):
     ]
     missing = " OR ".join(f"{column} IS NULL" for column in provenance)
     assert store.query(f"SELECT COUNT(*) FROM {PERSONNEL} WHERE {missing}")[0][0] == 0
+
+
+def test_personnel_load_tolerates_new_nullable_control_columns(tmp_path):
+    """The shared Databricks control tables may be upgraded by another branch first."""
+    config = empty_config(SOURCE)
+    deliver(tmp_path, config)
+    repo = fake_repo(tmp_path / "repo", config)
+    store = DuckDBStore()
+    control.create_tables(store, repo)
+    store.sql("ALTER TABLE edu_access.`01-control`.pipeline_runs ADD COLUMN job_run_id STRING")
+
+    summary = run(store, repo, tmp_path)
+
+    assert summary.status == "succeeded"
+    assert store.query("SELECT job_run_id FROM edu_access.`01-control`.pipeline_runs") == [(None,)]
