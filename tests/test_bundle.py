@@ -183,22 +183,25 @@ def test_parallel_stages_fan_in_only_at_the_next_stage(jobs):
         assert {d["task_key"] for d in tasks[key]["depends_on"]} == fact_gates
 
 
-def test_a_load_that_skips_its_gate_is_followed_by_it(jobs, repo_root):
-    """`ingest --no-gate` leaves the Bronze gate to the next task; that task must be the gate
-    of the same source, and run only if the load succeeded. No source loads unchecked."""
+def test_a_load_that_skips_its_gate_is_gated_by_it(jobs, repo_root):
+    """`ingest --no-gate` leaves the Bronze gate to its own task. Databricks orders tasks by
+    depends_on, not by their place in the file, so that gate must depend on this load, run only
+    if the load succeeded, and be enabled whenever the load is. No source loads unchecked."""
+    registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text(encoding="utf-8"))
+    tables = {entry["source_id"]: entry["bronze"]["table"] for entry in registry["source_tables"]}
     for name, job in jobs.items():
-        tasks = job["tasks"]
-        for i, task in enumerate(tasks):
-            if "spark_python_task" not in task or "--no-gate" not in task["spark_python_task"]["parameters"]:
+        for _, load in loads({name: job}):
+            if "--no-gate" not in load["spark_python_task"]["parameters"]:
                 continue
-            source = argument(task, "--source")
-            registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text(encoding="utf-8"))
-            table = next(entry["bronze"]["table"] for entry in registry["source_tables"]
-                         if entry["source_id"] == source)
-            gate = tasks[i + 1] if i + 1 < len(tasks) else {}
-            assert gate.get("sql_task", {}).get("file", {}).get("path") == f"etl/02_bronze/90_validate_{table}.sql", (
-                f"{name}/{task['task_key']} skips its gate, so the next task must run 90_validate_{table}.sql")
+            path = f"etl/02_bronze/90_validate_{tables[argument(load, '--source')]}.sql"
+            found = [t for t in job["tasks"] if t.get("sql_task", {}).get("file", {}).get("path") == path]
+            assert len(found) == 1, f"{name}/{load['task_key']} skips its gate, so one task must run {path}"
+            gate = found[0]
+            assert {"task_key": load["task_key"]} in gate.get("depends_on", []), (
+                f"{name}/{gate['task_key']} must depend on {load['task_key']}, or it can run before the load finishes")
             assert gate.get("run_if") == "ALL_SUCCESS"
+            if not load.get("disabled"):
+                assert not gate.get("disabled"), f"{name}/{load['task_key']} runs but its gate is disabled"
 
 
 def test_job_loads_leave_table_setup_to_explicit_sql_tasks(jobs):
