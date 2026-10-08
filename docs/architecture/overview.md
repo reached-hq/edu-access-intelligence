@@ -31,7 +31,7 @@ The stage numbers follow one rule: a stage number matches its `etl/` folder and 
 
 <!-- TODO(Phase 5): diagram from sources to dashboards. -->
 
-Built so far, Source to Bronze ([ingestion](../operations/ingestion.md)), for zips (DepEd) and workbooks (PSA Poverty Stat):
+Built so far, Source to Bronze ([ingestion](../operations/ingestion.md)), for zips (DepEd), workbooks (PSA Poverty Stat), and GeoJSON (COD-AB boundaries):
 
 ```
 official download ─▶ 00-source volume ─▶ checksum + approved contract ─▶ validate ─▶ MERGE ─▶ 02-bronze
@@ -71,13 +71,17 @@ Raw files go to the managed volume `` edu_access.`00-source`.raw ``, one folder 
 │   └── 2027-08-15/                         a later download (example date)
 │       ├── Enrollment-in-SY-2026-2027.zip
 │       └── SHA256SUMS.txt
-└── psa/
-    ├── 2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx   psa_poverty_stat, uploaded 2026-09-30
-    ├── SHA256SUMS.txt
-    └── ...                                         other PSA files
+├── psa/
+│   ├── 2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx   psa_poverty_stat, uploaded 2026-09-30
+│   ├── SHA256SUMS.txt
+│   └── ...                                         other PSA files
+└── admin_boundaries/
+    ├── phl_admin3.geojson                  hdx_boundaries (ADM3), uploaded <date>
+    ├── phl_admin4.geojson                  ADM4, not ingested
+    └── SHA256SUMS.txt
 ```
 
-Ingestion identifies files by SHA-256, not by path (D-014). A PSA workbook is one delivery covering several estimate years (D-018).
+Ingestion identifies files by SHA-256, not by path (D-014). A PSA workbook is one delivery covering several estimate years (D-018). A COD-AB boundary file is one GeoJSON delivery whose geometry is kept as text (D-020).
 
 This is provisional (D-009): if the mentor approves the course R2 bucket, an R2-backed volume is added next to it. Local copies for profiling live outside the repository in `raw-data/` ([terminal setup, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)).
 

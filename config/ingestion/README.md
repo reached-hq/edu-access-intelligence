@@ -60,3 +60,15 @@ Each approved workbook pins `logical_dataset`, `estimate_years` (must equal the 
 
 `known_issues` lists publisher quirks found in profiling. Each is recorded as a WARN with its profiled count beside the actual count; none blocks a batch, and none changes a value. Checks available: `identifier_shorter_than`, `unit_rows_all_values_blank`, `label_equals`, `number_at_most`, `number_above`, `se_disagrees_with_cv` (see `src/ingestion/workbook.py`).
 
+## GeoJSON contracts (`"format": "geojson_features"`)
+
+`hdx_boundaries.json` describes one GeoJSON FeatureCollection per delivery, not zipped (D-020). It uses the same fields as a zip contract, with these differences:
+
+- `archive_pattern` and `data_member_pattern` both match the file itself (`^phl_admin3\.geojson$`), and `document_members` is `[]`.
+- `geometry_types`: the expected geometry types (`Polygon`, `MultiPolygon`); any other type is a WARN.
+- `period_column`: the property every feature's value must equal the delivery's period (`valid_on`).
+- `max_stage_bytes` (optional): rows are merged in chunks of at most this many bytes of text (64,000,000), because one polygon can be megabytes.
+- Each schema version lists the properties in file order, then `geometry` last.
+
+Each approved delivery pins the same fields as a zip delivery, but `archive` and `data_member` are both the file name, `archive_sha256` and `data_member_sha256` are both the file's SHA-256, `document_sha256` is `{}`, and `school_year` holds the file's reference date (`2025-02-13`), not a school year.
+
