@@ -366,6 +366,28 @@ def test_the_gate_catches_a_lost_row_and_a_stale_row(env):
                                                  "rows_built_by_this_run", "rows_reconcile"]
 
 
+BROKEN_BUILDS = [
+    ("rows_resolve_to_current_bronze", "source_row_number = 99999"),
+    ("one_timestamp_per_run", "cleaned_at_utc = cleaned_at_utc + INTERVAL 1 SECOND"),
+    ("lineage_complete", "batch_id = NULL"),
+    ("absent_columns_stay_null", "g11_sshs_acad_male = 0"),
+    ("counts_non_negative", "g1_male = -1"),
+    ("school_id_unique", "school_id = '900001'"),
+    ("school_id_valid", "school_id = 'X'"),
+    ("enrollment_status_valid", "enrollment_status = 'other'"),
+]
+
+
+@pytest.mark.parametrize("check, tamper", BROKEN_BUILDS, ids=[check for check, _ in BROKEN_BUILDS])
+def test_each_gate_check_fails_a_broken_build(env, check, tamper):
+    """Checks the cleaning rules cannot trip on their own: each must still fail a build that breaks it."""
+    env.deliver("2023-24", n_rows=4)
+    env.bronze()
+    summary = env.silver(hook=lambda: env.store.sql(f"UPDATE {CLEAN} SET {tamper} WHERE school_id = '900002'"))
+    assert summary.status == "failed"
+    assert check in env.failed_checks(summary.run_id)
+
+
 def test_lineage_and_code_revision_on_every_row_and_result(env):
     env.deliver("2023-24")
     env.deliver("2025-26", "v2", rows=[v2_row(0)])
