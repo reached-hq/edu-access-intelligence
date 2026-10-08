@@ -54,6 +54,7 @@ Counts are from the local run on the real Bronze data, current batches only (ver
 | `school_id` kept as text, exactly six digits, unique per year | O-1 | quarantine | A key that is blank, malformed, or repeated cannot be trusted | 0 | 0 | 0 | The quarantined rows, until resolved |
 | Counts to INT when 1–9 digits | O-2 | transform | Whole numbers type without loss | 0 not castable | 0 | 0 | None |
 | Negative or non-whole count | O-2 | quarantine | A count cannot be negative or fractional | 0 | 0 | 0 | The quarantined rows |
+| Count above 10,000 (`plausible_max`) | O-2 | quarantine | The largest published count is 4,097; above 10,000 is a count with an extra digit, which reconciliation cannot see | 0 | 0 | 0 | The quarantined rows |
 | Blank count stays NULL, not 0 (rows with a blank count) | O-16, Bronze | transform | Never invent a value; in SY 2025-26 blank means "not published" | 60,167 | 0 | 48,709 | None |
 | Column absent from the year's file stays NULL (rows) | O-7 | transform | Told apart from a blank by `schema_version` (`v1`) | 60,167 | 60,129 | 0 | None |
 | Learners unchanged by cleaning (`learners_reconcile`) | O-3 | fail if not | Cleaning must move no learner | 27,081,292 | 26,400,182 | 25,935,863 | — |
@@ -83,7 +84,7 @@ Profiling Bronze rather than the raw files confirmed every count above, and foun
 
 ## Quarantine
 
-`deped_enrollment_quarantine` holds `school_year`, `school_id` as published, `quarantine_reasons` (every reason that applies), the Bronze lineage, and the run stamp. Read the published values from Bronze by `source_sha256` and `source_row_number`. Reasons: `school_id_blank`, `school_id_malformed`, `school_id_duplicated`, `count_negative`, `count_uncastable` (D-024). The three acquired years quarantine nothing.
+`deped_enrollment_quarantine` holds `school_year`, `school_id` as published, `quarantine_reasons` (every reason that applies), the Bronze lineage, and the run stamp. Read the published values from Bronze by `source_sha256` and `source_row_number`. Reasons: `school_id_blank`, `school_id_malformed`, `school_id_duplicated`, `count_negative`, `count_uncastable`, `count_above_plausible_max` (D-024). The three acquired years quarantine nothing.
 
 A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR school_id = ''`), and the reasons string is never NULL, so the split into the two tables cannot lose a row whose `school_id` is NULL; `tests/test_silver.py` proves it with such a row.
 
@@ -96,6 +97,7 @@ A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR s
 | `rows_reconcile` | school year | Bronze current rows ≠ clean + quarantined |
 | `school_id_unique`, `school_id_valid` | school year | A key repeats, is NULL, or is not six digits in the clean table |
 | `counts_non_negative` | school year | A count is negative |
+| `counts_within_plausible_max` | school year | A count is above 10,000 in the clean table |
 | `learners_reconcile` | school year | Clean learners ≠ Bronze learners of the same rows |
 | `missing_counts_stay_null` | school year | NULL count cells in clean ≠ blank or absent cells in Bronze (catches blank → 0) |
 | `absent_columns_stay_null` | school year | A column the year's schema lacks is filled |
@@ -114,7 +116,7 @@ A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR s
 | WARN | Rows were quarantined (at most 1% of a year) | Recorded; the build stands; the source owner reviews the reasons |
 | FAIL | The Silver tables cannot be trusted | The gate task fails and `pipeline_runs` says `failed`; the tables hold that build until the next run rebuilds them, and Gold must not read them. Other source lanes are independent and keep running |
 
-The local run on the real data recorded 110 results, all PASS.
+The local run on the real data recorded 116 results, all PASS.
 
 ## Every run rebuilds, and every run is recorded
 
@@ -203,7 +205,7 @@ checks AS (
   UNION ALL SELECT 'mangled Ã‘ left', '0', CAST(COUNT_IF(barangay LIKE '%Ã‘%' OR street_address LIKE '%Ã‘%') AS STRING) FROM c
   UNION ALL SELECT 'overseas flagged', '104', CAST(COUNT_IF(is_overseas) AS STRING) FROM c
   UNION ALL SELECT 'no counts published, SY 2025-26', '46', CAST(COUNT_IF(enrollment_status = 'no_counts') AS STRING) FROM c
-  UNION ALL SELECT 'checks in the last run', '110', CAST(COUNT(*) AS STRING) FROM d
+  UNION ALL SELECT 'checks in the last run', '116', CAST(COUNT(*) AS STRING) FROM d
   UNION ALL SELECT 'checks in the last run not PASS', '0', CAST(COUNT_IF(status <> 'PASS') AS STRING) FROM d
   UNION ALL SELECT 'rows from the last run', '180500', CAST(COUNT_IF(run_id = (SELECT run_id FROM last_run)) AS STRING) FROM c
   UNION ALL SELECT 'rows from another commit', '0', CAST(COUNT_IF(code_revision <> '<commit that ran>') AS STRING) FROM c

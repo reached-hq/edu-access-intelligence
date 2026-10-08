@@ -250,13 +250,26 @@ def test_negative_and_uncastable_counts_are_quarantined_with_reasons_not_dropped
 
 
 def test_nine_digit_counts_do_not_overflow_the_build(env):
-    """Three counts of 999,999,999 add up past INT; every sum of counts is taken in BIGINT."""
+    """Three counts of 999,999,999 add up past INT; every sum of counts is taken in BIGINT, so the
+    build finishes and the row is quarantined instead of the run crashing."""
     big = {c: "999999999" for c in ("g1_male", "g1_female", "g2_male")}
     env.deliver("2023-24", rows=v1_rows(200, {0: big}))
     env.bronze()
     summary = env.silver()
-    assert summary.status == "succeeded", summary.error
-    assert env.one(f"SELECT enrollment_status FROM {CLEAN} WHERE school_id = '900001'") == "has_learners"
+    assert summary.status == "succeeded", summary.error                # 1 of 200 rows: under 1%, so WARN
+    assert env.q(f"SELECT school_id, quarantine_reasons FROM {QUARANTINE}") == [("900001", ["count_above_plausible_max"])]
+
+
+def test_a_count_above_the_plausible_maximum_is_quarantined_and_the_maximum_is_kept(env):
+    """O-2: the largest published count is 4,097; a count above 10,000 (an extra digit) cannot be trusted."""
+    env.deliver("2023-24", rows=v1_rows(200, {0: {"g1_male": "40000"}, 1: {"g1_male": "10000"}}))
+    env.bronze()
+    summary = env.silver()
+    assert summary.status == "succeeded"
+    assert env.q(f"SELECT school_id, quarantine_reasons FROM {QUARANTINE}") == [("900001", ["count_above_plausible_max"])]
+    assert env.one(f"SELECT g1_male FROM {CLEAN} WHERE school_id = '900002'") == 10000
+    warned = {name for name, _ in env.checks(summary.run_id, "WARN")}
+    assert warned == {"quarantine_rate", "quarantine_reason_count_above_plausible_max"}
 
 
 def test_nine_digit_counts_do_not_overflow_the_gate(env):
@@ -392,6 +405,7 @@ BROKEN_BUILDS = [
     ("lineage_complete", "batch_id = NULL"),
     ("absent_columns_stay_null", "g11_sshs_acad_male = 0"),
     ("counts_non_negative", "g1_male = -1"),
+    ("counts_within_plausible_max", "g1_male = 10001"),
     ("school_id_unique", "school_id = '900001'"),
     ("school_id_valid", "school_id = 'X'"),
     ("enrollment_status_valid", "enrollment_status = 'other'"),
@@ -573,6 +587,7 @@ def test_a_new_publisher_column_needs_a_reviewed_mapping():
     (lambda m: m["booleans"]["true"].append("No"), "both true and false"),
     (lambda m: m.update(silver_table="enrollment_silver"), "config/tables.yml"),
     (lambda m: m["free_text_columns"].append("school_head"), "contract does not have"),
+    (lambda m: m["count_columns"].update(plausible_max=10 ** 9), "plausible_max must be"),
 ])
 def test_the_mapping_refuses_ambiguous_rules(break_it, message):
     mapping = json.loads((REPO_ROOT / "config" / "mappings" / "deped_enrollment.json").read_text(encoding="utf-8"))

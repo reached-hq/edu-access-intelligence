@@ -444,7 +444,74 @@ typed AS (
          OR (n.g11_sshs_acad_female <> '' AND NOT regexp_like(n.g11_sshs_acad_female, '^[0-9]{1,9}$') AND NOT regexp_like(n.g11_sshs_acad_female, '^-[0-9]+$'))
          OR (n.g11_sshs_techpro_male <> '' AND NOT regexp_like(n.g11_sshs_techpro_male, '^[0-9]{1,9}$') AND NOT regexp_like(n.g11_sshs_techpro_male, '^-[0-9]+$'))
          OR (n.g11_sshs_techpro_female <> '' AND NOT regexp_like(n.g11_sshs_techpro_female, '^[0-9]{1,9}$') AND NOT regexp_like(n.g11_sshs_techpro_female, '^-[0-9]+$'))
-      THEN 'count_uncastable' END
+      THEN 'count_uncastable' END,
+      CASE WHEN CASE WHEN regexp_like(n.kinder_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.kinder_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.kinder_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.kinder_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g1_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g1_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g1_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g1_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g2_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g2_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g2_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g2_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g3_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g3_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g3_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g3_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g4_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g4_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g4_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g4_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g5_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g5_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g5_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g5_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g6_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g6_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g6_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g6_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.esng_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.esng_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.esng_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.esng_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g7_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g7_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g7_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g7_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g8_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g8_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g8_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g8_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g9_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g9_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g9_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g9_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g10_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g10_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g10_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g10_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.jhsng_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.jhsng_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.jhsng_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.jhsng_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_abm_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_abm_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_abm_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_abm_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_arts_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_arts_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_arts_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_arts_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_gas_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_gas_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_gas_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_gas_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_humss_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_humss_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_humss_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_humss_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_maritime_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_maritime_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_maritime_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_maritime_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_sports_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_sports_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_sports_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_sports_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_stem_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_stem_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_stem_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_stem_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_tvl_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_tvl_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_tvl_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_tvl_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_unique_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_unique_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_unique_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_unique_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_abm_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_abm_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_abm_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_abm_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_arts_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_arts_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_arts_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_arts_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_gas_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_gas_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_gas_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_gas_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_humss_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_humss_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_humss_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_humss_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_maritime_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_maritime_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_maritime_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_maritime_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_sports_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_sports_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_sports_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_sports_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_stem_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_stem_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_stem_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_stem_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_tvl_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_tvl_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_tvl_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_tvl_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_unique_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_unique_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g12_unique_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g12_unique_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_sshs_acad_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_sshs_acad_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_sshs_acad_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_sshs_acad_female AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_sshs_techpro_male, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_sshs_techpro_male AS BIGINT) END > 10000
+         OR CASE WHEN regexp_like(n.g11_sshs_techpro_female, '^[0-9]{1,9}$') THEN TRY_CAST(n.g11_sshs_techpro_female AS BIGINT) END > 10000
+      THEN 'count_above_plausible_max' END
     ) AS quarantine_reasons,
     n.batch_id,
     n.delivery_version,

@@ -21,6 +21,7 @@ QUARANTINE_MEANING = {
     "school_id_duplicated": "the same `school_id` appears more than once in the school year; every copy is set aside",
     "count_negative": "a count is a negative whole number",
     "count_uncastable": "a count is not blank and not a whole number of at most nine digits (e.g. `5.0`, `abc`)",
+    "count_above_plausible_max": "a count is above the reviewed plausible maximum ({plausible_max}), e.g. a count with an extra digit",
 }
 
 
@@ -103,7 +104,8 @@ def dictionary_markdown(spec):
     lines += [f"| `{name}` | {kind.upper()} | {LINEAGE_MEANING[name]} |"
               for name, kind in spec.quarantine_columns() if name in LINEAGE_MEANING]
     lines += ["", "| Reason | Meaning |", "|---|---|"]
-    lines += [f"| `{r}` | {QUARANTINE_MEANING[r]} |" for r in QUARANTINE_REASONS]
+    lines += [f"| `{r}` | {QUARANTINE_MEANING[r].format(plausible_max=f'{spec.plausible_max:,}')} |"
+              for r in QUARANTINE_REASONS]
     lines += ["", "## Renamed columns", "", "| Bronze column | Silver column | Why |", "|---|---|---|"]
     lines += [f"| `{src}` | `{r['to']}` | {r['reason']} |" for src, r in m.get("renames", {}).items()]
     lines += ["", "## Category labels", "",

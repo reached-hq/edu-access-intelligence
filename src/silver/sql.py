@@ -139,6 +139,7 @@ def build_sql(spec):
     negative = any_of([f"regexp_like(n.{c.name}, {lit(NEGATIVE)})" for c in counts], 9)
     uncastable = any_of([f"(n.{c.name} <> '' AND NOT regexp_like(n.{c.name}, {lit(whole_number(spec))}) "
                          f"AND NOT regexp_like(n.{c.name}, {lit(NEGATIVE)}))" for c in counts], 9)
+    implausible = any_of([f"{typed_count(spec, 'n.' + c.name, 'BIGINT')} > {spec.plausible_max}" for c in counts], 9)
     ident = f"n.{spec.identifier}"
     typed.append(
         "concat_ws(',',\n"
@@ -146,7 +147,8 @@ def build_sql(spec):
         f"           WHEN NOT regexp_like({ident}, {lit(spec.identifier_pattern)}) THEN 'school_id_malformed' END,\n"
         f"      CASE WHEN {ident} <> '' AND n.{spec.identifier}_rows > 1 THEN 'school_id_duplicated' END,\n"
         f"      CASE WHEN {negative}\n      THEN 'count_negative' END,\n"
-        f"      CASE WHEN {uncastable}\n      THEN 'count_uncastable' END\n"
+        f"      CASE WHEN {uncastable}\n      THEN 'count_uncastable' END,\n"
+        f"      CASE WHEN {implausible}\n      THEN 'count_above_plausible_max' END\n"
         "    ) AS quarantine_reasons")
     typed += [f"n.{name}" for name in lineage]
 
@@ -305,6 +307,7 @@ def gate_sql(spec):
         f"COUNT(DISTINCT c.{spec.identifier}) AS clean_ids",
         f"COUNT_IF(c.{spec.identifier} IS NULL OR NOT regexp_like(c.{spec.identifier}, {lit(spec.identifier_pattern)})) AS invalid_ids",
         "COUNT_IF(\n        " + any_of([f"c.{x.name} < 0" for x in counts], 8) + "\n      ) AS negative_rows",
+        "COUNT_IF(\n        " + any_of([f"c.{x.name} > {spec.plausible_max}" for x in counts], 8) + "\n      ) AS implausible_rows",
         f"SUM(\n        {clean_learners}\n      ) AS clean_learners",
         f"SUM(\n        {clean_missing}\n      ) AS clean_missing_counts",
         ("COUNT_IF(\n        " + any_of(absent_filled, 8) + "\n      ) AS absent_filled_rows") if absent_filled else "0 AS absent_filled_rows",
@@ -329,7 +332,7 @@ def gate_sql(spec):
                     "COALESCE(clean_missing_counts, 0) AS clean_missing_counts",
                     "COALESCE(quarantined_rows, 0) AS quarantined_rows"]
     passthrough = ["whitespace_rows", "repaired_rows", "blank_text_rows", "placeholder_rows", "blank_count_rows",
-                   "absent_column_rows", "invalid_ids", "negative_rows", "absent_filled_rows", "overseas_rows",
+                   "absent_column_rows", "invalid_ids", "negative_rows", "implausible_rows", "absent_filled_rows", "overseas_rows",
                    "all_zero_rows", "no_counts_rows", "invalid_status_rows", "truncated_rows",
                    f"{spec.barangay}_null_rows", "relabelled_rows", *[f"reason_{r}" for r in QUARANTINE_REASONS]]
     year_columns += [f"COALESCE({name}, 0) AS {name}" for name in passthrough]
@@ -370,6 +373,7 @@ def gate_sql(spec):
         must_be_zero("school_id_unique", clean_name, "clean_rows - clean_ids"),
         must_be_zero("school_id_valid", clean_name, "invalid_ids"),
         must_be_zero("counts_non_negative", clean_name, "negative_rows"),
+        must_be_zero("counts_within_plausible_max", clean_name, "implausible_rows"),
         must_equal("learners_reconcile", clean_name, "kept_learners", "clean_learners"),
         must_equal("missing_counts_stay_null", clean_name, "kept_missing_counts", "clean_missing_counts"),
         must_be_zero("absent_columns_stay_null", clean_name, "absent_filled_rows"),

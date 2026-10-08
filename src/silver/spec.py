@@ -38,6 +38,7 @@ QUARANTINE_REASONS = (
     "school_id_duplicated",
     "count_negative",
     "count_uncastable",
+    "count_above_plausible_max",
 )
 
 ENROLLMENT_STATUSES = ("has_learners", "all_zero", "no_counts")
@@ -92,6 +93,7 @@ class SilverSpec:
     identifier: str
     identifier_pattern: str
     max_digits: int
+    plausible_max: int                 # a count above it quarantines the row
     columns: list                      # publisher columns, in Silver order
     categories: dict                   # Silver column -> Category
     boolean_true: list
@@ -212,6 +214,9 @@ def build_spec(mapping, contract, registry_entry):
     barangay = mapping["barangay"]["column"]
     if kinds.get(barangay) != FREE_TEXT:
         raise _error(f"barangay column {barangay!r} must be free text.")
+    max_digits, plausible_max = mapping["count_columns"]["max_digits"], mapping["count_columns"]["plausible_max"]
+    if not (isinstance(plausible_max, int) and 0 < plausible_max < 10 ** max_digits):
+        raise _error(f"plausible_max must be a whole number from 1 to {10 ** max_digits - 1}.")
 
     literals = [mapping["identifier"]["pattern"], *true, *false,
                 *[v for c in parsed.values() for v in (*c.standard, *c.labels)],
@@ -224,7 +229,8 @@ def build_spec(mapping, contract, registry_entry):
         IDENTIFIER: ("Kept as published; a blank, malformed, or repeated value quarantines the row", mapping["identifier"].get("finding", "")),
         FREE_TEXT: ("Character repair, whitespace trimmed and collapsed, blank to NULL", "O-5, O-15, O-17"),
         BOOLEAN: (f"{'/'.join(true)} to TRUE, {'/'.join(false)} to FALSE, blank to NULL; any other label fails the gate", mapping["booleans"].get("finding", "")),
-        COUNT: ("Whole number to INT; blank or absent to NULL, never 0; negative or not castable quarantines the row", mapping["count_columns"].get("finding", "")),
+        COUNT: (f"Whole number to INT; blank or absent to NULL, never 0; negative, not castable, or above {plausible_max:,} "
+                "quarantines the row", mapping["count_columns"].get("finding", "")),
     }
     columns = []
     order = [c for c in published if kinds[silver_name[c]] != COUNT] + [c for c in published if kinds[silver_name[c]] == COUNT]
@@ -250,7 +256,7 @@ def build_spec(mapping, contract, registry_entry):
         source_id=source_id, bronze_table=contract["bronze_table"], clean_file=registry_entry["silver"]["clean_file"],
         clean_table=mapping["silver_table"],
         quarantine_table=mapping["quarantine_table"], identifier=identifier,
-        identifier_pattern=mapping["identifier"]["pattern"], max_digits=mapping["count_columns"]["max_digits"],
+        identifier_pattern=mapping["identifier"]["pattern"], max_digits=max_digits, plausible_max=plausible_max,
         columns=columns, categories=parsed, boolean_true=true, boolean_false=false, repairs=repairs,
         placeholders=placeholders, barangay=barangay, barangay_cap=mapping["barangay"]["length_cap"],
         overseas=overseas, absent=absent, mapping=mapping,
