@@ -79,6 +79,18 @@ def test_each_task_passes_the_revision_and_target_on(jobs):
             f"{name}/{task['task_key']} must record the deploy target as its environment")
 
 
+def test_each_load_records_the_job_run_its_gate_uses(jobs):
+    """The Bronze gate task writes data_quality_results under :run_id; the load stores the same
+    value as job_run_id, or the two cannot be joined (D-020)."""
+    for name, job in jobs.items():
+        parameters = {p["name"]: p["default"] for p in job.get("parameters", [])}
+        assert parameters.get("run_id") == "{{job.run_id}}"
+        for task in job["tasks"]:
+            if task.get("spark_python_task", {}).get("python_file") == "src/ingestion/cli.py":
+                assert argument(task, "--job-run-id") == "{{job.parameters.run_id}}", (
+                    f"{name}/{task['task_key']} does not record the job run its gate uses")
+
+
 def test_python_tasks_read_their_file_from_git(jobs):
     """Without source: GIT the jobs API rejects a repository-relative python_file (seen on deploy, 2026-10-06)."""
     for name, task in python_tasks(jobs):

@@ -126,6 +126,8 @@ resources:
               - ${bundle.target}
               - --code-revision
               - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
 
         - task_key: 90_validate_deped_enrollment_raw
           depends_on:
@@ -192,6 +194,8 @@ resources:
               - ${bundle.target}
               - --code-revision
               - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
 
         - task_key: 90_validate_deped_facilities_raw
           depends_on:
@@ -260,6 +264,8 @@ resources:
               - ${bundle.target}
               - --code-revision
               - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
 
         - task_key: 90_validate_deped_personnel_raw
           disabled: true
@@ -327,6 +333,8 @@ resources:
               - ${bundle.target}
               - --code-revision
               - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
 
         - task_key: 90_validate_psa_psgc_raw
           depends_on:
@@ -393,6 +401,8 @@ resources:
               - ${bundle.target}
               - --code-revision
               - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
 
         - task_key: 90_validate_psa_poverty_stat_raw
           depends_on:
@@ -461,6 +471,8 @@ resources:
               - ${bundle.target}
               - --code-revision
               - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
 
         - task_key: 90_validate_hdx_adm3_raw
           disabled: true

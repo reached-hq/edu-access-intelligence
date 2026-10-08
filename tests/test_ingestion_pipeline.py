@@ -16,7 +16,7 @@ import pytest
 from factories.deped_deliveries import (
     REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows, real_config, write_config,
 )
-from src.ingestion import cli, pipeline
+from src.ingestion import cli, control, pipeline
 from src.ingestion.bronze import bronze_ddl, bronze_gate
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
@@ -56,9 +56,10 @@ class Env:
         write_config(self.repo, self.config)
         return entry
 
-    def run(self, rerun=(), hook=None, environment="local", run_gate=True):
+    def run(self, rerun=(), hook=None, environment="local", run_gate=True, setup_tables=True, job_run_id=None):
         return IngestionRun(self.store, self.repo, "deped_enrollment", self.landing, environment, REVISION,
-                            rerun_batch_ids=rerun, hook=hook, run_gate=run_gate).execute()
+                            rerun_batch_ids=rerun, hook=hook, run_gate=run_gate, setup_tables=setup_tables,
+                            job_run_id=job_run_id).execute()
 
     def q(self, sql):
         return self.store.query(sql)
@@ -387,6 +388,59 @@ def test_the_gate_can_run_as_its_own_step(env):
         env.store.run_file(gate, {"run_id": "job-run-1", "code_revision": REVISION})
     assert env.one(f"SELECT status FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-1' "
                    "AND check_name = 'rows_have_a_known_batch'") == "FAIL"
+
+
+def test_a_job_load_can_be_joined_to_its_gate_task(env):
+    """The job's load and its gate task have different run ids; job_run_id on pipeline_runs links
+    them, so a load's true outcome is its run row plus its gate's rows (D-020)."""
+    env.deliver("2023-24")
+    manual = env.run()
+    loaded = env.run(run_gate=False, job_run_id="job-run-7")
+    gate = env.repo / "etl" / "02_bronze" / "90_validate_deped_enrollment_raw.sql"
+    env.store.run_file(gate, {"run_id": "job-run-7", "code_revision": REVISION})
+    assert env.one(f"SELECT job_run_id FROM {CONTROL}.pipeline_runs WHERE run_id = '{manual.run_id}'") is None
+    assert env.q(f"""
+        SELECT r.status, COUNT(q.check_name), COUNT_IF(q.status = 'FAIL')
+        FROM {CONTROL}.pipeline_runs AS r
+        JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
+        WHERE r.run_id = '{loaded.run_id}' AND q.layer = 'bronze'
+        GROUP BY r.status""") == [("succeeded", 3, 0)]
+
+
+def test_a_job_load_adds_job_run_id_to_an_existing_control_table(env):
+    """Dev's pipeline_runs predates job_run_id, and the job's CREATE TABLE IF NOT EXISTS adds no
+    column, so a load with --no-setup adds it before recording its run."""
+    env.deliver("2023-24")
+    env.run()
+    env.store.sql(f"ALTER TABLE {CONTROL}.pipeline_runs DROP COLUMN job_run_id")
+    summary = env.run(run_gate=False, setup_tables=False, job_run_id="job-run-8")
+    assert env.one(f"SELECT job_run_id FROM {CONTROL}.pipeline_runs WHERE run_id = '{summary.run_id}'") == "job-run-8"
+
+
+class RacingStore:
+    """Another parallel load adds the column just before this one's ALTER, which then fails."""
+    def __init__(self, store, add_first):
+        self.store, self.add_first = store, add_first
+
+    def columns(self, schema, table):
+        return self.store.columns(schema, table)
+
+    def sql(self, statement):
+        if statement.startswith("ALTER TABLE"):
+            if self.add_first:
+                self.store.sql(statement)
+            raise RuntimeError("concurrent metadata change")
+        return self.store.sql(statement)
+
+
+def test_adding_a_control_column_survives_a_parallel_load_adding_it_first(env):
+    control.create_tables(env.store, env.repo)
+    env.store.sql(f"ALTER TABLE {CONTROL}.pipeline_runs DROP COLUMN job_run_id")
+    control.add_missing_columns(RacingStore(env.store, add_first=True))
+    assert "job_run_id" in {name for name, _ in env.store.columns("01-control", "pipeline_runs")}
+    env.store.sql(f"ALTER TABLE {CONTROL}.pipeline_runs DROP COLUMN job_run_id")
+    with pytest.raises(RuntimeError):  # a failure that did not add the column is not hidden
+        control.add_missing_columns(RacingStore(env.store, add_first=False))
 
 
 def test_an_approved_file_missing_from_landing_is_reported(env):

@@ -55,6 +55,12 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") == [(0,)]
+    linked = store.query(f"""
+        SELECT r.source_id, COUNT(q.check_name) FROM {CONTROL}.pipeline_runs AS r
+        JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
+        WHERE r.job_run_id = 'job-run-1' AND q.layer = 'bronze' GROUP BY 1 ORDER BY 1""")
+    assert [source for source, checks in linked if checks > 0] == [
+        "deped_enrollment", "deped_facilities", "psa_poverty_stat", "psa_psgc"]
     store.close()
 
 

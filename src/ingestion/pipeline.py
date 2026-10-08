@@ -111,7 +111,7 @@ def discover(config, landing_root):
 
 class IngestionRun:
     def __init__(self, store, repo_root, source_id, landing_root, environment, code_revision,
-                 rerun_batch_ids=(), hook=None, run_gate=True, setup_tables=True):
+                 rerun_batch_ids=(), hook=None, run_gate=True, setup_tables=True, job_run_id=None):
         if environment not in ENVIRONMENTS:
             raise IngestionError("config", "unknown_environment", f"environment must be one of {ENVIRONMENTS}.")
         self.store = store
@@ -119,6 +119,9 @@ class IngestionRun:
         self.landing_root = Path(landing_root)
         self.environment = environment
         self.code_revision = code_revision
+        # The Databricks job run, whose Bronze gate task writes data_quality_results
+        # under it; stored on this load's pipeline_runs row so the two can be joined.
+        self.job_run_id = job_run_id
         self.rerun_batch_ids = set(rerun_batch_ids)
         self.hook = hook or (lambda stage: None)
         # Off when the job runs the source's Bronze gate as its own SQL task
@@ -157,6 +160,8 @@ class IngestionRun:
         if self.setup_tables:
             control.create_tables(self.store, self.repo_root)
             self.store.run_file(self.bronze_ddl)
+        else:  # CREATE TABLE IF NOT EXISTS in the job's SQL tasks adds no column to an existing table
+            control.add_missing_columns(self.store)
         bronze.add_missing_columns(self.store, self.config)
 
         started = utc_now()
@@ -166,6 +171,7 @@ class IngestionRun:
             "finished_at_utc": None, "duration_seconds": None, "deliveries_found": None,
             "batches_loaded": None, "batches_skipped": None, "batches_failed": None, "batches_blocked": None,
             "failure_stage": None, "error_message": None, "code_revision": self.code_revision,
+            "job_run_id": self.job_run_id,
         }
         control.save_run(self.store, run)
         summary = RunSummary(self.run_id, "running")
