@@ -713,3 +713,52 @@ def test_cli_exit_code_for_a_blocked_workbook(tmp_path, capsys, monkeypatch):
                      "--db", str(tmp_path / "t.duckdb"), "--code-revision", REVISION])
     assert code == 1
     assert "unregistered_delivery" not in capsys.readouterr().err  # reported per batch on stdout, not a crash
+
+
+# --- Shared control tables that gained columns this code does not know (Databricks dev, #109) ------
+
+ADDED_BY_109 = {"ingestion_batches": ["logical_dataset", "estimate_years_covered", "source_sheet"],
+                "ingestion_batch_attempts": ["logical_dataset", "estimate_years_covered"]}
+
+
+def _add_109_columns(store, repo):
+    from src.ingestion import control
+    control.create_tables(store, repo)
+    for table, columns in ADDED_BY_109.items():
+        for column in columns:
+            store.sql(f"ALTER TABLE {CONTROL}.{table} ADD COLUMN {column} STRING")
+
+
+def test_psgc_loads_into_control_tables_with_extra_nullable_columns(env):
+    _add_109_columns(env.store, env.repo)
+    env.deliver()
+    first = env.run()
+    assert first.status == "succeeded" and env.bronze_rows() == N
+    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.ingestion_batches WHERE logical_dataset IS NULL") == 1
+    assert env.run().outcomes[0].action == "skip"
+
+
+def test_deped_loads_into_control_tables_with_extra_nullable_columns(tmp_path):
+    from factories import deped_deliveries as deped
+
+    config = deped.empty_config()
+    repo = deped.fake_repo(tmp_path / "repo", config)
+    store = DuckDBStore()
+    _add_109_columns(store, repo)
+    path = deped.make_delivery(tmp_path / "landing" / "deped" / "original", "2023-24", n_rows=3)
+    deped.approve(config, path, "2023-24")
+    deped.write_config(repo, config)
+    summary = IngestionRun(store, repo, "deped_enrollment", tmp_path / "landing", "local", REVISION).execute()
+    assert summary.status == "succeeded"
+    assert store.query(f"SELECT COUNT(*) FROM edu_access.`02-bronze`.deped_enrollment_raw")[0][0] == 3
+
+
+def test_a_saved_row_keeps_values_in_columns_this_code_does_not_set(env):
+    from src.ingestion import control
+    _add_109_columns(env.store, env.repo)
+    env.deliver()
+    env.run()
+    env.store.sql(f"UPDATE {CONTROL}.ingestion_batches SET logical_dataset = 'set_by_other_code'")
+    batch = control.find_batch(env.store, env.config["deliveries"][0]["workbook_sha256"])
+    control.save_batch(env.store, batch)
+    assert env.one(f"SELECT logical_dataset FROM {CONTROL}.ingestion_batches") == "set_by_other_code"

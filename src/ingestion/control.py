@@ -22,9 +22,21 @@ def create_tables(store, repo_root):
         store.run_file(path)
 
 
+def _complete(columns, rows):
+    """Each row with a value for every column the table has: NULL for a column the row does not mention.
+
+    A shared table can gain nullable columns before this code knows them (on Databricks,
+    #109 added logical_dataset, estimate_years_covered and source_sheet to ingestion_batches
+    and ingestion_batch_attempts, D-018). Those columns mean "not applicable" (NULL) for a
+    source that does not set them, so writing NULL keeps their meaning. A row read from the
+    table and saved again keeps its own values, because it already names every column.
+    """
+    return [{c: row.get(c) for c, _ in columns} for row in rows]
+
+
 def _upsert(store, table, key, row):
     columns = store.columns(SCHEMA, table)
-    store.stage(f"{table}_stage", columns, [row])
+    store.stage(f"{table}_stage", columns, _complete(columns, [row]))
     store.sql(
         f"MERGE INTO {table_name(SCHEMA, table)} AS t USING {table}_stage AS s ON t.{key} = s.{key} "
         "WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *"
@@ -35,7 +47,7 @@ def _append(store, table, rows):
     if not rows:
         return
     columns = store.columns(SCHEMA, table)
-    store.stage(f"{table}_stage", columns, rows)
+    store.stage(f"{table}_stage", columns, _complete(columns, rows))
     names = ", ".join(f"`{c}`" for c, _ in columns)
     store.sql(f"INSERT INTO {table_name(SCHEMA, table)} ({names}) SELECT {names} FROM {table}_stage")
 
