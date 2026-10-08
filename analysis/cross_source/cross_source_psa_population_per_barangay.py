@@ -8,7 +8,7 @@
 # Reuses two scripts by running them first (their output is hidden here):
 #   - cross_source_deped.py for the PSGC 2Q 2026 matching rules (it also rewrites
 #     deped_psgc_unmatched.md, unchanged);
-#   - profile_psa_population_per_barangay.py for the checksum check and the workbook parser
+#   - ../profiling/profile_psa_population_per_barangay.py for the checksum check and the workbook parser
 #     (it also rewrites its data_dictionary.md, unchanged).
 #
 # Runs locally; no Databricks compute:
@@ -30,7 +30,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 with contextlib.redirect_stdout(io.StringIO()):
     deped = runpy.run_path(str(HERE / "cross_source_deped.py"), run_name="__main__")
-    population = runpy.run_path(str(HERE / "profile_psa_population_per_barangay.py"), run_name="__main__")
+    population = runpy.run_path(str(HERE.parent / "profiling" / "profile_psa_population_per_barangay.py"), run_name="__main__")
 match, match_province, match_locality, barangay_candidates = (
     deped[name] for name in ("match", "match_province", "match_locality", "barangay_candidates")
 )
