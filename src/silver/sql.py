@@ -88,6 +88,11 @@ def null_safe_sum(refs):
     return " + ".join(f"COALESCE({r}, 0)" for r in refs)
 
 
+def as_bigint(ref):
+    """A count widened before it is added: 66 INT counts of up to nine digits overflow an INT sum."""
+    return f"CAST({ref} AS BIGINT)"
+
+
 def header(spec, what, command, path):
     return [
         f"-- {what} for {spec.source_id}. Generated from config/ingestion/{spec.source_id}.json",
@@ -150,8 +155,8 @@ def build_sql(spec):
     final = ["t.school_year"] + [f"t.{c.name}" for c in spec.columns] + [
         f"COALESCE({overseas}, FALSE) AS is_overseas",
         "CASE WHEN COALESCE(\n" + joined(count_refs, 12) + "\n         ) IS NULL THEN 'no_counts'\n"
-        "       WHEN " + null_safe_sum(count_refs[:1]) + "\n" + joined(
-            [f"+ COALESCE({r}, 0)" for r in count_refs[1:]], 12, "") + " = 0 THEN 'all_zero'\n"
+        "       WHEN " + null_safe_sum([as_bigint(count_refs[0])]) + "\n" + joined(
+            [f"+ COALESCE({as_bigint(r)}, 0)" for r in count_refs[1:]], 12, "") + " = 0 THEN 'all_zero'\n"
         "       ELSE 'has_learners' END AS enrollment_status",
         "t.barangay_possibly_truncated",
         "t.quarantine_reasons",
@@ -290,7 +295,7 @@ def gate_sql(spec):
         f"        AND {whitespace(raw(x))} NOT IN {in_list(accepted(x))}) AS quarantined_unmapped_{x.name}"
         for x in mapped
     ]
-    clean_learners = null_safe_sum(f"c.{x.name}" for x in counts)
+    clean_learners = null_safe_sum(as_bigint(f"c.{x.name}") for x in counts)
     clean_missing = " + ".join(f"CASE WHEN c.{x.name} IS NULL THEN 1 ELSE 0 END" for x in counts)
     absent_filled = [f"(c.schema_version = {lit(v)} AND ({' OR '.join(f'c.{n} IS NOT NULL' for n in names)}))"
                      for v, names in spec.absent.items()]

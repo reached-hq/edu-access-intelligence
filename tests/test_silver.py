@@ -249,6 +249,26 @@ def test_negative_and_uncastable_counts_are_quarantined_with_reasons_not_dropped
     assert env.one(f"SELECT COUNT(*) FROM {BRONZE}") == 400   # Bronze untouched
 
 
+def test_nine_digit_counts_do_not_overflow_the_build(env):
+    """Three counts of 999,999,999 add up past INT; every sum of counts is taken in BIGINT."""
+    big = {c: "999999999" for c in ("g1_male", "g1_female", "g2_male")}
+    env.deliver("2023-24", rows=v1_rows(200, {0: big}))
+    env.bronze()
+    summary = env.silver()
+    assert summary.status == "succeeded", summary.error
+    assert env.one(f"SELECT enrollment_status FROM {CLEAN} WHERE school_id = '900001'") == "has_learners"
+
+
+def test_nine_digit_counts_do_not_overflow_the_gate(env):
+    """The gate's learner sums are BIGINT too: a broken build is reported as a FAIL, not a crash."""
+    env.deliver("2023-24", n_rows=4)
+    env.bronze()
+    summary = env.silver(hook=lambda: env.store.sql(
+        f"UPDATE {CLEAN} SET g1_male = 999999999, g1_female = 999999999, g2_male = 999999999 WHERE school_id = '900002'"))
+    assert summary.status == "failed" and "Silver gate failed" in summary.error
+    assert "learners_reconcile" in env.failed_checks(summary.run_id)
+
+
 def test_quarantine_above_one_percent_fails_the_run(env):
     env.deliver("2023-24", rows=v1_rows(3, {0: {"g1_male": "-1"}}))
     env.bronze()
