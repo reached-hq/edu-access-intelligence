@@ -661,7 +661,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 
 ## Administrative boundaries (COD-AB ADM3 GeoJSON)
 
-`hdx_boundaries` loads through the same pipeline from its own contract, `config/ingestion/hdx_boundaries.json` (`format: geojson_features`). What differs is in `src/ingestion/geojson_features.py` (reading and checking the GeoJSON file) and the `GeojsonFeatures` class in `src/ingestion/formats.py`. Only the ADM3 file (cities and municipalities) is loaded; the ADM4 file beside it is not.
+`hdx_boundaries` loads through the same pipeline from its own contract, `config/ingestion/hdx_boundaries.json` (`format: geojson_features`). What differs is in `src/ingestion/geojson_features.py` (reading and checking the GeoJSON file) and the `GeojsonFeatures` class in `src/ingestion/formats.py`. Only the ADM3 file (cities and municipalities) is loaded; the ADM4 file beside it is not. Decision: D-020.
 
 **Status:** implemented and tested locally with made-up GeoJSON (`tests/test_ingestion_boundaries.py`), and **verified locally on the real file** on 2026-10-08: 1,642 rows loaded (feature positions 1 to 1,642, every `valid_on` 2025-02-13, no missing geometry), 24 PASS, 0 WARN, 0 FAIL, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-local-idempotency.md)). **Not run on Databricks.** The source stays `profiled`.
 
@@ -886,7 +886,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 | Question | Default until decided | Where |
 |---|---|---|
 | Should `school_year` be renamed to a generic `period` for non-school sources? | Keep the column; it holds the reference date `2025-02-13` | Team |
-| Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | Decision log (this PR) |
+| Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | D-020 |
 | Should ADM4 (`phl_admin4.geojson`) be ingested? | Not now | Team (owner @saraevcldn) |
 | Are 64 MB chunks right for Free Edition serverless? | 64 MB | Databricks confirmation run |
 | Does `hdx_boundaries` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
