@@ -1,0 +1,2 @@
+-- PLACEHOLDER: proposed school-year fact; measures and denominator rules are not yet approved.
+-- Remove "placeholder_" from the filename only when the business model is implemented.

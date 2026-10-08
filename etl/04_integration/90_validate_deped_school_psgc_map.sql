@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validate DepEd-to-PSGC mapping uniqueness, coverage, and review states.
+-- Implement the gate and its data_quality_results writes before activating this task.

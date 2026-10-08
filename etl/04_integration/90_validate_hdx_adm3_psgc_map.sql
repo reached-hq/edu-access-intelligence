@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validate HDX-ADM3-to-PSGC mapping uniqueness and coverage.
+-- Implement the gate and its data_quality_results writes before activating this task.

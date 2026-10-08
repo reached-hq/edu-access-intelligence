@@ -30,11 +30,13 @@ edu_access.`03-silver`.deped_enrollment_clean
 
 ## File names
 
-Each source object owns its sequence, so the DDL starts at `01` and its
-validation gate uses `90`:
+Bronze and Silver use the source order recorded in `config/tables.yml`; the
+same number follows a dataset across both layers. Validation gates use `90`
+because dependency order belongs in `databricks.yml`, not in the gate prefix:
 
 ```text
-01_create_<table>.sql
+NN_create_<source>_raw.sql
+NN_clean_<source>.sql
 90_validate_<table>.sql
 ```
 
@@ -48,9 +50,9 @@ These are working names only:
 
 | Candidate table | Candidate file | Intended grain |
 |---|---|---|
-| `deped_school_psgc_map` | `01_create_deped_school_psgc_map.sql` | One reviewed DepEd school-geography mapping to PSGC |
-| `psa_poverty_psgc_map` | `02_create_psa_poverty_psgc_map.sql` | One reviewed poverty-statistic geography mapping to PSGC |
-| `hdx_adm3_psgc_map` | `03_create_hdx_adm3_psgc_map.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
+| `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
+| `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | One reviewed poverty-statistic geography mapping to PSGC |
+| `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
 and PSGC-version behavior are agreed. Gold and Analytics names remain deferred

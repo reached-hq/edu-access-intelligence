@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build the reviewed mapping from DepEd school geography to PSGC.
+-- Implement approved matching keys, review states, and unmatched-row handling before activation.

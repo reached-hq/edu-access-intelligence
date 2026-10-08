@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validate PSA-poverty-to-PSGC mapping uniqueness and documented coverage gaps.
+-- Implement the gate and its data_quality_results writes before activating this task.

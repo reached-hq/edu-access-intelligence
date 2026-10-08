@@ -16,7 +16,7 @@ import pytest
 from factories.deped_deliveries import (
     REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows, real_config, write_config,
 )
-from src.ingestion import cli, pipeline
+from src.ingestion import cli, control, pipeline
 from src.ingestion.bronze import bronze_ddl, bronze_gate
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
@@ -56,9 +56,10 @@ class Env:
         write_config(self.repo, self.config)
         return entry
 
-    def run(self, rerun=(), hook=None, environment="local"):
+    def run(self, rerun=(), hook=None, environment="local", run_gate=True, setup_tables=True, job_run_id=None):
         return IngestionRun(self.store, self.repo, "deped_enrollment", self.landing, environment, REVISION,
-                            rerun_batch_ids=rerun, hook=hook).execute()
+                            rerun_batch_ids=rerun, hook=hook, run_gate=run_gate, setup_tables=setup_tables,
+                            job_run_id=job_run_id).execute()
 
     def q(self, sql):
         return self.store.query(sql)
@@ -372,6 +373,60 @@ def test_gate_results_carry_the_code_revision(env):
     assert revisions == [(REVISION,)]
 
 
+def test_the_gate_can_run_as_its_own_step(env):
+    """With run_gate=False (the job's --no-gate), loading does not run the Bronze gate; the job runs
+    the same SQL file as the next task, under the job's run_id, and that task fails on a FAIL."""
+    env.deliver("2023-24")
+    env.run()
+    env.store.sql(f"INSERT INTO {BRONZE} SELECT * REPLACE ('ghost' AS batch_id) FROM {BRONZE} LIMIT 1")
+    summary = env.run(run_gate=False)
+    assert summary.status == "succeeded" and summary.gate_error is None
+    assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = '{summary.run_id}' "
+                   "AND check_name = 'rows_have_a_known_batch'") == 0
+    gate = env.repo / "etl" / "02_bronze" / "90_validate_deped_enrollment_raw.sql"
+    with pytest.raises(Exception, match="Bronze gate failed"):
+        env.store.run_file(gate, {"run_id": "job-run-1", "code_revision": REVISION})
+    assert env.one(f"SELECT status FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-1' "
+                   "AND check_name = 'rows_have_a_known_batch'") == "FAIL"
+
+
+def test_a_job_load_can_be_joined_to_its_gate_task(env):
+    """The job's load and its gate task have different run ids; job_run_id on pipeline_runs links
+    them, so a load's true outcome is its run row plus its gate's rows (D-020)."""
+    env.deliver("2023-24")
+    manual = env.run()
+    loaded = env.run(run_gate=False, job_run_id="job-run-7")
+    gate = env.repo / "etl" / "02_bronze" / "90_validate_deped_enrollment_raw.sql"
+    env.store.run_file(gate, {"run_id": "job-run-7", "code_revision": REVISION})
+    assert env.one(f"SELECT job_run_id FROM {CONTROL}.pipeline_runs WHERE run_id = '{manual.run_id}'") is None
+    assert env.q(f"""
+        SELECT r.status, COUNT(q.check_name), COUNT_IF(q.status = 'FAIL')
+        FROM {CONTROL}.pipeline_runs AS r
+        JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
+        WHERE r.run_id = '{loaded.run_id}' AND q.layer = 'bronze'
+        GROUP BY r.status""") == [("succeeded", 3, 0)]
+
+
+def test_columns_adds_what_older_control_tables_lack(tmp_path):
+    """Tables created before D-018 and D-020 lack their columns; `cli.py columns` adds them,
+    and running it again changes nothing."""
+    db = tmp_path / "t.duckdb"
+    store = DuckDBStore(db)
+    for path in sorted((REPO_ROOT / "etl" / "01_control").glob("0[1-4]_*.sql")):
+        store.run_file(path)
+    for table, columns in control.ADDED_COLUMNS.items():
+        for name, _ in columns:
+            store.sql(f"ALTER TABLE {CONTROL}.{table} DROP COLUMN {name}")
+    store.close()
+    for _ in range(2):
+        assert cli.main(["columns", "--db", str(db)]) == 0
+    store = DuckDBStore(db)
+    for table, columns in control.ADDED_COLUMNS.items():
+        have = {name for name, _ in store.columns("01-control", table)}
+        assert {name for name, _ in columns} <= have, table
+    store.close()
+
+
 def test_an_approved_file_missing_from_landing_is_reported(env):
     env.deliver("2023-24")
     gone = env.deliver("2024-25", first_id=910001)
@@ -401,13 +456,14 @@ def test_missing_landing_folder_fails_the_run(env):
 CONTRACTS = sorted((REPO_ROOT / "config" / "ingestion").glob("*.json"))
 
 
-@pytest.mark.parametrize("kind, prefix, generate", [("ddl", "01_create", bronze_ddl), ("gate", "90_validate", bronze_gate)])
+@pytest.mark.parametrize("kind, pattern, generate", [("ddl", "[0-8][0-9]_create", bronze_ddl), ("gate", "90_validate", bronze_gate)])
 @pytest.mark.parametrize("contract", CONTRACTS, ids=lambda p: p.stem)
-def test_bronze_sql_matches_the_contract(contract, kind, prefix, generate):
+def test_bronze_sql_matches_the_contract(contract, kind, pattern, generate):
     """The table definition and the gate are generated from each contract, never hand-edited."""
     config = json.loads(contract.read_text(encoding="utf-8"))
-    path = REPO_ROOT / "etl" / "02_bronze" / f"{prefix}_{config['bronze_table']}.sql"
-    assert path.is_file(), f"missing {path.relative_to(REPO_ROOT)}"
+    matches = sorted((REPO_ROOT / "etl" / "02_bronze").glob(f"{pattern}_{config['bronze_table']}.sql"))
+    assert len(matches) == 1, f"expected one {pattern}_{config['bronze_table']}.sql; found {matches}"
+    path = matches[0]
     assert path.read_text(encoding="utf-8") == generate(config), (
         f"Regenerate: python -m src.ingestion.cli {kind} --source {config['source_id']} > {path.relative_to(REPO_ROOT)}")
 
@@ -419,6 +475,22 @@ def test_cli_blocks_an_unapproved_file(tmp_path, capsys):
     assert code == 1
     assert "blocked" in capsys.readouterr().out
     assert cli.main(["status", "--source", "deped_enrollment", "--db", str(tmp_path / "t.duckdb")]) == 0
+
+
+def test_cli_can_leave_the_gate_to_the_next_task(tmp_path, capsys):
+    raw = tmp_path / "raw"
+    (raw / "deped").mkdir(parents=True)
+    args = ["ingest", "--source", "deped_enrollment", "--landing", str(raw), "--db", str(tmp_path / "t.duckdb")]
+    assert cli.main([*args, "--no-gate"]) == 0
+    store = DuckDBStore(tmp_path / "t.duckdb")
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE layer = 'bronze' "
+                       "AND check_name = 'no_pipeline_duplicates'") == [(0,)]
+    store.close()
+    assert cli.main(args) == 0  # without the flag, the gate runs inside the task, as before
+    store = DuckDBStore(tmp_path / "t.duckdb")
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE layer = 'bronze' "
+                       "AND check_name = 'no_pipeline_duplicates'") == [(1,)]
+    store.close()
 
 
 def test_cli_exit_codes_for_setup_problems(tmp_path):

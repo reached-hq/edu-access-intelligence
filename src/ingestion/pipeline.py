@@ -111,7 +111,7 @@ def discover(config, landing_root):
 
 class IngestionRun:
     def __init__(self, store, repo_root, source_id, landing_root, environment, code_revision,
-                 rerun_batch_ids=(), hook=None):
+                 rerun_batch_ids=(), hook=None, run_gate=True, setup_tables=True, job_run_id=None):
         if environment not in ENVIRONMENTS:
             raise IngestionError("config", "unknown_environment", f"environment must be one of {ENVIRONMENTS}.")
         self.store = store
@@ -119,8 +119,17 @@ class IngestionRun:
         self.landing_root = Path(landing_root)
         self.environment = environment
         self.code_revision = code_revision
+        # The Databricks job run, whose Bronze gate task writes data_quality_results
+        # under it; stored on this load's pipeline_runs row so the two can be joined.
+        self.job_run_id = job_run_id
         self.rerun_batch_ids = set(rerun_batch_ids)
         self.hook = hook or (lambda stage: None)
+        # Off when the job runs the source's Bronze gate as its own SQL task
+        # right after this one (databricks.yml); the gate then fails that task.
+        self.run_gate = run_gate
+        # Off when databricks.yml runs the control and source DDL as explicit
+        # upstream SQL tasks. Standalone CLI runs keep automatic setup.
+        self.setup_tables = setup_tables
         self.config, self.registry_entry = load_source_config(repo_root, source_id)
         self.format = formats.for_config(self.config)
         self.source_id = source_id
@@ -129,7 +138,15 @@ class IngestionRun:
                                  f"{source_id} is '{self.registry_entry['status']}'. Only accepted sources load into prod; "
                                  "use dev until the team accepts it.")
         table = self.config["bronze_table"]
-        self.bronze_ddl = self.repo_root / "etl" / "02_bronze" / f"01_create_{table}.sql"
+        ddl_matches = sorted((self.repo_root / "etl" / "02_bronze").glob(f"[0-8][0-9]_create_{table}.sql"))
+        if len(ddl_matches) != 1:
+            found = [str(path.relative_to(self.repo_root)) for path in ddl_matches]
+            raise IngestionError(
+                "config",
+                "missing_sql" if not found else "ambiguous_sql",
+                f"expected exactly one NN_create_{table}.sql in etl/02_bronze; found {found}.",
+            )
+        self.bronze_ddl = ddl_matches[0]
         self.bronze_gate = self.repo_root / "etl" / "02_bronze" / f"90_validate_{table}.sql"
         for path in (self.bronze_ddl, self.bronze_gate):
             if not path.is_file():
@@ -140,8 +157,9 @@ class IngestionRun:
     # -- run ------------------------------------------------------------------
 
     def execute(self):
-        control.create_tables(self.store, self.repo_root)
-        self.store.run_file(self.bronze_ddl)
+        if self.setup_tables:
+            control.create_tables(self.store, self.repo_root)
+            self.store.run_file(self.bronze_ddl)
         bronze.add_missing_columns(self.store, self.config)
 
         started = utc_now()
@@ -151,6 +169,7 @@ class IngestionRun:
             "finished_at_utc": None, "duration_seconds": None, "deliveries_found": None,
             "batches_loaded": None, "batches_skipped": None, "batches_failed": None, "batches_blocked": None,
             "failure_stage": None, "error_message": None, "code_revision": self.code_revision,
+            "job_run_id": self.job_run_id,
         }
         control.save_run(self.store, run)
         summary = RunSummary(self.run_id, "running")
@@ -169,12 +188,13 @@ class IngestionRun:
         for archive_sha256, path in deliveries:
             summary.outcomes.append(self._process(path, archive_sha256))
 
-        try:
-            self.store.run_file(self.bronze_gate, {"run_id": self.run_id, "code_revision": self.code_revision})
-        except Exception as e:  # the gate raises on any FAIL; a broken gate must fail the run too
-            summary.gate_error = str(e)[:MAX_MESSAGE]
-            if not run["failure_stage"]:  # keep an earlier, more specific cause
-                run.update(failure_stage="gate", error_message=summary.gate_error)
+        if self.run_gate:
+            try:
+                self.store.run_file(self.bronze_gate, {"run_id": self.run_id, "code_revision": self.code_revision})
+            except Exception as e:  # the gate raises on any FAIL; a broken gate must fail the run too
+                summary.gate_error = str(e)[:MAX_MESSAGE]
+                if not run["failure_stage"]:  # keep an earlier, more specific cause
+                    run.update(failure_stage="gate", error_message=summary.gate_error)
         self._finish(run, summary, started, deliveries_found=len(deliveries))
         return summary
 

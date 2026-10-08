@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validate the consistency of pipeline runs, batches, checks, and current batches.
+-- Do not add this file to an active job task until its checks and failure conditions are implemented.

@@ -719,14 +719,14 @@ def test_an_unknown_format_is_refused():
 
 # --- The job and the command line ---------------------------------------------------------
 
-def test_psgc_runs_last_in_the_bronze_job(repo_root):
+def test_psgc_loads_in_its_own_lane_of_the_pipeline_job(repo_root):
     bundle = yaml.safe_load((repo_root / "databricks.yml").read_text(encoding="utf-8"))
-    tasks = bundle["resources"]["jobs"]["bronze_ingest"]["tasks"]
-    psgc = tasks[-1]
+    tasks = {t["task_key"]: t for t in bundle["resources"]["jobs"]["edu_access_pipeline"]["tasks"]}
+    psgc = tasks["bronze_psa_psgc"]
     args = psgc["spark_python_task"]["parameters"]
     assert args[args.index("--source") + 1] == "psa_psgc"
-    assert psgc["run_if"] == "ALL_DONE"
-    assert [d["task_key"] for d in psgc["depends_on"]] == [tasks[-2]["task_key"]]
+    assert psgc["run_if"] == "ALL_SUCCESS"
+    assert [d["task_key"] for d in psgc["depends_on"]] == ["04_create_psa_psgc_raw"]
 
 
 def test_cli_exit_code_for_a_blocked_workbook(tmp_path, capsys, monkeypatch):

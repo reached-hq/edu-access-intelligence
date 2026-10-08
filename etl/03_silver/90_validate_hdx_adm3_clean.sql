@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validate hdx_adm3_clean and its quarantine reconciliation.
+-- Implement the gate and its data_quality_results writes before activating this task.

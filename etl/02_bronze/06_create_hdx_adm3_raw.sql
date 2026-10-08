@@ -1,0 +1,2 @@
+-- PLACEHOLDER: create edu_access.`02-bronze`.hdx_adm3_raw.
+-- The Python ingestion task will load the approved HDX ADM3 GeoJSON delivery.

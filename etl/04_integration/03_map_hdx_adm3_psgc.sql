@@ -1,0 +1,2 @@
+-- PLACEHOLDER: map HDX ADM3 features to PSGC cities and municipalities.
+-- Implement approved code, name, and geometry reconciliation rules before activation.

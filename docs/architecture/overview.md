@@ -93,7 +93,7 @@ Every check writes one row to `` edu_access.`01-control`.data_quality_results ``
 |---|---|---|
 | PASS | As expected | None |
 | WARN | Worth knowing, not wrong in Bronze (e.g. a publisher's duplicate school) | Recorded; rows are loaded as received; Silver decides |
-| FAIL | The batch cannot be trusted | The batch is not marked succeeded, so downstream does not read it; the run exits nonzero |
+| FAIL | The batch or table cannot be trusted | The batch is not marked succeeded, so downstream does not read it; the task that recorded the FAIL fails, and the tasks after it in that source's lane do not run |
 
 Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#validation).
 
@@ -101,7 +101,20 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 <!-- TODO(Phase 6): task order for the full pipeline. -->
 
-`databricks.yml` defines one job so far, `bronze_ingest`: one task per source (DepEd enrollment, DepEd facilities, PSA Poverty Stat, PSA PSGC) (`src/ingestion/cli.py ingest --backend spark`), which validates, loads, reconciles, and runs the source's Bronze gate. Tasks run one after another, each even if the previous source failed (`run_if: ALL_DONE`), so they do not compete for Free Edition's serverless capacity. The job has no schedule during development, runs one at a time, and is safe to rerun.
+`databricks.yml` defines one job, `edu_access_pipeline` (D-020). Each source has a lane:
+
+| Task | Type | Runs on | Runs when |
+|---|---|---|---|
+| `01_create_pipeline_runs` through `04_create_data_quality_results` | SQL | SQL warehouse | At job start, once, in order |
+| `add_control_columns`: add columns that older control tables lack (`src/ingestion/cli.py columns`) | Python | serverless job compute | The control tables exist |
+| `05_create_current_batches` | SQL | SQL warehouse | The columns it reads exist |
+| `NN_create_<table>_raw` | SQL | SQL warehouse | Control setup succeeded; all source DDL tasks fan out in parallel |
+| `bronze_<source_id>`: check each delivery against its contract, load, reconcile (`src/ingestion/cli.py ingest --no-gate --no-setup`) | Python | serverless job compute | That source's raw table exists |
+| `90_validate_<table>_raw`: the Bronze gate (`etl/02_bronze/90_validate_<table>_raw.sql`) | SQL | SQL warehouse | The load succeeded |
+| Silver clean and validation files from `etl/`, one task each | SQL | SQL warehouse | The preceding task in the same source lane succeeded |
+| Mapping, dimension, fact, and analytics files from `etl/`, one task each | SQL | SQL warehouse | All required outputs from the preceding stage succeeded |
+
+Python is used only where SQL cannot do the work: the deliveries are zipped CSVs with a declared encoding or Excel workbooks. Every SQL file is its own task, so a failed check shows as its own failed task. After the shared control bootstrap, source lanes start in parallel and do not depend on each other. Within each lane, tasks run in order and stop if their own upstream task fails. `90_validate_control` is the source-lane fan-in. Mapping tasks then fan out in parallel and converge on Integration; dimensions fan out after Integration; facts fan out after both dimension gates; and all analytics outputs fan out after both fact gates. SQL tasks receive the job parameters `code_revision` and `run_id` (`{{job.run_id}}`) as `:code_revision` and `:run_id`. The job has no schedule during development, allows only one whole job run at a time, and is safe to rerun. `python -m src.job.local_run` checks the same DAG in a deterministic topological order on DuckDB ([src/job](../../src/job/README.md)).
 
 ## Environments and deployment
 
