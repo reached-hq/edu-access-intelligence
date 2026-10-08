@@ -186,7 +186,8 @@ WITH c AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_clean),
      q AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_quarantine),
      pr AS (SELECT * FROM edu_access.`01-control`.pipeline_runs WHERE pipeline_name = 'silver_build' AND source_id = 'deped_enrollment'),
      last_run AS (SELECT MAX_BY(run_id, started_at_utc) AS run_id FROM pr),
-     d AS (SELECT * FROM edu_access.`01-control`.data_quality_results WHERE layer = 'silver' AND run_id = (SELECT run_id FROM last_run)),
+     d AS (SELECT * FROM edu_access.`01-control`.data_quality_results
+           WHERE layer = 'silver' AND source_id = 'deped_enrollment' AND run_id = (SELECT run_id FROM last_run)),
 checks AS (
   SELECT 'clean rows SY 2023-24' AS check_name, '60167' AS expected, CAST(COUNT_IF(school_year = '2023-24') AS STRING) AS actual FROM c
   UNION ALL SELECT 'clean rows SY 2024-25', '60129', CAST(COUNT_IF(school_year = '2024-25') AS STRING) FROM c
