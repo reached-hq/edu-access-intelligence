@@ -1,6 +1,6 @@
 # How we work
 
-How work moves from an issue to `main`, and where each kind of work runs. For the rules in short form, see [CONTRIBUTING.md](../../CONTRIBUTING.md). For one-time laptop setup, see [terminal_setup.md](../getting-started/terminal-setup.md).
+How work moves from an issue to `main`, and where each kind of work runs. For the rules in short form, see [CONTRIBUTING.md](../../CONTRIBUTING.md). For one-time laptop setup, see [terminal-setup.md](../getting-started/terminal-setup.md).
 
 ## Start here
 
@@ -107,7 +107,7 @@ Commit messages:
 - One meaningful checkpoint per commit.
 - Write each paragraph on one line; do not wrap.
 
-Commits are signed (see [terminal_setup.md, Part 5](../getting-started/terminal-setup.md#part-5-signed-commits)), so GitHub shows them as **Verified**: proof the commit came from your key.
+Commits are signed (see [terminal-setup.md, Part 5](../getting-started/terminal-setup.md#part-5-signed-commits)), so GitHub shows them as **Verified**: proof the commit came from your key.
 
 ---
 
@@ -197,7 +197,7 @@ This is the capstone's core loop: a dataset is not useful until it has been insp
 1. **Claim the issue.** Assign yourself the `[SOURCE]` issue and move the card to **In progress**.
 2. **Download** the original files into `raw-data/<publisher>/original/`, never into the repository.
 3. **Record provenance** in `raw-data/<publisher>/`: the SHA-256 of each file (`shasum -a 256 *` on Mac, `Get-FileHash` on Windows) and when you downloaded it.
-4. **Do not open raw files in Excel and save them** ([terminal_setup.md, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)).
+4. **Do not open raw files in Excel and save them** ([terminal-setup.md, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)).
 5. **Read the publisher's documentation** (README files, technical notes) before profiling.
 6. **Profile with a script** in `analysis/profiling/`, reading `RAW_DATA_DIR` and verifying checksums first. See `profile_deped.py` for the pattern: every result prints under a finding ID.
 7. **Document** in `docs/data/source-inventory/<source_id>/`: copy `template/`, fill in `README.md` (the card) and `profile.md` (findings with evidence, **observed** vs **suspected**), and generate `data_dictionary.md` with a script (every column: the publisher's description, the team's labeled interpretation where the publisher is silent, and observed fill rate and samples). See `dictionary_deped.py` for the pattern.
@@ -229,7 +229,7 @@ So the rule is: **develop locally, run on Databricks only when the logic is read
 | **B. Databricks extension** | Files sync to the workspace and run on Databricks | Every run | Confirming that working logic also runs on Databricks |
 | **C. Databricks Connect** | You write PySpark in VS Code, but Spark runs on Databricks | Every action | Rarely. It feels local but is not, which is how compute disappears unnoticed |
 
-Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in some functions, and local PySpark has no Unity Catalog. So: **develop locally, then do one confirmation run on Databricks.** Never "it worked locally, ship it." (Why DuckDB: [terminal_setup.md, Part 9](../getting-started/terminal-setup.md#part-9-why-duckdb).)
+Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in some functions, and local PySpark has no Unity Catalog. So: **develop locally, then do one confirmation run on Databricks.** Never "it worked locally, ship it." (Why DuckDB: [terminal-setup.md, Part 9](../getting-started/terminal-setup.md#part-9-why-duckdb).)
 
 ### Rules for Databricks compute
 
@@ -289,6 +289,6 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 
 ## Stuck?
 
-Read the error first; most say exactly what is wrong. [terminal_setup.md, Part 13](../getting-started/terminal-setup.md#part-13-errors-you-will-probably-meet) lists the ones we have already met.
+Read the error first; most say exactly what is wrong. [terminal-setup.md, Part 13](../getting-started/terminal-setup.md#part-13-errors-you-will-probably-meet) lists the ones we have already met.
 
 Then tell a teammate where you are, what you ran, and what it said. "It doesn't work" takes three messages to sort out; the error text usually takes none.

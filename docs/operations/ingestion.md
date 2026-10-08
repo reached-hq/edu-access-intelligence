@@ -163,7 +163,7 @@ Exit codes: 0 everything loaded or already loaded; 1 a batch failed or was block
 
 ## Running locally
 
-From the repository root, with the virtual environment active ([terminal_setup.md](../getting-started/terminal-setup.md)):
+From the repository root, with the virtual environment active ([terminal-setup.md](../getting-started/terminal-setup.md)):
 
 ```bash
 python -m pytest tests -q
