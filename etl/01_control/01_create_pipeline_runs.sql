@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS edu_access.`01-control`.pipeline_runs (
   batches_blocked INT,                 -- not approved: unknown file or changed checksum
   failure_stage STRING,
   error_message STRING,
-  code_revision STRING NOT NULL        -- commit that ran; 'UNSET' if unknown
+  code_revision STRING NOT NULL,       -- commit that ran; 'UNSET' if unknown
+  job_run_id STRING                    -- Databricks job run that ran this load; its Bronze gate task
+                                       -- writes data_quality_results under this run_id. NULL for manual runs
 );
 
 -- Owned by the team group, not by whoever ran the job first (D-009).

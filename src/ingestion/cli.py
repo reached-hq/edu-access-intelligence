@@ -1,7 +1,9 @@
 """Command line for ingestion. Run from the repository root.
 
     python -m src.ingestion.cli ingest --source deped_enrollment
+    python -m src.ingestion.cli ingest --source psa_poverty_stat
     python -m src.ingestion.cli status --source deped_enrollment
+    python -m src.ingestion.cli columns
     python -m src.ingestion.cli ddl    --source deped_enrollment > etl/02_bronze/01_create_deped_enrollment_raw.sql
     python -m src.ingestion.cli gate   --source deped_enrollment > etl/02_bronze/90_validate_deped_enrollment_raw.sql
 
@@ -63,13 +65,13 @@ def cmd_ingest(args):
     try:
         run = IngestionRun(store, REPO_ROOT, args.source, Path(landing).expanduser(), args.environment,
                            revision, rerun_batch_ids=args.rerun, run_gate=not args.no_gate,
-                           setup_tables=not args.no_setup)
+                           setup_tables=not args.no_setup, job_run_id=args.job_run_id)
         summary = run.execute()
     finally:
         store.close()
     print(f"run {summary.run_id}  source={args.source}  environment={args.environment}  code_revision={revision}")
     for o in summary.outcomes:
-        print(f"  {o.batch_id:44} {o.action:6} {o.load_type or '-':11} {o.outcome:9} "
+        print(f"  {o.batch_id:52} {o.action:6} {o.load_type or '-':11} {o.outcome:9} "
               f"inserted={o.rows_inserted if o.rows_inserted is not None else '-':>6} "
               f"bronze={o.bronze_rows if o.bronze_rows is not None else '-':>6}"
               + (f"\n      {o.message}" if o.outcome in ("failed", "blocked") or o.action == "skip" and o.message else ""))
@@ -85,21 +87,34 @@ def cmd_status(args):
     config, _ = load_source_config(REPO_ROOT, args.source)
     store = _store(args)
     try:
+        # The period is the school year, or the estimate years for a workbook source.
         rows = store.records(
-            f"SELECT batch_id, school_year, delivery_version, load_type, status, attempt_count, source_rows, "
-            f"bronze_rows, error_code FROM {table_name(control.SCHEMA, control.BATCHES)} "
-            f"WHERE source_id = '{config['source_id']}' ORDER BY school_year, delivery_version, batch_id")
+            f"SELECT batch_id, COALESCE(school_year, estimate_years_covered) AS period, delivery_version, load_type, "
+            f"status, attempt_count, source_rows, bronze_rows, error_code "
+            f"FROM {table_name(control.SCHEMA, control.BATCHES)} "
+            f"WHERE source_id = '{config['source_id']}' ORDER BY period, delivery_version, batch_id")
     except Exception:
         print("No control tables yet: nothing has been ingested into this database.")
         return EXIT_OK
     finally:
         store.close()
-    print(f"{'batch_id':44} {'year':7} {'ver':>3} {'load_type':11} {'status':10} {'tries':>5} {'source':>7} {'bronze':>7}  error")
+    print(f"{'batch_id':52} {'period':14} {'ver':>3} {'load_type':11} {'status':10} {'tries':>5} {'source':>7} {'bronze':>7}  error")
     for r in rows:
-        print(f"{r['batch_id']:44} {r['school_year'] or '-':7} {r['delivery_version'] or '-':>3} "
+        print(f"{r['batch_id']:52} {r['period'] or '-':14} {r['delivery_version'] or '-':>3} "
               f"{r['load_type'] or '-':11} {r['status']:10} {r['attempt_count']:>5} "
               f"{r['source_rows'] if r['source_rows'] is not None else '-':>7} "
               f"{r['bronze_rows'] if r['bronze_rows'] is not None else '-':>7}  {r['error_code'] or ''}")
+    return EXIT_OK
+
+
+def cmd_columns(args):
+    """Add the control-table columns added after the tables were first created (ADDED_COLUMNS).
+    The job runs this between the control tables and the views that read those columns."""
+    store = _store(args)
+    try:
+        control.add_missing_columns(store)
+    finally:
+        store.close()
     return EXIT_OK
 
 
@@ -130,6 +145,8 @@ def main(argv=None):
                         help="leave the Bronze gate to the job task that runs it as SQL right after this one")
     ingest.add_argument("--no-setup", action="store_true",
                         help="require upstream SQL tasks to have created the control and Bronze tables")
+    ingest.add_argument("--job-run-id",
+                        help="Databricks job run id, stored on pipeline_runs to join the load to its gate task's results")
     ingest.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"],
                         help="duckdb: local file (--db); spark: Unity Catalog tables on Databricks")
     ingest.add_argument("--db", type=Path, default=DEFAULT_DB)
@@ -140,6 +157,11 @@ def main(argv=None):
     status.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"])
     status.add_argument("--db", type=Path, default=DEFAULT_DB)
     status.set_defaults(func=cmd_status)
+
+    columns = sub.add_parser("columns", help="add control-table columns that existing tables are missing")
+    columns.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"])
+    columns.add_argument("--db", type=Path, default=DEFAULT_DB)
+    columns.set_defaults(func=cmd_columns)
 
     ddl = sub.add_parser("ddl", help="print the Bronze CREATE TABLE generated from the contract")
     ddl.add_argument("--source", required=True)

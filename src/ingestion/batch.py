@@ -17,13 +17,21 @@ The load type says why a new batch arrived, relative to what already
 succeeded for the source: the first ever (initial), a later school year
 (incremental), an earlier one (backfill), or a new version of a school year
 (revision).
+
+A PSA workbook covers several estimate years, so its load type compares year
+sets (`load_type_for_years`): a workbook overlapping years already loaded is a
+revision (the contract only allows that as the next version of the same
+logical dataset), one with only earlier years is a backfill, and one with any
+later year is incremental.
 """
 
 RETRYABLE = {"validating", "loading", "failed"}
 
 
-def batch_id(source_id, school_year, archive_sha256):
-    return f"{source_id}__{school_year or 'unknown'}__{archive_sha256[:12]}"
+def batch_id(source_id, period, archive_sha256):
+    """period: the school year ('2023-24') or the estimate years ('2018,2021,2023', written 2018-2021-2023)."""
+    label = (period or "unknown").replace(",", "-")
+    return f"{source_id}__{label}__{archive_sha256[:12]}"
 
 
 def choose_action(existing, rerun=False):
@@ -43,5 +51,17 @@ def load_type(delivery, succeeded_years):
     if not succeeded_years:
         return "initial"
     if delivery["school_year"] < max(succeeded_years):
+        return "backfill"
+    return "incremental"
+
+
+def load_type_for_years(delivery, succeeded_years):
+    """succeeded_years: estimate years covered by succeeded batches of this source."""
+    years = set(delivery["estimate_years"])
+    if delivery["delivery_version"] > 1 or years & succeeded_years:
+        return "revision"
+    if not succeeded_years:
+        return "initial"
+    if max(years) < max(succeeded_years):
         return "backfill"
     return "incremental"

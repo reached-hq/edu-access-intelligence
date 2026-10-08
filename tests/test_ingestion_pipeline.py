@@ -16,7 +16,7 @@ import pytest
 from factories.deped_deliveries import (
     REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows, real_config, write_config,
 )
-from src.ingestion import cli, pipeline
+from src.ingestion import cli, control, pipeline
 from src.ingestion.bronze import bronze_ddl, bronze_gate
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
@@ -56,9 +56,10 @@ class Env:
         write_config(self.repo, self.config)
         return entry
 
-    def run(self, rerun=(), hook=None, environment="local", run_gate=True):
+    def run(self, rerun=(), hook=None, environment="local", run_gate=True, setup_tables=True, job_run_id=None):
         return IngestionRun(self.store, self.repo, "deped_enrollment", self.landing, environment, REVISION,
-                            rerun_batch_ids=rerun, hook=hook, run_gate=run_gate).execute()
+                            rerun_batch_ids=rerun, hook=hook, run_gate=run_gate, setup_tables=setup_tables,
+                            job_run_id=job_run_id).execute()
 
     def q(self, sql):
         return self.store.query(sql)
@@ -387,6 +388,43 @@ def test_the_gate_can_run_as_its_own_step(env):
         env.store.run_file(gate, {"run_id": "job-run-1", "code_revision": REVISION})
     assert env.one(f"SELECT status FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-1' "
                    "AND check_name = 'rows_have_a_known_batch'") == "FAIL"
+
+
+def test_a_job_load_can_be_joined_to_its_gate_task(env):
+    """The job's load and its gate task have different run ids; job_run_id on pipeline_runs links
+    them, so a load's true outcome is its run row plus its gate's rows (D-020)."""
+    env.deliver("2023-24")
+    manual = env.run()
+    loaded = env.run(run_gate=False, job_run_id="job-run-7")
+    gate = env.repo / "etl" / "02_bronze" / "90_validate_deped_enrollment_raw.sql"
+    env.store.run_file(gate, {"run_id": "job-run-7", "code_revision": REVISION})
+    assert env.one(f"SELECT job_run_id FROM {CONTROL}.pipeline_runs WHERE run_id = '{manual.run_id}'") is None
+    assert env.q(f"""
+        SELECT r.status, COUNT(q.check_name), COUNT_IF(q.status = 'FAIL')
+        FROM {CONTROL}.pipeline_runs AS r
+        JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
+        WHERE r.run_id = '{loaded.run_id}' AND q.layer = 'bronze'
+        GROUP BY r.status""") == [("succeeded", 3, 0)]
+
+
+def test_columns_adds_what_older_control_tables_lack(tmp_path):
+    """Tables created before D-018 and D-020 lack their columns; `cli.py columns` adds them,
+    and running it again changes nothing."""
+    db = tmp_path / "t.duckdb"
+    store = DuckDBStore(db)
+    for path in sorted((REPO_ROOT / "etl" / "01_control").glob("0[1-4]_*.sql")):
+        store.run_file(path)
+    for table, columns in control.ADDED_COLUMNS.items():
+        for name, _ in columns:
+            store.sql(f"ALTER TABLE {CONTROL}.{table} DROP COLUMN {name}")
+    store.close()
+    for _ in range(2):
+        assert cli.main(["columns", "--db", str(db)]) == 0
+    store = DuckDBStore(db)
+    for table, columns in control.ADDED_COLUMNS.items():
+        have = {name for name, _ in store.columns("01-control", table)}
+        assert {name for name, _ in columns} <= have, table
+    store.close()
 
 
 def test_an_approved_file_missing_from_landing_is_reported(env):

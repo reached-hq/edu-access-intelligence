@@ -96,8 +96,9 @@ def python_argv(task, landing, db, params):
     i = 0
     while i < len(given):
         flag = given[i]
-        if flag in LOCAL_VALUES or flag in ("--landing", "--code-revision") and i + 1 < len(given):
-            value = {"--landing": str(landing), "--code-revision": params.get("code_revision")}.get(flag, LOCAL_VALUES.get(flag))
+        if flag in LOCAL_VALUES or flag in ("--landing", "--code-revision", "--job-run-id") and i + 1 < len(given):
+            value = {"--landing": str(landing), "--code-revision": params.get("code_revision"),
+                     "--job-run-id": params.get("run_id")}.get(flag, LOCAL_VALUES.get(flag))
             args += [flag, value]
             i += 2
             continue
