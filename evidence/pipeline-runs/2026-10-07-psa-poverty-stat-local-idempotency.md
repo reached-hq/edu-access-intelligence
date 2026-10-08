@@ -149,6 +149,7 @@ Known-issue WARNs, actual against profiled: `psgc_id_leading_zero_lost` 1,073 / 
 ## What this does not prove
 
 - Databricks behavior: `ALTER TABLE … ADD COLUMN` on the existing control tables, the replaced `current_batches` view, Delta column names with `%` and `/`, and reading the workbook from `/Volumes/`. These are confirmed only by the `dev` job run (`docs/operations/ingestion.md`, PSA section).
+- **Update after #113 (2026-10-08):** the job is now `edu_access_pipeline` (D-020), and PSA Poverty Stat runs as its own lane in it. Its `dev` runs ([evidence](2026-10-08-pipeline-dag-databricks-idempotency.md)) all skipped the workbook: they show the replaced `current_batches` view, the Bronze table with its `%` and `/` column names (1,641 rows), the workbook found and hashed on `/Volumes/`, and the gate passing as its own task. They do not show the workbook parsed and loaded on Databricks. The D-018 columns are now added by the job's `add_control_columns` task, not by the load; on `dev` they already existed, so adding them to older Delta tables is shown only locally.
 
 ## How to reproduce
 

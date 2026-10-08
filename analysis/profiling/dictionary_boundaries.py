@@ -138,14 +138,6 @@ PUBLISHER = "UN OCHA"
 
 SOURCE_URL = "https://data.humdata.org/dataset/cod-ab-phl"
 
-PROFILE_PATH = (
-    "docs/data/source-inventory/hdx_boundaries/profile.md"
-)
-
-README_PATH = (
-    "docs/data/source-inventory/hdx_boundaries/README.md"
-)
-
 SCRIPT_PATH = (
     "analysis/profiling/dictionary_boundaries.py"
 )
@@ -632,8 +624,8 @@ lines.append(
 lines.append("")
 
 lines.append(
-    f"See [profile.md]({PROFILE_PATH}) for findings and "
-    f"[README.md]({README_PATH}) for the source card."
+    "See [profile.md](profile.md) for findings and "
+    "[README.md](README.md) for the source card."
 )
 lines.append("")
 

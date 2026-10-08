@@ -164,7 +164,7 @@ Exit codes: 0 everything loaded or already loaded; 1 a batch failed or was block
 
 ## Running locally
 
-From the repository root, with the virtual environment active ([terminal_setup.md](../getting-started/terminal-setup.md)):
+From the repository root, with the virtual environment active ([terminal-setup.md](../getting-started/terminal-setup.md)):
 
 ```bash
 python -m pytest tests -q
@@ -435,7 +435,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 
 `psa_poverty_stat` loads through the same pipeline as DepEd, from its own contract, `config/ingestion/psa_poverty_stat.json` (`format: xlsx_sheet`). What differs is in `src/ingestion/workbook.py` (reading and checking the workbook) and `src/ingestion/formats.py` (period, versions, load type). Decision: D-018.
 
-**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **Not run on Databricks.** The source stays `profiled`.
+**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **On Databricks `dev`**, its lane in `edu_access_pipeline` (D-020, #113) ran in four job runs on 2026-10-08: each skipped the workbook (already in Bronze, 1,641 rows), inserted 0, and its Bronze gate task passed (3 checks, 0 FAIL), joined to the load through `job_run_id` ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The run that first loaded the workbook into `dev` is not recorded as evidence. The source stays `profiled`.
 
 ### The flow
 
@@ -451,7 +451,8 @@ psa.gov.ph stat-tables page                (official xlsx; no API, no scraping)
    │    unit / region_banner / footer
 01 Control  pipeline_runs · ingestion_batches (+ logical_dataset, estimate_years_covered, source_sheet)
    │        · ingestion_batch_attempts · data_quality_results
-   │  checks (FAIL blocks; WARN records) → MERGE → reconcile (rows, units, banners) → succeeded → gate
+   │  checks (FAIL blocks; WARN records) → MERGE → reconcile (rows, units, banners) → succeeded
+   │  → Bronze gate: in the job, its own SQL task 90_validate_psa_poverty_stat_raw (D-020)
    ▼
 02 Bronze   edu_access.`02-bronze`.psa_poverty_stat_raw   (1,641 rows per delivery: the whole sheet, text, with provenance)
    │
@@ -527,7 +528,7 @@ Known issues are flagged, never corrected, in Bronze:
 
 Values are the text stored in the file: numbers keep every stored digit (no rounding, no added precision), text keeps its Unicode, and labels and names are not standardized (61 differ from PSGC, O-10/X-1). Results hold counts only, never values.
 
-After the MERGE: Bronze rows for the workbook equal the sheet's rows (1,641), Excel row numbers run 1..1641 with no repeats, every provenance column is filled, and the counts by `source_row_kind` equal the file's (`bronze_row_kinds_match_source`: title 1, header 4, unit 1,612, region_banner 18, footer 6). Then the generated gate (`etl/02_bronze/90_validate_psa_poverty_stat_raw.sql`) checks the whole table.
+After the MERGE: Bronze rows for the workbook equal the sheet's rows (1,641), Excel row numbers run 1..1641 with no repeats, every provenance column is filled, and the counts by `source_row_kind` equal the file's (`bronze_row_kinds_match_source`: title 1, header 4, unit 1,612, region_banner 18, footer 6). Then the generated gate (`etl/02_bronze/90_validate_psa_poverty_stat_raw.sql`) checks the whole table: in the job as its own SQL task right after the load (the load runs with `--no-gate`), and inside the load when `ingest` is run by hand.
 
 ### Bronze table
 
@@ -574,6 +575,12 @@ python -m src.ingestion.cli status --source psa_poverty_stat
 
 `RAW_DATA_DIR` must be set in that terminal first ([terminal setup, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)), or given with `--landing <raw root>`. The workbook must be under `$RAW_DATA_DIR/psa/` (for example `psa/original/`). Expected on the real file: one batch `load initial`, `inserted=1641 bronze=1641`, status `succeeded`, every FAIL-type check PASS and the known-issue WARNs at their profiled counts; the second run `skip`, `inserted=0`. If the first run reports `unexpected_header_layout`, `footer_rows_match_approved` or another layout FAIL, the profile's description of the layout and the real file differ: do not change the data, record what was found and adjust the contract in review.
 
+Run by hand, `ingest` creates the control and Bronze tables itself and runs the Bronze gate inside the load. To run PSA Poverty Stat the way the job does (its own lane: `05_create_psa_poverty_stat_raw` → `bronze_psa_poverty_stat` with `--no-gate --no-setup` → `90_validate_psa_poverty_stat_raw`, beside the other sources), run the whole job locally ([src/job](../../src/job/README.md)):
+
+```bash
+python -m src.job.local_run
+```
+
 After changing the contract's schema, regenerate the SQL (a test fails until you do):
 
 ```bash
@@ -584,11 +591,13 @@ python -m src.ingestion.cli ddl --source psa_poverty_stat > etl/02_bronze/05_cre
 python -m src.ingestion.cli gate --source psa_poverty_stat > etl/02_bronze/90_validate_psa_poverty_stat_raw.sql
 ```
 
-### Databricks confirmation (not yet done)
+### Databricks confirmation (skip runs only)
 
-In `edu_access_pipeline`, PSA Poverty Stat has its own lane: `05_create_psa_poverty_stat_raw` → `bronze_psa_poverty_stat` → `90_validate_psa_poverty_stat_raw` (D-020). Before running it: the change is reviewed and merged, the run is announced to the team (it touches the shared control tables), and the CLI profile `reached-hq` works. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
+**Skip runs done on 2026-10-08** (`dev`, job `edu_access_pipeline`, runs `129683751826546` and `871133851621812` at `819a248`, runs `471206277550325` and `374205222997457` at `bb040a9`): every run skipped the workbook (`already loaded; same SHA-256`), inserted 0, left Bronze at 1,641 rows, and passed the Bronze gate task (3 PASS, 0 FAIL, 0 WARN: a skip checks no batch) ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The load path (validate, MERGE, reconcile) on Databricks, and the 10 known-issue WARNs, are shown only by the local runs; the run that first loaded the workbook into `dev` is not recorded as evidence. A Databricks run that loads it again needs a new approved delivery, or an empty `dev`.
 
-The first run after this change also adds three nullable columns to `ingestion_batches` and two to `ingestion_batch_attempts` (`ALTER TABLE … ADD COLUMN`, only if missing) and replaces `current_batches`. DepEd rows are unaffected (the new columns are NULL for them), but the run should be announced, and `ALTER TABLE ADD COLUMN` on the existing Delta tables is confirmed only by that run.
+In `edu_access_pipeline`, PSA Poverty Stat has its own lane: `05_create_psa_poverty_stat_raw` → `bronze_psa_poverty_stat` → `90_validate_psa_poverty_stat_raw` (D-020). It starts after the shared control setup and does not wait for any other source. Before running the job: the run is announced to the team (it touches the shared control tables), and the CLI profile `reached-hq` works. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
+
+In the job, `bronze_psa_poverty_stat` runs `cli.py ingest --no-gate --no-setup --job-run-id {{job.parameters.run_id}}`: it creates no table, runs no gate, and stores the job run id in `pipeline_runs.job_run_id` so the load joins to its gate task's checks (D-020). The control columns this source needs (D-018: three in `ingestion_batches`, two in `ingestion_batch_attempts`) and `job_run_id` are added once, only if missing, by the job's `add_control_columns` task, before `05_create_current_batches` replaces the view; the PSA lane no longer adds them. On `dev`, D-018's columns were already present before these runs, so their `ALTER TABLE … ADD COLUMN` on older tables is shown only locally; `job_run_id` was added on `dev` by the first DAG run.
 
 Validation queries (Databricks SQL editor):
 
@@ -679,7 +688,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 
 ### Limitations and open questions (PSA)
 
-- Verified on made-up workbooks and on the real workbook locally (DuckDB); the Databricks run is pending.
+- Verified on made-up workbooks and on the real workbook locally (DuckDB). On Databricks `dev`, only skip runs of the lane in `edu_access_pipeline` are recorded (2026-10-08, D-020); the load path there is not.
 - The merged-header check expects each group in row 2 to be merged across its columns, as in the real workbook; a future file laid out differently stops the batch, and the contract is corrected in review, not the file.
 - `known_issue` checks compare against counts from one profile run; they warn, they never block.
 - Update frequency, cross-year comparability (S-3), and the PSGC version of the ID are unverified.
