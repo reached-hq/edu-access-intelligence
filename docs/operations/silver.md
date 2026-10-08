@@ -99,7 +99,7 @@ A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR s
 | `learners_reconcile` | school year | Clean learners ≠ Bronze learners of the same rows |
 | `missing_counts_stay_null` | school year | NULL count cells in clean ≠ blank or absent cells in Bronze (catches blank → 0) |
 | `absent_columns_stay_null` | school year | A column the year's schema lacks is filled |
-| `labels_mapped_<column>` (9 columns) | school year | A published label is not in the reviewed mapping |
+| `labels_mapped_<column>` (9 columns) | school year | A published label is not in the reviewed mapping, on a clean or a quarantined row |
 | `enrollment_status_valid` | school year | A status outside the three values |
 | `current_batches_present` | table | Bronze has no current batch for the source, so Silver would be empty |
 | `lineage_complete`, `rows_resolve_to_current_bronze` | table | A lineage column is NULL, or a Silver row is not a current Bronze row |

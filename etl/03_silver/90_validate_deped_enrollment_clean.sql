@@ -38,6 +38,8 @@ b AS (
   LEFT JOIN quarantined AS q
     ON bronze.source_sha256 = q.source_sha256 AND bronze.source_row_number = q.source_row_number
 ),
+-- A quarantined row has no clean value, so its labels are checked against the reviewed mapping here:
+-- a row set aside for another reason must not let an unmapped label through.
 bronze_years AS (
   SELECT
     b.school_year,
@@ -165,7 +167,25 @@ bronze_years AS (
         OR b.`g11_sshs_techpro_male` = ''
         OR b.`g11_sshs_techpro_female` = ''
       ) AS blank_count_rows,
-    COUNT_IF(b.schema_version = 'v1') AS absent_column_rows
+    COUNT_IF(b.schema_version = 'v1') AS absent_column_rows,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`region`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`region`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('NCR', 'CAR', 'Region I', 'Region II', 'Region III', 'Region IV-A', 'MIMAROPA', 'Region V', 'Region VI', 'NIR', 'Region VII', 'Region VIII', 'Region IX', 'Region X', 'Region XI', 'Region XII', 'CARAGA', 'BARMM', 'PSO')) AS quarantined_unmapped_region,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`legislative_district`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`legislative_district`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('1st District', '2nd District', '3rd District', '4th District', '5th District', '6th District', '7th District', 'Lone District', 'No Legislative District', 'PSO')) AS quarantined_unmapped_legislative_district,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`sector`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`sector`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('Public', 'Private', 'SUC/LUC', 'SUCsLUCs', 'PSO')) AS quarantined_unmapped_sector,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`school_management`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`school_management`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('DepEd', 'DepED Managed', 'Non-Sectarian', 'Sectarian', 'SUC', 'SUC Managed', 'LUC', 'DOST', 'DOST Managed', 'Other GA', 'Other GA Managed', 'International School', 'Local International School', 'PSO', 'SCHOOL ABROAD')) AS quarantined_unmapped_school_management,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`annex_status`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`annex_status`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('Standalone School', 'School with no Annexes', 'Mother School', 'Mother school', 'Annex/Extension School', 'Annex or Extension school(s)', 'Mobile School/Center', 'Mobile School(s)/Center(s)')) AS quarantined_unmapped_annex_status,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`offers_es`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`offers_es`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('True', 'Yes', 'False', 'No')) AS quarantined_unmapped_offers_es,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`offers_jhs`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`offers_jhs`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('True', 'Yes', 'False', 'No')) AS quarantined_unmapped_offers_jhs,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`offers_shs`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`offers_shs`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('True', 'Yes', 'False', 'No')) AS quarantined_unmapped_offers_shs,
+    COUNT_IF(b.in_quarantine AND TRIM(regexp_replace(translate(b.`Modified Curricular Offering Classification`, chr(9) || chr(160), '  '), ' +', ' ')) <> ''
+        AND TRIM(regexp_replace(translate(b.`Modified Curricular Offering Classification`, chr(9) || chr(160), '  '), ' +', ' ')) NOT IN ('Purely ES', 'Purely JHS', 'Purely SHS', 'ES and JHS', 'ES with SHS', 'JHS with SHS', 'All Offering')) AS quarantined_unmapped_modified_curricular_offering_classification
   FROM b GROUP BY b.school_year
 ),
 clean_years AS (
@@ -324,20 +344,20 @@ years AS (
     COALESCE(truncated_rows, 0) AS truncated_rows,
     COALESCE(barangay_null_rows, 0) AS barangay_null_rows,
     COALESCE(relabelled_rows, 0) AS relabelled_rows,
-    COALESCE(unmapped_region, 0) AS unmapped_region,
-    COALESCE(unmapped_legislative_district, 0) AS unmapped_legislative_district,
-    COALESCE(unmapped_sector, 0) AS unmapped_sector,
-    COALESCE(unmapped_school_management, 0) AS unmapped_school_management,
-    COALESCE(unmapped_annex_status, 0) AS unmapped_annex_status,
-    COALESCE(unmapped_offers_es, 0) AS unmapped_offers_es,
-    COALESCE(unmapped_offers_jhs, 0) AS unmapped_offers_jhs,
-    COALESCE(unmapped_offers_shs, 0) AS unmapped_offers_shs,
-    COALESCE(unmapped_modified_curricular_offering_classification, 0) AS unmapped_modified_curricular_offering_classification,
     COALESCE(reason_school_id_blank, 0) AS reason_school_id_blank,
     COALESCE(reason_school_id_malformed, 0) AS reason_school_id_malformed,
     COALESCE(reason_school_id_duplicated, 0) AS reason_school_id_duplicated,
     COALESCE(reason_count_negative, 0) AS reason_count_negative,
-    COALESCE(reason_count_uncastable, 0) AS reason_count_uncastable
+    COALESCE(reason_count_uncastable, 0) AS reason_count_uncastable,
+    COALESCE(unmapped_region, 0) + COALESCE(quarantined_unmapped_region, 0) AS unmapped_region,
+    COALESCE(unmapped_legislative_district, 0) + COALESCE(quarantined_unmapped_legislative_district, 0) AS unmapped_legislative_district,
+    COALESCE(unmapped_sector, 0) + COALESCE(quarantined_unmapped_sector, 0) AS unmapped_sector,
+    COALESCE(unmapped_school_management, 0) + COALESCE(quarantined_unmapped_school_management, 0) AS unmapped_school_management,
+    COALESCE(unmapped_annex_status, 0) + COALESCE(quarantined_unmapped_annex_status, 0) AS unmapped_annex_status,
+    COALESCE(unmapped_offers_es, 0) + COALESCE(quarantined_unmapped_offers_es, 0) AS unmapped_offers_es,
+    COALESCE(unmapped_offers_jhs, 0) + COALESCE(quarantined_unmapped_offers_jhs, 0) AS unmapped_offers_jhs,
+    COALESCE(unmapped_offers_shs, 0) + COALESCE(quarantined_unmapped_offers_shs, 0) AS unmapped_offers_shs,
+    COALESCE(unmapped_modified_curricular_offering_classification, 0) + COALESCE(quarantined_unmapped_modified_curricular_offering_classification, 0) AS unmapped_modified_curricular_offering_classification
   FROM cur AS y
   LEFT JOIN bronze_years ON bronze_years.school_year = y.school_year
   LEFT JOIN clean_years ON clean_years.school_year = y.school_year

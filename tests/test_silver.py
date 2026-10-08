@@ -312,6 +312,17 @@ def test_an_unknown_boolean_label_fails_the_gate(env):
     assert env.failed_checks(summary.run_id) == ["labels_mapped_offers_jhs"]
 
 
+def test_an_unmapped_label_on_a_quarantined_row_still_fails_the_gate(env):
+    """A quarantined row has no clean value; its labels are checked against the mapping itself."""
+    env.deliver("2023-24", rows=v1_rows(200, {0: {"g1_male": "-1", "sector": "Charter"},
+                                              1: {"g2_female": "abc", "offers_es": "Maybe"}}))
+    env.bronze()
+    summary = env.silver()                               # 2 of 200 rows quarantined: under 1%, so only a WARN
+    assert summary.status == "failed"
+    assert env.failed_checks(summary.run_id) == ["labels_mapped_offers_es", "labels_mapped_sector"]
+    assert env.one(f"SELECT COUNT(*) FROM {QUARANTINE}") == 2
+
+
 def test_reconciliation_and_learner_totals_pass_on_a_clean_load(env):
     env.deliver("2023-24", n_rows=5)
     env.deliver("2025-26", "v2", rows=[v2_row(i) for i in range(4)])

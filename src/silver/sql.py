@@ -264,6 +264,10 @@ def gate_sql(spec):
     def raw(c):
         return f"b.{bq(c.source)}"
 
+    def accepted(c):
+        """Every published label the reviewed mapping accepts for a category or boolean column."""
+        return list(spec.categories[c.name].labels) if c.kind == CATEGORY else spec.boolean_true + spec.boolean_false
+
     bronze_learners = null_safe_sum(typed_count(spec, raw(c), "BIGINT") for c in counts)
     bronze_missing = " + ".join(f"CASE WHEN {raw(c)} IS NULL OR {raw(c)} = '' THEN 1 ELSE 0 END" for c in counts)
     absent = [f"b.schema_version = {lit(v)}" for v in spec.absent]
@@ -281,6 +285,10 @@ def gate_sql(spec):
                                         for name, values in spec.placeholders.items()], 8) + "\n      ) AS placeholder_rows",
         "COUNT_IF(\n        " + any_of([f"{raw(c)} = ''" for c in counts], 8) + "\n      ) AS blank_count_rows",
         (f"COUNT_IF({' OR '.join(absent)}) AS absent_column_rows" if absent else "0 AS absent_column_rows"),
+    ] + [
+        f"COUNT_IF(b.in_quarantine AND {whitespace(raw(x))} <> ''\n"
+        f"        AND {whitespace(raw(x))} NOT IN {in_list(accepted(x))}) AS quarantined_unmapped_{x.name}"
+        for x in mapped
     ]
     clean_learners = null_safe_sum(f"c.{x.name}" for x in counts)
     clean_missing = " + ".join(f"CASE WHEN c.{x.name} IS NULL THEN 1 ELSE 0 END" for x in counts)
@@ -318,9 +326,11 @@ def gate_sql(spec):
     passthrough = ["whitespace_rows", "repaired_rows", "blank_text_rows", "placeholder_rows", "blank_count_rows",
                    "absent_column_rows", "invalid_ids", "negative_rows", "absent_filled_rows", "overseas_rows",
                    "all_zero_rows", "no_counts_rows", "invalid_status_rows", "truncated_rows",
-                   f"{spec.barangay}_null_rows", "relabelled_rows",
-                   *[f"unmapped_{x.name}" for x in mapped], *[f"reason_{r}" for r in QUARANTINE_REASONS]]
+                   f"{spec.barangay}_null_rows", "relabelled_rows", *[f"reason_{r}" for r in QUARANTINE_REASONS]]
     year_columns += [f"COALESCE({name}, 0) AS {name}" for name in passthrough]
+    # Unmapped labels: clean rows by what the build made of them, quarantined rows against the mapping itself.
+    year_columns += [f"COALESCE(unmapped_{x.name}, 0) + COALESCE(quarantined_unmapped_{x.name}, 0) AS unmapped_{x.name}"
+                     for x in mapped]
 
     def check(name, table, status, expected, actual, source="years"):
         batch = "batch_id" if source == "years" else "CAST(NULL AS STRING)"
@@ -428,6 +438,8 @@ def gate_sql(spec):
         "  LEFT JOIN quarantined AS q",
         "    ON bronze.source_sha256 = q.source_sha256 AND bronze.source_row_number = q.source_row_number",
         "),",
+        "-- A quarantined row has no clean value, so its labels are checked against the reviewed mapping here:",
+        "-- a row set aside for another reason must not let an unmapped label through.",
         "bronze_years AS (",
         "  SELECT",
         joined(bronze_years, 4),
