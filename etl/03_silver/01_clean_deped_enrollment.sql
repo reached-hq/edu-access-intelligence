@@ -3,14 +3,14 @@
 --   python -m src.silver.cli sql --source deped_enrollment > etl/03_silver/01_clean_deped_enrollment.sql
 -- Do not edit by hand; tests/test_silver.py fails if it differs.
 --
--- Rebuilds both Silver tables from the current Bronze batches only (01-control.current_batches:
+-- Rebuilds the two candidate tables from the current Bronze batches only (01-control.current_batches:
 -- the latest succeeded delivery version of each school year). Bronze is read, never changed.
 -- Every current Bronze row ends in exactly one of the two tables:
---   deped_enrollment_clean       one row per school per school year, typed and standardized;
---   deped_enrollment_quarantine  rows that cannot be trusted, with their reasons.
--- Each CREATE OR REPLACE is one atomic Delta commit, but the pair is not, so the run is
--- trusted only once the gate (the next task) records it succeeded in pipeline_runs
--- (docs/operations/silver.md). It rebuilds on every run (D-025).
+--   deped_enrollment_clean_candidate       one row per school per school year, typed and standardized;
+--   deped_enrollment_quarantine_candidate  rows that cannot be trusted, with their reasons.
+-- The Silver tables (deped_enrollment_clean, deped_enrollment_quarantine) are never written here:
+-- the gate (the next task) checks the candidates and publishes them only if every check passes,
+-- so a failed build never replaces the last good one. It rebuilds on every run (D-025).
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id         the job run; every row built here, and the gate's results, carry it
@@ -755,7 +755,7 @@ SELECT
 FROM typed AS t;
 
 -- One row per school per school year, with the Bronze row it came from.
-CREATE OR REPLACE TABLE edu_access.`03-silver`.deped_enrollment_clean USING DELTA AS
+CREATE OR REPLACE TABLE edu_access.`03-silver`.deped_enrollment_clean_candidate USING DELTA AS
 SELECT
   school_year,
   school_id,
@@ -855,10 +855,10 @@ SELECT
 FROM deped_enrollment_classified
 WHERE quarantine_reasons = '';
 
-ALTER TABLE edu_access.`03-silver`.deped_enrollment_clean OWNER TO `reached-hq`;
+ALTER TABLE edu_access.`03-silver`.deped_enrollment_clean_candidate OWNER TO `reached-hq`;
 
 -- Rows set aside, never deleted: the Bronze row, and why.
-CREATE OR REPLACE TABLE edu_access.`03-silver`.deped_enrollment_quarantine USING DELTA AS
+CREATE OR REPLACE TABLE edu_access.`03-silver`.deped_enrollment_quarantine_candidate USING DELTA AS
 SELECT
   school_year,
   school_id,
@@ -874,4 +874,4 @@ SELECT
 FROM deped_enrollment_classified
 WHERE quarantine_reasons <> '';
 
-ALTER TABLE edu_access.`03-silver`.deped_enrollment_quarantine OWNER TO `reached-hq`;
+ALTER TABLE edu_access.`03-silver`.deped_enrollment_quarantine_candidate OWNER TO `reached-hq`;
