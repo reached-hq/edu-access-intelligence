@@ -89,6 +89,27 @@ resources:
               - --code-revision
               - "{{job.parameters.code_revision}}"
 
+        - task_key: bronze_hdx_boundaries
+          depends_on:
+            - task_key: bronze_deped_facilities
+          run_if: ALL_DONE
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            source: GIT
+            parameters:
+              - ingest
+              - --backend
+              - spark
+              - --source
+              - hdx_boundaries
+              - --landing
+              - /Volumes/edu_access/00-source/raw
+              - --environment
+              - ${bundle.target}
+              - --code-revision
+              - "{{job.parameters.code_revision}}"
+
       environments:
         - environment_key: ingestion
           spec:

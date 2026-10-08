@@ -1,0 +1,78 @@
+{
+  "source_id": "hdx_boundaries",
+  "format": "geojson_features",
+  "bronze_table": "hdx_adm3_raw",
+  "landing_dir": "admin_boundaries",
+  "archive_pattern": "^phl_admin3\\.geojson$",
+  "data_member_pattern": "^phl_admin3\\.geojson$",
+  "document_members": [],
+  "max_uncompressed_bytes": 800000000,
+  "max_stage_bytes": 64000000,
+  "identifier_column": "adm3_pcode",
+  "identifier_pattern": "^PH[0-9]{7}$",
+  "required_columns": [
+    "adm3_pcode",
+    "geometry"
+  ],
+  "geometry_types": [
+    "Polygon",
+    "MultiPolygon"
+  ],
+  "period_column": "valid_on",
+  "schema_versions": {
+    "v1": {
+      "first_period": "2025-02-13",
+      "note": "COD-AB v03 ADM3, valid_on 2025-02-13: 31 properties in file order plus the raw GeoJSON geometry (profile O-2). Properties are text as written; a JSON null stays NULL.",
+      "columns": [
+        "adm3_name",
+        "adm3_name1",
+        "adm3_name2",
+        "adm3_name3",
+        "adm3_pcode",
+        "adm2_name",
+        "adm2_name1",
+        "adm2_name2",
+        "adm2_name3",
+        "adm2_pcode",
+        "adm1_name",
+        "adm1_name1",
+        "adm1_name2",
+        "adm1_name3",
+        "adm1_pcode",
+        "adm0_name",
+        "adm0_name1",
+        "adm0_name2",
+        "adm0_name3",
+        "adm0_pcode",
+        "valid_on",
+        "valid_to",
+        "area_sqkm",
+        "version",
+        "lang",
+        "lang1",
+        "lang2",
+        "lang3",
+        "adm3_ref_name",
+        "center_lat",
+        "center_lon",
+        "geometry"
+      ]
+    }
+  },
+  "deliveries": [
+    {
+      "school_year": "2025-02-13",
+      "delivery_version": 1,
+      "supersedes": null,
+      "archive": "phl_admin3.geojson",
+      "archive_sha256": "f682747fbb26ba773131049ef61603f4b872ba93739f6e2c3320f55dd21eec41",
+      "data_member": "phl_admin3.geojson",
+      "data_member_sha256": "f682747fbb26ba773131049ef61603f4b872ba93739f6e2c3320f55dd21eec41",
+      "document_sha256": {},
+      "encoding": "utf-8",
+      "schema_version": "v1",
+      "row_count": 1642,
+      "retrieved_at_utc": "2026-10-01T22:34:00Z"
+    }
+  ]
+}
