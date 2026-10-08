@@ -87,7 +87,6 @@ def add_checks(store, rows):
     _append(store, DQ, rows)
 
 
-
 def find_batch(store, archive_sha256):
     rows = store.records(
         f"SELECT * FROM {table_name(SCHEMA, BATCHES)} WHERE archive_sha256 = '{archive_sha256}'")
