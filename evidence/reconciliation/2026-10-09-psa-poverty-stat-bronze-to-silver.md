@@ -1,6 +1,6 @@
 # Evidence: PSA Poverty Stat Silver reconciles with Bronze per estimate year, and every run rebuilds the same rows
 
-No issue number yet · local runs only (DuckDB); **not run on Databricks** · 2026-10-09 · checked by @Catweyine
+Issue #89 · local runs only (DuckDB); **not run on Databricks** · 2026-10-09 · checked by @Catweyine
 
 ## The claim
 
