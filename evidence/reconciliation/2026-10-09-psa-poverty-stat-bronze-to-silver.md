@@ -1,6 +1,6 @@
 # Evidence: PSA Poverty Stat Silver reconciles with Bronze per estimate year, and every run rebuilds the same rows
 
-Issue #89 · local runs (DuckDB) at `e53dd8b`, and two Databricks `dev` runs at `6cc39ca` · 2026-10-09 · checked by @Catweyine
+Issue #89 · local runs (DuckDB) at `e799be3`, and two Databricks `dev` runs at `6cc39ca` · 2026-10-09 · checked by @Catweyine
 
 ## The claim
 
@@ -8,13 +8,13 @@ Silver built from the real Bronze rows of the approved workbook keeps every curr
 
 ## What was run
 
-Commit `e53dd8b6ac395a51dc7538ecb3f31267b72fc98c` (clean: no `-dirty`; the column names of D-034 as revised after review), macOS 26.4.1 (arm64), Python 3.12.14, DuckDB 1.4.5, a fresh database file under `local_state/`. The approved workbook `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` (SHA-256 `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026`, verified by the loader) was read from `raw-data/psa/original/`.
+Commit `e799be3bb38a528eb9c4894c31eadf22de890941` (clean: no `-dirty`; `estimate_year` INT, and `main` merged), macOS 26.4.1 (arm64), Python 3.12.14, DuckDB 1.4.5, a fresh database file under `local_state/`. The approved workbook `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` (SHA-256 `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026`, verified by the loader) was read from `raw-data/psa/original/`.
 
 ```bash
 python -m pytest tests -q
 ```
 
-558 passed.
+560 passed.
 
 ```bash
 RAW_DATA_DIR=~/Documents/GitHub/raw-data python analysis/verification/psa_poverty_stat_silver.py
@@ -24,12 +24,12 @@ It runs the PSA Poverty Stat lane of `edu_access_pipeline` twice through `src.jo
 
 | Task | Run 1 | Run 2 |
 |---|---:|---:|
-| `bronze_psa_poverty_stat` | 0.18 (`load`, 1,641 rows inserted) | 0.03 (`skip`, 0 inserted: same SHA-256) |
+| `bronze_psa_poverty_stat` | 0.15 (`load`, 1,641 rows inserted) | 0.03 (`skip`, 0 inserted: same SHA-256) |
 | `90_validate_psa_poverty_stat_raw` | 0.01 | 0.02 |
 | `05_clean_psa_poverty_stat` | 0.05 | 0.05 |
 | `90_validate_psa_poverty_stat_clean` | 0.05 | 0.05 |
 
-Every task `succeeded` in both runs. The control bootstrap tasks took 0.01 s each (`add_control_columns` 0.24 s in run 1, when it created the columns).
+Every task `succeeded` in both runs. The control bootstrap tasks took 0.01 s each (`add_control_columns` 0.45 s in run 1, when it created the columns).
 
 ## Results
 
@@ -58,9 +58,9 @@ Expected values are the profile's baselines (O-2, O-5, O-7 to O-9) and the contr
 
 **Silver gate, run 2:** 115 results: 106 PASS, 9 WARN, 0 FAIL. The 9 WARN are the three statistical flags in each year (`flag_cv_over_20_<year>`, `flag_se_cv_inconsistent_<year>`, `flag_lower_limit_not_positive_<year>`), at the counts above. Every `<measure>_matches_bronze_<year>` check (5 measures × 3 years) found 0 mismatches; `missing_measures_stay_null_<year>` 5 = 5; `rows_reconcile_<year>` 1,612 = 1,612; `bronze_rows_accounted` 1,641 = 1,641; `quarantine_rate_<year>` 0; `rule_text_whitespace_normalized` 0 (no label needed it).
 
-**Repeated full rebuild:** SHA-256 of all clean rows without the run stamp (`run_id`, `cleaned_at_utc`, `code_revision`), in a fixed order: `417b652a17bee933c5a3cf55cde0029cb8fd9aad93c366eb7c8f62d8a7fe97de` after both runs; the empty quarantine: `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945` after both. The published `run_id` moved from run 1's to run 2's.
+**Repeated full rebuild:** SHA-256 of all clean rows without the run stamp (`run_id`, `cleaned_at_utc`, `code_revision`), in a fixed order: `9122710e4acaa7820671bb1e6dfd6c6af2e4f5a8d1d7a4f71b773c5f568ed276` after both runs (the same value @hyenalouise got at `9e7e6a3`); the empty quarantine: `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945` after both. The published `run_id` moved from run 1's to run 2's.
 
-**Run record:** two `silver_build` rows in `pipeline_runs`, both `succeeded`, both `code_revision` `e53dd8b`: `e5af450a-…` and `1c5991a5-…`.
+**Run record:** two `silver_build` rows in `pipeline_runs`, both `succeeded`, both `code_revision` `e799be3`: `ebf06e97-…` and `e3f8520e-…`.
 
 ## Databricks `dev`: two runs at `6cc39ca`
 
@@ -99,7 +99,6 @@ So on Spark the PSA SQL gives the same results as DuckDB: `TRY_CAST` of scientif
 
 ## What this does not show
 
-- **The local real-workbook runs predate the INT year.** They ran at `e53dd8b`, when `estimate_year` was text. The change to INT (`e6d88b0`) is covered by the tests (560 passed) and by the two Databricks runs at `6cc39ca`; the local verification script was not re-run after it.
 - **Databricks run 1's content hash was not taken**, so the two Databricks builds are shown equal by their checks and counts (both runs succeeded at this commit, the gate passed each), not by two hashes. The check query reads only run 2's gate results.
 - On Databricks, only `dev` has run, and only on a workbook that quarantines nothing.
 - A quarantined row, a failing gate, a revised delivery and a new estimate year are shown only by the made-up workbooks in `tests/test_silver_psa.py`, not on the real data (the workbook quarantines nothing).
@@ -107,6 +106,8 @@ So on Spark the PSA SQL gives the same results as DuckDB: `TRY_CAST` of scientif
 
 Raw output: written by the script to `local_state/psa_poverty_stat_silver_verification.md` (git-ignored, not committed).
 
-## Earlier run
+## Earlier runs
+
+At `e53dd8b` (`estimate_year` still text, before `main` was merged), the same lane gave every count above, 558 tests passed, and its two builds had identical content (SHA-256 `417b652a…7fe97de`, a different value because the year was text). Superseded by the run above.
 
 The same lane was first run at `39129af` (before the columns were renamed and trimmed after review, D-034): every count above was identical, and its own two builds had identical content (SHA-256 `3fdbce79…a1ea5`, a different value because the columns differ). That run is superseded by this one.
