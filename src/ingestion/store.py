@@ -133,7 +133,8 @@ class DuckDBStore:
         select = ", ".join(f'"{c}"' for c in names)
         self.con.execute(
             f"CREATE OR REPLACE TEMP TABLE {name} AS SELECT {select} FROM "
-            f"read_json('{path}', format = 'newline_delimited', columns = {{{spec}}})"
+            f"read_json('{path}', format = 'newline_delimited', maximum_object_size = 1073741824, "
+            f"columns = {{{spec}}})"
         )
         return name
 

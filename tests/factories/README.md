@@ -7,3 +7,4 @@ pytest-provided temporary directories; generated files are never committed.
 |---|---|
 | `deped_deliveries.py` | DepEd-shaped ZIPs from the real column contracts, with invented schools and fixed timestamps so checksums are repeatable |
 | `psa_workbooks.py` | PSA Poverty Stat-shaped xlsx workbooks (title, merged header in rows 2 to 5, region banners, empty column S, `Notes:` footer) from the real contract's columns, with invented places (IDs from 99xxx) and one of each known publisher quirk; standard library only, fixed timestamps |
+| `hdx_geojson.py` | COD-AB-shaped GeoJSON FeatureCollections from the real contract's columns, with invented places (codes from PH99...) and a small polygon; written by hand, not `json.dumps`, so a test can check the file's exact characters (`112.2460` stays `112.2460`) |

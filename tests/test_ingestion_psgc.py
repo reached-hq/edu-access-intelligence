@@ -762,6 +762,6 @@ def test_an_unknown_format_is_not_read_as_another_one():
     """Sara's review: formats.for_config looks the format up, so a new format fails loudly."""
     from src.ingestion import formats
     config = real_config()
-    config["format"] = "geojson_features"
+    config["format"] = "xlsx_magic"  # a format no source uses; geojson_features now exists (D-026)
     with pytest.raises(KeyError):
         formats.for_config(config)

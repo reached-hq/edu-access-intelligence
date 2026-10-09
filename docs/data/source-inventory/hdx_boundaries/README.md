@@ -30,6 +30,23 @@ Raw files are kept in raw storage, never in git. Record exactly what arrived.
 
 Both profiling scripts verify the SHA-256 values before reading the files and stop on a mismatch.
 
+### Rerunning the profile
+
+- **Locally (default, D-007):** set `RAW_DATA_DIR` in the environment or the repo's `.env` to the folder that contains `admin_boundaries/phl_admin3.geojson` and `admin_boundaries/phl_admin4.geojson`, then run `python analysis/profiling/profile_boundaries.py` and `python analysis/profiling/dictionary_boundaries.py`.
+- **On Databricks (alternative):** open both scripts from the team Git folder and run all cells. `RAW_DATA_DIR` is optional there; the scripts fall back to the team raw volume `/Volumes/edu_access/00-source/raw` (D-009).
+
+Both profiling scripts verify the SHA-256 values before reading the files and stop on a mismatch.
+
+## Raw storage and ingestion
+
+- **Raw storage:** `phl_admin3.geojson` is the first download, so it stays flat in `/Volumes/edu_access/00-source/raw/admin_boundaries/` (D-016). Any later download (a new COD-AB edition, or a re-download of this one) goes into `raw/admin_boundaries/<download date>/` under its original name, with that folder's `SHA256SUMS.txt`, and never over an existing file.
+- **Ingestion:** loaded to `` edu_access.`02-bronze`.hdx_adm3_raw `` from the contract [`config/ingestion/hdx_boundaries.json`](../../../../config/ingestion/hdx_boundaries.json) (format `geojson_features`), which pins the checksum and row count in [Files](#files). One Bronze row per feature, in file order (`source_row_number` 1 to 1,642). Every property is kept as text exactly as written in the file (numbers keep their digits, e.g. `112.2460`; JSON `null` stays NULL), and the geometry is kept as the raw GeoJSON text in the last column, `geometry`: not parsed, simplified, or reprojected.
+- **Period:** the control tables' `school_year` column holds the file's reference date, `2025-02-13` (`valid_on`), the same way the PSA sources store their own periods there. Every feature's `valid_on` must equal it.
+- **Blocking checks:** the approved checksum, a FeatureCollection with the contract's properties in order, a geometry on every feature, the reference date, and WGS 84 coordinates. **WARN:** a geometry type other than Polygon or MultiPolygon, or a byte-order mark.
+- **`phl_admin4.geojson` is not ingested** in this step. The contract's file pattern matches only `phl_admin3.geojson`, so the ADM4 file beside it is ignored (`test_the_admin4_file_beside_it_is_ignored`). Adding it later is a separate contract and table.
+- **Verified locally** on 2026-10-08 (1,642 rows, then a skip; 0 WARN, 0 FAIL); the Databricks confirmation run is pending.
+- **Status stays `profiled`** until the team accepts the source.
+
 ## Publisher documentation
 
 Documents the publisher provides about this data. Keep them with the raw files; do not commit them.

@@ -1,12 +1,12 @@
 """What differs between delivery formats, so pipeline.py has one flow for every source.
 
-| | `zip_csv` (DepEd) | `xlsx_sheet` (PSA Poverty Stat) | `xlsx_table` (PSA PSGC) |
-|---|---|---|---|
-| Discovered files | `*.zip` named like `archive_pattern` | `*.xlsx` named like `workbook_pattern` | `*.xlsx` named like `workbook_pattern` |
-| Period | one school year, from two file names | several estimate years, from the header | one publication quarter, from the file name and the `Metadata` sheet |
-| Versions counted per | school year | logical dataset | quarter (held in `school_year`, D-019) |
-| Load type | by school year (batch.load_type) | by year set (batch.load_type_for_years) | by quarter (batch.load_type) |
-| Checks | validate.prepare_delivery | workbook.prepare_workbook | xlsx_table.prepare_delivery |
+| | `zip_csv` (DepEd) | `xlsx_sheet` (PSA Poverty Stat) | `xlsx_table` (PSA PSGC) | `geojson_features` (COD-AB boundaries) |
+|---|---|---|---|---|
+| Discovered files | `*.zip` named like `archive_pattern` | `*.xlsx` named like `workbook_pattern` | `*.xlsx` named like `workbook_pattern` | `*.geojson` named like `archive_pattern` |
+| Period | one school year, from two file names | several estimate years, from the header | one publication quarter, from the file name and the `Metadata` sheet | one reference date, from the approved delivery (`valid_on`) |
+| Versions counted per | school year | logical dataset | quarter (held in `school_year`, D-019) | reference date (held in `school_year`, D-026) |
+| Load type | by school year (batch.load_type) | by year set (batch.load_type_for_years) | by quarter (batch.load_type) | by reference date (batch.load_type) |
+| Checks | validate.prepare_delivery | workbook.prepare_workbook | xlsx_table.prepare_delivery | geojson_features.prepare_geojson_delivery |
 
 Anything not in this table is shared: identity by SHA-256, the control tables,
 the insert-only MERGE, reconciliation, the Bronze gate.
@@ -19,7 +19,7 @@ from src.ingestion import control
 from src.ingestion.batch import load_type, load_type_for_years
 from src.ingestion.contract import source_format, years_label
 from src.ingestion.validate import identify_delivery, prepare_delivery
-from src.ingestion import workbook, xlsx_table
+from src.ingestion import geojson_features, workbook, xlsx_table
 
 
 class ZipCsv:
@@ -137,6 +137,32 @@ class XlsxTable:
         return xlsx_table.prepare_delivery(self.config, registry_entry, path)
 
 
+class GeojsonFeatures(ZipCsv):
+    """COD-AB boundaries: one GeoJSON file, not zipped (D-026).
+
+    The reference date (valid_on) goes where DepEd has its school year, as the
+    PSGC quarter does, so versions, load types and current_batches work as for
+    school years. The date comes from the approved delivery, never the name.
+    """
+    glob = "*.geojson"
+    pattern_key = "archive_pattern"
+
+    def period_from_name(self, name):
+        return None  # the reference date comes from the approved delivery, never the name
+
+    def describe(self, delivery, path):
+        period = delivery["school_year"] if delivery else None
+        return {"school_year": period, "logical_dataset": None, "estimate_years_covered": None,
+                "source_sheet": None, "period": period}
+
+    def identify(self, path):
+        return geojson_features.identify_geojson_delivery(self.config, path)
+
+    def prepare(self, registry_entry, path):
+        return geojson_features.prepare_geojson_delivery(self.config, registry_entry, path)
+
+
 def for_config(config):
     """The format's class. An unknown format raises KeyError rather than being read as another format."""
-    return {"zip_csv": ZipCsv, "xlsx_sheet": XlsxSheet, "xlsx_table": XlsxTable}[source_format(config)](config)
+    return {"zip_csv": ZipCsv, "xlsx_sheet": XlsxSheet, "xlsx_table": XlsxTable,
+            "geojson_features": GeojsonFeatures}[source_format(config)](config)

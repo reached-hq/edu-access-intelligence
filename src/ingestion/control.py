@@ -53,9 +53,19 @@ def add_missing_columns(store):
                 store.sql(f"ALTER TABLE {table_name(SCHEMA, table)} ADD COLUMN `{name}` {kind}")
 
 
+def _complete(columns, rows):
+    """Supply NULL for nullable control columns a row does not name.
+
+    Shared Databricks tables can gain additive columns before this branch knows
+    them. Rows read from a table already name every column, so saving one again
+    preserves its existing values.
+    """
+    return [{column: row.get(column) for column, _ in columns} for row in rows]
+
+
 def _upsert(store, table, key, row):
     columns = store.columns(SCHEMA, table)
-    store.stage(f"{table}_stage", columns, [row])
+    store.stage(f"{table}_stage", columns, _complete(columns, [row]))
     store.sql(
         f"MERGE INTO {table_name(SCHEMA, table)} AS t USING {table}_stage AS s ON t.{key} = s.{key} "
         "WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *"
@@ -66,7 +76,7 @@ def _append(store, table, rows):
     if not rows:
         return
     columns = store.columns(SCHEMA, table)
-    store.stage(f"{table}_stage", columns, rows)
+    store.stage(f"{table}_stage", columns, _complete(columns, rows))
     names = ", ".join(f"`{c}`" for c, _ in columns)
     store.sql(f"INSERT INTO {table_name(SCHEMA, table)} ({names}) SELECT {names} FROM {table}_stage")
 
