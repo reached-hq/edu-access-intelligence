@@ -179,7 +179,7 @@ The tables go to `local_state/edu_access.duckdb` (`--db <path>` for another file
 
 ## Running on Databricks
 
-**Run on `dev` on 2026-10-09** at `7d93d8e` ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md)). The deliberate confirmation run (D-008), repeated after any change to the Silver SQL, after the branch is pushed:
+**Run on `dev` on 2026-10-09** at `be5ee73`, with Silver publishing only after its gate passes ([evidence](../../evidence/pipeline-runs/2026-10-09-silver-publish-after-gate.md#re-run-at-the-head-commit-be5ee73)); first at `7d93d8e` ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md)). The deliberate confirmation run (D-008), repeated after any change to the Silver SQL, after the branch is pushed:
 
 1. From a clean checkout of the pushed commit, announce the run, detach notebooks, leave the SQL warehouse stopped (the job starts it).
 2. `databricks bundle validate --target dev --profile reached-hq`, then `databricks bundle deploy --target dev --profile reached-hq`; confirm in `databricks bundle summary` that `git_commit` and `code_revision` both equal `git rev-parse HEAD`.
