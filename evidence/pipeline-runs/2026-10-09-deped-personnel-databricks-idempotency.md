@@ -17,7 +17,7 @@ The initial load ran from 19:00:45 to 19:03:23 on 2026-10-08. The rerun was queu
 
 ## Confirmation in `edu_access_pipeline`
 
-Hyena Louise independently confirmed Databricks `dev` job run `696706629226090` at commit `15fcecbd45a482018d58e2f039a91c3184afd35e` during review of PR #110.
+@hyenalouise independently confirmed Databricks `dev` job run `696706629226090` at commit `15fcecbd45a482018d58e2f039a91c3184afd35e` during review of PR #110.
 
 | Check | Result |
 |---|---|
@@ -38,7 +38,7 @@ The three whole-table gate checks were:
 
 ## Additional independent validation
 
-Mae Eve Ylain reran the Personnel ingestion locally with the approved ZIP during review:
+@maeveylain reran the Personnel ingestion locally with the approved ZIP during review:
 
 - Run 1 loaded 60,167 rows.
 - Runs 2 and 3 skipped the succeeded batch and inserted 0 rows.
@@ -51,4 +51,3 @@ Mae Eve Ylain reran the Personnel ingestion locally with the approved ZIP during
 ## Limitations
 
 - The `edu_access_pipeline` confirmation followed the skip path because the approved delivery had already been loaded by the earlier source-specific job. The initial Databricks load is therefore evidenced by job run `468189509671870`, while the current DAG wiring and separate gate are evidenced by job run `696706629226090`.
-- The later control-table upsert preservation fix was not part of commit `15fcecbd`. Its regression test is local until the revised commit is pushed and the pipeline is rerun.

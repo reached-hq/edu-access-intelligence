@@ -72,7 +72,12 @@ def test_personnel_upsert_preserves_unknown_nullable_control_columns(tmp_path):
         "UPDATE edu_access.`01-control`.pipeline_runs SET future_nullable = 'keep-me' "
         f"WHERE run_id = '{summary.run_id}'"
     )
-    control.save_run(store, {"run_id": summary.run_id, "status": "succeeded"})
+    run_row = store.records(
+        "SELECT * FROM edu_access.`01-control`.pipeline_runs "
+        f"WHERE run_id = '{summary.run_id}'"
+    )[0]
+    run_row.pop("future_nullable")
+    control.save_run(store, run_row)
 
     assert summary.status == "succeeded"
     assert store.query(
