@@ -1,5 +1,6 @@
 {
   "source_id": "hdx_boundaries",
+  "generator": "hdx_boundaries",
   "owner": "@saraevcldn",
   "how_to_change": "The source owner approves a new or changed label or rule by merging a pull request that edits this file, then regenerates etl/03_silver (docs/operations/silver.md). A label that is not listed here fails the Silver gate (labels_mapped_*); it is never accepted silently.",
   "silver_table": "hdx_adm3_clean",
