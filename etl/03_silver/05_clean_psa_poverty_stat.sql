@@ -245,6 +245,7 @@ SELECT
 FROM psa_poverty_stat_classified
 WHERE quarantine_reasons = '';
 
+COMMENT ON TABLE edu_access.`03-silver`.psa_poverty_stat_clean_candidate IS 'Unpublished build for the Silver gate, which may have failed. Do not read: use psa_poverty_stat_clean, trusted by the run its rows carry (D-025).';
 ALTER TABLE edu_access.`03-silver`.psa_poverty_stat_clean_candidate OWNER TO `reached-hq`;
 
 -- Candidates set aside, never deleted: the Bronze row, and why.
@@ -267,4 +268,5 @@ SELECT
 FROM psa_poverty_stat_classified
 WHERE quarantine_reasons <> '';
 
+COMMENT ON TABLE edu_access.`03-silver`.psa_poverty_stat_quarantine_candidate IS 'Unpublished build for the Silver gate, which may have failed. Do not read: use psa_poverty_stat_quarantine, trusted by the run its rows carry (D-025).';
 ALTER TABLE edu_access.`03-silver`.psa_poverty_stat_quarantine_candidate OWNER TO `reached-hq`;

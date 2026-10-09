@@ -8,7 +8,7 @@ Two reviewed files define it, and nothing else:
   text columns, measures, numeric pattern, bounds, flags, and quarantine.
 
 PSA's shape differs from DepEd's (D-021), so it has its own generator rather than
-the DepEd mapping format (D-027): one Bronze `unit` row holds 2018, 2021 and 2023
+the DepEd mapping format (D-034): one Bronze `unit` row holds 2018, 2021 and 2023
 side by side, and Silver unpivots it to one row per unit and estimate year, with
 that year's estimate, CV, SE and both 90% limits together. Region banner rows give
 each unit its region label and never become estimate rows. The SQL follows the same
@@ -28,7 +28,7 @@ import yaml
 from src.ingestion.bronze import OWNER_GROUP, source_columns
 from src.ingestion.contract import load_source_config
 from src.ingestion.errors import IngestionError
-from src.silver.sql import CONTROL, bq, dq_table_name, joined, lit, silver_ref, whitespace
+from src.silver.sql import CONTROL, bq, candidate_comment, dq_table_name, joined, lit, silver_ref, whitespace
 
 SOURCE_ID = "psa_poverty_stat"
 SAFE_LITERAL = re.compile(r"^[^'\\;]*$")
@@ -464,6 +464,7 @@ def build_sql(spec):
         f"FROM {view}",
         "WHERE quarantine_reasons = '';",
         "",
+        candidate_comment(clean, spec.clean_table),
         f"ALTER TABLE {clean} OWNER TO `{OWNER_GROUP}`;",
         "",
         "-- Candidates set aside, never deleted: the Bronze row, and why.",
@@ -473,6 +474,7 @@ def build_sql(spec):
         f"FROM {view}",
         "WHERE quarantine_reasons <> '';",
         "",
+        candidate_comment(quarantine, spec.quarantine_table),
         f"ALTER TABLE {quarantine} OWNER TO `{OWNER_GROUP}`;",
         "",
     ]
@@ -888,7 +890,7 @@ def dictionary_markdown(spec):
         "",
         f"`` edu_access.`03-silver`.{spec.clean_table} ``: one row per city or municipality row of the workbook per "
         "estimate year, for the current delivery of each logical dataset only (`01-control`.current_batches). "
-        f"Key: (`{spec.id_to}`, `estimate_year`). The wide year columns are unpivoted (D-027), so each row holds one "
+        f"Key: (`{spec.id_to}`, `estimate_year`). The wide year columns are unpivoted (D-034), so each row holds one "
         "year's estimate with its CV, SE and 90% limits. Every row names the Bronze row it came from "
         "(`source_sha256`, `source_row_number`), so each published cell can be read back from Bronze. "
         "Rules, counts and the gate: [docs/operations/silver.md](../../operations/silver.md#psa-poverty-stat).",

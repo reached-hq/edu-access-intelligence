@@ -8,7 +8,7 @@ Silver built from the real Bronze rows of the approved workbook keeps every curr
 
 ## What was run
 
-Commit `e53dd8b6ac395a51dc7538ecb3f31267b72fc98c` (clean: no `-dirty`; the column names of D-027 as revised after review), macOS 26.4.1 (arm64), Python 3.12.14, DuckDB 1.4.5, a fresh database file under `local_state/`. The approved workbook `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` (SHA-256 `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026`, verified by the loader) was read from `raw-data/psa/original/`.
+Commit `e53dd8b6ac395a51dc7538ecb3f31267b72fc98c` (clean: no `-dirty`; the column names of D-034 as revised after review), macOS 26.4.1 (arm64), Python 3.12.14, DuckDB 1.4.5, a fresh database file under `local_state/`. The approved workbook `2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx` (SHA-256 `303fb0e87bff046acaa21e3ac586f6def6b737b9082eb1f51451a887fd93a026`, verified by the loader) was read from `raw-data/psa/original/`.
 
 ```bash
 python -m pytest tests -q
@@ -72,4 +72,4 @@ Raw output: written by the script to `local_state/psa_poverty_stat_silver_verifi
 
 ## Earlier run
 
-The same lane was first run at `39129af` (before the columns were renamed and trimmed after review, D-027): every count above was identical, and its own two builds had identical content (SHA-256 `3fdbce79…a1ea5`, a different value because the columns differ). That run is superseded by this one.
+The same lane was first run at `39129af` (before the columns were renamed and trimmed after review, D-034): every count above was identical, and its own two builds had identical content (SHA-256 `3fdbce79…a1ea5`, a different value because the columns differ). That run is superseded by this one.

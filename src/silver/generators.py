@@ -3,7 +3,7 @@
 Most sources follow the DepEd mapping format (src/silver/spec.py, sql.py,
 dictionary.py). A source whose shape that format cannot describe names its own
 module in its rules file as "generator" (PSA Poverty Stat: one wide row per unit
-holding several estimate years, D-027). Every generator module provides
+holding several estimate years, D-034). Every generator module provides
 load_spec, build_sql, gate_sql and dictionary_markdown.
 """
 

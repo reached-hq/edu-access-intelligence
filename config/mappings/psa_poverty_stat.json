@@ -4,7 +4,7 @@
   "silver_table": "psa_poverty_stat_clean",
   "quarantine_table": "psa_poverty_stat_quarantine",
   "owner": "@maeveylain (source registry); Silver drafted by @Catweyine",
-  "note": "Reviewed Silver rules for the PSA small-area poverty estimates (D-027). The generator src/silver/psa_poverty_stat.py writes etl/03_silver/05_clean_psa_poverty_stat.sql, etl/03_silver/90_validate_psa_poverty_stat_clean.sql and docs/data/silver/psa-poverty-stat-clean.md from this file and config/ingestion/psa_poverty_stat.json. Change a rule here, then regenerate; tests/test_silver_psa.py fails until the files match.",
+  "note": "Reviewed Silver rules for the PSA small-area poverty estimates (D-034). The generator src/silver/psa_poverty_stat.py writes etl/03_silver/05_clean_psa_poverty_stat.sql, etl/03_silver/90_validate_psa_poverty_stat_clean.sql and docs/data/silver/psa-poverty-stat-clean.md from this file and config/ingestion/psa_poverty_stat.json. Change a rule here, then regenerate; tests/test_silver_psa.py fails until the files match.",
   "grain": {
     "key": [
       "psgc_id",

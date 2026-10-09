@@ -595,6 +595,18 @@ def test_every_gate_check_is_written_by_the_gate_sql():
     assert gate.count(" AS check_name") == len(psa.gate_checks(spec))
 
 
+def test_only_the_candidate_tables_say_not_to_read_them(env):
+    """As for DepEd (#120): each candidate is commented as an unpublished build; the published copies are not."""
+    env.deliver()
+    env.bronze()
+    for _ in range(2):                                   # a rebuild replaces the table, and sets the comment again
+        assert env.silver().status == "succeeded"
+        comments = dict(env.q("SELECT table_name, comment FROM duckdb_tables() WHERE schema_name = '03-silver'"))
+        assert comments["psa_poverty_stat_clean_candidate"].startswith("Unpublished build")
+        assert "use psa_poverty_stat_quarantine," in comments["psa_poverty_stat_quarantine_candidate"]
+        assert comments["psa_poverty_stat_clean"] is None and comments["psa_poverty_stat_quarantine"] is None
+
+
 def test_the_build_never_publishes_and_the_gate_publishes_clean_last():
     spec = psa.load_spec(REPO_ROOT)
     build, gate = psa.build_sql(spec), psa.gate_sql(spec)

@@ -11,11 +11,11 @@ What the data and methods can and cannot support, with evidence. Filled in as fi
 
 ## Measurement
 
-- **PSA poverty incidence is a model-based small-area estimate of the share of persons below the poverty threshold, not a count.** Many city and municipal estimates are imprecise: CV over 20 in 171 (2018), 84 (2021) and 156 (2023) of 1,611 estimates; 3 lower limits are zero or negative; in 2021 the published SE disagrees with incidence × CV in 133 CALABARZON rows (profile O-7 to O-9). Silver flags these (`cv_over_20`, `lower_limit_not_positive`, `se_cv_inconsistent`) and changes nothing; any ranking must carry the interval and CV. Cross-year comparability of 2018, 2021 and 2023 is unverified (S-3). Evidence: [Silver, PSA Poverty Stat](../operations/silver.md#psa-poverty-stat), D-027.
+- **PSA poverty incidence is a model-based small-area estimate of the share of persons below the poverty threshold, not a count.** Many city and municipal estimates are imprecise: CV over 20 in 171 (2018), 84 (2021) and 156 (2023) of 1,611 estimates; 3 lower limits are zero or negative; in 2021 the published SE disagrees with incidence × CV in 133 CALABARZON rows (profile O-7 to O-9). Silver flags these (`cv_over_20`, `lower_limit_not_positive`, `se_cv_inconsistent`) and changes nothing; any ranking must carry the interval and CV. Cross-year comparability of 2018, 2021 and 2023 is unverified (S-3). Evidence: [Silver, PSA Poverty Stat](../operations/silver.md#psa-poverty-stat), D-034.
 
 ## Geography
 
-- **PSA poverty estimates cover 1,612 of the PSGC cities and municipalities.** Highly urbanized cities and a few other places are not in the workbook, and Kalayaan has no estimate in any year. Silver adds no rows for absent places and keeps Kalayaan with NULL estimates (`no_estimate`), never zero; Integration lists the absent places against PSGC (D-027, profile O-5, X-1).
+- **PSA poverty estimates cover 1,612 of the PSGC cities and municipalities.** Highly urbanized cities and a few other places are not in the workbook, and Kalayaan has no estimate in any year. Silver adds no rows for absent places and keeps Kalayaan with NULL estimates (`no_estimate`), never zero; Integration lists the absent places against PSGC (D-034, profile O-5, X-1).
 
 - **Overseas schools (33 / 35 / 36) carry placeholder places.** In SY 2025-26 they are published in CITY OF PASIG, "Lone District". Silver flags them (`is_overseas`); Gold excludes them from every geographic result.
 - **About 25 schools a year have a barangay name that may be cut at 40 characters**, and 70 / 65 / 7 have none. Silver flags the first and keeps the second NULL; barangay-level results for these schools depend on Integration's matching (profile O-15, O-18).

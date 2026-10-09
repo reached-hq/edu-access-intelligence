@@ -8,7 +8,7 @@ SQL case expressions or silently force ambiguous records to a target.
 | File | Used by | What it maps |
 |---|---|---|
 | `deped_enrollment.json` | Silver (`src/silver/`) | Column classification and renames, every accepted label of the category and boolean columns with its standard value and evidence, character repairs, placeholders, and the overseas markers (D-022, D-023) |
-| `psa_poverty_stat.json` | Silver (`src/silver/psa_poverty_stat.py`, named by its `generator` key) | Grain and unpivot, identifier padding and Correspondence Code, text columns, region banner context, the five measures and their numeric pattern, bounds, statistical flag thresholds, and the quarantine threshold (D-027) |
+| `psa_poverty_stat.json` | Silver (`src/silver/psa_poverty_stat.py`, named by its `generator` key) | Grain and unpivot, identifier padding and Correspondence Code, text columns, region banner context, the five measures and their numeric pattern, bounds, statistical flag thresholds, and the quarantine threshold (D-034) |
 
 The source owner named in the file approves a change in a pull request; the
 Silver SQL is then regenerated ([Silver, Changing a rule](../../docs/operations/silver.md#changing-a-rule-or-approving-a-label)).
