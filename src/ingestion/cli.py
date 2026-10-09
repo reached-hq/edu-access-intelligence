@@ -3,6 +3,7 @@
     python -m src.ingestion.cli ingest --source deped_enrollment
     python -m src.ingestion.cli ingest --source psa_poverty_stat
     python -m src.ingestion.cli status --source deped_enrollment
+    python -m src.ingestion.cli columns
     python -m src.ingestion.cli ddl    --source deped_enrollment > etl/02_bronze/01_create_deped_enrollment_raw.sql
     python -m src.ingestion.cli gate   --source deped_enrollment > etl/02_bronze/90_validate_deped_enrollment_raw.sql
 
@@ -63,7 +64,8 @@ def cmd_ingest(args):
     store = _store(args)
     try:
         run = IngestionRun(store, REPO_ROOT, args.source, Path(landing).expanduser(), args.environment,
-                           revision, rerun_batch_ids=args.rerun)
+                           revision, rerun_batch_ids=args.rerun, run_gate=not args.no_gate,
+                           setup_tables=not args.no_setup, job_run_id=args.job_run_id)
         summary = run.execute()
     finally:
         store.close()
@@ -105,6 +107,17 @@ def cmd_status(args):
     return EXIT_OK
 
 
+def cmd_columns(args):
+    """Add the control-table columns added after the tables were first created (ADDED_COLUMNS).
+    The job runs this between the control tables and the views that read those columns."""
+    store = _store(args)
+    try:
+        control.add_missing_columns(store)
+    finally:
+        store.close()
+    return EXIT_OK
+
+
 def cmd_ddl(args):
     config, _ = load_source_config(REPO_ROOT, args.source)
     sys.stdout.write(bronze.bronze_ddl(config))
@@ -128,6 +141,12 @@ def main(argv=None):
     ingest.add_argument("--code-revision", help="commit SHA; required off local, taken from git locally")
     ingest.add_argument("--rerun", action="append", default=[], metavar="BATCH_ID",
                         help="validate and merge a succeeded batch again (adds no rows); repeatable")
+    ingest.add_argument("--no-gate", action="store_true",
+                        help="leave the Bronze gate to the job task that runs it as SQL right after this one")
+    ingest.add_argument("--no-setup", action="store_true",
+                        help="require upstream SQL tasks to have created the control and Bronze tables")
+    ingest.add_argument("--job-run-id",
+                        help="Databricks job run id, stored on pipeline_runs to join the load to its gate task's results")
     ingest.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"],
                         help="duckdb: local file (--db); spark: Unity Catalog tables on Databricks")
     ingest.add_argument("--db", type=Path, default=DEFAULT_DB)
@@ -138,6 +157,11 @@ def main(argv=None):
     status.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"])
     status.add_argument("--db", type=Path, default=DEFAULT_DB)
     status.set_defaults(func=cmd_status)
+
+    columns = sub.add_parser("columns", help="add control-table columns that existing tables are missing")
+    columns.add_argument("--backend", default="duckdb", choices=["duckdb", "spark"])
+    columns.add_argument("--db", type=Path, default=DEFAULT_DB)
+    columns.set_defaults(func=cmd_columns)
 
     ddl = sub.add_parser("ddl", help="print the Bronze CREATE TABLE generated from the contract")
     ddl.add_argument("--source", required=True)

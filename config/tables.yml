@@ -16,7 +16,7 @@ source_tables:
     silver:
       table: deped_enrollment_clean
       quarantine_table: deped_enrollment_quarantine
-      create_file: 01_create_deped_enrollment_clean.sql
+      clean_file: 01_clean_deped_enrollment.sql
       validate_file: 90_validate_deped_enrollment_clean.sql
 
   - source_id: deped_facilities
@@ -25,12 +25,12 @@ source_tables:
       school_years: [2023-24]
     bronze:
       table: deped_facilities_raw
-      create_file: 01_create_deped_facilities_raw.sql
+      create_file: 02_create_deped_facilities_raw.sql
       validate_file: 90_validate_deped_facilities_raw.sql
     silver:
       table: deped_facilities_clean
       quarantine_table: deped_facilities_quarantine
-      create_file: 01_create_deped_facilities_clean.sql
+      clean_file: 02_clean_deped_facilities.sql
       validate_file: 90_validate_deped_facilities_clean.sql
 
   - source_id: deped_personnel
@@ -39,12 +39,12 @@ source_tables:
       school_years: [2023-24]
     bronze:
       table: deped_personnel_raw
-      create_file: 01_create_deped_personnel_raw.sql
+      create_file: 03_create_deped_personnel_raw.sql
       validate_file: 90_validate_deped_personnel_raw.sql
     silver:
       table: deped_personnel_clean
       quarantine_table: deped_personnel_quarantine
-      create_file: 01_create_deped_personnel_clean.sql
+      clean_file: 03_clean_deped_personnel.sql
       validate_file: 90_validate_deped_personnel_clean.sql
 
   - source_id: psa_psgc
@@ -55,12 +55,12 @@ source_tables:
       note: The workbook and its PSGC sheet are one logical source table, not two datasets.
     bronze:
       table: psa_psgc_raw
-      create_file: 01_create_psa_psgc_raw.sql
+      create_file: 04_create_psa_psgc_raw.sql
       validate_file: 90_validate_psa_psgc_raw.sql
     silver:
       table: psa_psgc_clean
       quarantine_table: psa_psgc_quarantine
-      create_file: 01_create_psa_psgc_clean.sql
+      clean_file: 04_clean_psa_psgc.sql
       validate_file: 90_validate_psa_psgc_clean.sql
 
   - source_id: psa_poverty_stat
@@ -69,12 +69,12 @@ source_tables:
       estimate_years: [2018, 2021, 2023]
     bronze:
       table: psa_poverty_stat_raw
-      create_file: 01_create_psa_poverty_stat_raw.sql
+      create_file: 05_create_psa_poverty_stat_raw.sql
       validate_file: 90_validate_psa_poverty_stat_raw.sql
     silver:
       table: psa_poverty_stat_clean
       quarantine_table: psa_poverty_stat_quarantine
-      create_file: 01_create_psa_poverty_stat_clean.sql
+      clean_file: 05_clean_psa_poverty_stat.sql
       validate_file: 90_validate_psa_poverty_stat_clean.sql
 
   - source_id: hdx_boundaries
@@ -84,25 +84,25 @@ source_tables:
       note: Only ADM3 is in the current analytical scope; the table name makes that grain explicit.
     bronze:
       table: hdx_adm3_raw
-      create_file: 01_create_hdx_adm3_raw.sql
+      create_file: 06_create_hdx_adm3_raw.sql
       validate_file: 90_validate_hdx_adm3_raw.sql
     silver:
       table: hdx_adm3_clean
       quarantine_table: hdx_adm3_quarantine
-      create_file: 01_create_hdx_adm3_clean.sql
+      clean_file: 06_clean_hdx_adm3.sql
       validate_file: 90_validate_hdx_adm3_clean.sql
 
 # Candidates only. Keep them out of executable ETL until their keys, review
 # workflow, and grains are approved.
 draft_integration_tables:
   - table: deped_school_psgc_map
-    candidate_file: 01_create_deped_school_psgc_map.sql
+    candidate_file: 01_map_deped_school_psgc.sql
     purpose: Reviewed mapping from DepEd school geography to the selected PSGC version.
   - table: psa_poverty_psgc_map
-    candidate_file: 02_create_psa_poverty_psgc_map.sql
+    candidate_file: 02_map_psa_poverty_psgc.sql
     purpose: Reviewed mapping from poverty-statistic geography identifiers to PSGC.
   - table: hdx_adm3_psgc_map
-    candidate_file: 03_create_hdx_adm3_psgc_map.sql
+    candidate_file: 03_map_hdx_adm3_psgc.sql
     purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
 
 deferred_layers:

@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validation gate for analytical problem 2.
+-- Implement data-quality results and failure thresholds before activation.

@@ -6,6 +6,7 @@ Reusable application code lives under `src/`.
 |---|---|
 | `ingestion/` | Validate approved deliveries, track batches, and load source-preserving Bronze rows |
 | `profiling/` | Helpers shared by programs under `analysis/` |
+| `job/` | Run the Databricks job's tasks from `databricks.yml` locally, in order, on DuckDB |
 
 Source-specific research stays in `analysis/`; relational production
 transformations stay in `etl/`.

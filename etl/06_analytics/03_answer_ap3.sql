@@ -1,0 +1,2 @@
+-- PLACEHOLDER: analytical problem 3 output.
+-- Define its approved question, grain, measures, and acceptance checks before activation.

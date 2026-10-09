@@ -719,20 +719,14 @@ def test_an_unknown_format_is_refused():
 
 # --- The job and the command line ---------------------------------------------------------
 
-def test_psgc_runs_in_the_bronze_job_after_the_task_before_it(repo_root):
-    """PSGC has its own task, run with ALL_DONE after the one before it (later sources may follow)."""
+def test_psgc_loads_in_its_own_lane_of_the_pipeline_job(repo_root):
     bundle = yaml.safe_load((repo_root / "databricks.yml").read_text(encoding="utf-8"))
-    tasks = bundle["resources"]["jobs"]["bronze_ingest"]["tasks"]
-
-    def source(task):
-        args = task["spark_python_task"]["parameters"]
-        return args[args.index("--source") + 1]
-
-    i = next(i for i, task in enumerate(tasks) if source(task) == "psa_psgc")
-    psgc = tasks[i]
-    assert i > 0
-    assert psgc["run_if"] == "ALL_DONE"
-    assert [d["task_key"] for d in psgc["depends_on"]] == [tasks[i - 1]["task_key"]]
+    tasks = {t["task_key"]: t for t in bundle["resources"]["jobs"]["edu_access_pipeline"]["tasks"]}
+    psgc = tasks["bronze_psa_psgc"]
+    args = psgc["spark_python_task"]["parameters"]
+    assert args[args.index("--source") + 1] == "psa_psgc"
+    assert psgc["run_if"] == "ALL_SUCCESS"
+    assert [d["task_key"] for d in psgc["depends_on"]] == ["04_create_psa_psgc_raw"]
 
 
 def test_cli_exit_code_for_a_blocked_workbook(tmp_path, capsys, monkeypatch):
@@ -768,6 +762,6 @@ def test_an_unknown_format_is_not_read_as_another_one():
     """Sara's review: formats.for_config looks the format up, so a new format fails loudly."""
     from src.ingestion import formats
     config = real_config()
-    config["format"] = "xlsx_magic"  # a format no source uses; geojson_features now exists (D-020)
+    config["format"] = "xlsx_magic"  # a format no source uses; geojson_features now exists (D-026)
     with pytest.raises(KeyError):
         formats.for_config(config)

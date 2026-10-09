@@ -6,7 +6,7 @@ ALTER SCHEMA edu_access.`01-control` OWNER TO `reached-hq`;
 
 CREATE TABLE IF NOT EXISTS edu_access.`01-control`.pipeline_runs (
   run_id STRING NOT NULL,              -- UUID, one per invocation
-  pipeline_name STRING NOT NULL,       -- e.g. 'bronze_ingest'
+  pipeline_name STRING NOT NULL,       -- e.g. 'bronze_ingest' (a source's Bronze load)
   source_id STRING NOT NULL,
   environment STRING NOT NULL,         -- local | dev | prod (deploy target, not a branch)
   status STRING NOT NULL,              -- running | succeeded | failed
@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS edu_access.`01-control`.pipeline_runs (
   batches_blocked INT,                 -- not approved: unknown file or changed checksum
   failure_stage STRING,
   error_message STRING,
-  code_revision STRING NOT NULL        -- commit that ran; 'UNSET' if unknown
+  code_revision STRING NOT NULL,       -- commit that ran; 'UNSET' if unknown
+  job_run_id STRING                    -- Databricks job run that ran this load; its Bronze gate task
+                                       -- writes data_quality_results under this run_id. NULL for manual runs
 );
 
 -- Owned by the team group, not by whoever ran the job first (D-009).

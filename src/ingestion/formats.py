@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | Discovered files | `*.zip` named like `archive_pattern` | `*.xlsx` named like `workbook_pattern` | `*.xlsx` named like `workbook_pattern` | `*.geojson` named like `archive_pattern` |
 | Period | one school year, from two file names | several estimate years, from the header | one publication quarter, from the file name and the `Metadata` sheet | one reference date, from the approved delivery (`valid_on`) |
-| Versions counted per | school year | logical dataset | quarter (held in `school_year`, D-019) | reference date (held in `school_year`, D-020) |
+| Versions counted per | school year | logical dataset | quarter (held in `school_year`, D-019) | reference date (held in `school_year`, D-026) |
 | Load type | by school year (batch.load_type) | by year set (batch.load_type_for_years) | by quarter (batch.load_type) | by reference date (batch.load_type) |
 | Checks | validate.prepare_delivery | workbook.prepare_workbook | xlsx_table.prepare_delivery | geojson_features.prepare_geojson_delivery |
 
@@ -138,7 +138,7 @@ class XlsxTable:
 
 
 class GeojsonFeatures(ZipCsv):
-    """COD-AB boundaries: one GeoJSON file, not zipped (D-020).
+    """COD-AB boundaries: one GeoJSON file, not zipped (D-026).
 
     The reference date (valid_on) goes where DepEd has its school year, as the
     PSGC quarter does, so versions, load types and current_batches work as for

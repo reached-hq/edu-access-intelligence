@@ -21,7 +21,7 @@ Four delivery formats exist (`format` in the contract):
 - `geojson_features` (COD-AB boundaries): one GeoJSON FeatureCollection file,
   not zipped, so the file is both the delivery and the data file. Its period is
   the boundary reference date (`valid_on`), held in `school_year` like the PSGC
-  quarter, and the geometry is kept as raw text (D-020).
+  quarter, and the geometry is kept as raw text (D-026).
 
 A delivery is approved by merging its entry in a reviewed pull request. The
 pipeline never adds or edits an entry, so a file it has never been told about
@@ -140,7 +140,7 @@ def provenance_columns(config):
 
 
 def delivery_file(delivery):
-    """The approved file's name: the zip for zip_csv, the workbook for xlsx_sheet."""
+    """The approved file's name: the zip for zip_csv, the GeoJSON file for geojson_features, the workbook for xlsx formats."""
     return delivery.get("archive") or delivery.get("workbook")
 
 

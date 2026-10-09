@@ -14,7 +14,8 @@ DepEd download page                         (official zip, one per school year)
    │  discover → checksum → is it an approved delivery?   (config/ingestion/deped_enrollment.json)
    ▼
 01 Control  pipeline_runs · ingestion_batches · ingestion_batch_attempts · data_quality_results
-   │  validate → MERGE into Bronze → reconcile → mark the batch succeeded → Bronze gate
+   │  validate → MERGE into Bronze → reconcile → mark the batch succeeded   (Python task)
+   │  → Bronze gate, 90_validate_<table>_raw.sql                             (its own SQL task)
    ▼
 02 Bronze   edu_access.`02-bronze`.deped_enrollment_raw     (all years, all versions, text, with provenance)
    │
@@ -88,7 +89,7 @@ Before anything is written to Bronze (`src/ingestion/validate.py`):
 | `school_id` is never blank | FAIL → `failed`, nothing loaded |
 | `school_id` is 6 digits; unique in the file; no fully repeated rows | WARN: recorded, rows loaded as received |
 
-After the MERGE, before the batch is marked succeeded (`bronze.reconcile`): Bronze rows for the file equal the source rows, no row number appears twice, row numbers run 1..n, and no provenance column is NULL. Then the Bronze gate (`etl/02_bronze/90_validate_deped_enrollment_raw.sql`) checks the whole table, and fails the run on any FAIL recorded in it.
+After the MERGE, before the batch is marked succeeded (`bronze.reconcile`): Bronze rows for the file equal the source rows, no row number appears twice, row numbers run 1..n, and no provenance column is NULL. Then the Bronze gate (`etl/02_bronze/90_validate_deped_enrollment_raw.sql`) checks the whole table. In the job it is its own SQL task right after the load (the load runs with `--no-gate`), and it fails that task on any FAIL it records; run by hand without `--no-gate`, `ingest` runs it itself and fails the run.
 
 Each run also records `approved_deliveries_present`: a WARN naming any approved zip that is not in the landing folder.
 
@@ -163,7 +164,7 @@ Exit codes: 0 everything loaded or already loaded; 1 a batch failed or was block
 
 ## Running locally
 
-From the repository root, with the virtual environment active ([terminal_setup.md](../getting-started/terminal-setup.md)):
+From the repository root, with the virtual environment active ([terminal-setup.md](../getting-started/terminal-setup.md)):
 
 ```bash
 python -m pytest tests -q
@@ -175,6 +176,12 @@ RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.ingestion.cli ingest -
 
 ```bash
 python -m src.ingestion.cli status --source deped_enrollment
+```
+
+To run the whole job as Databricks would, every task of `databricks.yml` in order (including the gates as separate SQL steps):
+
+```bash
+RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run
 ```
 
 Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing.
@@ -194,12 +201,12 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 1. Write `config/ingestion/<source_id>.json`: file-name patterns, the column list as a schema version, and the approved deliveries copied from the source card ([config/ingestion/README.md](../../config/ingestion/README.md)).
 2. Generate `etl/02_bronze/01_create_<source_id>_raw.sql` and `90_validate_<source_id>_raw.sql` with the two commands above.
 3. Add the publisher's file names to `NAMES` in `tests/factories/deped_deliveries.py` and a test that loads a made-up delivery (see `tests/test_ingestion_facilities.py`).
-4. Add a task to `bronze_ingest` in `databricks.yml`, after the last one, with `run_if: ALL_DONE` (`tests/test_bundle.py` checks both).
+4. Add a source lane to `edu_access_pipeline` in `databricks.yml`: its raw-table DDL depends only on `05_create_current_batches`, its load (`ingest --no-gate --no-setup`) depends only on that DDL, and its Bronze gate runs `etl/02_bronze/90_validate_<source_id>_raw.sql` after the load. `--no-setup` prevents parallel loaders from repeating the shared DDL that the explicit SQL tasks already ran. Continue the source's Silver tasks in the same lane. All source DDL tasks therefore fan out together after control setup, without cross-source dependencies. `tests/test_bundle.py` checks this fan-out and that every load is followed by its own gate.
 5. Load the real file locally and compare with the source card, then open the pull request, run the job twice on `dev`, and record the evidence.
 
 ## Running on Databricks
 
-**Done for `deped_enrollment`.** Run 1 loaded and was verified, and run 2 skipped everything, on 2026-10-06 (see [First Databricks run](#first-databricks-run)). These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
+**Current job: `edu_access_pipeline` (D-020).** Last confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
 
 1. Raw files. The three enrollment zips are already in `/Volumes/edu_access/00-source/raw/deped/` (checked 2026-10-06: sizes match the source card, and the folder's `SHA256SUMS.txt` lists the approved checksums). The first run hashes every zip itself, so a damaged upload is blocked, not loaded. For a later download, list the folder first, then upload into a new dated folder, never over an existing file:
 
@@ -227,25 +234,27 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
    databricks bundle deploy --target dev --profile reached-hq
    ```
 
-3. Confirm what was deployed: in the job (`[dev <user>] bronze_ingest`), `git_source.git_commit` and the `code_revision` parameter must both equal `git rev-parse HEAD`:
+3. Confirm what was deployed: in the job (`[dev <user>] edu_access_pipeline`; `[dev <user>] bronze_ingest` before #47), `git_source.git_commit` and the `code_revision` parameter must both equal `git rev-parse HEAD`:
 
    ```bash
    databricks bundle summary --target dev --profile reached-hq
    ```
 
-4. Run it twice. The second run must skip all three files:
+4. Run it twice. The second run must skip every file and insert no rows:
 
    ```bash
-   databricks bundle run bronze_ingest --target dev --profile reached-hq
+   databricks bundle run edu_access_pipeline --target dev --profile reached-hq
    ```
 
-5. Check the results with the queries below, and record the run in `pipeline_runs` and on #11.
+5. Check the results with the queries below ("A load's true outcome" shows each load with its gate), and record the run as evidence in `evidence/pipeline-runs/`.
 
-Before step 4, stop other serverless compute: detach notebooks and leave the SQL warehouse stopped, and do not query it while the job runs. On Free Edition a job waits until serverless capacity is free; the first run waited 35 minutes for 3.5 minutes of work. Check the results after the run ends.
+Before step 4, stop other serverless compute: detach notebooks and leave the SQL warehouse stopped (the job starts it for its SQL tasks), and do not query it while the job runs. On Free Edition a job waits until serverless capacity is free; the first run waited 35 minutes for 3.5 minutes of work. Check the results after the run ends.
 
-`databricks bundle validate` was run on 2026-10-06 and passed; both commit values resolved to the same SHA.
+`databricks bundle validate` was last run on 2026-10-08 at `bb040a9` and passed; both commit values resolved to the same SHA.
 
 ### First Databricks run
+
+Historical: these runs used the earlier `bronze_ingest` job (one Python task per source, one after another, with the gate inside the load). They show each source's load on Databricks, not the current DAG; for that, see the [2026-10-08 evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md).
 
 Evidence for both runs, with the queries and their results: [evidence/2026-10-06-deped-enrollment-idempotency.md](../../evidence/pipeline-runs/2026-10-06-deped-enrollment-idempotency.md).
 
@@ -283,9 +292,23 @@ SELECT COUNT(*) - COUNT(DISTINCT source_sha256, source_row_number) FROM edu_acce
 SELECT source_archive, source_file, source_sha256, source_row_number, batch_id, run_id, ingested_at_utc, code_revision
 FROM edu_access.`02-bronze`.deped_enrollment_raw WHERE school_year = '2025-26' AND source_row_number = 1;
 
--- Checks for the latest run: expect no FAIL
-SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
-WHERE run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs) ORDER BY status, check_name;
+-- Checks for the latest job run: expect no FAIL. Each load writes its batch checks under its own
+-- run_id, and each Bronze gate task writes under the job run id (D-020), so read both
+WITH latest AS (SELECT MAX_BY(job_run_id, started_at_utc) AS job_run_id FROM edu_access.`01-control`.pipeline_runs WHERE job_run_id IS NOT NULL)
+SELECT source_id, check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
+WHERE run_id IN (SELECT job_run_id FROM latest
+                 UNION ALL SELECT run_id FROM edu_access.`01-control`.pipeline_runs WHERE job_run_id = (SELECT job_run_id FROM latest))
+ORDER BY source_id, status, check_name;
+
+-- A load's true outcome: pipeline_runs alone can say succeeded when its gate task failed.
+-- gate_checks = 0 for a job run means its gate task has not run (a manual run gates inside the load)
+SELECT r.source_id, r.started_at_utc, r.status AS load_status, r.job_run_id,
+       COUNT_IF(q.run_id = r.job_run_id) AS gate_checks,
+       COUNT_IF(q.status = 'FAIL') AS failed_checks, COUNT_IF(q.status = 'WARN') AS warned_checks
+FROM edu_access.`01-control`.pipeline_runs AS r
+LEFT JOIN edu_access.`01-control`.data_quality_results AS q
+  ON q.run_id IN (r.run_id, r.job_run_id) AND q.source_id = r.source_id AND q.layer = 'bronze'
+GROUP BY ALL ORDER BY r.started_at_utc DESC;
 
 -- Column mapping is on (needed for the column name with spaces)
 SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_enrollment_raw ('delta.columnMapping.mode');
@@ -504,7 +527,7 @@ After the MERGE: Bronze rows for the workbook equal the sheet's rows (1,641), Ex
 
 ### Bronze table
 
-`edu_access.`02-bronze`.psa_poverty_stat_raw` (generated: `etl/02_bronze/01_create_psa_poverty_stat_raw.sql`): 17 provenance columns, then the 18 publisher columns as text. Poverty incidence is the percentage of **persons** below the poverty threshold (press release 2026-43), not of families or students. Each year's estimate keeps its CV, standard error, and both 90% limits in the same row.
+`edu_access.`02-bronze`.psa_poverty_stat_raw` (generated: `etl/02_bronze/05_create_psa_poverty_stat_raw.sql`): 17 provenance columns, then the 18 publisher columns as text. Poverty incidence is the percentage of **persons** below the poverty threshold (press release 2026-43), not of families or students. Each year's estimate keeps its CV, standard error, and both 90% limits in the same row.
 
 | Provenance column | Meaning |
 |---|---|
@@ -550,7 +573,7 @@ python -m src.ingestion.cli status --source psa_poverty_stat
 After changing the contract's schema, regenerate the SQL (a test fails until you do):
 
 ```bash
-python -m src.ingestion.cli ddl --source psa_poverty_stat > etl/02_bronze/01_create_psa_poverty_stat_raw.sql
+python -m src.ingestion.cli ddl --source psa_poverty_stat > etl/02_bronze/05_create_psa_poverty_stat_raw.sql
 ```
 
 ```bash
@@ -559,7 +582,7 @@ python -m src.ingestion.cli gate --source psa_poverty_stat > etl/02_bronze/90_va
 
 ### Databricks confirmation (not yet done)
 
-`databricks.yml` has a third task, `bronze_psa_poverty_stat`, after facilities (`run_if: ALL_DONE`). Before running it: the change is reviewed and merged, the run is announced to the team (it touches the shared control tables), and the CLI profile `reached-hq` works. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
+In `edu_access_pipeline`, PSA Poverty Stat has its own lane: `05_create_psa_poverty_stat_raw` → `bronze_psa_poverty_stat` → `90_validate_psa_poverty_stat_raw` (D-020). Before running it: the change is reviewed and merged, the run is announced to the team (it touches the shared control tables), and the CLI profile `reached-hq` works. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
 
 The first run after this change also adds three nullable columns to `ingestion_batches` and two to `ingestion_batch_attempts` (`ALTER TABLE … ADD COLUMN`, only if missing) and replaces `current_batches`. DepEd rows are unaffected (the new columns are NULL for them), but the run should be announced, and `ALTER TABLE ADD COLUMN` on the existing Delta tables is confirmed only by that run.
 
@@ -592,8 +615,11 @@ FROM edu_access.`02-bronze`.psa_poverty_stat_raw;
 
 -- Checks for the PSA batch: expect no FAIL, and WARNs at the profiled counts
 SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
-WHERE source_id = 'psa_poverty_stat' AND run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs
-                                                  WHERE source_id = 'psa_poverty_stat') ORDER BY status, check_name;
+WHERE source_id = 'psa_poverty_stat'
+  AND run_id IN (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_poverty_stat'
+                 UNION ALL  -- the gate task's rows, under the job run id (D-020)
+                 SELECT MAX_BY(job_run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_poverty_stat')
+ORDER BY status, check_name;
 
 -- Where one row came from
 SELECT source_file, source_sha256, source_sheet, source_row_number, source_row_kind, batch_id, run_id, code_revision
@@ -798,7 +824,7 @@ A known characteristic is PASS when its count equals the profiled count and WARN
 
 ### Bronze table (PSGC)
 
-``edu_access.`02-bronze`.psa_psgc_raw`` (generated: `etl/02_bronze/01_create_psa_psgc_raw.sql`): 16 provenance columns, then the 11 source columns, all as text.
+``edu_access.`02-bronze`.psa_psgc_raw`` (generated: `etl/02_bronze/04_create_psa_psgc_raw.sql`): 16 provenance columns, then the 11 source columns, all as text.
 
 | Provenance column | Meaning |
 |---|---|
@@ -867,7 +893,7 @@ python -m src.ingestion.cli status --source psa_psgc
 After changing the contract's schema, regenerate the SQL (a test fails until you do). In Windows PowerShell 5.1, `>` writes UTF-16 and `Out-File -Encoding utf8` adds a byte-order mark; run these from Git Bash, or pipe to `Out-File -Encoding ascii`:
 
 ```bash
-python -m src.ingestion.cli ddl --source psa_psgc > etl/02_bronze/01_create_psa_psgc_raw.sql
+python -m src.ingestion.cli ddl --source psa_psgc > etl/02_bronze/04_create_psa_psgc_raw.sql
 ```
 
 ```bash
@@ -878,7 +904,7 @@ python -m src.ingestion.cli gate --source psa_psgc > etl/02_bronze/90_validate_p
 
 **Done on 2026-10-08** (`dev`, job runs `468579404509795` then `96808622487518`, commit `cb274bf`): load 43,768, then skip; [evidence](../../evidence/pipeline-runs/2026-10-08-psa-psgc-databricks-idempotency.md). The first attempt failed because the shared `dev` control tables already carried D-018's columns before #109 merged; with #109 merged, `main` handles those columns itself.
 
-`databricks.yml` has a third task, `bronze_psa_psgc`, after facilities (`run_if: ALL_DONE`). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). This change adds no column to the control tables, and works whether or not they carry #109's columns. Then, as for DepEd ([Running on Databricks](#running-on-databricks)):
+In `edu_access_pipeline`, PSGC has its own lane: `04_create_psa_psgc_raw` → `bronze_psa_psgc` → `90_validate_psa_psgc_raw` (D-020). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). This change adds no column to the control tables, and works whether or not they carry #109's columns. Then, as for DepEd ([Running on Databricks](#running-on-databricks)):
 
 ```bash
 databricks bundle validate --target dev --profile reached-hq
@@ -893,10 +919,10 @@ databricks bundle summary --target dev --profile reached-hq
 ```
 
 ```bash
-databricks bundle run bronze_ingest --target dev --profile reached-hq
+databricks bundle run edu_access_pipeline --target dev --profile reached-hq
 ```
 
-Run the last command twice: the second run must skip every file. The DepEd tasks run first and skip their files.
+Run the last command twice: the second run must skip every file. The other source lanes run in parallel and skip their files.
 
 ### Validation queries (PSGC)
 
@@ -929,7 +955,9 @@ FROM edu_access.`02-bronze`.psa_psgc_raw WHERE publication_period = '2026-Q2';
 -- Checks for the latest PSGC run: expect no FAIL, and the WARNs at their profiled counts
 SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
 WHERE source_id = 'psa_psgc'
-  AND run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_psgc')
+  AND run_id IN (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_psgc'
+                 UNION ALL  -- the gate task's rows, under the job run id (D-020)
+                 SELECT MAX_BY(job_run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs WHERE source_id = 'psa_psgc')
 ORDER BY status, check_name;
 
 -- Where one row came from: Excel row 2 of sheet PSGC
@@ -1030,7 +1058,7 @@ For codes only in the new quarter, look for their `correspondence_code` among th
 
 ## Administrative boundaries (COD-AB ADM3 GeoJSON)
 
-`hdx_boundaries` loads through the same pipeline from its own contract, `config/ingestion/hdx_boundaries.json` (`format: geojson_features`). What differs is in `src/ingestion/geojson_features.py` (reading and checking the GeoJSON file) and the `GeojsonFeatures` class in `src/ingestion/formats.py`. Only the ADM3 file (cities and municipalities) is loaded; the ADM4 file beside it is not. Decision: D-020.
+`hdx_boundaries` loads through the same pipeline from its own contract, `config/ingestion/hdx_boundaries.json` (`format: geojson_features`). What differs is in `src/ingestion/geojson_features.py` (reading and checking the GeoJSON file) and the `GeojsonFeatures` class in `src/ingestion/formats.py`. Only the ADM3 file (cities and municipalities) is loaded; the ADM4 file beside it is not. Decision: D-026.
 
 **Status:** implemented and tested locally with made-up GeoJSON (`tests/test_ingestion_boundaries.py`), and **verified locally on the real file** on 2026-10-08: 1,642 rows loaded (feature positions 1 to 1,642, every `valid_on` 2025-02-13, no missing geometry), 24 PASS, 0 WARN, 0 FAIL, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-local-idempotency.md)). **Verified on Databricks `dev`** on 2026-10-08 at commit `67ea4a2`: 1,642 rows loaded, every count equal to the local runs, 0 FAIL, then two runs skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md)).The source stays `profiled`.
 
@@ -1170,9 +1198,9 @@ python -m src.ingestion.cli gate --source hdx_boundaries > etl/02_bronze/90_vali
 
 **Done on 2026-10-08** (`dev`, job runs `275546090497316` then `990080691102176` and `370044913196063`, commit `67ea4a2`): load 1,642, then two skips; [evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md). The first attempt (`555332578823580`) failed before loading anything, because the shared `dev` control tables carried #47's `job_run_id` column; #81's `control.py` fix (`7c0464b`) is included here.
 
-`databricks.yml` has a task, `bronze_hdx_boundaries`, after `bronze_psa_psgc` (`run_if: ALL_DONE`). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The file is already on the volume (card: `admin_boundaries/`). This change adds no column to the control tables. Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice. The other tasks run first and skip their files.
+In `edu_access_pipeline`, the boundaries have their own lane: `06_create_hdx_adm3_raw` → `bronze_hdx_boundaries` → `90_validate_hdx_adm3_raw` (D-020); the Silver tasks after it stay disabled. The runs above used the earlier `bronze_ingest` job, before the DAG merged; the lane runs the same load and gate code. Before running it, the pull request must be reviewed, the run announced to the team, and the `reached-hq` profile working. Then, as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
 
-What only this run can prove (D-017): that serverless has enough memory for the 1.7 GB peak, and that 64 MB chunks go through Spark Connect.
+That run confirmed what only Databricks could prove for this source (D-017): serverless has enough memory for the 555 MB file, and 64 MB chunks go through Spark Connect.
 
 Validation queries (Databricks SQL editor):
 
@@ -1257,8 +1285,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 
 | Question | Default until decided | Where |
 |---|---|---|
-| Should `school_year` be renamed to a generic `period` for non-school sources? | Keep the column; it holds the reference date `2025-02-13` | D-019, D-020, Ina |
-| Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | D-020 |
+| Should `school_year` be renamed to a generic `period` for non-school sources? | Keep the column; it holds the reference date `2025-02-13` | D-019, D-026|
+| Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | D-026 |
 | Should ADM4 (`phl_admin4.geojson`) be ingested? | Not now | Team (owner @saraevcldn) |
-| Are 64 MB chunks right for Free Edition serverless? | 64 MB | Databricks confirmation run |
 | Does `hdx_boundaries` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
