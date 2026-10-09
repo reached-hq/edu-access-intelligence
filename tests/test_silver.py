@@ -20,7 +20,7 @@ from factories.deped_deliveries import (
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
 from src.ingestion.store import DuckDBStore, to_duckdb
-from src.silver.dictionary import dictionary_markdown
+from src.silver.generators import generator
 from src.silver.spec import build_spec, load_spec
 from src.silver.sql import build_sql, gate_sql
 
@@ -640,13 +640,16 @@ MAPPINGS = sorted((REPO_ROOT / "config" / "mappings").glob("*.json"))
 
 
 @pytest.mark.parametrize("mapping", MAPPINGS, ids=lambda p: p.stem)
-@pytest.mark.parametrize("kind, path, generate", [
-    ("sql", "etl/03_silver/{clean_file}", build_sql),
-    ("gate", "etl/03_silver/90_validate_{table}.sql", gate_sql),
-    ("dictionary", "docs/data/silver/{doc}.md", dictionary_markdown),
+@pytest.mark.parametrize("kind, path, function", [
+    ("sql", "etl/03_silver/{clean_file}", "build_sql"),
+    ("gate", "etl/03_silver/90_validate_{table}.sql", "gate_sql"),
+    ("dictionary", "docs/data/silver/{doc}.md", "dictionary_markdown"),
 ])
-def test_silver_files_match_the_mapping(mapping, kind, path, generate):
-    spec = load_spec(REPO_ROOT, mapping.stem)
+def test_silver_files_match_the_mapping(mapping, kind, path, function):
+    """Every source's committed Silver files equal what its generator writes (src/silver/generators.py)."""
+    g = generator(mapping.stem, REPO_ROOT)
+    generate = getattr(g, function)
+    spec = g.load_spec(REPO_ROOT, mapping.stem)
     target = REPO_ROOT / path.format(
         table=spec.clean_table,
         clean_file=spec.clean_file,

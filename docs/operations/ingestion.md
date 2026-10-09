@@ -435,7 +435,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 
 `psa_poverty_stat` loads through the same pipeline as DepEd, from its own contract, `config/ingestion/psa_poverty_stat.json` (`format: xlsx_sheet`). What differs is in `src/ingestion/workbook.py` (reading and checking the workbook) and `src/ingestion/formats.py` (period, versions, load type). Decision: D-018.
 
-**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **On Databricks `dev`**, its lane in `edu_access_pipeline` (D-020, #113) ran in four job runs on 2026-10-08: each skipped the workbook (already in Bronze, 1,641 rows), inserted 0, and its Bronze gate task passed (3 checks, 0 FAIL), joined to the load through `job_run_id` ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The run that first loaded the workbook into `dev` is not recorded as evidence. The source stays `profiled`.
+**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **On Databricks `dev`**, its lane in `edu_access_pipeline` (D-020, #113) ran in four job runs on 2026-10-08: each skipped the workbook (already in Bronze, 1,641 rows), inserted 0, and its Bronze gate task passed (3 checks, 0 FAIL), joined to the load through `job_run_id` ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The run that first loaded the workbook into `dev` is not recorded as evidence: those skip runs show the lane and the Bronze gate on Databricks, not its first-load path. The source stays `profiled`. Its Silver build and gate now continue the lane ([Silver, PSA Poverty Stat](silver.md#psa-poverty-stat), D-027); they are tested locally, and not yet run on Databricks.
 
 ### The flow
 
@@ -463,7 +463,7 @@ psa.gov.ph stat-tables page                (official xlsx; no API, no scraping)
 
 | Question | Answer |
 |---|---|
-| What is ingested? | Sheet `2023_NoHUC_Maguindanao grouped` of the approved workbook: the 1,630 body rows (Excel rows 6 to 1635), both the 1,612 city/municipality rows and the 18 region banner rows. The title, header rows and footer stay in Source; they are checked, not loaded |
+| What is ingested? | Sheet `2023_NoHUC_Maguindanao grouped` of the approved workbook: the whole used range, all 1,641 rows (1 title, 4 header, 1,612 city/municipality `unit` rows, 18 `region_banner` rows, 6 footer rows), each labelled by `source_row_kind` (D-018). Only `unit` rows become Silver estimates |
 | How often does it arrive? | UNVERIFIED. One workbook so far, covering 2018, 2021 and 2023 (released 2026-02-06). Treated as an irregular batch, never as a stream |
 | What identifies a new delivery? | A workbook SHA-256 not seen before |
 | What shows a delivery changed? | The same file name (or estimate years already loaded) with a different SHA-256. There is no `updated_at` in the workbook, and none is invented |
@@ -642,16 +642,16 @@ SELECT source_file, source_sha256, source_sheet, source_row_number, source_row_k
 FROM edu_access.`02-bronze`.psa_poverty_stat_raw WHERE source_row_number = 641;
 ```
 
-### Handoff to Silver (not built here)
+### Handoff to Silver
 
-Silver should:
+Built as described in [Silver, PSA Poverty Stat](silver.md#psa-poverty-stat) (D-027). What Bronze hands over, and what Silver does with it:
 
 - read only rows whose `batch_id` is in `current_batches`, and only `source_row_kind = 'unit'`; use the banner rows to carry the region label down (O-3), never as places;
 - keep `PSGC ID` raw, and add a padded 6-digit code (`lpad(…, 6, '0')`) and the PSGC Correspondence Code (padded code + `000`); the geographic join to PSGC belongs in Integration (X-1, D-012);
-- unpivot to one row per unit and estimate year, typing estimates, CV, SE and limits as decimals without rounding; blanks become NULL with a reason (`no_estimate` for Kalayaan), never 0;
+- unpivot to one row per unit and estimate year, typing estimates, CV, SE and limits as DOUBLE numbers (the stored values, scientific notation included) without rounding; blanks become NULL with a reason (`no_estimate` for Kalayaan), never 0;
 - flag, not fix: CV over 20, the 2021 CALABARZON standard errors, zero or negative lower limits (clip only in a documented, reversible column if a rule is approved);
-- take province from the ID prefix, not the labels (`(Continued)`, Surigao rows, O-3), and region from the banner for Negros Island Region (two ID prefixes);
-- record that 33 highly urbanized cities, Isabela, Cotabato, Pateros and 8 SGA municipalities are `not_in_source`, not zero poverty;
+- keep the province code prefix (first four digits of the padded ID) apart from the published province label, and never treat the labels (`(Continued)`, Surigao rows, O-3) as authoritative; take region from the banner, not the ID prefix (Negros Island Region has two prefixes); canonical geography is Integration's (PSGC);
+- add no rows for places the workbook does not cover (33 highly urbanized cities, Isabela, Cotabato, Pateros, 8 SGA municipalities): Integration records them as `not_in_source` against PSGC, never as zero poverty;
 - keep `batch_id` and `source_row_number` on every row.
 
 Cross-year comparability (S-3) and update frequency remain unverified; a trend across 2018, 2021 and 2023 needs the team's decision first.
@@ -699,7 +699,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 | Should the latest version always be current after a revision? | Latest succeeded version | D-015 |
 | Does `psa_poverty_stat` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
 | How long are superseded versions kept? | Forever | Not yet logged |
-| Should Silver clip negative lower limits, or only flag them? | Flag only | Silver issue |
+| Should Silver clip negative lower limits, or only flag them? | Flag only (`lower_limit_not_positive`); proposed in D-027, not yet reviewed | D-027 |
 
 ## PSA PSGC (xlsx workbook, one per quarter)
 

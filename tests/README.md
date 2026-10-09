@@ -14,7 +14,8 @@ python -m pytest tests -q
 | `test_documentation_structure.py` | Required indexes, retired paths, and local Markdown links |
 | `test_naming.py` | Naming configuration and ETL path conventions |
 | `test_ingestion_*.py` | Delivery validation, loading, rerun, and source-specific behavior |
-| `test_silver.py` | Silver cleaning rules, quarantine, the gate, the run record, revisions, and the generated SQL |
+| `test_silver.py` | DepEd enrollment Silver: cleaning rules, quarantine, the gate, the run record, revisions, and the generated SQL |
+| `test_silver_psa.py` | PSA Poverty Stat Silver on made-up workbooks: unpivot, ID padding, region banners, NULL and `no_estimate`, full-precision numbers, statistical flags, quarantine, every gate check, revisions and new years, repeated rebuilds, the run record, and the generated files |
 | `test_bundle.py`, `test_databricks_runtime.py` | The job's commit tracking and task order, and the Databricks runtime differences imitated locally |
 
 Tests must never depend on real source rows or credentials.

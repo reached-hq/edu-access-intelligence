@@ -17,6 +17,6 @@ python -m src.silver.cli sql --source deped_enrollment > etl/03_silver/01_clean_
 python -m src.silver.cli gate --source deped_enrollment > etl/03_silver/90_validate_deped_enrollment_clean.sql
 ```
 
-Implemented: `deped_enrollment` → `deped_enrollment_clean`, `deped_enrollment_quarantine` ([data dictionary](../../docs/data/silver/deped-enrollment-clean.md)). Final names for the other sources are in the [ETL table registry](../../docs/standards/tables.md).
+Implemented: `deped_enrollment` → `deped_enrollment_clean`, `deped_enrollment_quarantine` ([data dictionary](../../docs/data/silver/deped-enrollment-clean.md)); `psa_poverty_stat` → `psa_poverty_stat_clean`, `psa_poverty_stat_quarantine`, one row per unit and estimate year, checked per batch and estimate year ([data dictionary](../../docs/data/silver/psa-poverty-stat-clean.md), D-027; regenerate with `--source psa_poverty_stat`). Final names for the other sources are in the [ETL table registry](../../docs/standards/tables.md).
 
 The SQL uses only what Databricks and DuckDB share; `src/ingestion/store.py` translates `regexp_like` and `regexp_replace` for DuckDB. Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).

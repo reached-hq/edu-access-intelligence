@@ -3,6 +3,9 @@
     python -m src.silver.cli sql        --source deped_enrollment > etl/03_silver/01_clean_deped_enrollment.sql
     python -m src.silver.cli gate       --source deped_enrollment > etl/03_silver/90_validate_deped_enrollment_clean.sql
     python -m src.silver.cli dictionary --source deped_enrollment > docs/data/silver/deped-enrollment-clean.md
+    python -m src.silver.cli sql        --source psa_poverty_stat > etl/03_silver/05_clean_psa_poverty_stat.sql
+    python -m src.silver.cli gate       --source psa_poverty_stat > etl/03_silver/90_validate_psa_poverty_stat_clean.sql
+    python -m src.silver.cli dictionary --source psa_poverty_stat > docs/data/silver/psa-poverty-stat-clean.md
 
 The build and the gate are SQL tasks of the job (databricks.yml); run the job
 locally with python -m src.job.local_run. Exit codes: 0 printed; 2 the
@@ -19,14 +22,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.ingestion.errors import EXIT_CONFIG_ERROR, EXIT_OK, IngestionError
-from src.silver.dictionary import dictionary_markdown
-from src.silver.spec import load_spec
-from src.silver.sql import build_sql, gate_sql
+from src.silver.generators import generator
 
 
-def cmd_print(generate):
+def cmd_print(kind):
     def run(args):
-        sys.stdout.write(generate(load_spec(REPO_ROOT, args.source)))
+        g = generator(args.source)
+        sys.stdout.write(getattr(g, kind)(g.load_spec(REPO_ROOT, args.source)))
         return EXIT_OK
     return run
 
@@ -34,11 +36,11 @@ def cmd_print(generate):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python -m src.silver.cli", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    for name, generate, text in (("sql", build_sql, "the Silver build SQL"), ("gate", gate_sql, "the Silver gate SQL"),
-                                 ("dictionary", dictionary_markdown, "the Silver data dictionary (Markdown)")):
+    for name, kind, text in (("sql", "build_sql", "the Silver build SQL"), ("gate", "gate_sql", "the Silver gate SQL"),
+                             ("dictionary", "dictionary_markdown", "the Silver data dictionary (Markdown)")):
         p = sub.add_parser(name, help=f"print {text} generated from the contract and the mapping")
         p.add_argument("--source", required=True)
-        p.set_defaults(func=cmd_print(generate))
+        p.set_defaults(func=cmd_print(kind))
     args = parser.parse_args(argv)
     try:
         return args.func(args)

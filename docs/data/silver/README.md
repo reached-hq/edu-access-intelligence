@@ -5,3 +5,4 @@ One data dictionary per Silver table, generated from the source's Bronze contrac
 | Source | Clean table | Quarantine | Dictionary |
 |---|---|---|---|
 | `deped_enrollment` | `deped_enrollment_clean` | `deped_enrollment_quarantine` | [deped-enrollment-clean.md](deped-enrollment-clean.md) |
+| `psa_poverty_stat` | `psa_poverty_stat_clean` | `psa_poverty_stat_quarantine` | [psa-poverty-stat-clean.md](psa-poverty-stat-clean.md) |
