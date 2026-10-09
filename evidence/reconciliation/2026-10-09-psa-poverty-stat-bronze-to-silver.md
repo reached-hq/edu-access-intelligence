@@ -1,6 +1,6 @@
 # Evidence: PSA Poverty Stat Silver reconciles with Bronze per estimate year, and every run rebuilds the same rows
 
-Issue #89 · local runs only (DuckDB); **not run on Databricks** · 2026-10-09 · checked by @Catweyine
+Issue #89 · local runs (DuckDB) at `e53dd8b`, and two Databricks `dev` runs at `6cc39ca` · 2026-10-09 · checked by @Catweyine
 
 ## The claim
 
@@ -62,9 +62,46 @@ Expected values are the profile's baselines (O-2, O-5, O-7 to O-9) and the contr
 
 **Run record:** two `silver_build` rows in `pipeline_runs`, both `succeeded`, both `code_revision` `e53dd8b`: `e5af450a-…` and `1c5991a5-…`.
 
+## Databricks `dev`: two runs at `6cc39ca`
+
+Job `edu_access_pipeline` (job ID `268191948913843`, target `dev`), deployed from commit `6cc39cac96587448fe47239161f1c8fe90ff8bd0` (`code_revision` and `git_commit` of the deployment), with `estimate_year` as INT. Both runs were started manually by @Catweyine on 2026-10-09; the second used **Run now** on the same deployment, without deploying again.
+
+| Run | Job run ID | Started (Asia/Manila) | Duration | Status |
+|---|---|---|---:|---|
+| 1 | `1080268183594725` | 19:20 | 26m 18s | Succeeded |
+| 2 | `846140731363521` | 19:53 | 3m 54s | Succeeded |
+
+A run that succeeds passed both PSA gates: a FAIL stops the task before publishing. The check query in [Silver, Running on Databricks (PSA)](../../docs/operations/silver.md#running-on-databricks-psa), with the commit above, was run in the SQL editor after run 2:
+
+| Check | Expected | Actual | Result |
+|---|---|---|---|
+| Clean rows 2018 / 2021 / 2023 | 1612 / 1612 / 1612 | 1612 / 1612 / 1612 | OK |
+| Repeated keys | 0 | 0 | OK |
+| `no_estimate` rows (Kalayaan, Excel row 641) | 3 | 3 | OK |
+| `cv_over_20` 2018 / 2021 / 2023 | 171 / 84 / 156 | 171 / 84 / 156 | OK |
+| `se_cv_inconsistent` 2018 / 2021 / 2023 | 6 / 133 / 1 | 6 / 133 / 1 | OK |
+| `lower_limit_not_positive` | 3 | 3 | OK |
+| IDs padded from 5 digits | 3219 | 3219 | OK |
+| Units without a region banner | 0 | 0 | OK |
+| Measure mismatches with Bronze | 0 | 0 | OK |
+| Checks in the last run | 115 | 115 | OK |
+| FAIL / WARN in the last run | 0 / 9 | 0 / 9 | OK |
+| Rows from the last run | 4836 | 4836 | OK |
+| Rows from another commit | 0 | 0 | OK |
+| Last Silver run | succeeded | succeeded | OK |
+| Silver runs succeeded at this commit | 2 | 2 | OK |
+| Candidate rows not published | 0 | 0 | OK |
+| Quarantined rows | 0 | 0 | OK |
+
+So on Spark the PSA SQL gives the same results as DuckDB: `TRY_CAST` of scientific notation to DOUBLE (every measure equals its Bronze cell), `split`/`array_contains`, `lpad` (3,219 padded IDs), the banner window (every unit has a region), and the gate's `VALUES` aliases and `IS NOT DISTINCT FROM` (115 results). The published clean table equals its candidate.
+
+**Content after run 2:** `content_sha256` (the business-content query in the same section) `4203ae8cf20f231c546b81dfb1825debe2dfd166cfe4eec02e48c29581c9929f`. It is computed by Spark SQL, so it is not comparable with the local hash below, which hashes Python values.
+
 ## What this does not show
 
-- **Databricks.** Nothing here ran on Databricks. Spark's behavior for the PSA SQL (`split`/`array_contains`, `TRY_CAST` of scientific notation to DOUBLE, `lpad`, the banner window, `VALUES` with column aliases, `IS NOT DISTINCT FROM`), job parameters, ownership, and warehouse timings are pending the confirmation run ([Silver, Running on Databricks (PSA)](../../docs/operations/silver.md#running-on-databricks-psa)).
+- **The local real-workbook runs predate the INT year.** They ran at `e53dd8b`, when `estimate_year` was text. The change to INT (`e6d88b0`) is covered by the tests (560 passed) and by the two Databricks runs at `6cc39ca`; the local verification script was not re-run after it.
+- **Databricks run 1's content hash was not taken**, so the two Databricks builds are shown equal by their checks and counts (both runs succeeded at this commit, the gate passed each), not by two hashes. The check query reads only run 2's gate results.
+- On Databricks, only `dev` has run, and only on a workbook that quarantines nothing.
 - A quarantined row, a failing gate, a revised delivery and a new estimate year are shown only by the made-up workbooks in `tests/test_silver_psa.py`, not on the real data (the workbook quarantines nothing).
 - Cross-year comparability of 2018, 2021 and 2023 (profile S-3) is not tested by any of this.
 
