@@ -249,6 +249,16 @@ def test_negative_and_uncastable_counts_are_quarantined_with_reasons_not_dropped
     assert env.one(f"SELECT COUNT(*) FROM {BRONZE}") == 400   # Bronze untouched
 
 
+def test_a_count_with_surrounding_spaces_is_quarantined_not_trimmed(env):
+    """Counts are matched exactly, never trimmed: ' 5' is not a whole number (mapping note, count_columns)."""
+    env.deliver("2023-24", rows=v1_rows(200, {0: {"g1_male": " 5"}, 1: {"g1_female": "5 "}}))
+    env.bronze()
+    summary = env.silver()
+    assert summary.status == "succeeded"                                  # 2 of 200 rows: under 1%, so WARN
+    assert env.q(f"SELECT school_id, quarantine_reasons FROM {QUARANTINE} ORDER BY 1") == [
+        ("900001", ["count_uncastable"]), ("900002", ["count_uncastable"])]
+
+
 def test_nine_digit_counts_do_not_overflow_the_build(env):
     """Three counts of 999,999,999 add up past INT; every sum of counts is taken in BIGINT, so the
     build finishes and the row is quarantined instead of the run crashing."""

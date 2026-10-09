@@ -15,7 +15,7 @@
     "max_digits": 9,
     "plausible_max": 10000,
     "finding": "O-2, O-16",
-    "note": "Every publisher column ending in _male or _female is a learner count, typed INT. A blank stays NULL, never 0. A value that is not 1 to 9 digits, or is above plausible_max, quarantines the row.",
+    "note": "Every publisher column ending in _male or _female is a learner count, typed INT. A blank stays NULL, never 0. A value that is not 1 to 9 digits, or is above plausible_max, quarantines the row. Counts are not trimmed: a value with surrounding whitespace (e.g. ' 5') is not a whole number and quarantines the row as count_uncastable. No profiled value has it.",
     "plausible_max_evidence": "Of 9,260,590 published cells (current batches, all three years), the largest is 4,097; 10 exceed 2,000 and none exceed 5,000 (p99.99 = 1,059). 10,000 leaves 2.4 times headroom and catches a count with an extra digit, which no year has."
   },
   "renames": {
