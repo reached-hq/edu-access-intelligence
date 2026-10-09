@@ -118,6 +118,33 @@ The one-query verification from [Silver, Running on Databricks](../../docs/opera
 
 Before this change, the same steps at `7d93d8e` (the Silver SQL of #112) on a scratch copy of a database built by two local job runs at that commit replaced every school year of the published build: all 180,500 rows of `deped_enrollment_clean` then carried the failed run `local-fail-old`, 0 rows of the last good run remained, and 0 published rows came from a succeeded run (#119).
 
+## Re-run at the head commit `be5ee73`
+
+The runs above are at `acd6416`, before #120 was rebased onto `main` (after #112 merged) and before the build set a comment on the two candidate tables (`3a44745`). To confirm both on Databricks, the job was deployed and run twice more at the head commit `be5ee734293983c1d548b08ef9093f719352bf5a`, the same way: a clean checkout of the pushed commit, `git_source.git_commit` and the `code_revision` parameter both equal to it, no other job run active, and the SQL warehouse stopped. The queries were run on the same warehouse through the SQL Statement Execution API, so their results are recorded as text.
+
+| | Run 1 | Run 2 |
+|---|---|---|
+| Job run (`run_id` of the Silver rows) | `578450946388938` | `304225282507769` |
+| Whole job | 15:05:20 to 15:12:00, 6 min 41 s, `SUCCESS` | 15:12:53 to 15:16:29, 3 min 36 s, `SUCCESS` |
+| Tasks | 23 `SUCCESS` on the first attempt, 40 disabled (`main` now also runs the HDX lane) | same |
+| `bronze_deped_enrollment` | 147 s | 83 s |
+| `01_clean_deped_enrollment` (into the candidates) | 57 s | 33 s |
+| `90_validate_deped_enrollment_clean` (check, then publish) | 60 s | 44 s |
+
+No task waited in a queue.
+
+| Check | Result |
+|---|---|
+| Verification query (with `be5ee73` filled in) | All 20 rows `OK`, with the same expected values as at `acd6416` |
+| Gate results of the two runs | 232 Silver results (116 per run) and 6 Bronze results, all PASS |
+| Comments, from `information_schema.tables` | `deped_enrollment_clean_candidate` and `deped_enrollment_quarantine_candidate`: "Unpublished build for the Silver gate, which may have failed. Do not read: use deped_enrollment_clean (or _quarantine), trusted by the run its rows carry (D-025)." `deped_enrollment_clean` and `deped_enrollment_quarantine`: NULL. All four owned by `reached-hq` |
+| Published as built | Candidate and Silver clean table identical, run stamp included: 0 rows in either `EXCEPT ALL` direction; both quarantine tables empty |
+| Identical rebuild | Delta versions 10 (run 1) and 11 (run 2) of `deped_enrollment_clean`, without the run stamp: 0 rows in either direction |
+| No row changed since `acd6416` | Version 6 (run 2 at `acd6416`) and version 11: 0 rows in either direction |
+| Column types | The 66 count columns of `deped_enrollment_clean` are `INT` |
+
+Version 9 of `deped_enrollment_clean` is a run of another branch (`feat/psa-poverty-silver`, commit `be2638c`) between the two pairs of runs; the comparisons above skip it. Its `psa_poverty_stat` candidate tables carry no comment, since that branch's build predates `3a44745`.
+
 ## Why it holds
 
 1. The build creates only the two candidate tables ([build SQL](https://github.com/reached-hq/edu-access-intelligence/blob/acd6416e4b25cbceea60551ff8ca625cbe85f518/etl/03_silver/01_clean_deped_enrollment.sql)).
