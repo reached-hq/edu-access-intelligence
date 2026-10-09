@@ -58,8 +58,8 @@ def test_personnel_loads_once_preserves_blanks_and_has_provenance(tmp_path):
     assert store.query(f"SELECT COUNT(*) FROM {PERSONNEL} WHERE {missing}")[0][0] == 0
 
 
-def test_personnel_load_tolerates_new_nullable_control_columns(tmp_path):
-    """The shared Databricks control tables may be upgraded by another branch first."""
+def test_personnel_upsert_preserves_unknown_nullable_control_columns(tmp_path):
+    """An upsert must not erase a nullable value written by a newer deployment."""
     config = empty_config(SOURCE)
     deliver(tmp_path, config)
     repo = fake_repo(tmp_path / "repo", config)
@@ -68,6 +68,14 @@ def test_personnel_load_tolerates_new_nullable_control_columns(tmp_path):
     store.sql("ALTER TABLE edu_access.`01-control`.pipeline_runs ADD COLUMN future_nullable STRING")
 
     summary = run(store, repo, tmp_path)
+    store.sql(
+        "UPDATE edu_access.`01-control`.pipeline_runs SET future_nullable = 'keep-me' "
+        f"WHERE run_id = '{summary.run_id}'"
+    )
+    control.save_run(store, {"run_id": summary.run_id, "status": "succeeded"})
 
     assert summary.status == "succeeded"
-    assert store.query("SELECT future_nullable FROM edu_access.`01-control`.pipeline_runs") == [(None,)]
+    assert store.query(
+        "SELECT status, future_nullable FROM edu_access.`01-control`.pipeline_runs "
+        f"WHERE run_id = '{summary.run_id}'"
+    ) == [("succeeded", "keep-me")]

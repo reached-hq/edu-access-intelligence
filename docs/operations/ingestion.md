@@ -2,7 +2,7 @@
 
 How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The DepEd sources use ZIP deliveries: `deped_enrollment` was first, `deped_facilities` second, and `deped_personnel` third. Personnel uses the same ingestion code with its own contract, generated SQL, tests, and job lane. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` uses `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below). `hdx_boundaries` (ADM3) uses `geojson_features`: one GeoJSON file per boundary edition ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below).
 
-**Status:** the current `edu_access_pipeline` was verified on Databricks `dev` for `deped_enrollment`, `deped_facilities`, `psa_poverty_stat`, `psa_psgc`, and `hdx_boundaries`. `deped_personnel` passed local real-file validation and its create, load, and gate tasks were confirmed on Databricks `dev` at commit `15fcecbd`. The source cards and evidence files record the uploaded files, tables, and completed runs.
+**Status:** the current `edu_access_pipeline` was verified on Databricks `dev` for all six Bronze sources. `deped_personnel` passed local real-file validation and its create, load, and gate tasks were confirmed on Databricks `dev` at commit `15fcecbd` ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-personnel-databricks-idempotency.md)). The source cards and evidence files record the uploaded files, tables, and completed runs.
 
 ## The flow
 
