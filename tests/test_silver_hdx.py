@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 from factories.deped_deliveries import REPO_ROOT, empty_config, fake_repo, write_config
-from factories.hdx_geojson import FILE_NAME, approve, columns, write_text
+from factories.hdx_geojson import SQUARE, approve, columns, pcodes, silver_feature, write_features
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
 from src.ingestion.store import DuckDBStore
@@ -31,38 +31,9 @@ CLEAN_CANDIDATE = "edu_access.`03-silver`.hdx_adm3_clean_candidate"
 BUILD = "06_clean_hdx_adm3.sql"
 GATE = "90_validate_hdx_adm3_clean.sql"
 
-# A small square around (120.55, 14.05); the centre below lies inside it.
-SQUARE = ('{"type": "Polygon", "coordinates": '
-          '[[[120.5, 14.0], [120.6, 14.0], [120.6, 14.1], [120.5, 14.1], [120.5, 14.0]]]}')
 BOWTIE = ('{"type": "Polygon", "coordinates": '
           '[[[120.5, 14.0], [120.6, 14.1], [120.6, 14.0], [120.5, 14.1], [120.5, 14.0]]]}')
-
-
-def pcodes(i):
-    """Made-up P-codes for feature i: 100 towns per made-up province, so the codes stay PH + 7 digits."""
-    province = f"PH01{10 + i // 100:03d}"
-    return province + f"{i % 100:02d}", province
-
-
-def properties(i, **changes):
-    """JSON text of each property, as a COD-AB file writes it; changes = {column: JSON text}."""
-    adm3, adm2 = pcodes(i)
-    values = {c: "null" for c in columns() if c != "geometry"}
-    values.update({
-        "adm3_name": json.dumps(f"Town {i}"), "adm3_ref_name": json.dumps(f"Town {i}"),
-        "adm3_pcode": json.dumps(adm3), "adm2_name": json.dumps(f"Province {i // 100}"), "adm2_pcode": json.dumps(adm2),
-        "adm1_name": '"Region I (Ilocos Region)"', "adm1_pcode": '"PH01"',
-        "adm0_name": '"Philippines"', "adm0_pcode": '"PH"',
-        "valid_on": '"2025-02-13"', "version": '"v03"', "lang": '"en"',
-        "area_sqkm": "112.24600000000012", "center_lat": "14.05", "center_lon": "120.55",
-    })
-    values.update(changes)
-    return values
-
-
-def feature(i, geometry=SQUARE, **changes):
-    props = ", ".join(f"{json.dumps(c)}: {v}" for c, v in properties(i, **changes).items())
-    return f'{{"type": "Feature", "properties": {{{props}}}, "geometry": {geometry}}}'
+feature = silver_feature
 
 
 class Env:
@@ -74,8 +45,7 @@ class Env:
         self.store = DuckDBStore()
 
     def deliver(self, features):
-        text = '{"type": "FeatureCollection", "name": "phl_admin3", "features": [\n' + ",\n".join(features) + "\n]}\n"
-        path = write_text(self.inbox / FILE_NAME, text)
+        path = write_features(self.inbox, features)
         approve(self.config, path, len(features))
         write_config(self.repo, self.config)
         summary = IngestionRun(self.store, self.repo, SOURCE, self.landing, "local", REVISION).execute()
