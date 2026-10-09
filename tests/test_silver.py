@@ -28,6 +28,9 @@ REVISION = "c" * 40
 BRONZE = "edu_access.`02-bronze`.deped_enrollment_raw"
 CLEAN = "edu_access.`03-silver`.deped_enrollment_clean"
 QUARANTINE = "edu_access.`03-silver`.deped_enrollment_quarantine"
+# What the build writes and the gate checks; the gate copies them to CLEAN and QUARANTINE only if every check passes.
+CLEAN_CANDIDATE = "edu_access.`03-silver`.deped_enrollment_clean_candidate"
+QUARANTINE_CANDIDATE = "edu_access.`03-silver`.deped_enrollment_quarantine_candidate"
 CONTROL = "edu_access.`01-control`"
 V1, V2 = columns("v1"), columns("v2")
 
@@ -287,7 +290,7 @@ def test_nine_digit_counts_do_not_overflow_the_gate(env):
     env.deliver("2023-24", n_rows=4)
     env.bronze()
     summary = env.silver(hook=lambda: env.store.sql(
-        f"UPDATE {CLEAN} SET g1_male = 999999999, g1_female = 999999999, g2_male = 999999999 WHERE school_id = '900002'"))
+        f"UPDATE {CLEAN_CANDIDATE} SET g1_male = 999999999, g1_female = 999999999, g2_male = 999999999 WHERE school_id = '900002'"))
     assert summary.status == "failed" and "Silver gate failed" in summary.error
     assert "learners_reconcile" in env.failed_checks(summary.run_id)
 
@@ -343,7 +346,7 @@ def test_an_unmapped_label_fails_the_gate(env):
     summary = env.silver()
     assert summary.status == "failed"
     assert env.failed_checks(summary.run_id) == ["labels_mapped_sector"]
-    assert env.one(f"SELECT sector FROM {CLEAN} WHERE school_id = '950001'") is None
+    assert env.one(f"SELECT sector FROM {CLEAN_CANDIDATE} WHERE school_id = '950001'") is None   # the failed build, kept for review
     assert env.silver_run(summary.run_id)["status"] == "failed"
     assert env.silver().status == "failed"   # and on every run, until the mapping is reviewed
 
@@ -363,7 +366,7 @@ def test_an_unmapped_label_on_a_quarantined_row_still_fails_the_gate(env):
     summary = env.silver()                               # 2 of 200 rows quarantined: under 1%, so only a WARN
     assert summary.status == "failed"
     assert env.failed_checks(summary.run_id) == ["labels_mapped_offers_es", "labels_mapped_sector"]
-    assert env.one(f"SELECT COUNT(*) FROM {QUARANTINE}") == 2
+    assert env.one(f"SELECT COUNT(*) FROM {QUARANTINE_CANDIDATE}") == 2
 
 
 def test_reconciliation_and_learner_totals_pass_on_a_clean_load(env):
@@ -389,7 +392,7 @@ def test_the_gate_catches_a_count_turned_into_zero(env):
     env.bronze()
 
     def blank_becomes_zero():
-        env.store.sql(f"UPDATE {CLEAN} SET g1_male = 0 WHERE g1_male IS NULL")
+        env.store.sql(f"UPDATE {CLEAN_CANDIDATE} SET g1_male = 0 WHERE g1_male IS NULL")
 
     summary = env.silver(hook=blank_becomes_zero)
     assert summary.status == "failed"
@@ -401,8 +404,8 @@ def test_the_gate_catches_a_lost_row_and_a_stale_row(env):
     env.bronze()
 
     def tamper():
-        env.store.sql(f"DELETE FROM {CLEAN} WHERE school_id = '900002'")
-        env.store.sql(f"UPDATE {CLEAN} SET run_id = 'an-old-run' WHERE school_id = '900003'")
+        env.store.sql(f"DELETE FROM {CLEAN_CANDIDATE} WHERE school_id = '900002'")
+        env.store.sql(f"UPDATE {CLEAN_CANDIDATE} SET run_id = 'an-old-run' WHERE school_id = '900003'")
 
     summary = env.silver(hook=tamper)
     assert env.failed_checks(summary.run_id) == ["learners_reconcile", "missing_counts_stay_null",
@@ -427,7 +430,7 @@ def test_each_gate_check_fails_a_broken_build(env, check, tamper):
     """Checks the cleaning rules cannot trip on their own: each must still fail a build that breaks it."""
     env.deliver("2023-24", n_rows=4)
     env.bronze()
-    summary = env.silver(hook=lambda: env.store.sql(f"UPDATE {CLEAN} SET {tamper} WHERE school_id = '900002'"))
+    summary = env.silver(hook=lambda: env.store.sql(f"UPDATE {CLEAN_CANDIDATE} SET {tamper} WHERE school_id = '900002'"))
     assert summary.status == "failed"
     assert check in env.failed_checks(summary.run_id)
 
@@ -523,13 +526,15 @@ def test_a_repaired_run_is_judged_by_its_own_checks(env):
     env.bronze()
 
     def lose_a_row():
-        env.store.sql(f"DELETE FROM {CLEAN} WHERE school_id = '900002'")
+        env.store.sql(f"DELETE FROM {CLEAN_CANDIDATE} WHERE school_id = '900002'")
 
     first = env.silver(run_id="job-run-9", hook=lose_a_row)
     assert first.status == "failed"
+    assert not env.q("SELECT * FROM information_schema.tables WHERE table_name = 'deped_enrollment_clean'")  # nothing published
     repaired = env.silver(run_id="job-run-9")
     assert repaired.status == "succeeded"
     assert env.silver_run("job-run-9")["status"] == "succeeded"
+    assert env.q(f"SELECT run_id, COUNT(*) FROM {CLEAN} GROUP BY 1") == [("job-run-9", 4)]   # the repair published
     assert env.one(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-9' AND status = 'FAIL'") > 0
 
 
@@ -540,6 +545,104 @@ def test_no_current_batch_fails_the_gate(env):
     summary = env.silver()
     assert summary.status == "failed"
     assert "current_batches_present" in env.failed_checks(summary.run_id)
+
+
+# --- Publishing: only a build that passes reaches the Silver tables (D-025, #119) -----------------
+
+def live(env):
+    """What Gold would read: the published tables, by run."""
+    return (env.q(f"SELECT run_id, COUNT(*) FROM {CLEAN} GROUP BY 1"),
+            env.q(f"SELECT run_id, COUNT(*) FROM {QUARANTINE} GROUP BY 1"))
+
+
+def test_a_failed_build_never_replaces_the_last_good_one(env):
+    env.deliver("2023-24", rows=v1_rows(150, {0: {"g1_male": "-1"}}))
+    env.bronze()
+    good = env.silver()
+    assert good.status == "succeeded"
+    assert live(env) == ([(good.run_id, 149)], [(good.run_id, 1)])
+    env.deliver("2025-26", "v2", rows=[v2_row(0, {"sector": "Charter"}), v2_row(1)])   # a new year brings a new label
+    env.bronze()
+    bad = env.silver()
+    assert bad.status == "failed" and env.silver_run(bad.run_id)["status"] == "failed"
+    assert live(env) == ([(good.run_id, 149)], [(good.run_id, 1)])        # every school year of the good build stays
+    assert env.q(f"SELECT DISTINCT run_id FROM {CLEAN_CANDIDATE}") == [(bad.run_id,)]   # the failed build, for review
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN_CANDIDATE} WHERE sector IS NULL") == 1
+
+
+def test_a_build_that_passes_is_published_as_built(env):
+    env.deliver("2023-24", rows=v1_rows(150, {0: {"g1_male": "-1"}}))
+    env.bronze()
+    summary = env.silver()
+    assert summary.status == "succeeded"
+    for published, candidate in ((CLEAN, CLEAN_CANDIDATE), (QUARANTINE, QUARANTINE_CANDIDATE)):
+        everything = f"SELECT * FROM {{}} ORDER BY school_year, source_row_number"
+        assert env.q(everything.format(published)) == env.q(everything.format(candidate))
+    assert live(env) == ([(summary.run_id, 149)], [(summary.run_id, 1)])
+    types = dict(env.q("SELECT column_name, data_type FROM information_schema.columns "
+                       "WHERE table_schema = '03-silver' AND table_name = 'deped_enrollment_clean'"))
+    assert types["g1_male"] == "INTEGER" and types["offers_es"] == "BOOLEAN"
+
+
+def test_only_the_candidate_tables_say_not_to_read_them(env):
+    env.deliver("2023-24", n_rows=4)
+    env.bronze()
+    for _ in range(2):                                   # a rebuild replaces the table, and sets the comment again
+        assert env.silver().status == "succeeded"
+        comments = dict(env.q("SELECT table_name, comment FROM duckdb_tables() WHERE schema_name = '03-silver'"))
+        assert comments["deped_enrollment_clean_candidate"].startswith("Unpublished build")
+        assert "use deped_enrollment_quarantine," in comments["deped_enrollment_quarantine_candidate"]
+        assert comments["deped_enrollment_clean"] is None and comments["deped_enrollment_quarantine"] is None
+
+
+def test_a_run_that_dies_while_publishing_is_never_succeeded(env):
+    """Quarantine is published first and clean last; a task that dies between them leaves the last
+    good clean table, and the run 'running', so Gold, which trusts a table by its run_id, reads it."""
+    env.deliver("2023-24", n_rows=4)
+    env.bronze()
+    good = env.silver()
+    gate = (env.repo / "etl" / "03_silver" / "90_validate_deped_enrollment_clean.sql").read_text(encoding="utf-8")
+    publish_clean = "CREATE OR REPLACE TABLE edu_access.`03-silver`.deped_enrollment_clean USING DELTA AS"
+    assert gate.count(publish_clean) == 1
+    interrupted = env.repo / "interrupted_gate.sql"
+    interrupted.write_text(gate.replace(publish_clean, "SELECT raise_error('the task died');\n\n" + publish_clean),
+                           encoding="utf-8")
+    run_id = "job-run-dies"
+    params = {"run_id": run_id, "code_revision": REVISION, "environment": "local"}
+    env.store.run_file(env.repo / "etl" / "03_silver" / "01_clean_deped_enrollment.sql", params)
+    with pytest.raises(Exception, match="the task died"):
+        env.store.run_file(interrupted, params)
+    assert env.silver_run(run_id)["status"] == "running"
+    assert live(env) == ([(good.run_id, 4)], [])                       # quarantine was empty in both builds
+    trusted = env.q(f"SELECT COUNT(*) FROM {CLEAN} AS c JOIN {CONTROL}.pipeline_runs AS p ON p.run_id = c.run_id "
+                    "AND p.pipeline_name = 'silver_build' AND p.source_id = 'deped_enrollment' AND p.status = 'succeeded'")
+    assert trusted == [(4,)]
+
+
+def test_no_current_batch_leaves_the_published_build_in_place(env):
+    env.deliver("2023-24", n_rows=4)
+    env.bronze()
+    good = env.silver()
+    env.store.sql(f"UPDATE {CONTROL}.ingestion_batches SET status = 'failed'")   # no current batch any more
+    summary = env.silver()
+    assert summary.status == "failed"
+    assert "current_batches_present" in env.failed_checks(summary.run_id)
+    assert live(env) == ([(good.run_id, 4)], [])
+
+
+def test_the_gate_stops_before_publishing_and_publishes_clean_last():
+    spec = load_spec(REPO_ROOT, "deped_enrollment")
+    build, gate = build_sql(spec), gate_sql(spec)
+    for table in (spec.clean_table, spec.quarantine_table):
+        assert f"CREATE OR REPLACE TABLE edu_access.`03-silver`.{table} USING" not in build   # the build never publishes
+    order = [gate.index(marker) for marker in (
+        "WHEN MATCHED AND s.fails > 0 THEN UPDATE SET",                                   # failed, recorded first
+        "raise_error(",                                                                     # then the task stops
+        f"CREATE OR REPLACE TABLE edu_access.`03-silver`.{spec.quarantine_table} USING",
+        f"CREATE OR REPLACE TABLE edu_access.`03-silver`.{spec.clean_table} USING",
+        "status = 'succeeded'",
+    )]
+    assert order == sorted(order)
 
 
 # --- The committed SQL, the mapping, and the command line ------------------------------------

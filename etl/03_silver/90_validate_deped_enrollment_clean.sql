@@ -3,11 +3,12 @@
 --   python -m src.silver.cli gate --source deped_enrollment > etl/03_silver/90_validate_deped_enrollment_clean.sql
 -- Do not edit by hand; tests/test_silver.py fails if it differs.
 --
--- The job task after the Silver build. Each check writes one row to data_quality_results;
--- then the run's pipeline_runs row records 'succeeded' or 'failed', and the last statement
--- fails the task on any FAIL, so nothing downstream runs.
--- PASS: as expected. WARN: recorded, the build stands (quarantined rows exist).
--- FAIL: the Silver tables cannot be trusted. Results hold counts, never row values.
+-- The job task after the Silver build. It checks the candidate tables the build wrote, one row
+-- per check in data_quality_results. On any FAIL it records the run 'failed' and stops the task
+-- before publishing, so the Silver tables keep the last build that passed and nothing downstream
+-- runs. Otherwise it copies the candidates to the Silver tables and records the run 'succeeded'.
+-- PASS: as expected. WARN: recorded, the build is published (quarantined rows exist).
+-- FAIL: the candidate cannot be trusted and is not published. Results hold counts, never row values.
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id         the job run that built the tables
@@ -29,8 +30,8 @@ WITH cur AS (
 bronze AS (
   SELECT r.* FROM edu_access.`02-bronze`.deped_enrollment_raw AS r JOIN cur ON r.batch_id = cur.batch_id
 ),
-clean AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_clean),
-quarantined AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_quarantine),
+clean AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_clean_candidate),
+quarantined AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_quarantine_candidate),
 -- Current Bronze rows, each marked if Silver set it aside.
 b AS (
   SELECT bronze.*, q.source_row_number IS NOT NULL AS in_quarantine
@@ -456,142 +457,141 @@ unresolved AS (
 ),
 checks AS (
   -- The whole table, both tables together
-  SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'current_batches_present' AS check_name,
+  SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'current_batches_present' AS check_name,
          CASE WHEN current_batches > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          'at least 1' AS expected, CAST(current_batches AS STRING) AS actual FROM found
-  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'lineage_complete' AS check_name,
+  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'lineage_complete' AS check_name,
          CASE WHEN missing_lineage = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(missing_lineage AS STRING) AS actual FROM whole
-  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rows_resolve_to_current_bronze' AS check_name,
+  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rows_resolve_to_current_bronze' AS check_name,
          CASE WHEN unresolved_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unresolved_rows AS STRING) AS actual FROM unresolved
-  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rows_built_by_this_run' AS check_name,
+  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rows_built_by_this_run' AS check_name,
          CASE WHEN other_run_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(other_run_rows AS STRING) AS actual FROM whole
-  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'one_timestamp_per_run' AS check_name,
+  UNION ALL SELECT CAST(NULL AS STRING) AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'one_timestamp_per_run' AS check_name,
          CASE WHEN timestamps = 1 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(1 AS STRING) AS expected, CAST(timestamps AS STRING) AS actual FROM whole
   -- Each school year: reconciliation, keys, ranges, NULLs
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rows_reconcile' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rows_reconcile' AS check_name,
          CASE WHEN clean_rows + quarantined_rows = bronze_rows THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(bronze_rows AS STRING) AS expected, CAST(clean_rows + quarantined_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'school_id_unique' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'school_id_unique' AS check_name,
          CASE WHEN clean_rows - clean_ids = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(clean_rows - clean_ids AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'school_id_valid' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'school_id_valid' AS check_name,
          CASE WHEN invalid_ids = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(invalid_ids AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'counts_non_negative' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'counts_non_negative' AS check_name,
          CASE WHEN negative_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(negative_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'counts_within_plausible_max' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'counts_within_plausible_max' AS check_name,
          CASE WHEN implausible_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(implausible_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'learners_reconcile' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'learners_reconcile' AS check_name,
          CASE WHEN clean_learners = kept_learners THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(kept_learners AS STRING) AS expected, CAST(clean_learners AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'missing_counts_stay_null' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'missing_counts_stay_null' AS check_name,
          CASE WHEN clean_missing_counts = kept_missing_counts THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(kept_missing_counts AS STRING) AS expected, CAST(clean_missing_counts AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'absent_columns_stay_null' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'absent_columns_stay_null' AS check_name,
          CASE WHEN absent_filled_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(absent_filled_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'enrollment_status_valid' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'enrollment_status_valid' AS check_name,
          CASE WHEN invalid_status_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(invalid_status_rows AS STRING) AS actual FROM years
   -- Each school year: every label is in the reviewed mapping
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_region' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_region' AS check_name,
          CASE WHEN unmapped_region = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_region AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_legislative_district' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_legislative_district' AS check_name,
          CASE WHEN unmapped_legislative_district = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_legislative_district AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_sector' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_sector' AS check_name,
          CASE WHEN unmapped_sector = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_sector AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_school_management' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_school_management' AS check_name,
          CASE WHEN unmapped_school_management = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_school_management AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_annex_status' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_annex_status' AS check_name,
          CASE WHEN unmapped_annex_status = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_annex_status AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_offers_es' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_offers_es' AS check_name,
          CASE WHEN unmapped_offers_es = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_offers_es AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_offers_jhs' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_offers_jhs' AS check_name,
          CASE WHEN unmapped_offers_jhs = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_offers_jhs AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_offers_shs' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_offers_shs' AS check_name,
          CASE WHEN unmapped_offers_shs = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_offers_shs AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'labels_mapped_modified_curricular_offering_classification' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'labels_mapped_modified_curricular_offering_classification' AS check_name,
          CASE WHEN unmapped_modified_curricular_offering_classification = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(unmapped_modified_curricular_offering_classification AS STRING) AS actual FROM years
   -- Each school year: quarantine (WARN above 0, FAIL above 1% of the year's Bronze rows)
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine' AS table_name, 'quarantine_rate' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine_candidate' AS table_name, 'quarantine_rate' AS check_name,
          CASE WHEN quarantined_rows = 0 THEN 'PASS' WHEN quarantined_rows * 100 > bronze_rows THEN 'FAIL' ELSE 'WARN' END AS status,
          '0 (FAIL above 1% of ' || CAST(bronze_rows AS STRING) || ')' AS expected, CAST(quarantined_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine' AS table_name, 'quarantine_reason_school_id_blank' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine_candidate' AS table_name, 'quarantine_reason_school_id_blank' AS check_name,
          CASE WHEN reason_school_id_blank = 0 THEN 'PASS' ELSE 'WARN' END AS status,
          '0' AS expected, CAST(reason_school_id_blank AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine' AS table_name, 'quarantine_reason_school_id_malformed' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine_candidate' AS table_name, 'quarantine_reason_school_id_malformed' AS check_name,
          CASE WHEN reason_school_id_malformed = 0 THEN 'PASS' ELSE 'WARN' END AS status,
          '0' AS expected, CAST(reason_school_id_malformed AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine' AS table_name, 'quarantine_reason_school_id_duplicated' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine_candidate' AS table_name, 'quarantine_reason_school_id_duplicated' AS check_name,
          CASE WHEN reason_school_id_duplicated = 0 THEN 'PASS' ELSE 'WARN' END AS status,
          '0' AS expected, CAST(reason_school_id_duplicated AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine' AS table_name, 'quarantine_reason_count_negative' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine_candidate' AS table_name, 'quarantine_reason_count_negative' AS check_name,
          CASE WHEN reason_count_negative = 0 THEN 'PASS' ELSE 'WARN' END AS status,
          '0' AS expected, CAST(reason_count_negative AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine' AS table_name, 'quarantine_reason_count_uncastable' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine_candidate' AS table_name, 'quarantine_reason_count_uncastable' AS check_name,
          CASE WHEN reason_count_uncastable = 0 THEN 'PASS' ELSE 'WARN' END AS status,
          '0' AS expected, CAST(reason_count_uncastable AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine' AS table_name, 'quarantine_reason_count_above_plausible_max' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_quarantine_candidate' AS table_name, 'quarantine_reason_count_above_plausible_max' AS check_name,
          CASE WHEN reason_count_above_plausible_max = 0 THEN 'PASS' ELSE 'WARN' END AS status,
          '0' AS expected, CAST(reason_count_above_plausible_max AS STRING) AS actual FROM years
   -- Each school year: how many rows each cleaning rule changed or flagged (records, always PASS)
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rule_whitespace_normalized' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rule_whitespace_normalized' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(whitespace_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rule_characters_repaired' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rule_characters_repaired' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(repaired_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rule_blank_text_to_null' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rule_blank_text_to_null' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(blank_text_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rule_placeholder_to_null' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rule_placeholder_to_null' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(placeholder_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rule_blank_counts_to_null' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rule_blank_counts_to_null' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(blank_count_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rule_absent_columns_null' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rule_absent_columns_null' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(absent_column_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'rule_labels_standardized' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'rule_labels_standardized' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(relabelled_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'flag_is_overseas' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'flag_is_overseas' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(overseas_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'flag_enrollment_all_zero' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'flag_enrollment_all_zero' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(all_zero_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'flag_enrollment_no_counts' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'flag_enrollment_no_counts' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(no_counts_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'flag_barangay_possibly_truncated' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'flag_barangay_possibly_truncated' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(truncated_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean' AS table_name, 'flag_barangay_blank' AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_enrollment_clean_candidate' AS table_name, 'flag_barangay_blank' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(barangay_null_rows AS STRING) AS actual FROM years
 )
 SELECT * FROM checks
 ) AS results;
 
--- How the run ended. 'succeeded' is the last write of a good build: Gold reads Silver
--- only when the latest silver_build run of the source succeeded.
+-- A failed build: record it before stopping. The Silver tables are not touched.
 MERGE INTO edu_access.`01-control`.pipeline_runs AS t
 USING (
   SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails
@@ -600,14 +600,11 @@ USING (
     AND checked_at_utc >= session.silver_gate_started_at_utc
 ) AS s
 ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = 'deped_enrollment'
-WHEN MATCHED THEN UPDATE SET
-  status = CASE WHEN s.fails = 0 THEN 'succeeded' ELSE 'failed' END,
-  finished_at_utc = current_timestamp(),
-  failure_stage = CASE WHEN s.fails = 0 THEN NULL ELSE 'gate' END,
-  error_message = CASE WHEN s.fails = 0 THEN NULL
-                       ELSE CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results' END;
+WHEN MATCHED AND s.fails > 0 THEN UPDATE SET
+  status = 'failed', finished_at_utc = current_timestamp(), failure_stage = 'gate',
+  error_message = CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results';
 
--- Stop here if anything failed in this execution.
+-- Stop here, before publishing, if anything failed in this execution.
 SELECT CASE WHEN COUNT(*) > 0
             THEN raise_error('Silver gate failed for deped_enrollment: ' || CAST(COUNT(*) AS STRING)
                              || ' FAIL result(s) in data_quality_results for run ' || :run_id)
@@ -615,3 +612,24 @@ SELECT CASE WHEN COUNT(*) > 0
 FROM edu_access.`01-control`.data_quality_results
 WHERE run_id = :run_id AND source_id = 'deped_enrollment' AND layer = 'silver' AND status = 'FAIL'
   AND checked_at_utc >= session.silver_gate_started_at_utc;
+
+-- Every check passed: publish. Quarantine first, then clean, the table Gold reads. Each copy is
+-- one atomic Delta commit, but the pair is not, so the run is 'succeeded' only after both. If the
+-- task dies in between, the run stays 'running', and Gold trusts a Silver table only when the
+-- run_id its rows carry is a succeeded silver_build run (D-025).
+CREATE OR REPLACE TABLE edu_access.`03-silver`.deped_enrollment_quarantine USING DELTA AS
+SELECT * FROM edu_access.`03-silver`.deped_enrollment_quarantine_candidate;
+
+ALTER TABLE edu_access.`03-silver`.deped_enrollment_quarantine OWNER TO `reached-hq`;
+
+CREATE OR REPLACE TABLE edu_access.`03-silver`.deped_enrollment_clean USING DELTA AS
+SELECT * FROM edu_access.`03-silver`.deped_enrollment_clean_candidate;
+
+ALTER TABLE edu_access.`03-silver`.deped_enrollment_clean OWNER TO `reached-hq`;
+
+-- Published: the run succeeded.
+MERGE INTO edu_access.`01-control`.pipeline_runs AS t
+USING (SELECT :run_id AS run_id) AS s
+ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = 'deped_enrollment'
+WHEN MATCHED THEN UPDATE SET
+  status = 'succeeded', finished_at_utc = current_timestamp(), failure_stage = NULL, error_message = NULL;
