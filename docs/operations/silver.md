@@ -55,7 +55,7 @@ Counts are from the local run on the real Bronze data, current batches only (ver
 | Counts to INT when 1–9 digits | O-2 | transform | Whole numbers type without loss | 0 not castable | 0 | 0 | None |
 | Negative or non-whole count | O-2 | quarantine | A count cannot be negative or fractional | 0 | 0 | 0 | The quarantined rows |
 | Count above 10,000 (`plausible_max`) | O-2 | quarantine | The largest published count is 4,097; above 10,000 is a count with an extra digit, which reconciliation cannot see | 0 | 0 | 0 | The quarantined rows |
-| Blank count stays NULL, not 0 (rows with a blank count) | O-16, Bronze | transform | Never invent a value; in SY 2025-26 blank means "not published" | 60,167 | 0 | 48,709 | None |
+| Blank count stays NULL, not 0 (rows with a blank count) | O-16, Bronze | transform | Never invent a value; in SY 2025-26 blank means "not published". In SY 2023-24 the four unique-strand columns (`g11_unique_*`, `g12_unique_*`) are blank in every row and no other count is blank, so that year publishes no unique-strand enrollment: NULL, not 0 | 60,167 | 0 | 48,709 | None |
 | Column absent from the year's file stays NULL (rows) | O-7 | transform | Told apart from a blank by `schema_version` (`v1`) | 60,167 | 60,129 | 0 | None |
 | Learners unchanged by cleaning (`learners_reconcile`) | O-3 | fail if not | Cleaning must move no learner | 27,081,292 | 26,400,182 | 25,935,863 | — |
 | Labels mapped to one standard set (rows with any relabel) | O-8, O-9 | transform; unmapped **fails** | One label per category across years | 0 | 0 | 60,204 | The year's own wording |
