@@ -54,11 +54,8 @@ LINEAGE = (
     ("batch_id", "string"),
     ("delivery_version", "int"),
     ("schema_version", "string"),
-    ("source_file", "string"),
-    ("source_sheet", "string"),
     ("source_sha256", "string"),
     ("source_row_number", "bigint"),
-    ("source_row_kind", "string"),
 )
 RUN_STAMP = (("run_id", "string"), ("cleaned_at_utc", "timestamp"), ("code_revision", "string"))
 
@@ -92,9 +89,10 @@ class PsaSpec:
     measures: list
     identifier: str
     identifier_pattern: str
+    id_to: str                  # Silver name of the padded identifier
     id_width: int
+    correspondence_to: str
     correspondence_suffix: str
-    province_prefix_length: int
     text_columns: dict          # Bronze column -> (Silver column, rule)
     banner_column: str
     banner_to: str
@@ -119,8 +117,7 @@ class PsaSpec:
         return (self.cv_flag, "se_cv_inconsistent", "lower_limit_not_positive")
 
     def identity_columns(self):
-        return [("estimate_year", "string"), ("psgc_id_published", "string"), ("psgc_id_6", "string"),
-                ("psgc_correspondence_code", "string"), ("province_code_prefix", "string")]
+        return [("estimate_year", "string"), (self.id_to, "string"), (self.correspondence_to, "string")]
 
     def clean_columns(self):
         """[(name, type)] of the clean table, in order."""
@@ -131,7 +128,7 @@ class PsaSpec:
         return columns + list(LINEAGE) + list(RUN_STAMP)
 
     def quarantine_columns(self):
-        return (self.identity_columns()[:3] + [(self.banner_to, "string"), ("quarantine_reasons", "array<string>")]
+        return (self.identity_columns()[:2] + [(self.banner_to, "string"), ("quarantine_reasons", "array<string>")]
                 + list(LINEAGE) + list(RUN_STAMP))
 
 
@@ -180,15 +177,18 @@ def build_spec(mapping, contract, registry_entry):
     identifier = mapping["identifier"]["column"]
     text = {src: (entry["to"], entry["rule"]) for src, entry in mapping["text_columns"].items()}
     banner = mapping["region_banner"]
-    classified = {identifier, *text, *(c for cols in year_columns.values() for c in cols.values() if c)}
+    not_carried = mapping.get("not_carried", {})
+    classified = {identifier, *text, banner["column"], *not_carried,
+                  *(c for cols in year_columns.values() for c in cols.values() if c)}
     unclassified = sorted(set(published) - classified)
     if unclassified:
         raise _error(f"columns {unclassified} have no Silver rule. A new publisher column needs a reviewed "
                      "entry in config/mappings/psa_poverty_stat.json.")
-    stray = sorted({identifier, *text, banner["column"]} - set(published))
+    stray = sorted({identifier, *text, banner["column"], *not_carried} - set(published))
     if stray:
         raise _error(f"the mapping names columns the contract does not have: {stray}.")
-    names = [m.name for m in measures] + [to for to, _ in text.values()] + [banner["to"]]
+    names = ([m.name for m in measures] + [to for to, _ in text.values()] + [banner["to"]]
+             + [mapping["identifier"]["to"], mapping["identifier"]["correspondence_to"]])
     for name in names:
         if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
             raise _error(f"Silver column {name!r} is not snake_case.")
@@ -219,9 +219,9 @@ def build_spec(mapping, contract, registry_entry):
         clean_table=mapping["silver_table"], quarantine_table=mapping["quarantine_table"],
         clean_candidate=silver["candidate_table"], quarantine_candidate=silver["candidate_quarantine_table"],
         years=years, year_columns=year_columns, measures=measures, identifier=identifier,
-        identifier_pattern=mapping["identifier"]["pattern"], id_width=mapping["identifier"]["width"],
+        identifier_pattern=mapping["identifier"]["pattern"], id_to=mapping["identifier"]["to"],
+        id_width=mapping["identifier"]["width"], correspondence_to=mapping["identifier"]["correspondence_to"],
         correspondence_suffix=mapping["identifier"]["correspondence_suffix"],
-        province_prefix_length=mapping["identifier"]["province_prefix_length"],
         text_columns=text, banner_column=banner["column"], banner_to=banner["to"],
         unit_kind=mapping["unit_row_kind"], banner_kind=mapping["banner_row_kind"],
         structural_kinds=mapping["structural_row_kinds"], numeric_pattern=mapping["numeric"]["pattern"],
@@ -332,13 +332,13 @@ def build_sql(spec):
 
     padded = (f"CASE WHEN regexp_like(c.psgc_id_published, {lit(spec.identifier_pattern)}) "
               f"THEN lpad(c.psgc_id_published, {spec.id_width}, '0') END")
-    keyed = ["c.*", f"{padded} AS psgc_id_6"]
-    typed = ["k.estimate_year", "k.psgc_id_published", "k.psgc_id_6",
-             f"k.psgc_id_6 || {lit(spec.correspondence_suffix)} AS psgc_correspondence_code",
-             f"substr(k.psgc_id_6, 1, {spec.province_prefix_length}) AS province_code_prefix",
+    pid, cc = spec.id_to, spec.correspondence_to
+    keyed = ["c.*", f"{padded} AS {pid}"]
+    typed = ["k.estimate_year", f"k.{pid}",
+             f"k.{pid} || {lit(spec.correspondence_suffix)} AS {cc}",
              f"k.{spec.banner_to}", *[f"k.{to}" for to, _ in spec.text_columns.values()],
              *[f"{_typed(spec, f'k.{m.name}_published')} AS {m.name}" for m in spec.measures],
-             "COUNT(*) OVER (PARTITION BY k.estimate_year, k.psgc_id_6) AS key_rows",
+             f"COUNT(*) OVER (PARTITION BY k.estimate_year, k.{pid}) AS key_rows",
              "COALESCE(\n      " + "\n      OR ".join(_uncastable(spec, f"k.{m.name}_published") for m in spec.measures)
              + ",\n      FALSE) AS any_uncastable",
              "(k.psgc_id_published IS NULL OR k.psgc_id_published = '') AS id_blank",
@@ -347,20 +347,19 @@ def build_sql(spec):
     reasons = (
         "concat_ws(',',\n"
         "      CASE WHEN t.id_blank THEN 'psgc_id_blank'\n"
-        "           WHEN t.psgc_id_6 IS NULL THEN 'psgc_id_malformed' END,\n"
-        "      CASE WHEN t.psgc_id_6 IS NOT NULL AND t.key_rows > 1 THEN 'psgc_id_duplicated' END,\n"
+        f"           WHEN t.{pid} IS NULL THEN 'psgc_id_malformed' END,\n"
+        f"      CASE WHEN t.{pid} IS NOT NULL AND t.key_rows > 1 THEN 'psgc_id_duplicated' END,\n"
         "      CASE WHEN t.any_uncastable THEN 'measure_uncastable' END,\n"
         + ",\n".join(f"      CASE WHEN {cond} THEN {lit(reason)} END" for reason, cond in problems.items())
         + "\n    ) AS quarantine_reasons")
     flags = _flag_exprs(spec, "t")
-    final = (["t.estimate_year", "t.psgc_id_published", "t.psgc_id_6", "t.psgc_correspondence_code",
-              "t.province_code_prefix", f"t.{spec.banner_to}", *[f"t.{to}" for to, _ in spec.text_columns.values()],
+    final = (["t.estimate_year", f"t.{pid}", f"t.{cc}", f"t.{spec.banner_to}", *[f"t.{to}" for to, _ in spec.text_columns.values()],
               *[f"t.{m.name}" for m in spec.measures], f"{_status_expr(spec, 't')} AS estimate_status",
               *[f"{expr} AS {name}" for name, expr in flags.items()], reasons]
              + [f"t.{name}" for name in lineage] + [f"session.silver_{name} AS {name}" for name in stamp])
 
     clean_columns = [name for name, _ in spec.clean_columns()]
-    quarantine_select = ["estimate_year", "psgc_id_published", "psgc_id_6", spec.banner_to,
+    quarantine_select = ["estimate_year", pid, spec.banner_to,
                          "split(quarantine_reasons, ',') AS quarantine_reasons", *lineage, *stamp]
     clean, quarantine = silver_ref(spec.clean_candidate), silver_ref(spec.quarantine_candidate)
     lines = _header(spec, "Silver build", "sql", f"etl/03_silver/{spec.clean_file}") + [
@@ -485,7 +484,7 @@ def build_sql(spec):
 def gate_checks(spec):
     """[(check_name, scope, status)] in the order the gate writes them; scope: whole, batch, or year.
     Year checks are written once per batch and estimate year, named <check>_<year>."""
-    year = [("rows_reconcile", "FAIL"), ("psgc_id_6_unique", "FAIL"), ("psgc_id_6_valid", "FAIL"),
+    year = [("rows_reconcile", "FAIL"), ("psgc_id_unique", "FAIL"), ("psgc_id_valid", "FAIL"),
             ("estimate_year_covered", "FAIL")]
     year += [(f"{m.name}_matches_bronze", "FAIL") for m in spec.measures]
     year += [("missing_measures_stay_null", "FAIL"), ("estimate_status_valid", "FAIL"),
@@ -511,7 +510,7 @@ def gate_sql(spec):
     stamp = [name for name, _ in RUN_STAMP]
     clean_name, quarantine_name = dq_table_name(spec.clean_candidate), dq_table_name(spec.quarantine_candidate)
     years_values = ", ".join(f"({lit(y)})" for y in spec.years)
-    text_sources = [spec.banner_column, *spec.text_columns]
+    pid, cc = spec.id_to, spec.correspondence_to
     pattern = spec.identifier_pattern
 
     # Per batch and estimate year: Bronze units (each covers every year of its batch), clean, quarantine.
@@ -535,11 +534,11 @@ def gate_sql(spec):
     clean_years = [
         "c.batch_id", "c.estimate_year",
         "COUNT(*) AS clean_rows",
-        "COUNT(DISTINCT c.psgc_id_6) AS clean_ids",
-        (f"COUNT_IF(c.psgc_id_6 IS NULL OR NOT regexp_like(c.psgc_id_6, '^[0-9]{{{spec.id_width}}}$')\n"
-         f"        OR c.psgc_id_6 <> lpad(c.psgc_id_published, {spec.id_width}, '0')\n"
-         f"        OR c.psgc_correspondence_code IS NULL OR c.psgc_correspondence_code <> c.psgc_id_6 || {lit(spec.correspondence_suffix)}\n"
-         f"        OR c.province_code_prefix IS NULL OR c.province_code_prefix <> substr(c.psgc_id_6, 1, {spec.province_prefix_length})"
+        f"COUNT(DISTINCT c.{pid}) AS clean_ids",
+        # The padded ID must be the published Bronze ID, left-padded: the published value is not kept in Silver.
+        (f"COUNT_IF(c.{pid} IS NULL OR NOT regexp_like(c.{pid}, '^[0-9]{{{spec.id_width}}}$')\n"
+         f"        OR b.source_row_number IS NULL OR c.{pid} <> lpad(b.{bq(spec.identifier)}, {spec.id_width}, '0')\n"
+         f"        OR c.{cc} IS NULL OR c.{cc} <> c.{pid} || {lit(spec.correspondence_suffix)}"
          ") AS invalid_ids"),
         "COUNT_IF(NOT array_contains(split(c.estimate_years_covered, ','), c.estimate_year)) AS uncovered_rows",
         *[f"COUNT_IF(b.source_row_number IS NULL OR {mismatch[m.name]}) AS mismatched_{m.name}" for m in spec.measures],
@@ -608,8 +607,8 @@ def gate_sql(spec):
         *[record(f"rows_kind_{k}", f"{k}_rows", "batches", "batch") for k in spec.structural_kinds],
         "-- Each batch and estimate year: reconciliation, keys, values against Bronze, ranges, NULLs",
         must_equal("rows_reconcile", "unit_rows", "clean_rows + quarantined_rows"),
-        must_be_zero("psgc_id_6_unique", "clean_rows - clean_ids"),
-        must_be_zero("psgc_id_6_valid", "invalid_ids"),
+        must_be_zero("psgc_id_unique", "clean_rows - clean_ids"),
+        must_be_zero("psgc_id_valid", "invalid_ids"),
         must_be_zero("estimate_year_covered", "uncovered_rows"),
         *[must_be_zero(f"{m.name}_matches_bronze", f"mismatched_{m.name}") for m in spec.measures],
         must_equal("missing_measures_stay_null", "kept_blank_cells", "clean_null_cells"),
@@ -642,9 +641,8 @@ def gate_sql(spec):
         else:
             union.append(("  UNION ALL " if any(not u.lstrip().startswith("--") for u in union) else "  ") + item)
 
-    silver_rows = (f"  SELECT {', '.join(['estimate_year', 'psgc_id_published', *lineage, *stamp])} FROM clean\n"
-                   f"  UNION ALL SELECT {', '.join(['estimate_year', 'psgc_id_published', *lineage, *stamp])} FROM quarantined")
-    # psgc_id_published may be NULL on a quarantined row (psgc_id_blank); it is the publisher's value, not lineage.
+    silver_rows = (f"  SELECT {', '.join(['estimate_year', *lineage, *stamp])} FROM clean\n"
+                   f"  UNION ALL SELECT {', '.join(['estimate_year', *lineage, *stamp])} FROM quarantined")
     missing_lineage = " OR ".join(f"{name} IS NULL" for name in ["estimate_year", *lineage, *stamp])
     known = " + ".join(f"CASE WHEN {_covers('estimate_years_covered', y)} THEN 1 ELSE 0 END" for y in spec.years)
     kinds = ", ".join(lit(k) for k in spec.structural_kinds)
@@ -818,11 +816,8 @@ LINEAGE_MEANING = {
     "batch_id": "The Bronze batch (one workbook delivery); joins `01-control`.ingestion_batches",
     "delivery_version": "Which delivery of the logical dataset: 1, or 2+ after an approved revision",
     "schema_version": "Which header the workbook had; tells a measure no schema publishes (NULL) from a published blank (NULL)",
-    "source_file": "The workbook's file name",
-    "source_sheet": "The sheet the row was read from",
     "source_sha256": "SHA-256 of the workbook; with `source_row_number`, identifies the Bronze row exactly",
-    "source_row_number": "The Excel row number of the unit row in that sheet",
-    "source_row_kind": "Always `unit`: title, header, region banner, blank and footer rows never become estimates",
+    "source_row_number": "The Excel row number of the unit row; open the workbook (or Bronze) at this row to see every published cell, the unpadded ID included",
     "run_id": "The job run that built the row (`{{job.run_id}}`); every row of a build has the same one, as do the gate's results",
     "cleaned_at_utc": "When that build ran; one value for both tables, in UTC",
     "code_revision": "The commit that ran the build",
@@ -845,18 +840,19 @@ def dictionary_markdown(spec):
     id_rule = m["identifier"]
     rows = [
         ("estimate_year", "STRING", f"the year in the column names ({', '.join(spec.years)})",
-         "One row per estimate year the delivery covers (`estimate_years_covered`); key, with `psgc_id_6`", "Never", "O-1"),
-        ("psgc_id_published", "STRING", f"`{spec.identifier}`", "Exactly as Bronze holds it (5 or 6 digits; Excel dropped leading zeros)",
-         "Never in the clean table", id_rule["finding"].split(":")[0]),
-        ("psgc_id_6", "STRING", f"`{spec.identifier}`",
-         f"Left-padded with zeros to {spec.id_width} digits. Key, with `estimate_year`. Not the 10-digit PSGC code",
+         f"One row per estimate year the delivery covers (`estimate_years_covered`); key, with `{spec.id_to}`. "
+         "Named for what it is, so it is never confused with DepEd's `school_year`", "Never", "O-1"),
+        (spec.id_to, "STRING", f"`{spec.identifier}`",
+         f"The published ID left-padded with zeros to {spec.id_width} digits (Excel dropped the leading zero of "
+         "1,073 IDs: `12801` becomes `012801`). Key, with `estimate_year`. The old 6-digit PSA code "
+         "(region 2 + province 2 + city or municipality 2), not the 10-digit PSGC code. The unpadded value stays in Bronze",
          "Never", "O-2"),
-        ("psgc_correspondence_code", "STRING", f"`{spec.identifier}`",
-         f"`psgc_id_6` followed by `{spec.correspondence_suffix}`: the 9-digit PSGC Correspondence Code. Matching it to PSGC is Integration's job",
+        (spec.correspondence_to, "STRING", f"`{spec.identifier}`",
+         f"`{spec.id_to}` followed by `{spec.correspondence_suffix}`: the 9-digit code PSGC keeps in its own "
+         "`correspondence_code` column (same name). It is the key Integration joins to PSGC 2Q 2026 (D-012) to get "
+         "the 10-digit `psgc_code`, the official province and region, and the link to DepEd and HDX; `psgc_id` "
+         "cannot join PSGC directly, because PSGC has no 6-digit column. Matched 1,612 of 1,612 in the profile",
          "Never", "O-2, X-1"),
-        ("province_code_prefix", "STRING", f"`{spec.identifier}`",
-         f"The first {spec.province_prefix_length} digits of `psgc_id_6`. A code prefix only, separate from the published label; not a canonical province",
-         "Never", "O-3"),
         (spec.banner_to, "STRING", f"`{spec.banner_column}` of the region banner rows", m["region_banner"]["rule"],
          "Never (the gate fails otherwise)", m["region_banner"]["finding"]),
     ]
@@ -892,7 +888,7 @@ def dictionary_markdown(spec):
         "",
         f"`` edu_access.`03-silver`.{spec.clean_table} ``: one row per city or municipality row of the workbook per "
         "estimate year, for the current delivery of each logical dataset only (`01-control`.current_batches). "
-        "Key: (`psgc_id_6`, `estimate_year`). The wide year columns are unpivoted (D-027), so each row holds one "
+        f"Key: (`{spec.id_to}`, `estimate_year`). The wide year columns are unpivoted (D-027), so each row holds one "
         "year's estimate with its CV, SE and 90% limits. Every row names the Bronze row it came from "
         "(`source_sha256`, `source_row_number`), so each published cell can be read back from Bronze. "
         "Rules, counts and the gate: [docs/operations/silver.md](../../operations/silver.md#psa-poverty-stat).",
@@ -922,8 +918,8 @@ def dictionary_markdown(spec):
         "| Column | Type | Meaning |",
         "|---|---|---|",
         "| `estimate_year` | STRING | As in the clean table |",
-        f"| `psgc_id_published` | STRING | `{spec.identifier}` as published, even if blank or malformed |",
-        "| `psgc_id_6` | STRING | The padded ID, or NULL when the published ID is blank or malformed |",
+        f"| `{spec.id_to}` | STRING | The padded ID, or NULL when the published ID is blank or malformed "
+        "(read the published value from Bronze) |",
         f"| `{spec.banner_to}` | STRING | As in the clean table |",
         "| `quarantine_reasons` | `ARRAY<STRING>` | Every reason that applies, never empty (below) |",
     ]
@@ -932,6 +928,9 @@ def dictionary_markdown(spec):
     lines += ["", "| Reason | Meaning |", "|---|---|"]
     lines += [f"| `{r}` | {QUARANTINE_MEANING[r].format(min=_number(spec.incidence_min), max=_number(spec.incidence_max))} |"
               for r in QUARANTINE_REASONS]
+    lines += ["", "## Published columns not carried into Silver", "", "| Bronze column | Why |", "|---|---|"]
+    lines += [f"| `{c}` (unit rows) | {why} |" for c, why in m.get("not_carried", {}).items()]
+    lines += [f"| `{spec.identifier}` as published | Replaced by the padded `{spec.id_to}`; the published value stays in Bronze |"]
     lines += ["", "## Numbers", "", m["numeric"]["why_double"], "",
               f"Pattern a published measure must match: `{spec.numeric_pattern}`.", ""]
     if spec.absent:

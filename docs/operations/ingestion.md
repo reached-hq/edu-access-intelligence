@@ -650,7 +650,7 @@ Built as described in [Silver, PSA Poverty Stat](silver.md#psa-poverty-stat) (D-
 - keep `PSGC ID` raw, and add a padded 6-digit code (`lpad(…, 6, '0')`) and the PSGC Correspondence Code (padded code + `000`); the geographic join to PSGC belongs in Integration (X-1, D-012);
 - unpivot to one row per unit and estimate year, typing estimates, CV, SE and limits as DOUBLE numbers (the stored values, scientific notation included) without rounding; blanks become NULL with a reason (`no_estimate` for Kalayaan), never 0;
 - flag, not fix: CV over 20, the 2021 CALABARZON standard errors, zero or negative lower limits (clip only in a documented, reversible column if a rule is approved);
-- keep the province code prefix (first four digits of the padded ID) apart from the published province label, and never treat the labels (`(Continued)`, Surigao rows, O-3) as authoritative; take region from the banner, not the ID prefix (Negros Island Region has two prefixes); canonical geography is Integration's (PSGC);
+- never treat the unit rows' province labels (`(Continued)`, Surigao rows, O-3) as authoritative: Silver does not carry them, and Integration takes the province from PSGC through the Correspondence Code; take region from the banner, not the ID prefix (Negros Island Region has two prefixes);
 - add no rows for places the workbook does not cover (33 highly urbanized cities, Isabela, Cotabato, Pateros, 8 SGA municipalities): Integration records them as `not_in_source` against PSGC, never as zero poverty;
 - keep `batch_id` and `source_row_number` on every row.
 

@@ -47,8 +47,7 @@ bronze_units AS (
     COUNT(*) AS unit_rows,
     COUNT_IF(length(u.`PSGC ID`) < 6) AS padded_ids,
     COUNT_IF(
-        TRIM(regexp_replace(translate(u.`Region/Province`, chr(9) || chr(160), '  '), ' +', ' ')) <> u.`Region/Province`
-        OR TRIM(regexp_replace(translate(u.`Municipality/City`, chr(9) || chr(160), '  '), ' +', ' ')) <> u.`Municipality/City`
+        TRIM(regexp_replace(translate(u.`Municipality/City`, chr(9) || chr(160), '  '), ' +', ' ')) <> u.`Municipality/City`
       ) AS whitespace_rows,
     SUM(CASE WHEN q.source_row_number IS NULL THEN
         CASE WHEN (CASE y.estimate_year WHEN '2018' THEN u.`Poverty Incidence 2018` WHEN '2021' THEN u.`Poverty Incidence 2021` WHEN '2023' THEN u.`Poverty Incidence 2023` END IS NULL OR CASE y.estimate_year WHEN '2018' THEN u.`Poverty Incidence 2018` WHEN '2021' THEN u.`Poverty Incidence 2021` WHEN '2023' THEN u.`Poverty Incidence 2023` END = '') THEN 1 ELSE 0 END + CASE WHEN (CASE y.estimate_year WHEN '2018' THEN u.`Coefficient of Variation 2018` WHEN '2021' THEN u.`Coefficient of Variation 2021` WHEN '2023' THEN u.`Coefficient of Variation 2023` END IS NULL OR CASE y.estimate_year WHEN '2018' THEN u.`Coefficient of Variation 2018` WHEN '2021' THEN u.`Coefficient of Variation 2021` WHEN '2023' THEN u.`Coefficient of Variation 2023` END = '') THEN 1 ELSE 0 END + CASE WHEN (CASE y.estimate_year WHEN '2018' THEN u.`Standard Error 2018` WHEN '2021' THEN u.`Standard Error 2021` WHEN '2023' THEN u.`Standard Error 2023` END IS NULL OR CASE y.estimate_year WHEN '2018' THEN u.`Standard Error 2018` WHEN '2021' THEN u.`Standard Error 2021` WHEN '2023' THEN u.`Standard Error 2023` END = '') THEN 1 ELSE 0 END + CASE WHEN (CASE y.estimate_year WHEN '2018' THEN u.`90% Confidence Interval Lower Limit 2018` WHEN '2021' THEN u.`90% Confidence Interval Lower Limit 2021` WHEN '2023' THEN u.`90% Confidence Interval Lower Limit 2023` END IS NULL OR CASE y.estimate_year WHEN '2018' THEN u.`90% Confidence Interval Lower Limit 2018` WHEN '2021' THEN u.`90% Confidence Interval Lower Limit 2021` WHEN '2023' THEN u.`90% Confidence Interval Lower Limit 2023` END = '') THEN 1 ELSE 0 END + CASE WHEN (CASE y.estimate_year WHEN '2018' THEN u.`90% Confidence Interval Upper Limit 2018` WHEN '2021' THEN u.`90% Confidence Interval Upper Limit 2021` WHEN '2023' THEN u.`90% Confidence Interval Upper Limit 2023` END IS NULL OR CASE y.estimate_year WHEN '2018' THEN u.`90% Confidence Interval Upper Limit 2018` WHEN '2021' THEN u.`90% Confidence Interval Upper Limit 2021` WHEN '2023' THEN u.`90% Confidence Interval Upper Limit 2023` END = '') THEN 1 ELSE 0 END
@@ -68,11 +67,10 @@ clean_years AS (
     c.batch_id,
     c.estimate_year,
     COUNT(*) AS clean_rows,
-    COUNT(DISTINCT c.psgc_id_6) AS clean_ids,
-    COUNT_IF(c.psgc_id_6 IS NULL OR NOT regexp_like(c.psgc_id_6, '^[0-9]{6}$')
-        OR c.psgc_id_6 <> lpad(c.psgc_id_published, 6, '0')
-        OR c.psgc_correspondence_code IS NULL OR c.psgc_correspondence_code <> c.psgc_id_6 || '000'
-        OR c.province_code_prefix IS NULL OR c.province_code_prefix <> substr(c.psgc_id_6, 1, 4)) AS invalid_ids,
+    COUNT(DISTINCT c.psgc_id) AS clean_ids,
+    COUNT_IF(c.psgc_id IS NULL OR NOT regexp_like(c.psgc_id, '^[0-9]{6}$')
+        OR b.source_row_number IS NULL OR c.psgc_id <> lpad(b.`PSGC ID`, 6, '0')
+        OR c.correspondence_code IS NULL OR c.correspondence_code <> c.psgc_id || '000') AS invalid_ids,
     COUNT_IF(NOT array_contains(split(c.estimate_years_covered, ','), c.estimate_year)) AS uncovered_rows,
     COUNT_IF(b.source_row_number IS NULL OR NOT (c.poverty_incidence IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE c.estimate_year WHEN '2018' THEN b.`Poverty Incidence 2018` WHEN '2021' THEN b.`Poverty Incidence 2021` WHEN '2023' THEN b.`Poverty Incidence 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE c.estimate_year WHEN '2018' THEN b.`Poverty Incidence 2018` WHEN '2021' THEN b.`Poverty Incidence 2021` WHEN '2023' THEN b.`Poverty Incidence 2023` END AS DOUBLE) END)) AS mismatched_poverty_incidence,
     COUNT_IF(b.source_row_number IS NULL OR NOT (c.coefficient_of_variation IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE c.estimate_year WHEN '2018' THEN b.`Coefficient of Variation 2018` WHEN '2021' THEN b.`Coefficient of Variation 2021` WHEN '2023' THEN b.`Coefficient of Variation 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE c.estimate_year WHEN '2018' THEN b.`Coefficient of Variation 2018` WHEN '2021' THEN b.`Coefficient of Variation 2021` WHEN '2023' THEN b.`Coefficient of Variation 2023` END AS DOUBLE) END)) AS mismatched_coefficient_of_variation,
@@ -93,7 +91,7 @@ clean_years AS (
         OR c.se_cv_inconsistent IS NULL OR c.se_cv_inconsistent <> (COALESCE(abs(c.standard_error - c.poverty_incidence * c.coefficient_of_variation / 100) > 0.05, FALSE))
         OR c.lower_limit_not_positive IS NULL OR c.lower_limit_not_positive <> (COALESCE(c.ci90_lower_limit <= 0, FALSE))
       ) AS inconsistent_flags,
-    COUNT_IF(c.region_banner_label IS NULL) AS no_banner_rows,
+    COUNT_IF(c.region IS NULL) AS no_banner_rows,
     COUNT_IF(c.cv_over_20) AS flagged_cv_over_20,
     COUNT_IF(c.se_cv_inconsistent) AS flagged_se_cv_inconsistent,
     COUNT_IF(c.lower_limit_not_positive) AS flagged_lower_limit_not_positive,
@@ -185,12 +183,12 @@ found AS (
   FROM cur
 ),
 silver_rows AS (
-  SELECT estimate_year, psgc_id_published, logical_dataset, estimate_years_covered, batch_id, delivery_version, schema_version, source_file, source_sheet, source_sha256, source_row_number, source_row_kind, run_id, cleaned_at_utc, code_revision FROM clean
-  UNION ALL SELECT estimate_year, psgc_id_published, logical_dataset, estimate_years_covered, batch_id, delivery_version, schema_version, source_file, source_sheet, source_sha256, source_row_number, source_row_kind, run_id, cleaned_at_utc, code_revision FROM quarantined
+  SELECT estimate_year, logical_dataset, estimate_years_covered, batch_id, delivery_version, schema_version, source_sha256, source_row_number, run_id, cleaned_at_utc, code_revision FROM clean
+  UNION ALL SELECT estimate_year, logical_dataset, estimate_years_covered, batch_id, delivery_version, schema_version, source_sha256, source_row_number, run_id, cleaned_at_utc, code_revision FROM quarantined
 ),
 whole AS (
   SELECT
-    COUNT_IF(estimate_year IS NULL OR logical_dataset IS NULL OR estimate_years_covered IS NULL OR batch_id IS NULL OR delivery_version IS NULL OR schema_version IS NULL OR source_file IS NULL OR source_sheet IS NULL OR source_sha256 IS NULL OR source_row_number IS NULL OR source_row_kind IS NULL OR run_id IS NULL OR cleaned_at_utc IS NULL OR code_revision IS NULL) AS missing_lineage,
+    COUNT_IF(estimate_year IS NULL OR logical_dataset IS NULL OR estimate_years_covered IS NULL OR batch_id IS NULL OR delivery_version IS NULL OR schema_version IS NULL OR source_sha256 IS NULL OR source_row_number IS NULL OR run_id IS NULL OR cleaned_at_utc IS NULL OR code_revision IS NULL) AS missing_lineage,
     COUNT_IF(run_id IS NULL OR run_id <> :run_id) AS other_run_rows,
     COUNT(DISTINCT cleaned_at_utc) AS timestamps
   FROM silver_rows
@@ -249,10 +247,10 @@ checks AS (
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_poverty_stat_clean_candidate' AS table_name, 'rows_reconcile_' || estimate_year AS check_name,
          CASE WHEN clean_rows + quarantined_rows = unit_rows THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(unit_rows AS STRING) AS expected, CAST(clean_rows + quarantined_rows AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_poverty_stat_clean_candidate' AS table_name, 'psgc_id_6_unique_' || estimate_year AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_poverty_stat_clean_candidate' AS table_name, 'psgc_id_unique_' || estimate_year AS check_name,
          CASE WHEN clean_rows - clean_ids = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(clean_rows - clean_ids AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_poverty_stat_clean_candidate' AS table_name, 'psgc_id_6_valid_' || estimate_year AS check_name,
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_poverty_stat_clean_candidate' AS table_name, 'psgc_id_valid_' || estimate_year AS check_name,
          CASE WHEN invalid_ids = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(invalid_ids AS STRING) AS actual FROM years
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_poverty_stat_clean_candidate' AS table_name, 'estimate_year_covered_' || estimate_year AS check_name,

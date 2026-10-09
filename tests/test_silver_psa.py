@@ -120,8 +120,8 @@ class Env:
     def check_names(self, run_id, status):
         return sorted({name for name, _ in self.checks(run_id, status)})
 
-    def row(self, psgc_id_6, year, table=CLEAN):
-        found = self.rows(f"SELECT * FROM {table} WHERE psgc_id_6 = '{psgc_id_6}' AND estimate_year = '{year}'")
+    def row(self, psgc_id, year, table=CLEAN):
+        found = self.rows(f"SELECT * FROM {table} WHERE psgc_id = '{psgc_id}' AND estimate_year = '{year}'")
         assert len(found) == 1, found
         return found[0]
 
@@ -147,7 +147,7 @@ def test_wide_rows_are_unpivoted_to_one_row_per_unit_and_year(env):
     assert env.silver().status == "succeeded"
     assert env.q(f"SELECT estimate_year, COUNT(*) FROM {CLEAN} GROUP BY 1 ORDER BY 1") == [(y, 6) for y in YEARS]
     assert env.one(f"SELECT COUNT(*) FROM {QUARANTINE}") == 0
-    assert env.one(f"SELECT COUNT(*) - COUNT(DISTINCT psgc_id_6 || estimate_year) FROM {CLEAN}") == 0
+    assert env.one(f"SELECT COUNT(*) - COUNT(DISTINCT psgc_id || estimate_year) FROM {CLEAN}") == 0
     # The year's five measures stay together, each from the column of that year.
     bronze = env.rows(f"SELECT * FROM {BRONZE} WHERE `PSGC ID` = '990104'")[0]
     for y in YEARS:
@@ -161,7 +161,7 @@ def test_wide_rows_are_unpivoted_to_one_row_per_unit_and_year(env):
     types = dict(env.q("SELECT column_name, data_type FROM information_schema.columns "
                        "WHERE table_schema = '03-silver' AND table_name = 'psa_poverty_stat_clean'"))
     assert {types[m] for m in MEASURES} == {"DOUBLE"}
-    assert (types["estimate_year"], types["psgc_id_6"], types["cv_over_20"]) == ("VARCHAR", "VARCHAR", "BOOLEAN")
+    assert (types["estimate_year"], types["psgc_id"], types["cv_over_20"]) == ("VARCHAR", "VARCHAR", "BOOLEAN")
 
 
 def test_ids_are_padded_and_the_correspondence_code_is_built_not_the_psgc_code(env):
@@ -169,27 +169,27 @@ def test_ids_are_padded_and_the_correspondence_code_is_built_not_the_psgc_code(e
     env.bronze()
     env.silver()
     five, six = env.row("099101", "2018"), env.row("990102", "2018")
-    assert (five["psgc_id_published"], five["psgc_id_6"], five["psgc_correspondence_code"], five["province_code_prefix"]) \
-        == ("99101", "099101", "099101000", "0991")
-    assert (six["psgc_id_published"], six["psgc_id_6"], six["psgc_correspondence_code"]) == ("990102", "990102", "990102000")
-    assert env.one(f"SELECT MAX(length(psgc_correspondence_code)) FROM {CLEAN}") == 9   # never the 10-digit PSGC code
+    assert (five["psgc_id"], five["correspondence_code"]) == ("099101", "099101000")
+    assert (six["psgc_id"], six["correspondence_code"]) == ("990102", "990102000")
+    assert "psgc_id_published" not in five and "province_code_prefix" not in five      # not carried into Silver
+    assert env.one(f"SELECT MAX(length(correspondence_code)) FROM {CLEAN}") == 9   # never the 10-digit PSGC code
     assert env.one(f"SELECT `PSGC ID` FROM {BRONZE} WHERE `PSGC ID` = '99101'") == "99101"   # Bronze keeps it
 
 
-def test_region_banner_labels_are_carried_down_and_province_labels_kept_as_published(env):
+def test_regions_are_carried_down_and_province_labels_stay_in_bronze(env):
     env.deliver()
     env.bronze()
     env.silver()
-    got = {r["psgc_id_6"]: r for r in env.rows(f"SELECT * FROM {CLEAN} WHERE estimate_year = '2023'")}
-    assert {k: v["region_banner_label"] for k, v in got.items()} == {
+    got = {r["psgc_id"]: r for r in env.rows(f"SELECT * FROM {CLEAN} WHERE estimate_year = '2023'")}
+    assert {k: v["region"] for k, v in got.items()} == {
         "099101": "Test Region Alpha", "099102": "Test Region Alpha", "099103": "Test Region Alpha",
         "990102": "Test Region Beta", "990103": "Test Region Beta", "990104": "Test Region Beta"}
-    assert got["099101"]["province_label_published"] == "Province of Test"
-    assert got["099102"]["province_label_published"] is None              # not carried down
-    assert got["990102"]["province_label_published"] == "(Continued)"     # kept, never authoritative
-    assert got["099102"]["municipality_city"] == "San Test (Old Town)"    # former name stays
-    assert got["099101"]["municipality_city"] == "Doña Test"
-    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE source_row_kind <> 'unit'") == 0   # banners never become rows
+    assert "province_label_published" not in got["099101"]                # province comes from PSGC in Integration
+    assert env.one(f"SELECT `Region/Province` FROM {BRONZE} WHERE `PSGC ID` = '990102'") == "(Continued)"  # kept in Bronze
+    assert got["099102"]["municipality"] == "San Test (Old Town)"    # former name stays
+    assert got["099101"]["municipality"] == "Doña Test"
+    banner_rows = env.q(f"SELECT source_row_number FROM {BRONZE} WHERE source_row_kind = 'region_banner'")
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE source_row_number IN ({', '.join(str(r[0]) for r in banner_rows)})") == 0
 
 
 def test_text_whitespace_is_normalized_but_names_are_not_rewritten(env):
@@ -199,7 +199,7 @@ def test_text_whitespace_is_normalized_but_names_are_not_rewritten(env):
     env.bronze()
     assert env.silver().status == "succeeded"
     r = env.row("099101", "2021")
-    assert (r["municipality_city"], r["province_label_published"]) == ("Doña Test (Old Name)", "Province of Test")
+    assert r["municipality"] == "Doña Test (Old Name)"
 
 
 # --- Missingness: NULL is never zero ------------------------------------------------------
@@ -294,14 +294,14 @@ def test_malformed_measures_and_ranges_are_quarantined_per_year_with_every_reaso
     env.bronze()                                                                        # Bronze keeps and WARNs
     summary = env.silver()
     assert summary.status == "succeeded", summary.error                                 # 1 or 2 of 250 per year: WARN
-    got = {(r["psgc_id_6"], r["estimate_year"]): r["quarantine_reasons"] for r in env.rows(f"SELECT * FROM {QUARANTINE}")}
+    got = {(r["psgc_id"], r["estimate_year"]): r["quarantine_reasons"] for r in env.rows(f"SELECT * FROM {QUARANTINE}")}
     assert got == {
         ("099104", "2021"): ["measure_uncastable"],
         ("099108", "2018"): ["incidence_out_of_range", "ci_inconsistent"],
         ("099110", "2023"): ["cv_negative", "se_negative"],
         ("099112", "2021"): ["ci_inconsistent"],
     }
-    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE psgc_id_6 = '099104'") == 2   # 2018 and 2023 stay clean
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE psgc_id = '099104'") == 2   # 2018 and 2023 stay clean
     assert env.one(f"SELECT COUNT(*) FROM {CLEAN}") + env.one(f"SELECT COUNT(*) FROM {QUARANTINE}") == 750
     rate = {name: r["status"] for (name, _), r in env.checks(summary.run_id).items() if name.startswith("quarantine_rate")}
     assert rate == {"quarantine_rate_2018": "WARN", "quarantine_rate_2021": "WARN", "quarantine_rate_2023": "WARN"}
@@ -312,7 +312,7 @@ def test_a_measure_with_surrounding_spaces_is_quarantined_not_trimmed(env):
     env.deliver(rows=many_units(200, {0: {"Poverty Incidence 2018": " 12.5"}}))
     env.bronze()
     assert env.silver().status == "succeeded"
-    assert env.q(f"SELECT psgc_id_6, estimate_year, quarantine_reasons FROM {QUARANTINE}") == [
+    assert env.q(f"SELECT psgc_id, estimate_year, quarantine_reasons FROM {QUARANTINE}") == [
         ("099101", "2018", ["measure_uncastable"])]
 
 
@@ -326,7 +326,7 @@ def test_a_duplicated_id_quarantines_every_copy_in_every_year(env):
     dup = env.q(f"SELECT estimate_year, COUNT(*) FROM {QUARANTINE} WHERE array_contains(quarantine_reasons, "
                 "'psgc_id_duplicated') GROUP BY 1 ORDER BY 1")
     assert dup == [(y, 2) for y in YEARS]
-    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE psgc_id_6 = '099101'") == 0     # neither copy is chosen
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE psgc_id = '099101'") == 0     # neither copy is chosen
 
 
 def test_quarantine_above_one_percent_fails_and_nothing_is_published(env):
@@ -391,11 +391,11 @@ BROKEN_BUILDS = [
     ("standard_error_matches_bronze_2023", "standard_error = 0", "2023"),
     ("ci90_lower_limit_matches_bronze_2023", "ci90_lower_limit = 0", "2023"),
     ("ci90_upper_limit_matches_bronze_2018", "ci90_upper_limit = NULL", "2018"),
-    ("psgc_id_6_valid_2018", "psgc_id_6 = '99101'", "2018"),
-    ("psgc_id_6_valid_2021", "psgc_correspondence_code = psgc_id_6 || '0000'", "2021"),
+    ("psgc_id_valid_2018", "psgc_id = '99101'", "2018"),
+    ("psgc_id_valid_2021", "correspondence_code = psgc_id || '0000'", "2021"),
     ("estimate_status_valid_2023", "estimate_status = 'no_estimate'", "2023"),
     ("flags_consistent_2018", "cv_over_20 = NOT cv_over_20", "2018"),
-    ("region_banner_assigned_2021", "region_banner_label = NULL", "2021"),
+    ("region_banner_assigned_2021", "region = NULL", "2021"),
     ("poverty_incidence_within_bounds_2018", "poverty_incidence = 150", "2018"),
     ("cv_non_negative_2018", "coefficient_of_variation = -1", "2018"),
     ("se_non_negative_2018", "standard_error = -1", "2018"),
@@ -414,7 +414,7 @@ def test_each_gate_check_fails_a_broken_build(env, check, tamper, year):
     env.deliver()
     env.bronze()
     summary = env.silver(hook=lambda: env.store.sql(
-        f"UPDATE {CLEAN_CANDIDATE} SET {tamper} WHERE psgc_id_6 = '990104' AND estimate_year = '{year}'"))
+        f"UPDATE {CLEAN_CANDIDATE} SET {tamper} WHERE psgc_id = '990104' AND estimate_year = '{year}'"))
     assert summary.status == "failed"
     assert check in env.check_names(summary.run_id, "FAIL")
 
@@ -424,15 +424,15 @@ def test_the_gate_catches_a_blank_turned_into_zero_and_a_lost_row(env):
     env.bronze()
 
     def tamper():
-        env.store.sql(f"UPDATE {CLEAN_CANDIDATE} SET poverty_incidence = 0 WHERE psgc_id_6 = '099103'")
-        env.store.sql(f"DELETE FROM {CLEAN_CANDIDATE} WHERE psgc_id_6 = '990104' AND estimate_year = '2021'")
+        env.store.sql(f"UPDATE {CLEAN_CANDIDATE} SET poverty_incidence = 0 WHERE psgc_id = '099103'")
+        env.store.sql(f"DELETE FROM {CLEAN_CANDIDATE} WHERE psgc_id = '990104' AND estimate_year = '2021'")
         env.store.sql(f"INSERT INTO {CLEAN_CANDIDATE} SELECT * FROM {CLEAN_CANDIDATE} "
-                      "WHERE psgc_id_6 = '990103' AND estimate_year = '2023'")
+                      "WHERE psgc_id = '990103' AND estimate_year = '2023'")
 
     summary = env.silver(hook=tamper)
     failed = env.check_names(summary.run_id, "FAIL")
     assert {"missing_measures_stay_null_2018", "poverty_incidence_matches_bronze_2018", "rows_reconcile_2021",
-            "psgc_id_6_unique_2023", "rows_reconcile_2023"} <= set(failed)
+            "psgc_id_unique_2023", "rows_reconcile_2023"} <= set(failed)
 
 
 def test_check_results_hold_counts_not_values(env):
@@ -470,7 +470,7 @@ def test_only_current_batches_are_read_and_a_revision_replaces_the_dataset(env):
     assert env.q(f"SELECT DISTINCT delivery_version FROM {CLEAN}") == [(2,)]
     assert env.q(f"SELECT estimate_year, COUNT(*) FROM {CLEAN} GROUP BY 1 ORDER BY 1") == [(y, 5) for y in YEARS]
     assert env.row("099101", "2021")["poverty_incidence"] == 14.6                       # v2's value
-    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE psgc_id_6 = '990104'") == 0     # not in v2
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE psgc_id = '990104'") == 0     # not in v2
 
 
 def test_a_revision_that_adds_a_year_needs_regenerated_silver_and_then_keeps_every_year(env):
@@ -510,8 +510,8 @@ def test_region_labels_are_not_carried_across_deliveries(env):
     assert summary.status == "failed"
     assert env.check_names(summary.run_id, "FAIL") == ["region_banner_assigned_2025"]
     orphan = env.row("099901", "2025", CLEAN_CANDIDATE)
-    assert orphan["region_banner_label"] is None
-    assert env.row("099201", "2025", CLEAN_CANDIDATE)["region_banner_label"] == "Test Region Alpha"
+    assert orphan["region"] is None
+    assert env.row("099201", "2025", CLEAN_CANDIDATE)["region"] == "Test Region Alpha"
 
 
 # --- Rebuilds and the run record ------------------------------------------------------------
@@ -552,10 +552,9 @@ def test_a_run_is_succeeded_only_after_its_gate_passes_and_carries_lineage(env):
     assert env.silver_run(built.run_id)["status"] == "running"                       # never mistaken for good
     joined = env.one(f"SELECT COUNT(*) FROM {CLEAN} AS c JOIN {BRONZE} AS b "
                      "ON c.source_sha256 = b.source_sha256 AND c.source_row_number = b.source_row_number "
-                     "AND c.batch_id = b.batch_id AND c.psgc_id_published = b.`PSGC ID` "
+                     "AND c.batch_id = b.batch_id AND c.psgc_id = lpad(b.`PSGC ID`, 6, '0') "
                      "AND c.delivery_version = b.delivery_version AND c.schema_version = b.schema_version "
-                     "AND c.logical_dataset = b.logical_dataset AND c.source_file = b.source_file "
-                     "AND c.source_sheet = b.source_sheet AND b.source_row_kind = 'unit'")
+                     "AND c.logical_dataset = b.logical_dataset AND b.source_row_kind = 'unit'")
     assert joined == env.one(f"SELECT COUNT(*) FROM {CLEAN}") == 449
     stamps = env.q(f"SELECT DISTINCT run_id, cleaned_at_utc, code_revision FROM {CLEAN} "
                    f"UNION SELECT DISTINCT run_id, cleaned_at_utc, code_revision FROM {QUARANTINE}")
@@ -566,7 +565,7 @@ def test_a_run_is_succeeded_only_after_its_gate_passes_and_carries_lineage(env):
 def test_a_repaired_run_is_judged_by_its_own_checks(env):
     env.deliver()
     env.bronze()
-    first = env.silver(run_id="job-run-9", hook=lambda: env.store.sql(f"DELETE FROM {CLEAN_CANDIDATE} WHERE psgc_id_6 = '990104'"))
+    first = env.silver(run_id="job-run-9", hook=lambda: env.store.sql(f"DELETE FROM {CLEAN_CANDIDATE} WHERE psgc_id = '990104'"))
     assert first.status == "failed"
     repaired = env.silver(run_id="job-run-9")
     assert repaired.status == "succeeded"

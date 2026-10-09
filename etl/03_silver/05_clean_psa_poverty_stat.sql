@@ -65,11 +65,11 @@ ordered AS (
   WHERE r.source_row_kind IN ('unit', 'region_banner')
 ),
 banners AS (
-  SELECT batch_id, source_sheet, banner_seq, NULLIF(TRIM(regexp_replace(translate(o.`Region/Province`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS region_banner_label
+  SELECT batch_id, source_sheet, banner_seq, NULLIF(TRIM(regexp_replace(translate(o.`Region/Province`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS region
   FROM ordered AS o WHERE o.source_row_kind = 'region_banner'
 ),
 units AS (
-  SELECT o.*, b.region_banner_label
+  SELECT o.*, b.region
   FROM ordered AS o
   LEFT JOIN banners AS b
     ON b.batch_id = o.batch_id AND b.source_sheet = o.source_sheet AND b.banner_seq = o.banner_seq
@@ -81,9 +81,8 @@ candidates AS (
   SELECT
     '2018' AS estimate_year,
     u.`PSGC ID` AS psgc_id_published,
-    u.region_banner_label,
-    NULLIF(TRIM(regexp_replace(translate(u.`Region/Province`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS province_label_published,
-    NULLIF(TRIM(regexp_replace(translate(u.`Municipality/City`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS municipality_city,
+    u.region,
+    NULLIF(TRIM(regexp_replace(translate(u.`Municipality/City`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS municipality,
     u.`Poverty Incidence 2018` AS poverty_incidence_published,
     u.`Coefficient of Variation 2018` AS coefficient_of_variation_published,
     u.`Standard Error 2018` AS standard_error_published,
@@ -94,20 +93,16 @@ candidates AS (
     u.batch_id,
     u.delivery_version,
     u.schema_version,
-    u.source_file,
-    u.source_sheet,
     u.source_sha256,
-    u.source_row_number,
-    u.source_row_kind
+    u.source_row_number
   FROM units AS u
   WHERE array_contains(split(u.estimate_years_covered, ','), '2018')
   UNION ALL
   SELECT
     '2021' AS estimate_year,
     u.`PSGC ID` AS psgc_id_published,
-    u.region_banner_label,
-    NULLIF(TRIM(regexp_replace(translate(u.`Region/Province`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS province_label_published,
-    NULLIF(TRIM(regexp_replace(translate(u.`Municipality/City`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS municipality_city,
+    u.region,
+    NULLIF(TRIM(regexp_replace(translate(u.`Municipality/City`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS municipality,
     u.`Poverty Incidence 2021` AS poverty_incidence_published,
     u.`Coefficient of Variation 2021` AS coefficient_of_variation_published,
     u.`Standard Error 2021` AS standard_error_published,
@@ -118,20 +113,16 @@ candidates AS (
     u.batch_id,
     u.delivery_version,
     u.schema_version,
-    u.source_file,
-    u.source_sheet,
     u.source_sha256,
-    u.source_row_number,
-    u.source_row_kind
+    u.source_row_number
   FROM units AS u
   WHERE array_contains(split(u.estimate_years_covered, ','), '2021')
   UNION ALL
   SELECT
     '2023' AS estimate_year,
     u.`PSGC ID` AS psgc_id_published,
-    u.region_banner_label,
-    NULLIF(TRIM(regexp_replace(translate(u.`Region/Province`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS province_label_published,
-    NULLIF(TRIM(regexp_replace(translate(u.`Municipality/City`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS municipality_city,
+    u.region,
+    NULLIF(TRIM(regexp_replace(translate(u.`Municipality/City`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS municipality,
     u.`Poverty Incidence 2023` AS poverty_incidence_published,
     u.`Coefficient of Variation 2023` AS coefficient_of_variation_published,
     u.`Standard Error 2023` AS standard_error_published,
@@ -142,11 +133,8 @@ candidates AS (
     u.batch_id,
     u.delivery_version,
     u.schema_version,
-    u.source_file,
-    u.source_sheet,
     u.source_sha256,
-    u.source_row_number,
-    u.source_row_kind
+    u.source_row_number
   FROM units AS u
   WHERE array_contains(split(u.estimate_years_covered, ','), '2023')
 ),
@@ -154,26 +142,23 @@ candidates AS (
 keyed AS (
   SELECT
     c.*,
-    CASE WHEN regexp_like(c.psgc_id_published, '^[0-9]{5,6}$') THEN lpad(c.psgc_id_published, 6, '0') END AS psgc_id_6
+    CASE WHEN regexp_like(c.psgc_id_published, '^[0-9]{5,6}$') THEN lpad(c.psgc_id_published, 6, '0') END AS psgc_id
   FROM candidates AS c
 ),
 -- Measures typed only when they are numbers (DOUBLE, no rounding); the key counted per year.
 typed AS (
   SELECT
     k.estimate_year,
-    k.psgc_id_published,
-    k.psgc_id_6,
-    k.psgc_id_6 || '000' AS psgc_correspondence_code,
-    substr(k.psgc_id_6, 1, 4) AS province_code_prefix,
-    k.region_banner_label,
-    k.province_label_published,
-    k.municipality_city,
+    k.psgc_id,
+    k.psgc_id || '000' AS correspondence_code,
+    k.region,
+    k.municipality,
     CASE WHEN regexp_like(k.poverty_incidence_published, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(k.poverty_incidence_published AS DOUBLE) END AS poverty_incidence,
     CASE WHEN regexp_like(k.coefficient_of_variation_published, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(k.coefficient_of_variation_published AS DOUBLE) END AS coefficient_of_variation,
     CASE WHEN regexp_like(k.standard_error_published, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(k.standard_error_published AS DOUBLE) END AS standard_error,
     CASE WHEN regexp_like(k.ci90_lower_limit_published, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(k.ci90_lower_limit_published AS DOUBLE) END AS ci90_lower_limit,
     CASE WHEN regexp_like(k.ci90_upper_limit_published, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(k.ci90_upper_limit_published AS DOUBLE) END AS ci90_upper_limit,
-    COUNT(*) OVER (PARTITION BY k.estimate_year, k.psgc_id_6) AS key_rows,
+    COUNT(*) OVER (PARTITION BY k.estimate_year, k.psgc_id) AS key_rows,
     COALESCE(
       (k.poverty_incidence_published <> '' AND (NOT regexp_like(k.poverty_incidence_published, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') OR TRY_CAST(k.poverty_incidence_published AS DOUBLE) IS NULL))
       OR (k.coefficient_of_variation_published <> '' AND (NOT regexp_like(k.coefficient_of_variation_published, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') OR TRY_CAST(k.coefficient_of_variation_published AS DOUBLE) IS NULL))
@@ -187,22 +172,16 @@ typed AS (
     k.batch_id,
     k.delivery_version,
     k.schema_version,
-    k.source_file,
-    k.source_sheet,
     k.source_sha256,
-    k.source_row_number,
-    k.source_row_kind
+    k.source_row_number
   FROM keyed AS k
 )
 SELECT
   t.estimate_year,
-  t.psgc_id_published,
-  t.psgc_id_6,
-  t.psgc_correspondence_code,
-  t.province_code_prefix,
-  t.region_banner_label,
-  t.province_label_published,
-  t.municipality_city,
+  t.psgc_id,
+  t.correspondence_code,
+  t.region,
+  t.municipality,
   t.poverty_incidence,
   t.coefficient_of_variation,
   t.standard_error,
@@ -216,8 +195,8 @@ SELECT
   COALESCE(t.ci90_lower_limit <= 0, FALSE) AS lower_limit_not_positive,
   concat_ws(',',
       CASE WHEN t.id_blank THEN 'psgc_id_blank'
-           WHEN t.psgc_id_6 IS NULL THEN 'psgc_id_malformed' END,
-      CASE WHEN t.psgc_id_6 IS NOT NULL AND t.key_rows > 1 THEN 'psgc_id_duplicated' END,
+           WHEN t.psgc_id IS NULL THEN 'psgc_id_malformed' END,
+      CASE WHEN t.psgc_id IS NOT NULL AND t.key_rows > 1 THEN 'psgc_id_duplicated' END,
       CASE WHEN t.any_uncastable THEN 'measure_uncastable' END,
       CASE WHEN COALESCE(t.poverty_incidence < 0 OR t.poverty_incidence > 100, FALSE) THEN 'incidence_out_of_range' END,
       CASE WHEN COALESCE(t.coefficient_of_variation < 0, FALSE) THEN 'cv_negative' END,
@@ -229,11 +208,8 @@ SELECT
   t.batch_id,
   t.delivery_version,
   t.schema_version,
-  t.source_file,
-  t.source_sheet,
   t.source_sha256,
   t.source_row_number,
-  t.source_row_kind,
   session.silver_run_id AS run_id,
   session.silver_cleaned_at_utc AS cleaned_at_utc,
   session.silver_code_revision AS code_revision
@@ -243,13 +219,10 @@ FROM typed AS t;
 CREATE OR REPLACE TABLE edu_access.`03-silver`.psa_poverty_stat_clean_candidate USING DELTA AS
 SELECT
   estimate_year,
-  psgc_id_published,
-  psgc_id_6,
-  psgc_correspondence_code,
-  province_code_prefix,
-  region_banner_label,
-  province_label_published,
-  municipality_city,
+  psgc_id,
+  correspondence_code,
+  region,
+  municipality,
   poverty_incidence,
   coefficient_of_variation,
   standard_error,
@@ -264,11 +237,8 @@ SELECT
   batch_id,
   delivery_version,
   schema_version,
-  source_file,
-  source_sheet,
   source_sha256,
   source_row_number,
-  source_row_kind,
   run_id,
   cleaned_at_utc,
   code_revision
@@ -281,20 +251,16 @@ ALTER TABLE edu_access.`03-silver`.psa_poverty_stat_clean_candidate OWNER TO `re
 CREATE OR REPLACE TABLE edu_access.`03-silver`.psa_poverty_stat_quarantine_candidate USING DELTA AS
 SELECT
   estimate_year,
-  psgc_id_published,
-  psgc_id_6,
-  region_banner_label,
+  psgc_id,
+  region,
   split(quarantine_reasons, ',') AS quarantine_reasons,
   logical_dataset,
   estimate_years_covered,
   batch_id,
   delivery_version,
   schema_version,
-  source_file,
-  source_sheet,
   source_sha256,
   source_row_number,
-  source_row_kind,
   run_id,
   cleaned_at_utc,
   code_revision

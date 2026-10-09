@@ -286,7 +286,7 @@ The lane does not wait for any other source; `90_validate_control` (disabled) is
 
 ### Grain and shape (PSA)
 
-One Bronze `unit` row holds all three estimate years side by side. Silver unpivots it: **one row per unit (city or municipality row) per estimate year the delivery covers**, key (`psgc_id_6`, `estimate_year`), with that year's poverty incidence, CV, SE and both 90% limits together in the same row. This differs from DepEd's wide Silver (D-021) on purpose: PSA's five measures per year are one estimate and its precision, not five counts, and each year's estimate is what a planner reads (D-027). The years come from the contract's columns; a delivery's `estimate_years_covered` says which of them it covers, so an absent year gives no row at all rather than a row of NULLs.
+One Bronze `unit` row holds all three estimate years side by side. Silver unpivots it: **one row per unit (city or municipality row) per estimate year the delivery covers**, key (`psgc_id`, `estimate_year`), with that year's poverty incidence, CV, SE and both 90% limits together in the same row. This differs from DepEd's wide Silver (D-021) on purpose: PSA's five measures per year are one estimate and its precision, not five counts, and each year's estimate is what a planner reads (D-027). The years come from the contract's columns; a delivery's `estimate_years_covered` says which of them it covers, so an absent year gives no row at all rather than a row of NULLs.
 
 Title, header, region banner, blank and footer rows stay in Bronze. For the current workbook: 1,641 Bronze rows = 1,612 `unit` + 29 structural (1 title, 4 header, 18 region banner, 6 footer), so 1,612 candidates per estimate year and 4,836 in all.
 
@@ -297,8 +297,8 @@ Title, header, region banner, blank and footer rows stay in Bronze. For the curr
 | Current batches only | Reads Bronze rows whose `batch_id` is in `current_batches`, `source_row_kind = 'unit'` | D-015, D-018 | 1,612 units |
 | Unpivot | One candidate per unit and covered estimate year | D-027 | 1,612 per year |
 | Region banner context | The nearest banner above the unit in Excel row order, within the same batch and sheet; never across deliveries; never from the ID prefix (Negros Island Region holds 06 and 07) | O-3 | 0 units without a banner |
-| ID kept, padded, Correspondence Code | `psgc_id_published` as published; `psgc_id_6` = left-padded to 6; `psgc_correspondence_code` = `psgc_id_6` + `000` (9 digits, not the 10-digit PSGC code); `province_code_prefix` = first 4 digits, separate from the label | O-2, X-1 | 1,073 IDs padded per year |
-| Labels as published | `province_label_published` and `municipality_city`: whitespace normalized (tabs, no-break spaces, runs of spaces), blank → NULL; `(Continued)`, the Surigao rows, former names in parentheses and Bumbaran unchanged; no PSGC matching | O-3, O-10 | |
+| ID padded, Correspondence Code | `psgc_id` = the published `PSGC ID` left-padded to 6 digits (the unpadded value stays in Bronze); `correspondence_code` = `psgc_id` + `000` (9 digits, the same name and format as PSGC's own `correspondence_code`, the key Integration joins on; not the 10-digit PSGC code) | O-2, X-1 | 1,073 IDs padded per year |
+| Names as published | `municipality`: whitespace normalized (tabs, no-break spaces, runs of spaces), blank → NULL; former names in parentheses and Bumbaran unchanged; no PSGC matching. The sparse province labels of unit rows (1,527 of 1,612 blank, `(Continued)`, one code shared by two Maguindanao provinces) are not carried into Silver: they stay in Bronze, and Integration takes the official province from PSGC | O-3, O-10 | |
 | Measures typed | Plain or scientific-notation numbers → DOUBLE, every stored digit, no rounding, no trimming; blank stays NULL, never 0 | O-6 | |
 | No estimate | All five measures blank → NULL with `estimate_status = 'no_estimate'`; kept, not quarantined | O-5 | 1 per year (Kalayaan, Excel row 641) |
 | Partial estimate | Some measures blank → `partial_estimate`, kept, WARN | | 0 |
@@ -311,7 +311,7 @@ A candidate is quarantined, with every reason that applies, when its `PSGC ID` i
 
 ### The gate (PSA)
 
-Per estimate year, the checks write `<check>_<year>` (for example `rows_reconcile_2021`); `data_quality_results` has no year column. FAIL checks: `current_batches_present`, `estimate_years_known` (a covered year the generated SQL does not know: regenerate after a new schema version), `lineage_complete`, `rows_resolve_to_current_bronze_units`, `rows_built_by_this_run`, `one_timestamp_per_run`; per batch `bronze_rows_accounted` (every Bronze row is a unit or a known structural kind); per year `rows_reconcile` (units = clean + quarantined), `psgc_id_6_unique`, `psgc_id_6_valid` (padding, Correspondence Code, prefix), `estimate_year_covered`, `<measure>_matches_bronze` for each of the five measures (the Silver value equals CAST of its own Bronze cell for that year, exactly), `missing_measures_stay_null`, `estimate_status_valid`, `poverty_incidence_within_bounds`, `cv_non_negative`, `se_non_negative`, `ci_contains_estimate`, `flags_consistent`, `region_banner_assigned`, and `quarantine_rate`. WARN checks: each quarantine reason, `flag_cv_over_20`, `flag_se_cv_inconsistent`, `flag_lower_limit_not_positive`, `flag_partial_estimate`. Records (always PASS): `rows_kind_<kind>`, `rule_structural_rows_not_estimates`, `rule_no_estimate`, `rule_psgc_id_padded`, `rule_text_whitespace_normalized`, `rule_blank_measures_to_null`. Poverty percentages are never summed or averaged as a check: they are not counts. `psa.gate_checks()` lists them all, and a test checks the SQL writes exactly those.
+Per estimate year, the checks write `<check>_<year>` (for example `rows_reconcile_2021`); `data_quality_results` has no year column. FAIL checks: `current_batches_present`, `estimate_years_known` (a covered year the generated SQL does not know: regenerate after a new schema version), `lineage_complete`, `rows_resolve_to_current_bronze_units`, `rows_built_by_this_run`, `one_timestamp_per_run`; per batch `bronze_rows_accounted` (every Bronze row is a unit or a known structural kind); per year `rows_reconcile` (units = clean + quarantined), `psgc_id_unique`, `psgc_id_valid` (padding against the Bronze ID, Correspondence Code), `estimate_year_covered`, `<measure>_matches_bronze` for each of the five measures (the Silver value equals CAST of its own Bronze cell for that year, exactly), `missing_measures_stay_null`, `estimate_status_valid`, `poverty_incidence_within_bounds`, `cv_non_negative`, `se_non_negative`, `ci_contains_estimate`, `flags_consistent`, `region_banner_assigned`, and `quarantine_rate`. WARN checks: each quarantine reason, `flag_cv_over_20`, `flag_se_cv_inconsistent`, `flag_lower_limit_not_positive`, `flag_partial_estimate`. Records (always PASS): `rows_kind_<kind>`, `rule_structural_rows_not_estimates`, `rule_no_estimate`, `rule_psgc_id_padded`, `rule_text_whitespace_normalized`, `rule_blank_measures_to_null`. Poverty percentages are never summed or averaged as a check: they are not counts. `psa.gate_checks()` lists them all, and a test checks the SQL writes exactly those.
 
 On the current workbook the expected gate result is 0 FAIL and 9 WARN (the three statistical flags in each of the three years); the rest PASS.
 
@@ -356,15 +356,15 @@ checks AS (
   SELECT 'clean rows 2018 / 2021 / 2023' AS check_name, '1612 / 1612 / 1612' AS expected,
          COUNT_IF(estimate_year = '2018') || ' / ' || COUNT_IF(estimate_year = '2021') || ' / ' || COUNT_IF(estimate_year = '2023') AS actual FROM c
   UNION ALL SELECT 'quarantined rows', '0', CAST(COUNT(*) AS STRING) FROM q
-  UNION ALL SELECT 'repeated keys', '0', CAST(COUNT(*) - COUNT(DISTINCT psgc_id_6 || estimate_year) AS STRING) FROM c
+  UNION ALL SELECT 'repeated keys', '0', CAST(COUNT(*) - COUNT(DISTINCT psgc_id || estimate_year) AS STRING) FROM c
   UNION ALL SELECT 'no_estimate rows (Kalayaan, Excel row 641)', '3', CAST(COUNT_IF(estimate_status = 'no_estimate' AND source_row_number = 641 AND poverty_incidence IS NULL) AS STRING) FROM c
   UNION ALL SELECT 'cv_over_20 2018 / 2021 / 2023', '171 / 84 / 156',
          COUNT_IF(cv_over_20 AND estimate_year = '2018') || ' / ' || COUNT_IF(cv_over_20 AND estimate_year = '2021') || ' / ' || COUNT_IF(cv_over_20 AND estimate_year = '2023') FROM c
   UNION ALL SELECT 'se_cv_inconsistent 2018 / 2021 / 2023', '6 / 133 / 1',
          COUNT_IF(se_cv_inconsistent AND estimate_year = '2018') || ' / ' || COUNT_IF(se_cv_inconsistent AND estimate_year = '2021') || ' / ' || COUNT_IF(se_cv_inconsistent AND estimate_year = '2023') FROM c
   UNION ALL SELECT 'lower_limit_not_positive', '3', CAST(COUNT_IF(lower_limit_not_positive) AS STRING) FROM c
-  UNION ALL SELECT 'IDs padded from 5 digits', '3219', CAST(COUNT_IF(length(psgc_id_published) = 5) AS STRING) FROM c
-  UNION ALL SELECT 'units without a region banner', '0', CAST(COUNT_IF(region_banner_label IS NULL) AS STRING) FROM c
+  UNION ALL SELECT 'IDs padded from 5 digits', '3219', CAST(SUM(CAST(actual AS INT)) AS STRING) FROM d WHERE check_name LIKE 'rule_psgc_id_padded%'
+  UNION ALL SELECT 'units without a region banner', '0', CAST(COUNT_IF(region IS NULL) AS STRING) FROM c
   UNION ALL SELECT 'measure mismatches with Bronze', '0', CAST(SUM(CAST(actual AS INT)) AS STRING) FROM d WHERE check_name LIKE '%matches_bronze%'
   UNION ALL SELECT 'checks in the last run', '115', CAST(COUNT(*) AS STRING) FROM d
   UNION ALL SELECT 'FAIL / WARN in the last run', '0 / 9', COUNT_IF(status = 'FAIL') || ' / ' || COUNT_IF(status = 'WARN') FROM d
@@ -381,11 +381,11 @@ SELECT check_name, expected, actual, CASE WHEN expected = actual THEN 'OK' ELSE 
 Business content of the two builds (run once after each run; the two hashes must be equal):
 
 ```sql
-SELECT sha2(concat_ws('\n', sort_array(collect_list(concat_ws('|', estimate_year, psgc_id_6, source_sha256,
+SELECT sha2(concat_ws('\n', sort_array(collect_list(concat_ws('|', estimate_year, psgc_id, source_sha256,
          CAST(source_row_number AS STRING), CAST(poverty_incidence AS STRING), CAST(coefficient_of_variation AS STRING),
          CAST(standard_error AS STRING), CAST(ci90_lower_limit AS STRING), CAST(ci90_upper_limit AS STRING),
          estimate_status, CAST(cv_over_20 AS STRING), CAST(se_cv_inconsistent AS STRING),
-         CAST(lower_limit_not_positive AS STRING), region_banner_label, municipality_city)))), 256) AS content_sha256
+         CAST(lower_limit_not_positive AS STRING), region, municipality)))), 256) AS content_sha256
 FROM edu_access.`03-silver`.psa_poverty_stat_clean;
 ```
 
@@ -399,11 +399,11 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 
 ### Handoff to Integration and Gold (PSA)
 
-- Read only a `succeeded` run's rows (as above). One row per (`psgc_id_6`, `estimate_year`); 1,612 per year for the current workbook.
+- Read only a `succeeded` run's rows (as above). One row per (`psgc_id`, `estimate_year`); 1,612 per year for the current workbook.
 - **Poverty incidence is the percentage of persons below the poverty threshold**, not families, students, or a count of people. Never sum it; aggregate only with population weights from another source, and say so.
 - `no_estimate` (Kalayaan) is missing, not zero poverty. Places not in the workbook have no row: list them against PSGC as `not_in_source`, never as zero.
 - Carry `cv_over_20`, the interval, and `se_cv_inconsistent` to every display or ranking; for the 2021 CALABARZON rows prefer CV and the interval to SE (profile O-8). A negative lower limit is a statistical warning, not a negative count.
-- Region and province: `region_banner_label` and `province_label_published` are as published; canonical geography comes from matching `psgc_correspondence_code` to PSGC in Integration (`02_map_psa_poverty_psgc`), never from the labels or the ID prefix alone.
+- Region and province: `region` is the published banner label; Silver has no province column. Canonical region and province come from matching `correspondence_code` to PSGC's `correspondence_code` in Integration (`02_map_psa_poverty_psgc`), never from the labels or the ID prefix alone.
 - Cross-year comparability (S-3) is unverified: a 2018 → 2023 trend needs a team decision first.
 
 ## Limitations

@@ -191,7 +191,6 @@ def report(db, run_id):
                 f"SELECT COUNT_IF(estimate_status = 'estimated') AS estimated, COUNT_IF(estimate_status = 'no_estimate') AS no_estimate, "
                 "COUNT_IF(estimate_status = 'partial_estimate') AS partial, COUNT_IF(cv_over_20) AS cv, "
                 "COUNT_IF(se_cv_inconsistent) AS se, COUNT_IF(lower_limit_not_positive) AS lower, "
-                "COUNT_IF(length(psgc_id_published) = 5) AS padded, "
                 "COUNT_IF(poverty_incidence IS NULL) AS null_incidence "
                 f"FROM {CLEAN} WHERE estimate_year = '{y}'")[0]
             row(f"{y} estimated", EXPECTED["estimated_per_year"], stats["estimated"])
@@ -201,23 +200,26 @@ def report(db, run_id):
             row(f"{y} cv_over_20", EXPECTED["cv_over_20"][y], stats["cv"])
             row(f"{y} se_cv_inconsistent", EXPECTED["se_cv_inconsistent"][y], stats["se"])
             row(f"{y} lower_limit_not_positive", None, stats["lower"])
-            row(f"{y} IDs padded from 5 digits", EXPECTED["padded_ids_per_year"], stats["padded"])
+            row(f"{y} IDs padded from 5 digits", EXPECTED["padded_ids_per_year"], q(
+                f"SELECT COUNT(*) FROM {CLEAN} AS c JOIN {BRONZE} AS b ON c.source_sha256 = b.source_sha256 "
+                f"AND c.source_row_number = b.source_row_number WHERE c.estimate_year = '{y}' AND length(b.`PSGC ID`) = 5 "
+                "AND c.psgc_id = '0' || b.`PSGC ID`")[0][0])
         row("lower_limit_not_positive, all years", EXPECTED["lower_limit_not_positive_total"],
             q(f"SELECT COUNT_IF(lower_limit_not_positive) FROM {CLEAN}")[0][0])
-        kalayaan = store.records(f"SELECT estimate_year, psgc_id_6, municipality_city, estimate_status, poverty_incidence "
+        kalayaan = store.records(f"SELECT estimate_year, psgc_id, municipality, estimate_status, poverty_incidence "
                                  f"FROM {CLEAN} WHERE estimate_status = 'no_estimate' ORDER BY 1")
         row("no_estimate rows are Excel row 641 (Kalayaan)", "3",
             q(f"SELECT COUNT(*) FROM {CLEAN} WHERE estimate_status = 'no_estimate' AND source_row_number = 641")[0][0])
         row("lineage: clean rows that join their current Bronze unit row", sum(clean.values()), q(
             f"SELECT COUNT(*) FROM {CLEAN} AS c JOIN {BRONZE} AS b ON c.source_sha256 = b.source_sha256 "
             "AND c.source_row_number = b.source_row_number AND c.batch_id = b.batch_id AND b.source_row_kind = 'unit' "
-            "AND c.psgc_id_published = b.`PSGC ID`")[0][0])
-        row("key (psgc_id_6, estimate_year) duplicates", 0,
-            q(f"SELECT COUNT(*) - COUNT(DISTINCT psgc_id_6 || estimate_year) FROM {CLEAN}")[0][0])
+            "AND c.psgc_id = lpad(b.`PSGC ID`, 6, '0')")[0][0])
+        row("key (psgc_id, estimate_year) duplicates", 0,
+            q(f"SELECT COUNT(*) - COUNT(DISTINCT psgc_id || estimate_year) FROM {CLEAN}")[0][0])
         row("distinct cleaned_at_utc across both tables", 1,
             q(f"SELECT COUNT(DISTINCT t) FROM (SELECT cleaned_at_utc AS t FROM {CLEAN} UNION ALL "
               f"SELECT cleaned_at_utc FROM {QUARANTINE})")[0][0])
-        lines += ["", f"No-estimate rows: {[(r['estimate_year'], r['psgc_id_6'], r['municipality_city']) for r in kalayaan]}"]
+        lines += ["", f"No-estimate rows: {[(r['estimate_year'], r['psgc_id'], r['municipality']) for r in kalayaan]}"]
 
         results = store.records(f"SELECT check_name, status, expected, actual FROM {CONTROL}.data_quality_results "
                                 f"WHERE run_id = '{run_id}' AND source_id = '{SOURCE}' AND layer = 'silver' ORDER BY check_name")
