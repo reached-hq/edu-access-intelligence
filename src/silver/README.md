@@ -1,0 +1,16 @@
+# Silver
+
+Code that writes each source's Silver SQL from reviewed configuration. The SQL itself is in `etl/03_silver/` and runs as two SQL tasks of the job (`databricks.yml`): the build, then the gate. Design: [docs/operations/silver.md](../../docs/operations/silver.md).
+
+| Module | What it does |
+|---|---|
+| `spec.py` | Loads the Bronze contract and the Silver mapping (`config/mappings/<source_id>.json`) and classifies every publisher column (identifier, free text, category, boolean, count); stops on any column or label it cannot place |
+| `sql.py` | Generates the build SQL (`NN_clean_<source>.sql`) and the gate (`90_validate_<table>.sql`) from the spec |
+| `dictionary.py` | Generates the Silver data dictionary (`docs/data/silver/`) from the spec |
+| `cli.py` | `sql`, `gate`, `dictionary`: print a generated file. Exit code 2 if the contract or mapping is invalid |
+
+Run the job, Silver included, locally on DuckDB:
+
+```bash
+RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run
+```

@@ -15,7 +15,7 @@ Code that checks a raw delivery and turns it into rows for Bronze. Raw files in 
 | `batch.py` | `batch_id` (same bytes, same id), and the action for a delivery: load, skip, retry, or rerun; and its load type: initial, incremental, backfill, or revision (by school year, or by estimate-year set for workbooks) |
 | `bronze.py` | Bronze columns and DDL from the contract, provenance on every row, the insert-only MERGE, and reconciliation against the file |
 | `control.py` | Writes to the control tables in `etl/01_control/` |
-| `pipeline.py` | One run for one source, whatever its format: discover, decide, validate, load, reconcile, record, then the Bronze gate (unless the job runs it as its own task: `--no-gate`) |
+| `pipeline.py` | One run for one source, whatever its format: optionally set up its tables, discover, decide, validate, load, reconcile, record, then the Bronze gate. The job uses explicit setup and gate tasks (`--no-gate --no-setup`) |
 | `store.py` | Where tables live: `DuckDBStore` locally and in tests, `SparkStore` on Databricks; both run the same `etl/` SQL (D-017) |
 | `cli.py` | `ingest`, `status`, `columns`, `ddl`, `gate` from the command line, with exit codes |
 | `revision.py` | `code_revision`: the commit that produced a row (from the job parameter on Databricks, from git locally, `UNSET` otherwise) |
@@ -30,4 +30,4 @@ RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.ingestion.cli ingest -
 python -m src.ingestion.cli status --source deped_enrollment
 ```
 
-Tables go to `local_state/edu_access.duckdb` (git-ignored). To query them in the DuckDB CLI from the repository root, start `duckdb`, then run `ATTACH 'local_state/edu_access.duckdb' AS edu_access;` so the catalog-qualified table names resolve. Exit codes: 0 loaded or already loaded, 1 a delivery failed or was blocked or the Bronze gate failed, 2 configuration error, 3 environment error. On Databricks the `edu_access_pipeline` job runs `cli.py` with `--backend spark --no-gate --no-setup` (see [docs/operations/ingestion.md](../../docs/operations/ingestion.md#running-on-databricks)).
+Tables go to `local_state/edu_access.duckdb` (git-ignored). To query them in the DuckDB CLI from the repository root, start `duckdb`, then run `ATTACH 'local_state/edu_access.duckdb' AS edu_access;` so the catalog-qualified table names resolve. Exit codes: 0 loaded or already loaded, 1 a delivery failed or was blocked or the Bronze gate failed, 2 configuration error, 3 environment error. On Databricks the `edu_access_pipeline` job runs `cli.py` with `--backend spark --no-gate --no-setup` after the explicit setup tasks (see [docs/operations/ingestion.md](../../docs/operations/ingestion.md#running-on-databricks)).

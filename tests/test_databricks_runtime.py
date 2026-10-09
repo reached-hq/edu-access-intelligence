@@ -18,29 +18,45 @@ from src.ingestion.store import SparkStore
 
 CLI = "src/ingestion/cli.py"
 
+# Every job file, with a command that succeeds without a store and what it prints.
+JOB_FILES = [
+    (CLI, "ddl", "CREATE TABLE IF NOT EXISTS"),
+]
 
-def run_like_databricks(repo_root, argv, monkeypatch):
-    path = repo_root / CLI
+
+def run_like_databricks(repo_root, argv, monkeypatch, cli=CLI):
+    path = repo_root / cli
     monkeypatch.setattr(sys, "argv", [str(path), *argv])
     namespace = {"__name__": "__main__"}  # no __file__, no __package__
     exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), namespace)
     return namespace
 
 
-def test_the_job_file_runs_without___file__(repo_root, monkeypatch, capsys):
-    run_like_databricks(repo_root, ["ddl", "--source", "deped_enrollment"], monkeypatch)
-    assert "CREATE TABLE IF NOT EXISTS" in capsys.readouterr().out
+@pytest.mark.parametrize("cli, command, prints", JOB_FILES)
+def test_the_job_file_runs_without___file__(repo_root, monkeypatch, capsys, cli, command, prints):
+    run_like_databricks(repo_root, [command, "--source", "deped_enrollment"], monkeypatch, cli)
+    assert prints in capsys.readouterr().out
 
 
-def test_success_does_not_raise_systemexit(repo_root, monkeypatch, capsys):
+@pytest.mark.parametrize("cli, command, prints", JOB_FILES)
+def test_success_does_not_raise_systemexit(repo_root, monkeypatch, capsys, cli, command, prints):
     """IPython on Databricks marks SystemExit(0) as a failed task."""
-    run_like_databricks(repo_root, ["ddl", "--source", "deped_enrollment"], monkeypatch)  # must not raise
+    run_like_databricks(repo_root, [command, "--source", "deped_enrollment"], monkeypatch, cli)  # must not raise
 
 
-def test_failure_still_exits_nonzero(repo_root, monkeypatch, capsys):
+@pytest.mark.parametrize("cli, command, prints", JOB_FILES)
+def test_failure_still_exits_nonzero(repo_root, monkeypatch, capsys, cli, command, prints):
     with pytest.raises(SystemExit) as e:
-        run_like_databricks(repo_root, ["ddl", "--source", "no_such_source"], monkeypatch)
+        run_like_databricks(repo_root, [command, "--source", "no_such_source"], monkeypatch, cli)
     assert e.value.code == 2
+
+
+def test_every_job_file_is_imitated(repo_root):
+    import yaml
+    bundle = yaml.safe_load((repo_root / "databricks.yml").read_text(encoding="utf-8"))
+    files = {t["spark_python_task"]["python_file"] for job in bundle["resources"]["jobs"].values()
+             for t in job["tasks"] if "spark_python_task" in t}
+    assert files == {cli for cli, _, _ in JOB_FILES}
 
 
 class FakeFrame:

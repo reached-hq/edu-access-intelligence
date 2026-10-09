@@ -89,6 +89,7 @@ See [profile.md](profile.md) for evidence.
 | Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; a local copy for profiling stays in `raw-data/deped/original/` |
 | Checksums after upload | Match the table above. The ingestion job hashed each zip in the volume, and the CSV and README inside it, before loading, and refuses any file whose checksum differs; all three loaded (job run `738752819100453`, 2026-10-06). The folder's `SHA256SUMS.txt` lists the same values |
 | Loaded on Databricks | Yes, 2026-10-06 (`dev`): all three school years loaded and verified; a second run skipped them all ([evidence](../../../../evidence/pipeline-runs/2026-10-06-deped-enrollment-idempotency.md)) |
+| Silver tables | `` edu_access.`03-silver`.deped_enrollment_clean `` and `deped_enrollment_quarantine`: one row per school per school year, current delivery only ([dictionary](../../silver/deped-enrollment-clean.md), [rules and counts](../../../operations/silver.md#cleaning-rules)). Built locally on the real data 2026-10-07; not yet on Databricks |
 
 How a new school year or a revised file is added: [ingestion.md, Runbook](../../../operations/ingestion.md#runbook).
 

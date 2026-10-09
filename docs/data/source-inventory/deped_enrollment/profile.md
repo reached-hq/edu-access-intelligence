@@ -52,6 +52,7 @@ Clean and usable at school level: `school_id` is a reliable key within each year
 | S-1 | Zero-enrollment schools are closed or non-reporting. 2023-24: 115 (Private 103, PSO 7, Public 4, SUC/LUC 1); 2024-25: 24; 2025-26: 46 | Check whether their IDs appear in the next year and in facilities | open |
 | S-2 | Some municipality changes between years are corrections, others real moves (e.g. LORETO → LA PAZ, SITANGKAI → SIBUTU) | Compare against PSGC and the school's barangay | open |
 | S-3 | File totals match DepEd's official published enrollment | Find DepEd's official national totals per school year and compare | open |
+| S-4 | Three private schools in Maguindanao (BARMM) over-report Grade 11 strand enrollment. Their Grade 11 strand jumps 5 to 23 times in one year, to the largest counts in the data, and Grade 12 does not follow the cohort: 410978 HUMSS 183 → 4,270 → 7,858 (Grade 12 HUMSS 1,153 in 2024-25, after 183 in Grade 11 the year before); 410977 HUMSS 807 → 4,204 → 6,745; 410472 Arts 646 → 4,244 → 1,721. No other school has a Grade 11 strand of 1,000+ at 5 times the year before | Compare with DepEd's senior high school figures or the schools' own reports; check whether the SY 2025-26 Grade 11 learners appear in Grade 12 in SY 2026-27 | open |
 
 ## Changes across files or years
 

@@ -10,6 +10,7 @@ instead.
 
 import json
 import re
+from pathlib import Path
 
 import pytest
 import yaml
@@ -280,6 +281,34 @@ def test_no_schedules_during_development(jobs):
 def test_one_run_at_a_time(jobs):
     for name, job in jobs.items():
         assert job.get("max_concurrent_runs") == 1, f"{name}: two concurrent runs could both load one batch"
+
+
+def test_each_silver_build_follows_its_bronze_gate_and_precedes_its_own_gate(jobs, repo_root):
+    """A source's Silver runs only after its Bronze gate passed, and its gate checks it right after
+    (D-025). Every Silver mapping has both tasks."""
+    mappings = sorted(p.stem for p in (repo_root / "config" / "mappings").glob("*.json"))
+    assert mappings, "no Silver mapping found"
+    registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text(encoding="utf-8"))
+    source_tables = {entry["source_id"]: entry for entry in registry["source_tables"]}
+    for name, job in jobs.items():
+        keys = [t["task_key"] for t in job["tasks"]]
+        for source in mappings:
+            contract = json.loads((repo_root / "config" / "ingestion" / f"{source}.json").read_text())
+            bronze_gate = f"90_validate_{contract['bronze_table']}"
+            silver = source_tables[source]["silver"]
+            build, gate = Path(silver["clean_file"]).stem, f"90_validate_{silver['table']}"
+            assert keys[keys.index(bronze_gate) + 1: keys.index(bronze_gate) + 3] == [build, gate], (
+                f"{name}: {source} needs {build} then {gate} right after {bronze_gate}")
+            for key in (build, gate):
+                task = job["tasks"][keys.index(key)]
+                assert task["sql_task"]["file"]["path"] == f"etl/03_silver/{key}.sql"
+                assert task.get("run_if") == "ALL_SUCCESS", f"{name}/{key} must run only if the task before succeeded"
+
+
+def test_sql_tasks_get_the_environment(jobs):
+    for name, job in jobs.items():
+        parameters = {p["name"]: p["default"] for p in job.get("parameters", [])}
+        assert parameters.get("environment") == "${bundle.target}", f"{name}: job parameter environment"
 
 
 def test_the_job_is_named_for_the_whole_pipeline(jobs):
