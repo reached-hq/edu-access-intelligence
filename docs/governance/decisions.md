@@ -28,8 +28,15 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-022 | 2026-10-07 | Category labels are mapped through a reviewed file in `config/mappings/`; an unmapped label fails the Silver gate | Provisional | A new DepEd label stops Silver until the source owner approves it in a pull request |
 | D-023 | 2026-10-07 | Silver never invents a value: blanks stay NULL, absent columns stay NULL, and only listed exact repairs are made | Provisional | Gold must treat NULL as "not published", not 0, and use `schema_version` to tell an absent column from a blank |
 | D-024 | 2026-10-07 | Silver quarantines only rows it cannot trust and flags the rest; quarantine above 0 is WARN, above 1% of a school year is FAIL | Provisional | Overseas, zero-enrollment, and truncated-barangay schools stay in Silver; Gold must respect their flags |
-| D-025 | 2026-10-07 | A source's Silver runs as two SQL tasks right after its Bronze gate passed, and rebuilds from `current_batches` on every run (revised 2026-10-08) | Provisional | A revised delivery replaces its school year; every run spends the rebuild, about a second of work |
+| D-025 | 2026-10-07 | A source's Silver runs as two SQL tasks right after its Bronze gate passed, rebuilds from `current_batches` on every run, and is published only after its gate passes (revised 2026-10-08 and 2026-10-09) | Provisional | A failed build never replaces the last good one; Gold trusts a Silver table by the run its rows carry |
 | D-026 | 2026-10-08 | A GeoJSON boundary file is a fourth delivery format, geojson_features; Bronze keeps its geometry as raw text and its reference date as the period | Provisional | Silver must parse and validate geometry; school_year holds a date for this source |
+| D-027 | 2026-10-09 | Poverty 2023 is shown beside SY 2023-24 under its own label, never as the same period | Accepted | Anything that puts poverty next to DepEd data carries both labels |
+| D-028 | 2026-10-09 | The 44 cities and municipalities with no poverty estimate stay blank as `not_in_source`; nothing is imputed | Accepted | 6,119 of 59,732 schools with a matched city or municipality (10.2%) have no poverty value |
+| D-029 | 2026-10-09 | Every crosswalk to PSGC carries one shared set of match columns and `match_method` values | Provisional | Integration mapping tables (#44) can be compared and audited the same way |
+| D-030 | 2026-10-09 | Joins through PSGC's `Correspondence Code` are allowed for sources that carry old 9-digit codes, one-to-one and name-checked (revisits D-012) | Provisional | Poverty and part of HDX join by code; the 50 PSGC rows without the code match by name only |
+| D-031 | 2026-10-09 | The 112 Special Geographic Area schools are excluded from city- and municipality-level joins until their barangays are matched | Accepted | They stay in school-level and BARMM results, with no city or municipality value |
+| D-032 | 2026-10-09 | OSM is used for `school` features only | Accepted | Kindergarten features join only if #9 needs them, after a check against DepEd |
+| D-033 | 2026-10-09 | Barangay population comes from PSGC's `2024 Population` column; the barangay workbooks stay a cross-check | Provisional | `psa_population_per_barangay` is not ingested; PSGC Silver (#88) keeps the population column |
 
 ---
 
@@ -116,7 +123,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Problem:** The anchor data is DepEd SY 2023-24, but the PSGC we profiled is 2Q 2026. Between them the Negros Island Region (NIR) was created and Sulu moved from BARMM to Region IX, so region labels and codes differ. The PSA API returns no records for `Q3_2023`; the nearest version it serves, `Q4_2023`, was pulled and compared.
 - **Decision:** Use the PSGC 2Q 2026 workbook as the one master reference for all school years. No crosswalk to older versions is built. DepEd files carry place names only, so joins use province, municipality, and barangay names inside their parent, never region. For SY 2023-24 results by region, use DepEd's own region column or report at province level.
 - **Reason:** About 1,855 of about 43,760 codes differ from `Q4_2023`, almost all from NIR and Sulu, and name joins are not affected by a code change. `Q4_2023` has 457 names with broken accents and no 2024 population for about 1,780 barangays. 2Q 2026 has neither problem, is PSA's published file, and is already profiled.
-- **Consequence:** Region from PSGC must not be used for Negros or Sulu in SY 2023-24 results. Barangays split or renamed since 2023 (for example Barangay 176 in Caloocan) are flagged as unmatched or ambiguous, not forced. **Revisit** if a source arrives with codes from another PSGC version, or if the team needs code-level history; then build a crosswalk from `Correspondence Code`. Evidence and matching rules: [psa_psgc README](../data/source-inventory/psa_psgc/README.md#version-used-and-sy-2023-24).
+- **Consequence:** Region from PSGC must not be used for Negros or Sulu in SY 2023-24 results. Barangays split or renamed since 2023 (for example Barangay 176 in Caloocan) are flagged as unmatched or ambiguous, not forced. **Revisit** if a source arrives with codes from another PSGC version, or if the team needs code-level history; then build a crosswalk from `Correspondence Code`. Revisited on 2026-10-09 for poverty and HDX, which carry old codes: D-030 allows joins through `Correspondence Code` under conditions; PSGC 2Q 2026 stays the master. Evidence and matching rules: [psa_psgc README](../data/source-inventory/psa_psgc/README.md#version-used-and-sy-2023-24).
 
 ## D-013: Who the stakeholders are
 
@@ -186,7 +193,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Problem:** DepEd relabels categories between years (`DepEd` → `DepED Managed`, `True` → `Yes`, `Standalone School` → `School with no Annexes`, a trailing space on `Non-Sectarian `; profile O-8, O-9). A CASE expression scattered through SQL hides those choices from review, and a new label in a future year could be accepted silently.
 - **Decision:** Every accepted label of `region`, `legislative_district`, `sector`, `school_management`, `annex_status`, the three `offers_*` booleans, and `modified_curricular_offering_classification` is listed in `config/mappings/deped_enrollment.json`, with the standard value it maps to and its evidence (how many of the same `school_id`s carried the old and the new label). Labels are compared after whitespace is normalized. The Silver SQL is generated from that file. A label that is not listed becomes NULL and fails the gate (`labels_mapped_<column>`). The source owner (@hyenalouise for this source) approves a new label in a pull request to the file. Approved by Ina on 2026-10-07 (#85).
 - **Reason:** The mapping is then one reviewed file with evidence per label, like the Bronze contract (D-014). Failing on an unknown label follows the lecture rule that unexpected data is never ignored, and matches how Bronze treats an unknown header.
-- **Consequence:** A new school year with a new label fails Silver until the mapping is updated and `etl/03_silver/` regenerated; meanwhile the latest Silver run is `failed` and Gold must not read it (D-025). The standard sets are the SY 2023-24 and 2024-25 labels (two of three years), because DepEd's README matches no year exactly. `region` is gated but kept as published: region comparability (NIR) is Integration's and Gold's concern (D-012).
+- **Consequence:** A new school year with a new label fails Silver until the mapping is updated and `etl/03_silver/` regenerated; meanwhile the last build that passed stays published and the failed one waits in the candidate tables for review (D-025). The standard sets are the SY 2023-24 and 2024-25 labels (two of three years), because DepEd's README matches no year exactly. `region` is gated but kept as published: region comparability (NIR) is Integration's and Gold's concern (D-012).
 
 ## D-023: Silver never invents a value
 
@@ -208,16 +215,18 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Reason:** Detect, flag, quarantine, fail (lectures, Day 4): a quarantine keeps the row reviewable without letting it into totals, and a threshold stops a broken delivery from passing as a small loss. No row of the three acquired years is quarantined (profile O-1, O-2), so 1% leaves room for a few bad rows without accepting a broken file. Profile O-2 asks for a range check: of 9,260,590 published counts the largest is 4,097 and none exceed 5,000, so 10,000 never quarantines a published value and catches a count with an extra digit, which no reconciliation can see because Bronze holds the same value.
 - **Consequence:** Every current Bronze row is in exactly one Silver table, checked per school year (`rows_reconcile`). Flags are never NULL, so `WHERE NOT is_overseas` is safe; nullable values such as `offers_shs` need `IS NOT TRUE`. A school whose two rows conflict leaves the clean table entirely until the publisher or the team resolves it. The maximum catches an impossible size, not an implausible change: the suspected Grade 11 jumps at three schools in Maguindanao stay in Silver (profile S-4, [limitations](limitations.md)). **Revisit** the 1% threshold if a real delivery quarantines rows, and the maximum if a published count approaches it.
 
-## D-025: Silver runs after its Bronze gate and rebuilds on every run
+## D-025: Silver runs after its Bronze gate, rebuilds on every run, and publishes only a build that passes
 
 - **Problem:** Free Edition's serverless capacity is shared and limited: in the Bronze runs most of the time was spent waiting for compute, and each small control-table statement took 3 to 13 seconds. Silver must be repeatable and safe to rerun, must never build on a failed Bronze load, and should not spend compute it does not need.
 - **Decision:**
   - Each source's Silver is two SQL tasks in the job (D-020): `NN_clean_<source>` right after the source's Bronze gate, then `90_validate_<table>`, each only if the task before it succeeded.
   - Silver reads only Bronze rows whose batch is in `current_batches`: after a publisher revision the latest delivery version is current (D-015 default).
-  - Every run rebuilds both tables with `CREATE OR REPLACE TABLE ... AS SELECT`. The build file records the run as `running` in `pipeline_runs`; the gate records `succeeded` or `failed` after its checks, counting only its own execution's results. Gold reads Silver only when the latest `silver_build` run of the source succeeded.
-  - Approved by Ina on 2026-10-07 with a skip when Bronze is unchanged (#43); revised on 2026-10-08 to rebuild every run (option 1A), when Silver became SQL tasks.
+  - Every run rebuilds the source's two **candidate** tables (`<table>_candidate`, `<quarantine>_candidate`, registered in `config/tables.yml`) with `CREATE OR REPLACE TABLE ... AS SELECT`, and records the run as `running` in `pipeline_runs`. The build never writes the Silver tables.
+  - The gate checks the candidates, counting only its own execution's results. On any FAIL it records the run `failed` and stops the task before publishing, so the Silver tables keep the last build that passed. Otherwise it copies the candidate quarantine to the Silver quarantine, then the candidate clean to the Silver clean table, and only then records the run `succeeded`.
+  - Gold reads a Silver table only when the `run_id` its rows carry is a `silver_build` run that `succeeded`; a later failed run does not take the last good build away.
+  - Approved by Ina on 2026-10-07 with a skip when Bronze is unchanged (#43); revised on 2026-10-08 to rebuild every run (option 1A), when Silver became SQL tasks; revised on 2026-10-09 to publish only after the gate passes (#119), because a failed build had replaced every school year of the last good one.
 - **Reason:** About 180,000 rows rebuild in about a second, so a full rebuild is simpler than a MERGE keyed on Bronze rows or a per-year replace, is atomic per table, and gives the same result however often it runs. A SQL file cannot decide to skip itself; keeping the skip would need two more tasks per source and a condition task not yet tried on Free Edition, to save that second, while the warehouse is already running for the Bronze gate.
-- **Consequence:** A revised delivery replaces its school year because `current_batches` moves to the new version. Every run spends the rebuild and writes a new version of both tables. The two tables are two Delta commits: a build that dies leaves its run `running`, and a failed gate leaves the failed build in the tables until the next run, marked `failed`. **Revisit** when a source grows past what a full rebuild handles cheaply, or if warehouse time becomes the limit.
+- **Consequence:** A revised delivery replaces its school year because `current_batches` moves to the new version, once its build passes. Every run spends the rebuild and writes a new version of both candidate tables, and a run that passes also writes a copy of each to the Silver tables. A failed build stays in the candidate tables until the next run, for review. The two Silver tables are two Delta commits: a task that dies between them leaves its run `running`, the Silver quarantine from the new build and the Silver clean table from the last good one, so Gold, which trusts each table by its `run_id`, still reads the last good clean table. **Revisit** when a source grows past what a full rebuild handles cheaply, or if warehouse time becomes the limit.
 
 ## D-026: GeoJSON boundary files
 
@@ -225,3 +234,80 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Decision:** Add a fourth delivery format, `geojson_features`, to the same pipeline (`src/ingestion/geojson_features.py`, and `GeojsonFeatures` in `src/ingestion/formats.py`). The file is its own delivery: it is identified by its SHA-256 (D-014), and the contract's `archive` and `data_member` name the same file, with the same checksum. Each feature is one Bronze row, identified by `(source_sha256, source_row_number)` with the feature's position in the file. Every property is kept as text exactly as written in the file (numbers keep the file's digits, `true`/`false` stay text, JSON `null` becomes NULL; nested values are refused), and the geometry is kept as the raw GeoJSON text in the last column, `geometry`: never parsed, simplified, reprojected, or repaired in Bronze. The delivery's period is its reference date, stored in the control tables' `school_year` column (as D-019 does for the PSGC quarter), and every feature's `valid_on` must equal it. A missing geometry, another reference date, or a non-WGS 84 CRS fails the batch; a geometry type other than Polygon or MultiPolygon is a WARN. Rows are merged in chunks of at most `max_stage_bytes` (64 MB), each its own MERGE.
 - **Reason:** One pipeline keeps the identity, idempotency, control tables, and gate already verified for DepEd and PSA. Keeping geometry as text keeps Bronze a faithful copy of the delivery: Silver can parse it with whatever the team chooses and always check the result against the raw file. Reusing `school_year` for the date avoids a schema change to shared control tables. Chunks keep one staged batch small enough for Spark Connect when single polygons are megabytes.
 - **Consequence:** Silver must parse geometry into a spatial type and validate it, recording any repair. `school_year` holds a date for this source, so anything reading it must not assume a school year; renaming it to a generic `period` is open (also D-019). Only ADM3 is ingested; ADM4 would be its own contract and table. A local run on the real file on 2026-10-08 loaded 1,642 rows with no WARN or FAIL, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-local-idempotency.md)). Confirmed on Databricks `dev` on 2026-10-08 at commit `67ea4a2`: the same 1,642 rows, then two skips, so serverless handles the file's memory and the 64 MB chunks ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md)). **Provisional:** the team has not yet reviewed it.
+
+## D-027: Poverty 2023 beside SY 2023-24
+
+- **Problem:** The 2023 small-area poverty estimates use the 2023 FIES and the January 2024 LFS. SY 2023-24 runs across 2023 and 2024. The two overlap but are not the same period ([time alignment](../data/cross-source/coverage.md#time-alignment-with-the-sy-2023-24-anchor)).
+- **Decision:** Wherever poverty is shown with DepEd data, label it "Poverty 2023" next to "SY 2023-24", and never merge the two into one period label. Whether poverty is used at all is decided in #104.
+- **Reason:** Every other source in the coverage matrix keeps its own period label. One label would claim an alignment the data does not have.
+- **Consequence:** A chart, table, or Gold column that carries poverty keeps its estimate year as an attribute. Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09.
+
+## D-028: Cities and municipalities without a poverty estimate
+
+- **Problem:** The 2023 small-area estimates have no value for 44 cities and municipalities: 33 highly urbanized cities, Isabela City, Cotabato City, Pateros, and the 8 Special Geographic Area municipalities. 6,119 of 59,732 schools with a matched city or municipality (10.2%) sit in them, 5,944 in highly urbanized cities (coverage matrix, C-1).
+- **Decision:** Leave these areas blank with `match_status = not_in_source` (D-029). Never impute them from neighbours, the province, or another method.
+- **Reason:** An imputed value would present a modelled number as PSA's. PSA's 2023 Official Poverty Statistics cover the highly urbanized cities, Isabela, and Cotabato, but as direct estimates, a different method from the small-area estimates.
+- **Consequence:** Any result that uses poverty shows the gap and its count. **Revisit** if a question needs poverty for highly urbanized cities: add PSA's official estimates as a separate, labelled column, never mixed into the small-area column (suggested by @maeveylain). Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09.
+
+## D-029: One set of match columns for every crosswalk
+
+- **Problem:** DepEd, barangay population, CMCI, poverty, and HDX each reach PSGC 2Q 2026 a different way: by name inside the parent, by code, by `Correspondence Code`, or by review. If each mapping table records this its own way, match rates cannot be compared and a reviewer cannot audit them the same way.
+- **Decision:** Every mapping table to PSGC in Integration (#44) carries these columns:
+  - `source_id`, `source_row_ref`, and the source's raw place fields, unchanged
+  - `source_reference_date`
+  - `psgc_version` (`2Q 2026`)
+  - `psgc_code` (10 digits; NULL when not matched) and `psgc_name`, so a reviewer sees the matched name next to the raw one
+  - `geographic_level` (`reg`, `prov`, `city_mun`, `bgy`)
+  - `match_status`: `matched`, `unmatched`, `ambiguous`, `not_in_source` (D-028), or `excluded` (D-031)
+  - `match_method`, one of:
+
+    | Value | Meaning | Used by |
+    |---|---|---|
+    | `code` | The source's code is the PSGC code, and the names agree | Age-group population, HDX |
+    | `code_renamed` | The code agrees, and the unit was renamed since the source's version | HDX (4 renamed LGUs) |
+    | `code_region_moved` | The code agrees once Sulu's region `19` is read as `09` | HDX |
+    | `correspondence_code` | The source's old 9-digit code equals PSGC's `Correspondence Code` (D-030) | Poverty, HDX |
+    | `name_exact` | The name equals the PSGC name inside the matched parent | DepEd, barangay population, CMCI |
+    | `name_old` | The name equals a PSGC `Old names` entry inside the parent | DepEd |
+    | `name_normalized` | The names agree after the counted normalization tiers ([shared matching rules](../data/cross-source/README.md#shared-matching-rules)) | DepEd, barangay population, CMCI |
+    | `reviewed_alias` | A name or suffix reading decided by review, listed in `config/` with its reason | DepEd (5 aliases), CMCI (16 aliases, 17 suffix readings) |
+    | `rollup` | A sub-unit rolled up to its PSGC parent | DepEd (Manila's sub-municipalities) |
+    | `spatial` | Matched by geometry, not by name or code | None yet; the 8 Special Geographic Area units in HDX after a spatial check |
+
+  - `population_concept` (`total`, `household`), for population sources only
+- **Reason:** One set of columns lets every source's match rate be read the same way, and keeps every reviewed choice visible. The `match_method` list combines the proposal on #74 with @maeveylain's and @saraevcldn's suggestions: `name_in_parent` is split into the three name values, and `manual` is `reviewed_alias`.
+- **Consequence:** #44's mapping tables follow this list; a new method is added here first. **Revisit** when the first mapping table is built (#44, #93). Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09; the combined `match_method` list is new in this entry.
+
+## D-030: Joins through `Correspondence Code`
+
+- **Problem:** D-012 builds no crosswalk to older PSGC versions, and the PSGC card (O-3) says not to join on `Correspondence Code`. But poverty joins entirely through it (1,612 of 1,612, one-to-one), and so do 96 HDX ADM3 units. Matching poverty by name instead is weaker: 61 poverty names differ from PSGC (poverty profile, X-1). The code is "supported, not confirmed" as the older 9-digit PSGC (PSGC S-2). D-012 itself says to revisit when a source arrives with older codes.
+- **Decision:** A source may join PSGC 2Q 2026 through `Correspondence Code` only when:
+  - it carries old 9-digit codes (today: poverty, and the HDX units still under old codes);
+  - the match is recorded as `match_method = correspondence_code` (D-029);
+  - the join is checked one-to-one: no source code matches two PSGC units, and no PSGC unit is taken twice;
+  - the names are checked as well: every pair whose names differ is listed for review, and a pair whose names point to a different place is not accepted.
+
+  The 50 PSGC rows with no `Correspondence Code` (including Maguindanao del Norte, Maguindanao del Sur, and the Negros Island Region) can be matched by name only.
+- **Reason:** For poverty the code gives a complete one-to-one match where names do not, and the name check catches what a code alone would miss, as COD-AB's reused codes showed (D-029, `code`).
+- **Consequence:** PSGC 2Q 2026 stays the master (D-012). PSGC O-3 now points here. The team still asks PSA what the code means (PSGC profile, Questions). **Revisit** if PSA says it is not the older PSGC code: these joins then fall back to names. Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09, with these conditions.
+
+## D-031: Special Geographic Area schools at city or municipality level
+
+- **Problem:** All 112 SY 2023-24 schools DepEd files under `BARMM` / `NORTH COTABATO` match a Cotabato municipality in Region XII by name: Pikit 46, Midsayap 20, Pigkawayan 17, Kabacan 14, Carmen 12, Aleosan 3. They are in the eight Special Geographic Area municipalities made from those barangays, so a city- or municipality-level join would give them another place's poverty or CMCI values.
+- **Decision:** Mark them `match_status = excluded` (D-029) in city- and municipality-level joins until their barangays are matched to the eight Special Geographic Area municipalities. Keep them in school-level and BARMM results.
+- **Reason:** A Region XII value describes a different place, and a footnote is easy to miss.
+- **Consequence:** City- and municipality-level counts leave them out and say so. The 8 Special Geographic Area units in HDX also stay unmatched until a spatial check, since their barangays differ from PSGC's new municipalities. Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09.
+
+## D-032: OSM scope
+
+- **Problem:** OSM tags `school` (50,640 features: 3,572 points and 47,068 areas), `kindergarten`, `college`, and `university`. Colleges and universities are higher education, out of scope under D-003. OSM kindergartens may include daycares and private preschools.
+- **Decision:** Use `school` features only. Add `kindergarten` only if the business question (#9) needs it, and then only after checking it against DepEd.
+- **Reason:** The question is about basic education, and only `school` is close enough to DepEd's schools to compare.
+- **Consequence:** OSM counts in any result are `school` features, both points and areas. Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09.
+
+## D-033: Barangay population source
+
+- **Problem:** AP1 needs barangay population (#103). Two sources have it: the PSA barangay population workbooks, which carry names only, and PSGC 2Q 2026's `2024 Population` column, which is already coded and already ingested (#82).
+- **Decision:** Use PSGC's `2024 Population` column. Do not ingest `psa_population_per_barangay`; keep `analysis/cross_source/cross_source_psa_population_per_barangay.py` as the cross-check, rerun when either file changes.
+- **Reason:** The two hold the same counts: 41,957 of the 41,958 barangays matched by name have exactly PSGC's population (BP-3), and the last is San Rafael (Calaca), which PSGC counts inside Dacanlao. Using PSGC removes a name crosswalk.
+- **Consequence:** PSGC Silver (#88) keeps the population column, with City of Isabela's `#N/A` handled as PSGC O-4 says. **Provisional** until @mafelisilda, the source owner, confirms. Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09.

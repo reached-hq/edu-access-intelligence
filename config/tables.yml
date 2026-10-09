@@ -2,7 +2,9 @@ version: 1
 
 # Final names for the known source-aligned Bronze and Silver objects. A listed
 # SQL file is the name to use when that layer is implemented; it does not imply
-# that the file already exists.
+# that the file already exists. A Silver candidate table holds a build that is
+# not yet published: the build writes it, the gate checks it, and only a build
+# that passes is copied to the Silver table (D-025).
 source_tables:
   - source_id: deped_enrollment
     dataset: DepEd enrollment
@@ -16,6 +18,8 @@ source_tables:
     silver:
       table: deped_enrollment_clean
       quarantine_table: deped_enrollment_quarantine
+      candidate_table: deped_enrollment_clean_candidate
+      candidate_quarantine_table: deped_enrollment_quarantine_candidate
       clean_file: 01_clean_deped_enrollment.sql
       validate_file: 90_validate_deped_enrollment_clean.sql
 
@@ -30,6 +34,8 @@ source_tables:
     silver:
       table: deped_facilities_clean
       quarantine_table: deped_facilities_quarantine
+      candidate_table: deped_facilities_clean_candidate
+      candidate_quarantine_table: deped_facilities_quarantine_candidate
       clean_file: 02_clean_deped_facilities.sql
       validate_file: 90_validate_deped_facilities_clean.sql
 
@@ -44,6 +50,8 @@ source_tables:
     silver:
       table: deped_personnel_clean
       quarantine_table: deped_personnel_quarantine
+      candidate_table: deped_personnel_clean_candidate
+      candidate_quarantine_table: deped_personnel_quarantine_candidate
       clean_file: 03_clean_deped_personnel.sql
       validate_file: 90_validate_deped_personnel_clean.sql
 
@@ -60,6 +68,8 @@ source_tables:
     silver:
       table: psa_psgc_clean
       quarantine_table: psa_psgc_quarantine
+      candidate_table: psa_psgc_clean_candidate
+      candidate_quarantine_table: psa_psgc_quarantine_candidate
       clean_file: 04_clean_psa_psgc.sql
       validate_file: 90_validate_psa_psgc_clean.sql
 
@@ -74,6 +84,8 @@ source_tables:
     silver:
       table: psa_poverty_stat_clean
       quarantine_table: psa_poverty_stat_quarantine
+      candidate_table: psa_poverty_stat_clean_candidate
+      candidate_quarantine_table: psa_poverty_stat_quarantine_candidate
       clean_file: 05_clean_psa_poverty_stat.sql
       validate_file: 90_validate_psa_poverty_stat_clean.sql
 
@@ -89,6 +101,8 @@ source_tables:
     silver:
       table: hdx_adm3_clean
       quarantine_table: hdx_adm3_quarantine
+      candidate_table: hdx_adm3_clean_candidate
+      candidate_quarantine_table: hdx_adm3_quarantine_candidate
       clean_file: 06_clean_hdx_adm3.sql
       validate_file: 90_validate_hdx_adm3_clean.sql
 

@@ -1,6 +1,6 @@
 # Silver
 
-Code that writes each source's Silver SQL from reviewed configuration. The SQL itself is in `etl/03_silver/` and runs as two SQL tasks of the job (`databricks.yml`): the build, then the gate. Design: [docs/operations/silver.md](../../docs/operations/silver.md).
+Code that writes each source's Silver SQL from reviewed configuration. The SQL itself is in `etl/03_silver/` and runs as two SQL tasks of the job (`databricks.yml`): the build, into candidate tables, then the gate, which publishes them only if every check passes. Design: [docs/operations/silver.md](../../docs/operations/silver.md).
 
 | Module | What it does |
 |---|---|
