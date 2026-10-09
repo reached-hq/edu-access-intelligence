@@ -31,7 +31,7 @@ The stage numbers follow one rule: a stage number matches its `etl/` folder and 
 
 <!-- TODO(Phase 5): diagram from sources to dashboards. -->
 
-Built so far, Source to Bronze ([ingestion](../operations/ingestion.md)), for zips (DepEd) and workbooks (PSA Poverty Stat):
+Built so far, Source to Bronze ([ingestion](../operations/ingestion.md)), for zips (DepEd), workbooks (PSA Poverty Stat and PSA PSGC), and GeoJSON (COD-AB boundaries):
 
 ```
 official download ─▶ 00-source volume ─▶ checksum + approved contract ─▶ validate ─▶ MERGE ─▶ 02-bronze
@@ -40,7 +40,7 @@ official download ─▶ 00-source volume ─▶ checksum + approved contract �
                                       runs, batches, attempts, data-quality results, current_batches
 ```
 
-Two delivery formats share this flow, chosen by the source's contract: a zip with one CSV per school year (DepEd), and an xlsx workbook per publication quarter (`psa_psgc`, format `xlsx_table`, D-019). Only discovery, the period, and how a file is read and checked differ.
+Four delivery formats share this flow, chosen by the source's contract: a zip with one CSV per school year (DepEd, `zip_csv`), a workbook sheet covering several estimate years (`psa_poverty_stat`, `xlsx_sheet`, D-018), an xlsx workbook per publication quarter (`psa_psgc`, `xlsx_table`, D-019), and one GeoJSON file per boundary edition (`hdx_boundaries`, `geojson_features`, D-026). Only discovery, the period, and how a file is read and checked differ.
 
 ## Sources
 
@@ -73,13 +73,17 @@ Raw files go to the managed volume `` edu_access.`00-source`.raw ``, one folder 
 │   └── 2027-08-15/                         a later download (example date)
 │       ├── Enrollment-in-SY-2026-2027.zip
 │       └── SHA256SUMS.txt
-└── psa/
-    ├── 2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx   psa_poverty_stat, uploaded 2026-09-30
-    ├── SHA256SUMS.txt
-    └── ...                                         other PSA files
+├── psa/
+│   ├── 2_2023 SAE_with PSGC_noHUC_06Feb2026.xlsx   psa_poverty_stat, uploaded 2026-09-30
+│   ├── SHA256SUMS.txt
+│   └── ...                                         other PSA files
+└── admin_boundaries/
+    ├── phl_admin3.geojson                  hdx_boundaries (ADM3), uploaded 2026-10-06
+    ├── phl_admin4.geojson                  ADM4, not ingested
+    └── SHA256SUMS.txt
 ```
 
-Ingestion identifies files by SHA-256, not by path (D-014). A PSA Poverty Stat workbook is one delivery covering several estimate years (D-018); a PSGC workbook is one delivery per publication quarter (D-019). PSA replaces the quarterly PSGC file at a stable URL, so a re-download goes into a dated subfolder and never over the earlier file.
+Ingestion identifies files by SHA-256, not by path (D-014). A PSA Poverty Stat workbook is one delivery covering several estimate years (D-018); a PSGC workbook is one delivery per publication quarter (D-019). PSA replaces the quarterly PSGC file at a stable URL, so a re-download goes into a dated subfolder and never over the earlier file. A COD-AB boundary file is one GeoJSON delivery whose geometry is kept as text (D-026).
 
 This is provisional (D-009): if the mentor approves the course R2 bucket, an R2-backed volume is added next to it. Local copies for profiling live outside the repository in `raw-data/` ([terminal setup, Part 8](../getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)).
 
@@ -114,7 +118,7 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 | Silver clean and validation files from `etl/`, one task each | SQL | SQL warehouse | The preceding task in the same source lane succeeded |
 | Mapping, dimension, fact, and analytics files from `etl/`, one task each | SQL | SQL warehouse | All required outputs from the preceding stage succeeded |
 
-Python is used only where SQL cannot do the work: the deliveries are zipped CSVs with a declared encoding or Excel workbooks. Every SQL file is its own task, so a failed check shows as its own failed task. After the shared control bootstrap, source lanes start in parallel and do not depend on each other. Within each lane, tasks run in order and stop if their own upstream task fails. `90_validate_control` is the source-lane fan-in. Mapping tasks then fan out in parallel and converge on Integration; dimensions fan out after Integration; facts fan out after both dimension gates; and all analytics outputs fan out after both fact gates. SQL tasks receive the job parameters `code_revision` and `run_id` (`{{job.run_id}}`) as `:code_revision` and `:run_id`. The job has no schedule during development, allows only one whole job run at a time, and is safe to rerun. `python -m src.job.local_run` checks the same DAG in a deterministic topological order on DuckDB ([src/job](../../src/job/README.md)).
+Python is used only where SQL cannot do the work: the deliveries are zipped CSVs with a declared encoding, Excel workbooks, or a GeoJSON file with polygons of several megabytes. Every SQL file is its own task, so a failed check shows as its own failed task. After the shared control bootstrap, source lanes start in parallel and do not depend on each other. Within each lane, tasks run in order and stop if their own upstream task fails. `90_validate_control` is the source-lane fan-in. Mapping tasks then fan out in parallel and converge on Integration; dimensions fan out after Integration; facts fan out after both dimension gates; and all analytics outputs fan out after both fact gates. SQL tasks receive the job parameters `code_revision` and `run_id` (`{{job.run_id}}`) as `:code_revision` and `:run_id`. The job has no schedule during development, allows only one whole job run at a time, and is safe to rerun. `python -m src.job.local_run` checks the same DAG in a deterministic topological order on DuckDB ([src/job](../../src/job/README.md)).
 
 ## Environments and deployment
 

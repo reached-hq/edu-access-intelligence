@@ -92,3 +92,15 @@ Each approved workbook pins:
 | `retrieved_at_utc` | When the file was downloaded |
 
 To approve a new quarter, follow the PSGC runbook in [docs/operations/ingestion.md](../../docs/operations/ingestion.md#runbook-psgc). `tests/test_ingestion_validate.py` fails unless the workbook's name, checksum, row count and range sit on one row of the source card.
+
+## GeoJSON contracts (`"format": "geojson_features"`)
+
+`hdx_boundaries.json` describes one GeoJSON FeatureCollection per delivery, not zipped (D-026). It uses the same fields as a zip contract, with these differences:
+
+- `archive_pattern` and `data_member_pattern` both match the file itself (`^phl_admin3\.geojson$`), and `document_members` is `[]`.
+- `geometry_types`: the expected geometry types (`Polygon`, `MultiPolygon`); any other type is a WARN.
+- `period_column`: the property every feature's value must equal the delivery's period (`valid_on`).
+- `max_stage_bytes` (optional): rows are merged in chunks of at most this many bytes of text (64,000,000), because one polygon can be megabytes.
+- Each schema version lists the properties in file order, then `geometry` last.
+
+Each approved delivery pins the same fields as a zip delivery, but `archive` and `data_member` are both the file name, `archive_sha256` and `data_member_sha256` are both the file's SHA-256, `document_sha256` is `{}`, and `school_year` holds the file's reference date (`2025-02-13`), not a school year.

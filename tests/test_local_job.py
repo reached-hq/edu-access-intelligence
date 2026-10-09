@@ -28,7 +28,9 @@ def repo(tmp_path):
     write_config(root, empty_config("deped_facilities"))
     write_config(root, psa_workbooks.empty_config())   # enabled lanes with no approved delivery yet
     write_config(root, psgc_workbooks.empty_config())
-    (tmp_path / "landing" / "psa").mkdir(parents=True)  # their landing folder exists, but holds nothing
+    write_config(root, empty_config("hdx_boundaries"))                  # ← new
+    (tmp_path / "landing" / "psa").mkdir(parents=True)  # their landing folders exist, but hold nothing
+    (tmp_path / "landing" / "admin_boundaries").mkdir(parents=True)     # ← new
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
@@ -62,7 +64,7 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
         JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
         WHERE r.job_run_id = 'job-run-1' AND q.layer = 'bronze' GROUP BY 1 ORDER BY 1""")
     assert [source for source, checks in linked if checks > 0] == [
-        "deped_enrollment", "deped_facilities", "psa_poverty_stat", "psa_psgc"]
+        "deped_enrollment", "deped_facilities", "hdx_boundaries", "psa_poverty_stat", "psa_psgc"]
     store.close()
 
 
@@ -97,7 +99,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert results["add_control_columns"] == "succeeded"
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
-    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1'") == [(4,)]
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1'") == [(5,)]
     store.close()
 
 

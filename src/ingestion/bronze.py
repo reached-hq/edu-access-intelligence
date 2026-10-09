@@ -202,12 +202,34 @@ def count_file_rows(store, config, source_sha256):
 def merge_rows(store, config, rows):
     """Insert rows whose (source_sha256, source_row_number) is not already in Bronze."""
     columns = store.columns(SCHEMA, config["bronze_table"])
-    store.stage("bronze_stage", columns, list(rows))
-    store.sql(
-        f"MERGE INTO {bronze_table(config)} AS t USING bronze_stage AS s "
-        "ON t.source_sha256 = s.source_sha256 AND t.source_row_number = s.source_row_number "
-        "WHEN NOT MATCHED THEN INSERT *"
-    )
+    for chunk in _chunks(rows, config.get("max_stage_bytes")):
+        store.stage("bronze_stage", columns, chunk)
+        store.sql(
+            f"MERGE INTO {bronze_table(config)} AS t USING bronze_stage AS s "
+            "ON t.source_sha256 = s.source_sha256 AND t.source_row_number = s.source_row_number "
+            "WHEN NOT MATCHED THEN INSERT *"
+        )
+
+
+def _chunks(rows, max_bytes):
+    """Split rows so one staged batch holds at most max_bytes of text. None: one batch.
+
+    Boundary polygons can be megabytes each. Each chunk is its own MERGE, so a run
+    that stops part-way leaves the batch 'loading' and the retry adds only missing rows.
+    """
+    if not max_bytes:
+        yield list(rows)
+        return
+    chunk, size = [], 0
+    for row in rows:
+        row_size = sum(len(v) for v in row.values() if isinstance(v, str))
+        if chunk and size + row_size > max_bytes:
+            yield chunk
+            chunk, size = [], 0
+        chunk.append(row)
+        size += row_size
+    if chunk:
+        yield chunk
 
 
 def reconcile(store, config, prepared):

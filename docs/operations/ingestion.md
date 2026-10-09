@@ -1,8 +1,8 @@
 # Ingestion: Source → Control → Bronze
 
-How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` is a third format, `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below).
+How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The first source built this way is `deped_enrollment`; `deped_facilities` is the second, and needed only its own contract and generated SQL. Other sources reuse the same code with their own contract. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` is a third format, `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below). `hdx_boundaries` (ADM3) is a fourth format, `geojson_features`: one GeoJSON file per boundary edition ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below).
 
-**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs. `psa_poverty_stat`: built and tested locally with made-up workbooks, and loaded locally from the real workbook (1,641 rows, then a skip); **not yet run on Databricks** (see its section).
+**Status:** built and tested locally, then verified on Databricks `dev` for both `deped_enrollment` and `deped_facilities`. The source cards and evidence files linked below record the uploaded files, tables, and runs. `psa_poverty_stat`: built and tested locally with made-up workbooks, and loaded locally from the real workbook (1,641 rows, then a skip); **not yet run on Databricks** (see its section). `hdx_boundaries`: built and tested locally, loaded locally from the real file, and **verified on Databricks `dev`** on 2026-10-08 (1,642 rows, then two skips).
 
 ## The flow
 
@@ -1064,3 +1064,239 @@ For codes only in the new quarter, look for their `correspondence_code` among th
 | When does the master reference move from 2Q 2026? | Never by loading; only by a team decision after the question-8 comparison | D-012 |
 | Does `psa_psgc` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
 | What is the `Correspondence Code`, and why are 84 codes stored as numbers in the workbook? | Kept as stored; to ask the publisher | Source card |
+
+## Administrative boundaries (COD-AB ADM3 GeoJSON)
+
+`hdx_boundaries` loads through the same pipeline from its own contract, `config/ingestion/hdx_boundaries.json` (`format: geojson_features`). What differs is in `src/ingestion/geojson_features.py` (reading and checking the GeoJSON file) and the `GeojsonFeatures` class in `src/ingestion/formats.py`. Only the ADM3 file (cities and municipalities) is loaded; the ADM4 file beside it is not. Decision: D-026.
+
+**Status:** implemented and tested locally with made-up GeoJSON (`tests/test_ingestion_boundaries.py`), and **verified locally on the real file** on 2026-10-08: 1,642 rows loaded (feature positions 1 to 1,642, every `valid_on` 2025-02-13, no missing geometry), 24 PASS, 0 WARN, 0 FAIL, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-local-idempotency.md)). **Verified on Databricks `dev`** on 2026-10-08 at commit `67ea4a2`: 1,642 rows loaded, every count equal to the local runs, 0 FAIL, then two runs skipped it ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md)).The source stays `profiled`.
+
+### The flow (boundaries)
+
+```
+data.humdata.org COD-AB page               (official GeoJSON; no API, no scraping)
+   │  download by hand; never modify, never re-save in a GIS tool
+   ▼
+00 Source   /Volumes/edu_access/00-source/raw/admin_boundaries/[<download date>/]phl_admin3.geojson
+   │  discover *.geojson matching ^phl_admin3\.geojson$ → SHA-256 → approved?   (config/ingestion/hdx_boundaries.json)
+   ▼
+   │  read the FeatureCollection one feature at a time → properties against the contract → schema version
+   │  → one row per feature: properties as written text, geometry as raw GeoJSON text
+01 Control  pipeline_runs · ingestion_batches · ingestion_batch_attempts · data_quality_results
+   │  checks (FAIL blocks; WARN records) → MERGE in chunks of at most 64 MB → reconcile → succeeded → gate
+   ▼
+02 Bronze   edu_access.`02-bronze`.hdx_adm3_raw   (1,642 rows per delivery: one per feature, text, with provenance)
+   │
+   ▼  Silver reads only batches in `01-control`.current_batches
+```
+
+### The nine questions, for `hdx_boundaries`
+
+| Question | Answer |
+|---|---|
+| What is ingested? | Every feature of `phl_admin3.geojson`: 1,642 cities and municipalities (ADM3), each with its 31 properties and its geometry. `phl_admin4.geojson` (42,048 barangays) sits in the same folder and is not ingested |
+| How often does it arrive? | UNVERIFIED. One file so far, dated `valid_on = 2025-02-13` (downloaded 2026-10-02). Treated as an irregular batch, never as a stream |
+| What identifies a new delivery? | A file SHA-256 not seen before. The file is not zipped, so the file itself is the delivery |
+| What shows a delivery changed? | The same file name with a different SHA-256. The file's `version` and `valid_on` properties also mark an edition, but the checksum is the signal; nothing else is trusted alone |
+| Has this exact file been processed? | `ingestion_batches.status = 'succeeded'` for its `archive_sha256` (the file's) |
+| Are previous versions kept? | Yes: in Source (later downloads in dated subfolders, D-016) and in Bronze (`delivery_version`, D-015) |
+| Is the delivery valid? | The checks under [Boundaries validation](#boundaries-validation) |
+| Can it be rerun safely? | Yes: a succeeded file is skipped; a forced rerun inserts nothing; an interrupted run is retried and the MERGE adds only missing rows |
+| Where did each row come from? | `source_file`, `source_sha256`, `source_row_number` (the feature's position in the file), plus `batch_id`, `run_id`, `code_revision` |
+
+### Identity (boundaries)
+
+| Level | Identified by | Why |
+|---|---|---|
+| Delivery (batch) | File SHA-256; `batch_id` = `hdx_boundaries__2025-02-13__f682747fbb26` | Same bytes, same batch, wherever the file sits |
+| Logical period | `school_year` = the reference date `2025-02-13`, + `delivery_version` | The file's date, not a school year; stored in the control tables' period column, as PSGC stores its quarter (D-019). Every feature's `valid_on` must equal it |
+| Bronze row | `source_sha256` + `source_row_number` (feature position, 1 to 1,642) | A rerun inserts nothing; two identical features would both be kept |
+| Schema | `schema_version` + `schema_fingerprint` of the 32 column names (31 properties, then `geometry`) | Any renamed, added, removed, or reordered property changes it |
+
+Because there is no zip, `archive` and `data_member` in the contract name the same file, and both checksums are the file's SHA-256 (`f682747f…ec41`).
+
+Why not `adm3_pcode` as the row key? A MERGE keyed on the code would overwrite a municipality's row when a new edition arrives, turning Bronze into a latest-state table and losing the edition that earlier results used.
+
+### Layout as a versioned contract (boundaries)
+
+Schema `v1` pins what the profile found, and anything else stops the batch:
+
+| Element | Contract | On anything else |
+|---|---|---|
+| File | Valid JSON; a `FeatureCollection` with a `features` list | `malformed_geojson`, `not_a_feature_collection` |
+| Properties | Exactly the 31 of `v1`, in file order | `unknown_schema_drift`, naming the difference |
+| Property values | Single values only (text, number, true/false, null) | `nested_property` |
+| Geometry | Present on every feature; Polygon or MultiPolygon | FAIL if missing; WARN for another type |
+| Coordinates | WGS 84 (no other CRS declared) | FAIL |
+| Period | Every `valid_on` equals the delivery's reference date | FAIL |
+| Row count | 1,642 features | FAIL |
+
+**Values are kept exactly as written.** Numbers keep the file's digits (feature 1's `area_sqkm` is stored as `111.14398463000001`, exactly as in the file), `true`/`false` stay as text, and JSON `null` becomes NULL.
+
+**Geometry is kept as the raw GeoJSON text**, in the last column, `geometry`: not parsed, simplified, or reprojected. Parsing it into a spatial type would mean choosing a library, a precision, and a validity rule now, and any of those could change a shape silently. As text it is exactly the file's characters, so Silver can parse it with whatever the team chooses and always check it against the raw file.
+
+<a id="boundaries-validation"></a>
+### Boundaries validation
+
+Before Bronze, in addition to the layout above:
+
+| Check | Status |
+|---|---|
+| File exists, approved by SHA-256 | `blocked` (`unregistered_delivery`; `checksum_mismatch` for an approved name with other bytes) |
+| A geometry on every feature (`geometry_not_null`) | FAIL |
+| Every `valid_on` equals the reference date (`valid_on_is_the_approved_period`) | FAIL |
+| Coordinates in WGS 84 (`crs_is_wgs84`) | FAIL |
+| `adm3_pcode` never blank | FAIL |
+| `adm3_pcode` matches `^PH[0-9]{7}$`; unique; no fully repeated features | WARN, rows kept (source duplicates) |
+| A geometry type other than Polygon or MultiPolygon (`geometry_types_allowed`) | WARN, rows kept |
+| A byte-order mark at the start of the file (`no_byte_order_mark`) | WARN |
+
+On the real file every one of these passed: no WARN and no FAIL.
+
+After the MERGE: Bronze rows for the file equal the features (1,642), row numbers run 1..1642 with no repeats, and every provenance column is filled. Then the generated gate (`etl/02_bronze/90_validate_hdx_adm3_raw.sql`) checks the whole table.
+
+### Bronze table (boundaries)
+
+``edu_access.`02-bronze`.hdx_adm3_raw`` (generated: `etl/02_bronze/01_create_hdx_adm3_raw.sql`): the same provenance columns as DepEd, then the 31 properties and `geometry`, all as text. `source_archive` and `source_file` are both `phl_admin3.geojson`.
+
+Rows are merged in chunks of at most `max_stage_bytes` (64 MB), because one polygon can be megabytes: the largest is 11.7 million characters. Each chunk is its own MERGE, so a run that stops part-way leaves the batch `loading`, and the retry adds only the missing rows. Locally, DuckDB's JSON row limit (16 MB by default) is raised to 1 GB so a large polygon fits.
+
+The file is 555 MB. The reader never decodes the whole `features` list at once, but the file and its rows are held in memory, so a run peaks at about 1.7 GB.
+
+### Retry, rerun, backfill, revision (boundaries)
+
+| Term | Example | What happens |
+|---|---|---|
+| Skip | The same file again | Attempt logged `skip`; 0 rows |
+| Retry | A run that stopped part-way through the chunks | Picked up automatically; MERGE adds only missing rows |
+| Rerun | `--rerun hdx_boundaries__2025-02-13__f682747fbb26` | Validated and merged again; 0 rows |
+| Incremental | A newer COD-AB edition (a later `valid_on`) | `blocked` until approved; then loaded with its own reference date beside the existing one |
+| Backfill | An older edition | The same, as `backfill`; nothing rebuilt |
+| Revised delivery | The same edition re-published with changes (same name, other bytes) | Before approval: `blocked`, `checksum_mismatch`, run fails, nothing overwritten. After approval as `delivery_version: 2` with `supersedes`: loaded beside v1; `current_batches` points to v2 |
+
+<a id="boundaries-running-locally"></a>
+### Running locally (boundaries)
+
+In VS Code's terminal, from the repository root, with the virtual environment active:
+
+```bash
+python -m pytest tests -q
+```
+
+```bash
+python -m src.ingestion.cli ingest --source hdx_boundaries
+```
+
+```bash
+python -m src.ingestion.cli status --source hdx_boundaries
+```
+
+`RAW_DATA_DIR` must be set first, or given with `--landing <raw root>`; the file must be under `$RAW_DATA_DIR/admin_boundaries/`. Expected on the real file: one batch `load initial`, `inserted=1642 bronze=1642`, status `succeeded`, 24 PASS and no WARN or FAIL; the second run `skip`, `inserted=0`. If the first run reports `unknown_schema_drift`, the contract's property order and the file differ: do not change the data; correct the contract in review.
+
+After changing the contract's schema, regenerate the SQL (a test fails until you do). In Windows PowerShell, `>` writes UTF-16, so run these from Git Bash, or have Python write the files as UTF-8:
+
+```bash
+python -m src.ingestion.cli ddl --source hdx_boundaries > etl/02_bronze/01_create_hdx_adm3_raw.sql
+```
+
+```bash
+python -m src.ingestion.cli gate --source hdx_boundaries > etl/02_bronze/90_validate_hdx_adm3_raw.sql
+```
+
+### Databricks confirmation (boundaries)
+
+**Done on 2026-10-08** (`dev`, job runs `275546090497316` then `990080691102176` and `370044913196063`, commit `67ea4a2`): load 1,642, then two skips; [evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md). The first attempt (`555332578823580`) failed before loading anything, because the shared `dev` control tables carried #47's `job_run_id` column; #81's `control.py` fix (`7c0464b`) is included here.
+
+In `edu_access_pipeline`, the boundaries have their own lane: `06_create_hdx_adm3_raw` → `bronze_hdx_boundaries` → `90_validate_hdx_adm3_raw` (D-020); the Silver tasks after it stay disabled. The runs above used the earlier `bronze_ingest` job, before the DAG merged; the lane runs the same load and gate code. Before running it, the pull request must be reviewed, the run announced to the team, and the `reached-hq` profile working. Then, as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
+
+**Confirmed in the DAG on 2026-10-09** (run `876944030170305`, commit `e352330`): the lane's three tasks succeeded, the load skipped the already-loaded file (0 inserted, Bronze 1,642), and the gate passed as its own task ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md#in-the-edu_access_pipeline-dag-after-113)).
+
+That run confirmed what only Databricks could prove for this source (D-017): serverless has enough memory for the 555 MB file, and 64 MB chunks go through Spark Connect.
+
+Validation queries (Databricks SQL editor):
+
+```sql
+-- The batch and its counts: expect 1 succeeded, expected = source = bronze = 1642
+SELECT batch_id, school_year, delivery_version, load_type, status, expected_rows, source_rows, bronze_rows, error_code
+FROM edu_access.`01-control`.ingestion_batches WHERE source_id = 'hdx_boundaries';
+
+-- Load then skip: expect 'load' in run 1 and 'skip' with 0 rows in run 2
+SELECT r.started_at_utc, a.action, a.outcome, a.rows_inserted
+FROM edu_access.`01-control`.ingestion_batch_attempts AS a JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
+WHERE a.source_id = 'hdx_boundaries' ORDER BY r.started_at_utc;
+
+-- No pipeline duplicates: expect 0. Feature positions: expect 1 and 1642
+SELECT COUNT(*) - COUNT(DISTINCT source_sha256, source_row_number), MIN(source_row_number), MAX(source_row_number)
+FROM edu_access.`02-bronze`.hdx_adm3_raw;
+
+-- Kept as written: expect 0 rows without geometry, the largest geometry 11727901 characters,
+-- and feature 1's area exactly as in the file
+SELECT COUNT_IF(geometry IS NULL) AS no_geometry, MAX(length(geometry)) AS largest_geometry_chars,
+       MAX(CASE WHEN source_row_number = 1 THEN area_sqkm END) AS feature_1_area
+FROM edu_access.`02-bronze`.hdx_adm3_raw;
+
+-- Checks for the boundaries batch: expect no FAIL
+SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
+WHERE source_id = 'hdx_boundaries' AND run_id = (SELECT MAX_BY(run_id, started_at_utc) FROM edu_access.`01-control`.pipeline_runs
+                                                WHERE source_id = 'hdx_boundaries') ORDER BY status, check_name;
+
+-- Where one row came from: expect Adams, Ilocos Norte, PH0102801
+SELECT source_file, source_sha256, source_row_number, adm3_pcode, adm3_name, adm2_name, batch_id, run_id, code_revision
+FROM edu_access.`02-bronze`.hdx_adm3_raw WHERE source_row_number = 1;
+```
+
+### Handoff to Silver (boundaries, not built here)
+
+Silver should:
+
+- read only rows whose `batch_id` is in `current_batches`;
+- parse `geometry` into a spatial type, check validity, and record any repair rather than doing it silently;
+- type the numbers (`area_sqkm`, `center_lat`, `center_lon`) and dates (`valid_on`, `valid_to`) from their stored text, without rounding;
+- map `adm3_pcode` to PSGC only through a validated crosswalk: 1,500 of 1,642 match structurally (profile O-11), and the other 142 must not be forced by name; the join to PSGC belongs in Integration (D-012);
+- record the boundary edition (`2025-02-13`) beside every result that uses it, since it differs from the DepEd school year and the PSGC quarter;
+- keep `batch_id` and `source_row_number` on every row.
+
+### Runbook (boundaries)
+
+**1. How do I add a new COD-AB edition?**
+Download it from the HDX COD-AB page; do not rename, convert, or re-save it. Upload it to `raw/admin_boundaries/<download date>/` (never over an existing file) with that folder's `SHA256SUMS.txt`. Profile it (`analysis/profiling/profile_boundaries.py`, with its name and checksum), update the card, and add the delivery to `config/ingestion/hdx_boundaries.json` in a pull request: `archive` and `data_member` (both the file name), both checksums (both the file's), `school_year` (its `valid_on` date), `document_sha256: {}`, `encoding`, `schema_version`, `row_count`, `retrieved_at_utc`. If the properties changed, add a schema version and regenerate the SQL. Then run the job.
+
+**2. How do I know whether it was already processed?**
+`python -m src.ingestion.cli status --source hdx_boundaries`, or the first validation query: `succeeded` for its SHA-256 means processed.
+
+**3. What happens if the publisher replaces the file?**
+The new bytes do not match the approved SHA-256: the batch is `blocked` (`checksum_mismatch`) and the run fails. Nothing is overwritten. If the change is real, approve it as `delivery_version: 2` with `supersedes` set to v1's checksum; both versions stay in Bronze.
+
+**4. How do I inspect a failed batch?**
+
+```sql
+SELECT batch_id, status, failure_stage, error_code, error_message, attempt_count, last_run_id
+FROM edu_access.`01-control`.ingestion_batches
+WHERE source_id = 'hdx_boundaries' AND status IN ('failed', 'blocked', 'loading');
+```
+
+Then its checks: ``SELECT check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results WHERE batch_id = '<batch_id>'``.
+
+**5. How do I safely rerun it?**
+Fix the cause and run again: a `failed` or `loading` batch is retried and the MERGE adds only missing rows. To repeat a succeeded batch on purpose: `--rerun <batch_id>` (adds 0 rows).
+
+**6. How do I verify the Bronze output?**
+1,642 rows, feature positions 1 to 1642, no FAIL, no row without geometry, and one row traced to its feature with the last query above (feature 1 is Adams, Ilocos Norte).
+
+**7. How do I prove the same batch did not create duplicates?**
+Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still has 1,642 rows, and the duplicate query returns 0. Locally, `tests/test_ingestion_boundaries.py::test_loads_once_and_a_rerun_skips` proves the same with made-up GeoJSON.
+
+### Limitations and open questions (boundaries)
+
+- Verified on made-up GeoJSON and on the real file locally (DuckDB); the Databricks run is pending.
+- Only ADM3 is ingested; ingesting ADM4 would be a separate contract and table.
+- Bronze does not check that polygons are valid shapes; that is Silver's job once the geometry is parsed.
+- The 1.7 GB memory peak and the 64 MB chunks are proved only by the Databricks run (D-017).
+- Update frequency and licensing terms are unverified (source card).
+
+| Question | Default until decided | Where |
+|---|---|---|
+| Should `school_year` be renamed to a generic `period` for non-school sources? | Keep the column; it holds the reference date `2025-02-13` | D-019, D-026|
+| Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | D-026 |
+| Should ADM4 (`phl_admin4.geojson`) be ingested? | Not now | Team (owner @saraevcldn) |
+| Does `hdx_boundaries` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
