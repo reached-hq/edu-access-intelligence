@@ -133,7 +133,7 @@ Each published table is one Delta commit; the pair is not, so the run row is the
 | `succeeded` | the gate task, after publishing | Every check passed or warned, and both tables were published: Silver rows carrying this `run_id` may be read |
 | `failed` | the gate task, after its checks | At least one FAIL: nothing was published; the build is in the candidate tables |
 
-Gold's rule follows: a Silver table is trusted when the `run_id` its rows carry is a `silver_build` run that `succeeded`. After a failed run the published tables still carry the last good run, so they stay readable; the rule also covers a task that dies between the two copies, which leaves the Silver quarantine from a `running` run and the Silver clean table from the last good one.
+Gold's rule follows: a Silver table is trusted when the `run_id` its rows carry is a `silver_build` run that `succeeded`. After a failed run the published tables still carry the last good run, so they stay readable; the rule also covers a task that dies between the two copies, which leaves the Silver quarantine from a `running` run and the Silver clean table from the last good one. A task that dies after both copies but before the `succeeded` row (only the clean table's owner statement and that row come between) leaves both tables carrying a `running` run, so Gold has no trusted Silver for the source until the next run passes and republishes. That is the safe side: Gold never reads a build whose run was not confirmed.
 
 ## Compute
 
@@ -264,7 +264,7 @@ What Integration still has to do: match `province`, `municipality`, and `baranga
 - On Databricks only `dev` has run it, and only with nothing to quarantine: a quarantined row and a failing gate are shown by the local tests, not on Databricks.
 - `region` and the other categories are gated, so any new label stops Silver until it is reviewed, by design.
 - Every run rebuilds every school year, and starts the SQL warehouse; fine at 180,000 rows, revisit for larger sources.
-- The two Silver tables are published one after the other: a task that dies between them leaves them from different runs until the next run. Gold's rule (the run each table's rows carry) keeps the clean table readable; a reader comparing the two tables must check both runs.
+- The two Silver tables are published one after the other: a task that dies between them leaves them from different runs until the next run. Gold's rule (the run each table's rows carry) keeps the clean table readable; a reader comparing the two tables must check both runs. A task that dies after both copies but before recording `succeeded` leaves nothing trusted for the source until the next run passes.
 - Only `deped_enrollment` has Silver; facilities and the other sources follow with their own mapping (#86 to #90).
 
 ## Open questions
