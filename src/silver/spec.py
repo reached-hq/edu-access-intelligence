@@ -90,6 +90,8 @@ class SilverSpec:
     clean_file: str
     clean_table: str
     quarantine_table: str
+    clean_candidate: str               # the unpublished build the gate checks (D-025)
+    quarantine_candidate: str
     identifier: str
     identifier_pattern: str
     max_digits: int
@@ -255,7 +257,9 @@ def build_spec(mapping, contract, registry_entry):
     return SilverSpec(
         source_id=source_id, bronze_table=contract["bronze_table"], clean_file=registry_entry["silver"]["clean_file"],
         clean_table=mapping["silver_table"],
-        quarantine_table=mapping["quarantine_table"], identifier=identifier,
+        quarantine_table=mapping["quarantine_table"],
+        clean_candidate=registry_entry["silver"]["candidate_table"],
+        quarantine_candidate=registry_entry["silver"]["candidate_quarantine_table"], identifier=identifier,
         identifier_pattern=mapping["identifier"]["pattern"], max_digits=max_digits, plausible_max=plausible_max,
         columns=columns, categories=parsed, boolean_true=true, boolean_false=false, repairs=repairs,
         placeholders=placeholders, barangay=barangay, barangay_cap=mapping["barangay"]["length_cap"],
