@@ -28,16 +28,17 @@ DECLARE OR REPLACE VARIABLE silver_cleaned_at_utc TIMESTAMP;
 SET VARIABLE silver_cleaned_at_utc = current_timestamp();
 
 -- The run starts. Its row stays 'running' until the gate records how it ended, so a
--- build that dies is never mistaken for a good one.
+-- build that dies is never mistaken for a good one. run_id and job_run_id are both the job run,
+-- so one filter on job_run_id finds a job run's Bronze loads and Silver builds (D-020).
 MERGE INTO edu_access.`01-control`.pipeline_runs AS t
 USING (SELECT session.silver_run_id AS run_id) AS s
 ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = 'deped_enrollment'
 WHEN MATCHED THEN UPDATE SET
   status = 'running', started_at_utc = session.silver_cleaned_at_utc, finished_at_utc = NULL,
-  failure_stage = NULL, error_message = NULL, code_revision = session.silver_code_revision
-WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, status, started_at_utc, code_revision)
+  failure_stage = NULL, error_message = NULL, code_revision = session.silver_code_revision, job_run_id = s.run_id
+WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, status, started_at_utc, code_revision, job_run_id)
   VALUES (s.run_id, 'silver_build', 'deped_enrollment', session.silver_environment, 'running',
-          session.silver_cleaned_at_utc, session.silver_code_revision);
+          session.silver_cleaned_at_utc, session.silver_code_revision, s.run_id);
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`03-silver`;
 ALTER SCHEMA edu_access.`03-silver` OWNER TO `reached-hq`;

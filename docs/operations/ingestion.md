@@ -293,7 +293,7 @@ SELECT source_archive, source_file, source_sha256, source_row_number, batch_id, 
 FROM edu_access.`02-bronze`.deped_enrollment_raw WHERE school_year = '2025-26' AND source_row_number = 1;
 
 -- Checks for the latest job run: expect no FAIL. Each load writes its batch checks under its own
--- run_id, and each Bronze gate task writes under the job run id (D-020), so read both
+-- run_id, and each Bronze gate task and Silver gate task writes under the job run id (D-020), so read both
 WITH latest AS (SELECT MAX_BY(job_run_id, started_at_utc) AS job_run_id FROM edu_access.`01-control`.pipeline_runs WHERE job_run_id IS NOT NULL)
 SELECT source_id, check_name, status, expected, actual FROM edu_access.`01-control`.data_quality_results
 WHERE run_id IN (SELECT job_run_id FROM latest

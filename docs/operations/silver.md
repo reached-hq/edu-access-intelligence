@@ -122,7 +122,7 @@ The local run on the real data recorded 116 results, all PASS.
 
 Silver rebuilds both tables on every job run with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches (D-025): the same Bronze gives the same rows, so a rerun changes nothing but the run stamp, and a revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. On the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `311b445851533467fd7e669d3cf6e537` after both of two job runs ([evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md), with the query).
 
-Each table is one Delta commit; the pair is not, so the run row is the commit marker, as `ingestion_batches` is for Bronze. Its `run_id` is the job run id, which every source's build in that job run shares, so the row is keyed by `run_id`, `pipeline_name`, and `source_id`, and `job_run_id` stays NULL (D-020):
+Each table is one Delta commit; the pair is not, so the run row is the commit marker, as `ingestion_batches` is for Bronze. Its `run_id` is the job run id, which every source's build in that job run shares, so the row is keyed by `run_id`, `pipeline_name`, and `source_id`, and `job_run_id` holds the same id, so filtering `pipeline_runs` on `job_run_id` finds a job run's Bronze loads and Silver builds together (D-020):
 
 | `pipeline_runs.status` (`pipeline_name = 'silver_build'`) | Written by | Meaning |
 |---|---|---|

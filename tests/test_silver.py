@@ -509,6 +509,7 @@ def test_a_run_is_succeeded_only_after_its_gate_passes(env):
     built = env.silver(gate=False)                       # the build task ran; the gate task never did
     run = env.silver_run(built.run_id)
     assert (run["status"], run["environment"], run["code_revision"]) == ("running", "local", REVISION)
+    assert run["job_run_id"] == built.run_id             # one filter on job_run_id finds Bronze loads and Silver builds
     assert run["finished_at_utc"] is None
     done = env.silver()
     run = env.silver_run(done.run_id)
