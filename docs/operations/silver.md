@@ -161,6 +161,8 @@ The tables go to `local_state/edu_access.duckdb` (`--db <path>` for another file
 1. Edit `config/mappings/deped_enrollment.json`: a new label goes under its column with the standard value and the evidence (how many of the same schools carried the old label). A new column in a new schema version must be classified there too, or the generator stops.
 2. Regenerate the three generated files (a test fails until you do):
 
+   On Windows, set `PYTHONUTF8=1` first (in PowerShell, `$env:PYTHONUTF8 = "1"`). Without it Python writes the redirected file in cp1252, the `Ñ` repair becomes an invalid byte, and the build fails with `'utf-8' codec can't decode byte 0xd1`.
+
    ```bash
    python -m src.silver.cli sql --source deped_enrollment > etl/03_silver/01_clean_deped_enrollment.sql
    ```
