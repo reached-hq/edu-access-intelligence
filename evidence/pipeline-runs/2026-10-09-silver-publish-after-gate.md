@@ -91,19 +91,19 @@ The one-query verification from [Silver, Running on Databricks](../../docs/opera
 #### Gate results of the two runs: bronze PASS 24, silver PASS 232
 <img width="1014" height="239" alt="image" src="https://github.com/user-attachments/assets/d21c0750-406c-4ca5-a110-bf24fb83a48b" />
 
-#### The gate's results name the two candidate tables 
+#### The gate's results name the two candidate tables
 <img width="1019" height="213" alt="image" src="https://github.com/user-attachments/assets/7842dec3-11d7-410c-af80-4796d1004d69" />
 
-#### Tables in 03-silver: the two Silver tables and their two candidates, all owned by reached-hq 
+#### Tables in 03-silver: the two Silver tables and their two candidates, all owned by reached-hq
 <img width="1017" height="272" alt="image" src="https://github.com/user-attachments/assets/59738868-9ea7-4106-8b4e-ff598a1b3eea" />
 
-#### DESCRIBE HISTORY deped_enrollment_clean: versions 5 and 6 are the two runs 
+#### DESCRIBE HISTORY deped_enrollment_clean: versions 5 and 6 are the two runs
 <img width="1014" height="288" alt="image" src="https://github.com/user-attachments/assets/6ef0f0c6-18b3-439e-b73f-9d6176f376fa" />
 
-#### Candidate and published clean table compared: 0 and 0 
+#### Candidate and published clean table compared: 0 and 0
 <img width="1017" height="262" alt="image" src="https://github.com/user-attachments/assets/b36dc83f-db17-4f48-9c27-278a48d6cc85" />
 
-#### Versions 4 and 6 compared: 0 and 0 
+#### Versions 4 and 6 compared: 0 and 0
 <img width="1027" height="296" alt="image" src="https://github.com/user-attachments/assets/789f17ed-2519-43f8-802d-96df39bc6dbd" />
 
 ### Local: a build that fails its gate

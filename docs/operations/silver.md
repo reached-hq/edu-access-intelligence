@@ -133,7 +133,7 @@ Each published table is one Delta commit; the pair is not, so the run row is the
 | `succeeded` | the gate task, after publishing | Every check passed or warned, and both tables were published: Silver rows carrying this `run_id` may be read |
 | `failed` | the gate task, after its checks | At least one FAIL: nothing was published; the build is in the candidate tables |
 
-Gold's rule follows: a Silver table is trusted when the `run_id` its rows carry is a `silver_build` run that `succeeded`. After a failed run the published tables still carry the last good run, so they stay readable; the rule also covers a task that dies between the two copies, which leaves the Silver quarantine from a `running` run and the Silver clean table from the last good one.
+Gold's rule follows: a Silver table is trusted when the `run_id` its rows carry is a `silver_build` run that `succeeded`. After a failed run the published tables still carry the last good run, so they stay readable; the rule also covers a task that dies between the two copies, which leaves the Silver quarantine from a `running` run and the Silver clean table from the last good one. A task that dies after both copies but before the `succeeded` row (only the clean table's owner statement and that row come between) leaves both tables carrying a `running` run, so Gold has no trusted Silver for the source until the next run passes and republishes. That is the safe side: Gold never reads a build whose run was not confirmed.
 
 ## Compute
 
@@ -141,7 +141,7 @@ Free Edition's serverless capacity is shared; in the Bronze runs most time was s
 
 - **Two SQL tasks on the warehouse.** The Bronze gate before them has already started it, so Silver adds two tasks' statements, not a new start-up. No notebook.
 - **No skip.** A file cannot decide to skip itself, and the rebuild is cheap (about a second for 180,500 rows locally), so every run rebuilds (D-025). The saving given up is that work, not a warehouse start.
-- **A build** is about 15 statements: the run stamp (6), the run row, the schema and its owner, the classification view, two `CREATE OR REPLACE` and two owner statements, all on the candidate tables. **The gate** is 10: its start time (2), the checks, the `failed` run row, the stop, two copies and two owner statements to publish, and the `succeeded` run row. Locally: about 1.1 s and 0.7 s.
+- **A build** is about 17 statements: the run stamp (6), the run row, the schema and its owner, the classification view, two `CREATE OR REPLACE`, two comments, and two owner statements, all on the candidate tables. Each candidate's comment says it is unpublished and names the Silver table to read instead; the published copies carry no comment. **The gate** is 10: its start time (2), the checks, the `failed` run row, the stop, two copies and two owner statements to publish, and the `succeeded` run row. Locally: about 1.1 s and 0.7 s.
 - **Parallel source lanes.** Tasks within this source stay ordered, while unrelated sources may run at the same time. There is no schedule, and `max_concurrent_runs: 1` prevents two whole job runs from overlapping.
 
 On Databricks `dev` the build took 30 to 56 s and the gate 44 to 50 s before it published, 47 to 63 s since, with no queue or setup time ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md), [with publishing](../../evidence/pipeline-runs/2026-10-09-silver-publish-after-gate.md)): the warehouse's time per statement, not the 180,500 rows.
@@ -160,6 +160,8 @@ The tables go to `local_state/edu_access.duckdb` (`--db <path>` for another file
 
 1. Edit `config/mappings/deped_enrollment.json`: a new label goes under its column with the standard value and the evidence (how many of the same schools carried the old label). A new column in a new schema version must be classified there too, or the generator stops.
 2. Regenerate the three generated files (a test fails until you do):
+
+   On Windows, set `PYTHONUTF8=1` first (in PowerShell, `$env:PYTHONUTF8 = "1"`). Without it Python writes the redirected file in cp1252, the `Ñ` repair becomes an invalid byte, and the build fails with `'utf-8' codec can't decode byte 0xd1`.
 
    ```bash
    python -m src.silver.cli sql --source deped_enrollment > etl/03_silver/01_clean_deped_enrollment.sql
@@ -411,7 +413,7 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 - On Databricks only `dev` has run it, and only with nothing to quarantine: a quarantined row and a failing gate are shown by the local tests, not on Databricks.
 - `region` and the other categories are gated, so any new label stops Silver until it is reviewed, by design.
 - Every run rebuilds every school year, and starts the SQL warehouse; fine at 180,000 rows, revisit for larger sources.
-- The two Silver tables are published one after the other: a task that dies between them leaves them from different runs until the next run. Gold's rule (the run each table's rows carry) keeps the clean table readable; a reader comparing the two tables must check both runs.
+- The two Silver tables are published one after the other: a task that dies between them leaves them from different runs until the next run. Gold's rule (the run each table's rows carry) keeps the clean table readable; a reader comparing the two tables must check both runs. A task that dies after both copies but before recording `succeeded` leaves nothing trusted for the source until the next run passes.
 - Only `deped_enrollment` and `psa_poverty_stat` have Silver; facilities and the other sources follow with their own mapping (#86 to #90). PSA Silver has not yet run on Databricks.
 
 ## Open questions

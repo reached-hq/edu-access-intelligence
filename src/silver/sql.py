@@ -104,6 +104,13 @@ def header(spec, what, command, path):
 
 # --- Build ------------------------------------------------------------------------
 
+def candidate_comment(candidate, published):
+    """A replaced table loses its comment, so every build sets it again. The gate's copy to the
+    Silver table does not carry it over."""
+    return (f"COMMENT ON TABLE {candidate} IS 'Unpublished build for the Silver gate, which may have failed. "
+            f"Do not read: use {published}, trusted by the run its rows carry (D-025).';")
+
+
 def build_sql(spec):
     source = spec.source_id
     view = f"{source}_classified"
@@ -243,6 +250,7 @@ def build_sql(spec):
         f"FROM {view}",
         "WHERE quarantine_reasons = '';",
         "",
+        candidate_comment(clean, spec.clean_table),
         f"ALTER TABLE {clean} OWNER TO `{OWNER_GROUP}`;",
         "",
         "-- Rows set aside, never deleted: the Bronze row, and why.",
@@ -252,6 +260,7 @@ def build_sql(spec):
         f"FROM {view}",
         "WHERE quarantine_reasons <> '';",
         "",
+        candidate_comment(quarantine, spec.quarantine_table),
         f"ALTER TABLE {quarantine} OWNER TO `{OWNER_GROUP}`;",
         "",
     ]
