@@ -53,8 +53,8 @@ Both runs recorded `code_revision` `5cac6762eef0a4b897e07c32f7688fe8a1d0a3ff-dir
 
 ## Not shown here
 
-The Databricks run (D-017): whether serverless has enough memory for the 1.7 GB peak, and whether 64 MB chunks go through Spark Connect. That evidence will be added after the confirmation run.
+The Databricks runs (D-017): see [2026-10-08-hdx-boundaries-databricks-idempotency.md](2026-10-08-hdx-boundaries-databricks-idempotency.md). They confirmed that serverless handles the file's memory and that 64 MB chunks go through Spark Connect.
 
 ## Repeated after merging main (#111)
 
-After merging `main` (PSA PSGC, #111), the same two runs were repeated on a fresh local database (`--db ..\hdx-merged.duckdb`) at commit `6708450` (`67084507d2a680e268990a2ef1c1d95cb8c75cdd`, clean, no uncommitted changes): run 1 loaded 1,642 rows (`load`, `initial`, `succeeded`, `bronze=1642`); run 2 run_id `9025f798-ec5c-4d29-85a0-0ed5250136b3` skipped with 0 inserted ("already loaded; same SHA-256"). Tests at that commit: 405 passed, 1 skipped`.
+After merging `main` (PSA PSGC, #111), the same two runs were repeated on a fresh local database (`--db ..\hdx-merged.duckdb`) at commit `6708450` (`67084507d2a680e268990a2ef1c1d95cb8c75cdd`, clean, no uncommitted changes): run 1 loaded 1,642 rows (`load`, `initial`, `succeeded`, `bronze=1642`); run 2 run_id `9025f798-ec5c-4d29-85a0-0ed5250136b3` skipped with 0 inserted ("already loaded; same SHA-256"). Tests at that commit: 405 passed, 1 skipped.

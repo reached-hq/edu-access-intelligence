@@ -1200,6 +1200,8 @@ python -m src.ingestion.cli gate --source hdx_boundaries > etl/02_bronze/90_vali
 
 In `edu_access_pipeline`, the boundaries have their own lane: `06_create_hdx_adm3_raw` → `bronze_hdx_boundaries` → `90_validate_hdx_adm3_raw` (D-020); the Silver tasks after it stay disabled. The runs above used the earlier `bronze_ingest` job, before the DAG merged; the lane runs the same load and gate code. Before running it, the pull request must be reviewed, the run announced to the team, and the `reached-hq` profile working. Then, as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
 
+**Confirmed in the DAG on 2026-10-09** (run `876944030170305`, commit `e352330`): the lane's three tasks succeeded, the load skipped the already-loaded file (0 inserted, Bronze 1,642), and the gate passed as its own task ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md#in-the-edu_access_pipeline-dag-after-113)).
+
 That run confirmed what only Databricks could prove for this source (D-017): serverless has enough memory for the 555 MB file, and 64 MB chunks go through Spark Connect.
 
 Validation queries (Databricks SQL editor):

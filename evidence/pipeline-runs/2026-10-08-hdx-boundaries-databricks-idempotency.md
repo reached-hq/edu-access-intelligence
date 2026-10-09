@@ -1,6 +1,6 @@
 # hdx_boundaries (ADM3): Databricks dev load and idempotency, 2026-10-08
 
-**What this shows:** on Databricks `dev`, the `bronze_hdx_boundaries` task loads the approved COD-AB ADM3 file into `` edu_access.`02-bronze`.hdx_adm3_raw `` once, and every later run skips it with nothing inserted. It also confirms what only Databricks can prove for this source (D-017): serverless compute has enough memory for the 555 MB file, and rows staged in chunks of at most 64 MB go through Spark Connect.
+**What this shows:** on Databricks `dev`, the `bronze_hdx_boundaries` task (first in `bronze_ingest`, then in `edu_access_pipeline`) loads the approved COD-AB ADM3 file into `` edu_access.`02-bronze`.hdx_adm3_raw `` once, and every later run skips it with nothing inserted. It also confirms what only Databricks can prove for this source (D-017): serverless compute has enough memory for the 555 MB file, and rows staged in chunks of at most 64 MB go through Spark Connect.
 
 Times are Manila time (UTC+8), with UTC in brackets.
 
@@ -63,3 +63,15 @@ Every value equals the local runs (`2026-10-08-hdx-boundaries-local-idempotency.
 ## Not shown here
 
 A single-table commit under a real mid-load failure (D-017 item 2) was not tested, because nothing failed mid-load.
+
+## In the `edu_access_pipeline` DAG (after #113)
+
+After merging `main` (#113, D-020), the HDX lane was enabled in `edu_access_pipeline`: `06_create_hdx_adm3_raw` → `bronze_hdx_boundaries` (`--no-gate --no-setup`) → `90_validate_hdx_adm3_raw` as its own SQL task. One run on `dev`, job `[dev sara_celadina] edu_access_pipeline` (job `413860742211114`), run `876944030170305`, commit `e352330973d4aa44ec7b8788d9b10a642f23b89f`, 2026-10-09 08:38:23 to 08:41:58 Manila (00:38:23 to 00:41:58 UTC):
+
+- `TERMINATED SUCCESS`; every enabled task succeeded, and the Silver tasks stayed disabled.
+- `bronze_hdx_boundaries` (load run `e86490bc-5b19-4b1a-aab5-b8c95d985eaa`): `skip`, 0 inserted, `bronze=1642`, "already loaded; same SHA-256".
+- `90_validate_hdx_adm3_raw`: succeeded, so the Bronze gate passed as its own task.
+- Every other source skipped (enrollment 3 batches, facilities, PSGC, PSA Poverty Stat), with every gate passing.
+- Tests at that commit: `python -m pytest tests -q`: 435 passed, 1 skipped.
+
+Bronze still holds exactly the 1,642 rows loaded on 2026-10-08; this run inserted nothing.
