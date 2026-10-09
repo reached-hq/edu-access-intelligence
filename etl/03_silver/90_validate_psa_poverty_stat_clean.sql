@@ -57,7 +57,7 @@ bronze_units AS (
   JOIN known_years AS y ON array_contains(split(cur.estimate_years_covered, ','), y.estimate_year)
   LEFT JOIN quarantined AS q
     ON q.source_sha256 = u.source_sha256 AND q.source_row_number = u.source_row_number
-   AND q.estimate_year = y.estimate_year
+   AND CAST(q.estimate_year AS STRING) = y.estimate_year
   WHERE u.source_row_kind = 'unit'
   GROUP BY u.batch_id, y.estimate_year
 ),
@@ -65,18 +65,18 @@ bronze_units AS (
 clean_years AS (
   SELECT
     c.batch_id,
-    c.estimate_year,
+    CAST(c.estimate_year AS STRING) AS estimate_year,
     COUNT(*) AS clean_rows,
     COUNT(DISTINCT c.psgc_id) AS clean_ids,
     COUNT_IF(c.psgc_id IS NULL OR NOT regexp_like(c.psgc_id, '^[0-9]{6}$')
         OR b.source_row_number IS NULL OR c.psgc_id <> lpad(b.`PSGC ID`, 6, '0')
         OR c.correspondence_code IS NULL OR c.correspondence_code <> c.psgc_id || '000') AS invalid_ids,
-    COUNT_IF(NOT array_contains(split(c.estimate_years_covered, ','), c.estimate_year)) AS uncovered_rows,
-    COUNT_IF(b.source_row_number IS NULL OR NOT (c.poverty_incidence IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE c.estimate_year WHEN '2018' THEN b.`Poverty Incidence 2018` WHEN '2021' THEN b.`Poverty Incidence 2021` WHEN '2023' THEN b.`Poverty Incidence 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE c.estimate_year WHEN '2018' THEN b.`Poverty Incidence 2018` WHEN '2021' THEN b.`Poverty Incidence 2021` WHEN '2023' THEN b.`Poverty Incidence 2023` END AS DOUBLE) END)) AS mismatched_poverty_incidence,
-    COUNT_IF(b.source_row_number IS NULL OR NOT (c.coefficient_of_variation IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE c.estimate_year WHEN '2018' THEN b.`Coefficient of Variation 2018` WHEN '2021' THEN b.`Coefficient of Variation 2021` WHEN '2023' THEN b.`Coefficient of Variation 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE c.estimate_year WHEN '2018' THEN b.`Coefficient of Variation 2018` WHEN '2021' THEN b.`Coefficient of Variation 2021` WHEN '2023' THEN b.`Coefficient of Variation 2023` END AS DOUBLE) END)) AS mismatched_coefficient_of_variation,
-    COUNT_IF(b.source_row_number IS NULL OR NOT (c.standard_error IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE c.estimate_year WHEN '2018' THEN b.`Standard Error 2018` WHEN '2021' THEN b.`Standard Error 2021` WHEN '2023' THEN b.`Standard Error 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE c.estimate_year WHEN '2018' THEN b.`Standard Error 2018` WHEN '2021' THEN b.`Standard Error 2021` WHEN '2023' THEN b.`Standard Error 2023` END AS DOUBLE) END)) AS mismatched_standard_error,
-    COUNT_IF(b.source_row_number IS NULL OR NOT (c.ci90_lower_limit IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE c.estimate_year WHEN '2018' THEN b.`90% Confidence Interval Lower Limit 2018` WHEN '2021' THEN b.`90% Confidence Interval Lower Limit 2021` WHEN '2023' THEN b.`90% Confidence Interval Lower Limit 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE c.estimate_year WHEN '2018' THEN b.`90% Confidence Interval Lower Limit 2018` WHEN '2021' THEN b.`90% Confidence Interval Lower Limit 2021` WHEN '2023' THEN b.`90% Confidence Interval Lower Limit 2023` END AS DOUBLE) END)) AS mismatched_ci90_lower_limit,
-    COUNT_IF(b.source_row_number IS NULL OR NOT (c.ci90_upper_limit IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE c.estimate_year WHEN '2018' THEN b.`90% Confidence Interval Upper Limit 2018` WHEN '2021' THEN b.`90% Confidence Interval Upper Limit 2021` WHEN '2023' THEN b.`90% Confidence Interval Upper Limit 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE c.estimate_year WHEN '2018' THEN b.`90% Confidence Interval Upper Limit 2018` WHEN '2021' THEN b.`90% Confidence Interval Upper Limit 2021` WHEN '2023' THEN b.`90% Confidence Interval Upper Limit 2023` END AS DOUBLE) END)) AS mismatched_ci90_upper_limit,
+    COUNT_IF(NOT array_contains(split(c.estimate_years_covered, ','), CAST(c.estimate_year AS STRING))) AS uncovered_rows,
+    COUNT_IF(b.source_row_number IS NULL OR NOT (c.poverty_incidence IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`Poverty Incidence 2018` WHEN '2021' THEN b.`Poverty Incidence 2021` WHEN '2023' THEN b.`Poverty Incidence 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`Poverty Incidence 2018` WHEN '2021' THEN b.`Poverty Incidence 2021` WHEN '2023' THEN b.`Poverty Incidence 2023` END AS DOUBLE) END)) AS mismatched_poverty_incidence,
+    COUNT_IF(b.source_row_number IS NULL OR NOT (c.coefficient_of_variation IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`Coefficient of Variation 2018` WHEN '2021' THEN b.`Coefficient of Variation 2021` WHEN '2023' THEN b.`Coefficient of Variation 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`Coefficient of Variation 2018` WHEN '2021' THEN b.`Coefficient of Variation 2021` WHEN '2023' THEN b.`Coefficient of Variation 2023` END AS DOUBLE) END)) AS mismatched_coefficient_of_variation,
+    COUNT_IF(b.source_row_number IS NULL OR NOT (c.standard_error IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`Standard Error 2018` WHEN '2021' THEN b.`Standard Error 2021` WHEN '2023' THEN b.`Standard Error 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`Standard Error 2018` WHEN '2021' THEN b.`Standard Error 2021` WHEN '2023' THEN b.`Standard Error 2023` END AS DOUBLE) END)) AS mismatched_standard_error,
+    COUNT_IF(b.source_row_number IS NULL OR NOT (c.ci90_lower_limit IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`90% Confidence Interval Lower Limit 2018` WHEN '2021' THEN b.`90% Confidence Interval Lower Limit 2021` WHEN '2023' THEN b.`90% Confidence Interval Lower Limit 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`90% Confidence Interval Lower Limit 2018` WHEN '2021' THEN b.`90% Confidence Interval Lower Limit 2021` WHEN '2023' THEN b.`90% Confidence Interval Lower Limit 2023` END AS DOUBLE) END)) AS mismatched_ci90_lower_limit,
+    COUNT_IF(b.source_row_number IS NULL OR NOT (c.ci90_upper_limit IS NOT DISTINCT FROM CASE WHEN regexp_like(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`90% Confidence Interval Upper Limit 2018` WHEN '2021' THEN b.`90% Confidence Interval Upper Limit 2021` WHEN '2023' THEN b.`90% Confidence Interval Upper Limit 2023` END, '^-?[0-9]+([.][0-9]+)?([eE][-+]?[0-9]{1,3})?$') THEN TRY_CAST(CASE CAST(c.estimate_year AS STRING) WHEN '2018' THEN b.`90% Confidence Interval Upper Limit 2018` WHEN '2021' THEN b.`90% Confidence Interval Upper Limit 2021` WHEN '2023' THEN b.`90% Confidence Interval Upper Limit 2023` END AS DOUBLE) END)) AS mismatched_ci90_upper_limit,
     SUM(CASE WHEN c.poverty_incidence IS NULL THEN 1 ELSE 0 END + CASE WHEN c.coefficient_of_variation IS NULL THEN 1 ELSE 0 END + CASE WHEN c.standard_error IS NULL THEN 1 ELSE 0 END + CASE WHEN c.ci90_lower_limit IS NULL THEN 1 ELSE 0 END + CASE WHEN c.ci90_upper_limit IS NULL THEN 1 ELSE 0 END) AS clean_null_cells,
     COUNT_IF(c.estimate_status IS NULL OR c.estimate_status NOT IN ('estimated', 'no_estimate', 'partial_estimate')
         OR c.estimate_status <> CASE WHEN c.poverty_incidence IS NOT NULL AND c.coefficient_of_variation IS NOT NULL AND c.standard_error IS NOT NULL AND c.ci90_lower_limit IS NOT NULL AND c.ci90_upper_limit IS NOT NULL THEN 'estimated'
@@ -104,7 +104,7 @@ clean_years AS (
 quarantine_years AS (
   SELECT
     q.batch_id,
-    q.estimate_year,
+    CAST(q.estimate_year AS STRING) AS estimate_year,
     COUNT(*) AS quarantined_rows,
     COUNT_IF(array_contains(q.quarantine_reasons, 'psgc_id_blank')) AS reason_psgc_id_blank,
     COUNT_IF(array_contains(q.quarantine_reasons, 'psgc_id_malformed')) AS reason_psgc_id_malformed,

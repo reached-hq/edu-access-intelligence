@@ -356,14 +356,14 @@ WITH c AS (SELECT * FROM edu_access.`03-silver`.psa_poverty_stat_clean),
            WHERE layer = 'silver' AND source_id = 'psa_poverty_stat' AND run_id = (SELECT run_id FROM last_run)),
 checks AS (
   SELECT 'clean rows 2018 / 2021 / 2023' AS check_name, '1612 / 1612 / 1612' AS expected,
-         COUNT_IF(estimate_year = '2018') || ' / ' || COUNT_IF(estimate_year = '2021') || ' / ' || COUNT_IF(estimate_year = '2023') AS actual FROM c
+         COUNT_IF(estimate_year = 2018) || ' / ' || COUNT_IF(estimate_year = 2021) || ' / ' || COUNT_IF(estimate_year = 2023) AS actual FROM c
   UNION ALL SELECT 'quarantined rows', '0', CAST(COUNT(*) AS STRING) FROM q
-  UNION ALL SELECT 'repeated keys', '0', CAST(COUNT(*) - COUNT(DISTINCT psgc_id || estimate_year) AS STRING) FROM c
+  UNION ALL SELECT 'repeated keys', '0', CAST(COUNT(*) - COUNT(DISTINCT psgc_id, estimate_year) AS STRING) FROM c
   UNION ALL SELECT 'no_estimate rows (Kalayaan, Excel row 641)', '3', CAST(COUNT_IF(estimate_status = 'no_estimate' AND source_row_number = 641 AND poverty_incidence IS NULL) AS STRING) FROM c
   UNION ALL SELECT 'cv_over_20 2018 / 2021 / 2023', '171 / 84 / 156',
-         COUNT_IF(cv_over_20 AND estimate_year = '2018') || ' / ' || COUNT_IF(cv_over_20 AND estimate_year = '2021') || ' / ' || COUNT_IF(cv_over_20 AND estimate_year = '2023') FROM c
+         COUNT_IF(cv_over_20 AND estimate_year = 2018) || ' / ' || COUNT_IF(cv_over_20 AND estimate_year = 2021) || ' / ' || COUNT_IF(cv_over_20 AND estimate_year = 2023) FROM c
   UNION ALL SELECT 'se_cv_inconsistent 2018 / 2021 / 2023', '6 / 133 / 1',
-         COUNT_IF(se_cv_inconsistent AND estimate_year = '2018') || ' / ' || COUNT_IF(se_cv_inconsistent AND estimate_year = '2021') || ' / ' || COUNT_IF(se_cv_inconsistent AND estimate_year = '2023') FROM c
+         COUNT_IF(se_cv_inconsistent AND estimate_year = 2018) || ' / ' || COUNT_IF(se_cv_inconsistent AND estimate_year = 2021) || ' / ' || COUNT_IF(se_cv_inconsistent AND estimate_year = 2023) FROM c
   UNION ALL SELECT 'lower_limit_not_positive', '3', CAST(COUNT_IF(lower_limit_not_positive) AS STRING) FROM c
   UNION ALL SELECT 'IDs padded from 5 digits', '3219', CAST(SUM(CAST(actual AS INT)) AS STRING) FROM d WHERE check_name LIKE 'rule_psgc_id_padded%'
   UNION ALL SELECT 'units without a region banner', '0', CAST(COUNT_IF(region IS NULL) AS STRING) FROM c
@@ -383,7 +383,7 @@ SELECT check_name, expected, actual, CASE WHEN expected = actual THEN 'OK' ELSE 
 Business content of the two builds (run once after each run; the two hashes must be equal):
 
 ```sql
-SELECT sha2(concat_ws('\n', sort_array(collect_list(concat_ws('|', estimate_year, psgc_id, source_sha256,
+SELECT sha2(concat_ws('\n', sort_array(collect_list(concat_ws('|', CAST(estimate_year AS STRING), psgc_id, source_sha256,
          CAST(source_row_number AS STRING), CAST(poverty_incidence AS STRING), CAST(coefficient_of_variation AS STRING),
          CAST(standard_error AS STRING), CAST(ci90_lower_limit AS STRING), CAST(ci90_upper_limit AS STRING),
          estimate_status, CAST(cv_over_20 AS STRING), CAST(se_cv_inconsistent AS STRING),

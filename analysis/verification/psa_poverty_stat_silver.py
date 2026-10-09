@@ -181,8 +181,8 @@ def report(db, run_id):
             sum(v for k, v in kinds.items() if k != "unit"))
         for kind in ("title", "header", "region_banner", "blank", "footer"):
             row(f"    {kind}", None, kinds.get(kind, 0))
-        clean = {y: n for y, n in q(f"SELECT estimate_year, COUNT(*) FROM {CLEAN} GROUP BY 1")}
-        quarantined = {y: n for y, n in q(f"SELECT estimate_year, COUNT(*) FROM {QUARANTINE} GROUP BY 1")}
+        clean = {str(y): n for y, n in q(f"SELECT estimate_year, COUNT(*) FROM {CLEAN} GROUP BY 1")}
+        quarantined = {str(y): n for y, n in q(f"SELECT estimate_year, COUNT(*) FROM {QUARANTINE} GROUP BY 1")}
         for y in ("2018", "2021", "2023"):
             row(f"{y} candidates = clean + quarantined", EXPECTED["candidates_per_year"], clean.get(y, 0) + quarantined.get(y, 0))
             row(f"{y} clean", None, clean.get(y, 0))
@@ -192,7 +192,7 @@ def report(db, run_id):
                 "COUNT_IF(estimate_status = 'partial_estimate') AS partial, COUNT_IF(cv_over_20) AS cv, "
                 "COUNT_IF(se_cv_inconsistent) AS se, COUNT_IF(lower_limit_not_positive) AS lower, "
                 "COUNT_IF(poverty_incidence IS NULL) AS null_incidence "
-                f"FROM {CLEAN} WHERE estimate_year = '{y}'")[0]
+                f"FROM {CLEAN} WHERE estimate_year = {y}")[0]
             row(f"{y} estimated", EXPECTED["estimated_per_year"], stats["estimated"])
             row(f"{y} no_estimate (Kalayaan)", EXPECTED["no_estimate_per_year"], stats["no_estimate"])
             row(f"{y} partial_estimate", 0, stats["partial"])
@@ -202,7 +202,7 @@ def report(db, run_id):
             row(f"{y} lower_limit_not_positive", None, stats["lower"])
             row(f"{y} IDs padded from 5 digits", EXPECTED["padded_ids_per_year"], q(
                 f"SELECT COUNT(*) FROM {CLEAN} AS c JOIN {BRONZE} AS b ON c.source_sha256 = b.source_sha256 "
-                f"AND c.source_row_number = b.source_row_number WHERE c.estimate_year = '{y}' AND length(b.`PSGC ID`) = 5 "
+                f"AND c.source_row_number = b.source_row_number WHERE c.estimate_year = {y} AND length(b.`PSGC ID`) = 5 "
                 "AND c.psgc_id = '0' || b.`PSGC ID`")[0][0])
         row("lower_limit_not_positive, all years", EXPECTED["lower_limit_not_positive_total"],
             q(f"SELECT COUNT_IF(lower_limit_not_positive) FROM {CLEAN}")[0][0])
@@ -215,7 +215,7 @@ def report(db, run_id):
             "AND c.source_row_number = b.source_row_number AND c.batch_id = b.batch_id AND b.source_row_kind = 'unit' "
             "AND c.psgc_id = lpad(b.`PSGC ID`, 6, '0')")[0][0])
         row("key (psgc_id, estimate_year) duplicates", 0,
-            q(f"SELECT COUNT(*) - COUNT(DISTINCT psgc_id || estimate_year) FROM {CLEAN}")[0][0])
+            q(f"SELECT COUNT(*) - COUNT(DISTINCT (psgc_id, estimate_year)) FROM {CLEAN}")[0][0])
         row("distinct cleaned_at_utc across both tables", 1,
             q(f"SELECT COUNT(DISTINCT t) FROM (SELECT cleaned_at_utc AS t FROM {CLEAN} UNION ALL "
               f"SELECT cleaned_at_utc FROM {QUARANTINE})")[0][0])

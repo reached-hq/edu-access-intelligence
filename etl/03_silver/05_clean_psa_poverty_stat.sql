@@ -177,7 +177,7 @@ typed AS (
   FROM keyed AS k
 )
 SELECT
-  t.estimate_year,
+  CAST(t.estimate_year AS INT) AS estimate_year,
   t.psgc_id,
   t.correspondence_code,
   t.region,

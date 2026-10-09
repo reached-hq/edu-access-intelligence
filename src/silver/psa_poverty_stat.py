@@ -117,7 +117,7 @@ class PsaSpec:
         return (self.cv_flag, "se_cv_inconsistent", "lower_limit_not_positive")
 
     def identity_columns(self):
-        return [("estimate_year", "string"), (self.id_to, "string"), (self.correspondence_to, "string")]
+        return [("estimate_year", "int"), (self.id_to, "string"), (self.correspondence_to, "string")]
 
     def clean_columns(self):
         """[(name, type)] of the clean table, in order."""
@@ -246,6 +246,11 @@ def _header(spec, what, command, path):
     ]
 
 
+# estimate_year is INT in the Silver tables; Bronze's year columns and estimate_years_covered hold
+# the year as text, so the gate compares the text form (and check names keep '_2018').
+YEAR_TEXT = "CAST({}.estimate_year AS STRING)"
+
+
 def _covers(years_ref, year):
     return _covers_expr(years_ref, lit(year))
 
@@ -353,7 +358,7 @@ def build_sql(spec):
         + ",\n".join(f"      CASE WHEN {cond} THEN {lit(reason)} END" for reason, cond in problems.items())
         + "\n    ) AS quarantine_reasons")
     flags = _flag_exprs(spec, "t")
-    final = (["t.estimate_year", f"t.{pid}", f"t.{cc}", f"t.{spec.banner_to}", *[f"t.{to}" for to, _ in spec.text_columns.values()],
+    final = (["CAST(t.estimate_year AS INT) AS estimate_year", f"t.{pid}", f"t.{cc}", f"t.{spec.banner_to}", *[f"t.{to}" for to, _ in spec.text_columns.values()],
               *[f"t.{m.name}" for m in spec.measures], f"{_status_expr(spec, 't')} AS estimate_status",
               *[f"{expr} AS {name}" for name, expr in flags.items()], reasons]
              + [f"t.{name}" for name in lineage] + [f"session.silver_{name} AS {name}" for name in stamp])
@@ -528,13 +533,13 @@ def gate_sql(spec):
     bronze_units.append(f"SUM(CASE WHEN q.source_row_number IS NULL THEN\n        {blank_cells}\n      ELSE 0 END) AS kept_blank_cells")
 
     mismatch = {m.name: (f"NOT (c.{m.name} IS NOT DISTINCT FROM "
-                         f"{_typed(spec, _year_cell(spec, m, 'c.estimate_year', 'b'))})") for m in spec.measures}
+                         f"{_typed(spec, _year_cell(spec, m, YEAR_TEXT.format('c'), 'b'))})") for m in spec.measures}
     flags = _flag_exprs(spec, "c")
     problems = _range_problems(spec, "c")
     clean_null_cells = " + ".join(f"CASE WHEN c.{m.name} IS NULL THEN 1 ELSE 0 END" for m in spec.measures)
     all_null = " AND ".join(f"c.{m.name} IS NULL" for m in spec.measures)
     clean_years = [
-        "c.batch_id", "c.estimate_year",
+        "c.batch_id", f"{YEAR_TEXT.format('c')} AS estimate_year",
         "COUNT(*) AS clean_rows",
         f"COUNT(DISTINCT c.{pid}) AS clean_ids",
         # The padded ID must be the published Bronze ID, left-padded: the published value is not kept in Silver.
@@ -542,7 +547,7 @@ def gate_sql(spec):
          f"        OR b.source_row_number IS NULL OR c.{pid} <> lpad(b.{bq(spec.identifier)}, {spec.id_width}, '0')\n"
          f"        OR c.{cc} IS NULL OR c.{cc} <> c.{pid} || {lit(spec.correspondence_suffix)}"
          ") AS invalid_ids"),
-        "COUNT_IF(NOT array_contains(split(c.estimate_years_covered, ','), c.estimate_year)) AS uncovered_rows",
+        f"COUNT_IF(NOT {_covers_expr('c.estimate_years_covered', YEAR_TEXT.format('c'))}) AS uncovered_rows",
         *[f"COUNT_IF(b.source_row_number IS NULL OR {mismatch[m.name]}) AS mismatched_{m.name}" for m in spec.measures],
         f"SUM({clean_null_cells}) AS clean_null_cells",
         (f"COUNT_IF(c.estimate_status IS NULL OR c.estimate_status NOT IN ({', '.join(lit(s) for s in ESTIMATE_STATUSES)})\n"
@@ -558,7 +563,7 @@ def gate_sql(spec):
         "COUNT_IF(c.estimate_status = 'partial_estimate') AS partial_rows",
         f"COUNT_IF(c.estimate_status = 'no_estimate' AND {all_null}) AS no_estimate_rows",
     ]
-    quarantine_years = ["q.batch_id", "q.estimate_year", "COUNT(*) AS quarantined_rows"] + [
+    quarantine_years = ["q.batch_id", f"{YEAR_TEXT.format('q')} AS estimate_year", "COUNT(*) AS quarantined_rows"] + [
         f"COUNT_IF(array_contains(q.quarantine_reasons, {lit(r)})) AS reason_{r}" for r in QUARANTINE_REASONS]
 
     grid_values = ["unit_rows", "padded_ids", "whitespace_rows", "kept_blank_cells", "clean_rows", "clean_ids",
@@ -696,7 +701,7 @@ def gate_sql(spec):
         f"  JOIN known_years AS y ON {_covers_expr('cur.estimate_years_covered', 'y.estimate_year')}",
         "  LEFT JOIN quarantined AS q",
         "    ON q.source_sha256 = u.source_sha256 AND q.source_row_number = u.source_row_number",
-        "   AND q.estimate_year = y.estimate_year",
+        f"   AND {YEAR_TEXT.format('q')} = y.estimate_year",
         f"  WHERE u.source_row_kind = {lit(spec.unit_kind)}",
         "  GROUP BY u.batch_id, y.estimate_year",
         "),",
@@ -841,8 +846,9 @@ def dictionary_markdown(spec):
     m = spec.mapping
     id_rule = m["identifier"]
     rows = [
-        ("estimate_year", "STRING", f"the year in the column names ({', '.join(spec.years)})",
+        ("estimate_year", "INT", f"the year in the column names ({', '.join(spec.years)})",
          f"One row per estimate year the delivery covers (`estimate_years_covered`); key, with `{spec.id_to}`. "
+         "A calendar year, so typed as a number (filter `estimate_year = 2023`, no quotes). "
          "Named for what it is, so it is never confused with DepEd's `school_year`", "Never", "O-1"),
         (spec.id_to, "STRING", f"`{spec.identifier}`",
          f"The published ID left-padded with zeros to {spec.id_width} digits (Excel dropped the leading zero of "
@@ -919,7 +925,7 @@ def dictionary_markdown(spec):
         "",
         "| Column | Type | Meaning |",
         "|---|---|---|",
-        "| `estimate_year` | STRING | As in the clean table |",
+        "| `estimate_year` | INT | As in the clean table |",
         f"| `{spec.id_to}` | STRING | The padded ID, or NULL when the published ID is blank or malformed "
         "(read the published value from Bronze) |",
         f"| `{spec.banner_to}` | STRING | As in the clean table |",
