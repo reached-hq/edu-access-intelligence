@@ -15,6 +15,7 @@ python -m pytest tests -q
 | `test_naming.py` | Naming configuration and ETL path conventions |
 | `test_ingestion_*.py` | Delivery validation, loading, rerun, and source-specific behavior |
 | `test_silver.py` | Silver cleaning rules, quarantine, the gate, the run record, revisions, and the generated SQL |
+| `test_silver_hdx.py` | HDX ADM3 Silver: exact typing, geometry checks (DuckDB spatial), quarantine, flags, the gate, and the generated files |
 | `test_bundle.py`, `test_databricks_runtime.py` | The job's commit tracking and task order, and the Databricks runtime differences imitated locally |
 
 Tests must never depend on real source rows or credentials.

@@ -5,3 +5,4 @@ One data dictionary per Silver table, generated from the source's Bronze contrac
 | Source | Clean table | Quarantine | Dictionary |
 |---|---|---|---|
 | `deped_enrollment` | `deped_enrollment_clean` | `deped_enrollment_quarantine` | [deped-enrollment-clean.md](deped-enrollment-clean.md) |
+| `hdx_boundaries` | `hdx_adm3_clean` | `hdx_adm3_quarantine` | [hdx-adm3-clean.md](hdx-adm3-clean.md) |
