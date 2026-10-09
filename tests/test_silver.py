@@ -584,6 +584,17 @@ def test_a_build_that_passes_is_published_as_built(env):
     assert types["g1_male"] == "INTEGER" and types["offers_es"] == "BOOLEAN"
 
 
+def test_only_the_candidate_tables_say_not_to_read_them(env):
+    env.deliver("2023-24", n_rows=4)
+    env.bronze()
+    for _ in range(2):                                   # a rebuild replaces the table, and sets the comment again
+        assert env.silver().status == "succeeded"
+        comments = dict(env.q("SELECT table_name, comment FROM duckdb_tables() WHERE schema_name = '03-silver'"))
+        assert comments["deped_enrollment_clean_candidate"].startswith("Unpublished build")
+        assert "use deped_enrollment_quarantine," in comments["deped_enrollment_quarantine_candidate"]
+        assert comments["deped_enrollment_clean"] is None and comments["deped_enrollment_quarantine"] is None
+
+
 def test_a_run_that_dies_while_publishing_is_never_succeeded(env):
     """Quarantine is published first and clean last; a task that dies between them leaves the last
     good clean table, and the run 'running', so Gold, which trusts a table by its run_id, reads it."""
