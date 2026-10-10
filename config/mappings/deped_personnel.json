@@ -1,0 +1,24 @@
+{
+  "source_id": "deped_personnel",
+  "generator": "deped_personnel",
+  "owner": "@mafelisilda",
+  "silver_table": "deped_personnel_clean",
+  "quarantine_table": "deped_personnel_quarantine",
+  "identifier": {"column": "school_id", "pattern": "^[0-9]{6}$"},
+  "dimensions": ["sector", "school_management", "offers_es", "offers_jhs", "offers_shs"],
+  "public_sector": "Public",
+  "boolean_true": ["True"],
+  "boolean_false": ["False"],
+  "integer_max": 2147483647,
+  "enrollment_table": "deped_enrollment_clean",
+  "all_blank_measure": "shs_master_teacher_iv",
+  "principal_total": "shs_total_school_principal",
+  "principal_components": ["shs_school_principal_i", "shs_school_principal_ii", "shs_school_principal_iii", "shs_school_principal_iv"],
+  "rules": {
+    "blank": "Blank measures become NULL and remain distinct from recorded zero.",
+    "scope": "Personnel measures cover public schools only. A populated measure outside Public is quarantined.",
+    "enrollment_outlier": "A populated personnel measure greater than total same-year enrollment quarantines the school row from derived staffing measures.",
+    "principal_total": "The publisher total is retained. A separate calculated total and discrepancy flag are added.",
+    "all_blank": "The published all-blank measure is retained and explicitly flagged as unavailable."
+  }
+}

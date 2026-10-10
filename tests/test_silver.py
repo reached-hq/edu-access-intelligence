@@ -718,8 +718,9 @@ def test_silver_sql_uses_only_what_both_engines_share():
     different things to the two engines; a ';' in a string would break store.split_statements."""
     for path in sorted((REPO_ROOT / "etl" / "03_silver").glob("*.sql")):
         code = "\n".join(line.split("--", 1)[0] for line in path.read_text(encoding="utf-8").splitlines())
-        for token in ("\\", "::", "regexp_matches", "list_", "string_split", "regexp_replace_all", " EXCLUDE ", "[]"):
+        for token in ("\\", "::", "regexp_matches", "string_split", "regexp_replace_all", " EXCLUDE ", "[]"):
             assert token not in code, f"{path.name} uses {token!r}"
+        assert not __import__("re").search(r"\blist_[a-z_]+\s*\(", code), f"{path.name} uses a DuckDB list function"
         for literal in __import__("re").findall(r"'[^']*'", code):
             assert ";" not in literal, f"{path.name}: ';' inside {literal}"
 

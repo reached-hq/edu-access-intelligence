@@ -415,7 +415,7 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 - With the PSA Silver tasks on, an environment whose Bronze has no current PSA batch (no approved workbook loaded) fails the job at `current_batches_present`, as DepEd does: Silver never publishes an empty table as if it were data. Intended (fail loudly rather than serve nothing silently); such an environment loads the workbook first. Raised in review of #121; the team has not yet confirmed it.
 - Every run rebuilds every school year, and starts the SQL warehouse; fine at 180,000 rows, revisit for larger sources.
 - The two Silver tables are published one after the other: a task that dies between them leaves them from different runs until the next run. Gold's rule (the run each table's rows carry) keeps the clean table readable; a reader comparing the two tables must check both runs. A task that dies after both copies but before recording `succeeded` leaves nothing trusted for the source until the next run passes.
-- Only `deped_enrollment` and `psa_poverty_stat` have Silver; facilities and the other sources follow with their own mapping (#86 to #90).
+- `deped_enrollment`, `deped_personnel`, and `psa_poverty_stat` have Silver; facilities and the other sources follow with their own mapping (#86, #88, and #90).
 
 ## Open questions
 
@@ -433,3 +433,16 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 | Should the Bronze gate also count only its own execution's results, so a repaired job run is judged on its own, as the Silver gate does? Changing it means regenerating every source's Bronze gate | Start a new run instead of repairing a failed one | D-020 |
 | Drop `01-control.layer_builds` on dev, created by the cancelled run of 2026-10-08 and no longer used? | Left in place | Team |
 | Should profile.md record the three Bronze findings above (and S-1's correction)? | Recorded here only | D-007 |
+# DepEd personnel
+
+The Personnel Silver lane runs after both the Personnel Bronze gate and the Enrollment Silver gate because its reproducible outlier rule needs total same-year enrollment. It rebuilds `deped_personnel_clean_candidate` and `deped_personnel_quarantine_candidate`, then publishes only after `90_validate_deped_personnel_clean.sql` records no FAIL result.
+
+| Rule | Handling | Expected profiled effect | Possible information loss |
+|---|---|---:|---|
+| 321 personnel measures | Plain whole numbers become nullable `INT`; blank becomes `NULL`; recorded `0` stays `0` | 5,372,726 filled cells, including 5,108,840 recorded zeros | None. Bronze text remains unchanged |
+| Public-school scope and offered level | A populated value outside its documented scope quarantines the school row | 0 profiled violations | The row is excluded from derived staffing measures, but retained in quarantine and Bronze |
+| `shs_master_teacher_iv` | Keep the typed column and set `shs_master_teacher_iv_unavailable` | All 60,167 publisher values blank | No value is invented. The role cannot be analyzed |
+| SHS principal total | Keep `shs_total_school_principal`; add the sum of grades I to IV and a discrepancy flag | 1,090 discrepancies | None. Both totals remain available |
+| Personnel exceeds enrollment | Compare every populated field with total enrollment for the same school and year; quarantine the row and list every affected field | 11 fields across 9 schools | The nine rows are excluded from derived staffing measures, not deleted or rewritten |
+
+The gate writes reconciliation, lineage, blank-versus-zero, principal-discrepancy, all-blank-field, and every quarantine-reason count to `01-control.data_quality_results`. For the approved file, confirm 60,167 Bronze rows equal clean plus quarantine, 9 enrollment-outlier quarantine rows are present, 11 outlier fields are recorded, and 1,090 principal-total discrepancies are flagged.

@@ -66,7 +66,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") == [(0,)]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_enrollment_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'silver_build' "
-                       "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("psa_poverty_stat", "succeeded")]
+                       "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_personnel", "succeeded"),
+                                         ("psa_poverty_stat", "succeeded")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_poverty_stat_clean") == [(18, "job-run-1")]
     linked = store.query(f"""
         SELECT r.source_id, COUNT(q.check_name) FROM {CONTROL}.pipeline_runs AS r
@@ -109,7 +110,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 6), ("silver_build", 2)]   # one filter, both layers
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 6), ("silver_build", 3)]   # one filter, both layers
     store.close()
 
 
