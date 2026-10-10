@@ -426,7 +426,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 05_clean_psa_poverty_stat
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_poverty_stat_raw
           run_if: ALL_SUCCESS
@@ -437,7 +436,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_psa_poverty_stat_clean
-          disabled: true
           depends_on:
             - task_key: 05_clean_psa_poverty_stat
           run_if: ALL_SUCCESS

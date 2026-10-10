@@ -18,6 +18,13 @@ without pretending that the business problem or analytical questions are final.
 Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
 the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
 
+Each Silver table and Silver quarantine also has a **candidate** copy with the
+suffix `_candidate` (for example `deped_enrollment_clean_candidate`): the build
+writes it, the gate checks it, and only a build that passes is copied to the
+Silver table, so a failed build never replaces the last good one (D-025, #119).
+Candidate tables are not read downstream. This is unrelated to the draft
+Integration names below, which the registry calls candidates too.
+
 The three enrollment school years belong in one table. `school_year` identifies
 the delivery year; it should not be encoded in separate table names. Likewise,
 the PSGC workbook and its `PSGC` sheet are one logical input, not separate
