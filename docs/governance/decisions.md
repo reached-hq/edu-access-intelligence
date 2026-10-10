@@ -38,6 +38,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-032 | 2026-10-09 | OSM is used for `school` features only | Accepted | Kindergarten features join only if #9 needs them, after a check against DepEd |
 | D-033 | 2026-10-09 | Barangay population comes from PSGC's `2024 Population` column; the barangay workbooks stay a cross-check | Provisional | `psa_population_per_barangay` is not ingested; PSGC Silver (#88) keeps the population column |
 | D-034 | 2026-10-09 | PSA Poverty Stat Silver is one row per unit and estimate year, typed as DOUBLE, with statistical warnings flagged and impossible values quarantined | Provisional | Gold reads one estimate per row with its CV and interval; a new estimate year needs the Silver SQL regenerated |
+| D-035 | 2026-10-10 | Personnel Silver keeps publisher counts and quarantines reproducible enrollment outliers | Provisional | Blank stays NULL, zero stays 0, publisher and calculated principal totals remain separate, and unsafe rows remain traceable to Bronze |
 
 ---
 

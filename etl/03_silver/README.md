@@ -22,3 +22,5 @@ On Windows, set `PYTHONUTF8=1` first (in PowerShell, `$env:PYTHONUTF8 = "1"`), o
 Implemented: `deped_enrollment` → `deped_enrollment_clean`, `deped_enrollment_quarantine` ([data dictionary](../../docs/data/silver/deped-enrollment-clean.md)); `psa_poverty_stat` → `psa_poverty_stat_clean`, `psa_poverty_stat_quarantine`, one row per unit and estimate year, checked per batch and estimate year ([data dictionary](../../docs/data/silver/psa-poverty-stat-clean.md), D-034; regenerate with `--source psa_poverty_stat`). Final names for the other sources are in the [ETL table registry](../../docs/standards/tables.md).
 
 The SQL uses only what Databricks and DuckDB share; `src/ingestion/store.py` translates `regexp_like` and `regexp_replace` for DuckDB. Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).
+
+Personnel is implemented by `03_clean_deped_personnel.sql` and `90_validate_deped_personnel_clean.sql`. It keeps one typed row per school and school year, records rule counts, and publishes only after reconciliation and lineage checks pass.
