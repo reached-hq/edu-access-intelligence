@@ -26,6 +26,7 @@ BRONZE = "edu_access.`02-bronze`.deped_enrollment_raw"
 def repo(tmp_path):
     root = fake_repo(tmp_path / "repo", empty_config("deped_enrollment"))
     write_config(root, empty_config("deped_facilities"))
+    write_config(root, empty_config("deped_personnel"))
     # PSA Poverty Stat runs through Silver, and its gate fails a build with no current batch, so the job
     # always has one made-up workbook approved for it.
     psa = psa_workbooks.empty_config()
@@ -78,7 +79,7 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
         JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
         WHERE r.job_run_id = 'job-run-1' AND q.layer = 'bronze' GROUP BY 1 ORDER BY 1""")
     assert [source for source, checks in linked if checks > 0] == [
-        "deped_enrollment", "deped_facilities", "hdx_boundaries", "psa_poverty_stat", "psa_psgc"]
+        "deped_enrollment", "deped_facilities", "deped_personnel", "hdx_boundaries", "psa_poverty_stat", "psa_psgc"]
     store.close()
 
 
@@ -114,7 +115,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 5), ("silver_build", 3)]   # one filter, both layers
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 6), ("silver_build", 3)]   # one filter, both layers
     store.close()
 
 
