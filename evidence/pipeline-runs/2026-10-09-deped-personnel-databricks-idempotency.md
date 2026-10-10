@@ -46,7 +46,8 @@ The three whole-table gate checks were:
 - Blank values remained distinct from the text value `0`.
 - No pipeline duplicate rows were found.
 - All 23 recorded checks passed.
-- The complete Windows test suite reported 420 passed and 1 skipped at the reviewed commit.
+- The complete Windows test suite reported 420 passed and 1 skipped at reviewed commit `15fcecbd`.
+- At current branch commit `2da7522`, the complete test suite reported 500 passed and 1 skipped, or 501 tests collected.
 
 ## Limitations
 
