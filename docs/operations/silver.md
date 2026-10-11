@@ -439,7 +439,7 @@ The Personnel Silver lane runs after both the Personnel Bronze gate and the Enro
 
 | Rule | Handling | Expected profiled effect | Possible information loss |
 |---|---|---:|---|
-| 321 personnel measures | Plain whole numbers become nullable `INT`; blank becomes `NULL`; recorded `0` stays `0` | 5,372,726 filled cells, including 5,108,840 recorded zeros | None. Bronze text remains unchanged |
+| 321 personnel measures | Whole numbers become nullable `INT`, including integer-equivalent decimal text such as `0.0` in the four kindergarten fields; blank becomes `NULL`; recorded zero stays `0` | 5,372,726 filled cells, including 5,108,840 recorded zeros | Formatting such as `.0` is removed by typing; Bronze text remains unchanged |
 | Public-school scope and offered level | A populated value outside its documented scope quarantines the school row | 0 profiled violations | The row is excluded from derived staffing measures, but retained in quarantine and Bronze |
 | `shs_master_teacher_iv` | Keep the typed column and set `shs_master_teacher_iv_unavailable` | All 60,167 publisher values blank | No value is invented. The role cannot be analyzed |
 | SHS principal total | Keep `shs_total_school_principal`; add the sum of grades I to IV and a discrepancy flag | 1,090 discrepancies | None. Both totals remain available |

@@ -43,7 +43,7 @@ Bronze preserves all 327 publisher columns as text. It does not quarantine the O
 
 ## Silver
 
-`deped_personnel_clean` keeps one row per school and school year, types all 321 personnel measures as nullable integers, preserves recorded zero separately from blank, and carries Bronze lineage. It retains `shs_total_school_principal` and adds `shs_school_principal_calculated` plus a discrepancy flag. `shs_master_teacher_iv` remains present and nullable, with an explicit unavailable flag.
+`deped_personnel_clean` keeps one row per school and school year, types all 321 personnel measures as nullable integers, accepts integer-equivalent decimal text such as `0.0` in the four kindergarten fields, preserves recorded zero separately from blank, and carries Bronze lineage. It retains `shs_total_school_principal` and adds `shs_school_principal_calculated` plus a discrepancy flag. `shs_master_teacher_iv` remains present and nullable, with an explicit unavailable flag.
 
 `deped_personnel_quarantine` retains invalid rows with every reason and the Bronze `batch_id`. The repeatable O-9 rule compares each populated personnel measure with total enrollment for the same school year. It quarantines the whole school row from derived staffing measures and records every field that exceeded enrollment. Bronze remains unchanged.
 

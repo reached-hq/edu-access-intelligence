@@ -41,7 +41,7 @@ def test_personnel_silver_preserves_values_flags_findings_and_reconciles(tmp_pat
 
     personnel_config = empty_config("deped_personnel")
     personnel_header, personnel_rows = blank_measures("deped_personnel", make_rows(columns("v1", "deped_personnel")))
-    set_values(personnel_header, personnel_rows[0], {"es_master_teacher_i": "0"})
+    set_values(personnel_header, personnel_rows[0], {"es_master_teacher_i": "0", "kinder_teachers_lgu_funding": "2.0"})
     set_values(personnel_header, personnel_rows[1], {"offers_shs": "True", "shs_school_principal_i": "1",
                                                      "shs_total_school_principal": "2"})
     set_values(personnel_header, personnel_rows[2], {"es_master_teacher_i": "5"})
@@ -67,6 +67,7 @@ def test_personnel_silver_preserves_values_flags_findings_and_reconciles(tmp_pat
     assert store.query(f"SELECT COUNT(*) FROM {CLEAN}") == [(2,)]
     assert store.query(f"SELECT COUNT(*) FROM {QUARANTINE}") == [(1,)]
     assert store.query(f"SELECT es_master_teacher_i FROM {CLEAN} WHERE school_id = '900001'") == [(0,)]
+    assert store.query(f"SELECT kinder_teachers_lgu_funding FROM {CLEAN} WHERE school_id = '900001'") == [(2,)]
     assert store.query(f"SELECT shs_master_teacher_iv, shs_master_teacher_iv_unavailable FROM {CLEAN} ORDER BY school_id") == [(None, True), (None, True)]
     assert store.query(f"SELECT shs_total_school_principal, shs_school_principal_calculated, shs_principal_total_discrepancy FROM {CLEAN} WHERE school_id = '900002'") == [(2, 1, True)]
     assert store.query(f"SELECT array_contains(quarantine_reasons, 'personnel_exceeds_enrollment'), enrollment_outlier_fields[1] FROM {QUARANTINE}") == [(True, "es_master_teacher_i")]
