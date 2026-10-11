@@ -1,6 +1,6 @@
 # deped_personnel: DepEd school-level personnel
 
-**Status:** Bronze landed; Silver implemented, pending Databricks confirmation
+**Status:** Bronze landed; Silver confirmed on Databricks `dev`
 
 ## Identity
 
@@ -46,6 +46,8 @@ Bronze preserves all 327 publisher columns as text. It does not quarantine the O
 `deped_personnel_clean` keeps one row per school and school year, types all 321 personnel measures as nullable integers, accepts integer-equivalent decimal text such as `0.0` in the four kindergarten fields, preserves recorded zero separately from blank, and carries Bronze lineage. It retains `shs_total_school_principal` and adds `shs_school_principal_calculated` plus a discrepancy flag. `shs_master_teacher_iv` remains present and nullable, with an explicit unavailable flag.
 
 `deped_personnel_quarantine` retains invalid rows with every reason and the Bronze `batch_id`. The repeatable O-9 rule compares each populated personnel measure with total enrollment for the same school year. It quarantines the whole school row from derived staffing measures and records every field that exceeded enrollment. Bronze remains unchanged.
+
+**Databricks confirmation:** Confirmed on `dev` in job run `423839712402245` at commit `287bc519c1afa8f4e615f6a8eb87e4fba71ad905`. The run reconciled 60,167 Bronze rows to 60,158 clean rows and 9 quarantined rows. The gate recorded 20 PASS, 1 expected WARN, and 0 FAIL results. The nine quarantined enrollment outliers contained 11 affected fields, and the complete source retained all 1,090 known SHS principal-total discrepancies ([evidence](../../../../evidence/pipeline-runs/2026-10-11-deped-personnel-silver.md)).
 
 ## Coverage
 
