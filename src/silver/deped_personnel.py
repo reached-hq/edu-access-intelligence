@@ -98,7 +98,8 @@ def _sum(expressions):
 
 
 def _typed(ref, maximum):
-    return f"CASE WHEN regexp_like({ref}, '^[0-9]+([.]0+)?$') AND TRY_CAST({ref} AS BIGINT) <= {maximum} THEN TRY_CAST({ref} AS INT) END"
+    as_bigint = f"TRY_CAST(TRY_CAST({ref} AS DECIMAL(38, 10)) AS BIGINT)"
+    return f"CASE WHEN regexp_like({ref}, '^[0-9]+([.]0+)?$') AND {as_bigint} <= {maximum} THEN TRY_CAST({as_bigint} AS INT) END"
 
 
 def _name(source):
@@ -121,7 +122,7 @@ def build_sql(spec):
     invalid = {
         "measure_negative": _any([f"regexp_like(n.{_name(c)}, '^-[0-9]+([.]0+)?$')" for c in spec.measures]),
         "measure_uncastable": _any([f"n.{_name(c)} <> '' AND NOT regexp_like(n.{_name(c)}, '^-?[0-9]+([.]0+)?$')" for c in spec.measures]),
-        "measure_above_int_max": _any([f"regexp_like(n.{_name(c)}, '^[0-9]+([.]0+)?$') AND (TRY_CAST(n.{_name(c)} AS BIGINT) IS NULL OR TRY_CAST(n.{_name(c)} AS BIGINT) > {spec.integer_max})" for c in spec.measures]),
+        "measure_above_int_max": _any([f"regexp_like(n.{_name(c)}, '^[0-9]+([.]0+)?$') AND (TRY_CAST(TRY_CAST(n.{_name(c)} AS DECIMAL(38, 10)) AS BIGINT) IS NULL OR TRY_CAST(TRY_CAST(n.{_name(c)} AS DECIMAL(38, 10)) AS BIGINT) > {spec.integer_max})" for c in spec.measures]),
         "measure_outside_public_scope": f"n.sector <> {lit(spec.public_sector)} AND (" + _any([f"n.{_name(c)} <> ''" for c in spec.measures]) + ")",
         "measure_outside_offered_level": _any([f"(n.offers_{level} IN ({', '.join(lit(v) for v in spec.boolean_false)}) AND (" +
                                                _any([f"n.{_name(c)} <> ''" for c in spec.measures if c.startswith(level + "_")], 10) + "))"
