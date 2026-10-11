@@ -109,3 +109,20 @@ Checked read-only through the SQL warehouse after both runs, with the query in [
 Also checked: levels 42,010 / 1,493 / 149 / 82 / 18 / 14 / 2 blank; barangay parents 34,007 municipality, 7,106 city, 897 sub-municipality, none missing; the rule records equal the local run (whitespace 2,874, marker 1, star split 6, placeholders 46, blank level 2, zeros 12, footnotes 19); the four tables (clean, quarantine, and their candidates) belong to `reached-hq`, and only the two candidates carry the "Unpublished build ... Do not read" comment. The warehouse was stopped after the job; this read-only check started it, and it stops on its own when idle.
 
 What this confirms on Databricks: the Spark SQL of the build and the gate (`regexp_like`, `substr`, `split`/`array_contains`, `IS NOT DISTINCT FROM`, `CAST` to DATE and INT), publish-after-gate, and the lineage. What it does not: a failing gate, a quarantined row or a repeated code on Databricks (shown by the local tests), and the business content of run 1 against run 2 (the published table is replaced each run; identical content on rebuild is shown locally, above).
+
+## Repeated after review, at `ee9392c` (2026-10-11, local)
+
+Cath's review of #124 added two things to the gate at `ee9392ca3019e6f46a8c3cc412d75c4000e169b1`: a FAIL check, `province_code_missing_only_where_listed` (a city or municipality with no `province_code` must be an HUC or listed in the rules file; today only Pateros, `1381701000`), and a record, `rule_population_blank_to_null`, for the new `blank` population reason. The gate now writes 52 checks, not 50. The local run was repeated the same way, from a clean checkout of `ee9392c`, on a fresh database:
+
+| | Bronze | Silver run 1 | Silver run 2 |
+|---|---|---|---|
+| Run | `20720b5b-f328-490d-9c0e-acb96f6bbd10` | `local-silver-1-bacb5306` | `local-silver-2-4dda0a5f` |
+| Started (UTC) | 2026-10-11 | 04:06:17 | 04:06:23 |
+| Result | `load initial succeeded`, 43,768 inserted | `succeeded` | `succeeded` |
+| Gate results | | 52 PASS, 0 WARN, 0 FAIL | 52 PASS, 0 WARN, 0 FAIL |
+| `province_code_missing_only_where_listed` | | PASS, 0 | PASS, 0 |
+| `rule_population_blank_to_null` | | 0 | 0 |
+| Clean / quarantined | | 43,768 / 0 | 43,768 / 0 |
+| Content SHA-256 (as above) | | `2aa69c692ebefc61…` | `2aa69c692ebefc61…` |
+
+The content hash equals the one at `9d2ee01`: the review changed the checks, not one value of the table. Every NULL population has a reason (1 `publisher_na`, 0 `blank`); the cities and municipalities with no `province_code` are the 33 HUCs and Pateros; every other count and record equals the run above.
