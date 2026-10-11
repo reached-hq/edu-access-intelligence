@@ -6,7 +6,7 @@ Issue #88 · local DuckDB (D-017) · 2026-10-10, Manila time (UTC+8) · run by @
 
 At commit `9d2ee0181e597cd6c6fc4357a99c67dcd4889ebb`, the generated PSGC Silver build and gate (`etl/03_silver/04_clean_psa_psgc.sql`, `90_validate_psa_psgc_clean.sql`) turn the real 2Q 2026 Bronze rows into `psa_psgc_clean` with every row accounted for, every value equal to its rule applied to its own Bronze cell, and every gate check PASS. A second build gives identical business content.
 
-**Not claimed:** anything about Databricks. The Silver tasks have not run on `dev`.
+Databricks `dev` was confirmed afterwards, on 2026-10-11: [below](#databricks-dev-two-runs-2026-10-11).
 
 ## What was run
 
@@ -61,3 +61,51 @@ Both Silver runs are `succeeded` in `pipeline_runs`, with `code_revision` `9d2ee
 ## How to reproduce
 
 From a clean checkout of `9d2ee01` (or later), with `RAW_DATA_DIR` set: load Bronze with the command above, then run the whole job with `python -m src.job.local_run --db <fresh file>`, or the two Silver files as described. Expected: 43,768 clean rows, 0 quarantined, 50 PASS.
+
+## Databricks `dev`, two runs (2026-10-11)
+
+The job `[dev maeve_lumague] edu_access_pipeline` (job ID `921726647955407`), deployed from branch `feat/88-psgc-silver` at merge commit `a6d34a90910ef03000ce78b2b0e33439b6ca00fc` (the PSGC Silver code of `9d2ee01`, merged with `main` for DepEd personnel #110). The deployed job's `git_source.git_commit` and `code_revision` parameter were both `a6d34a9…`, and the two PSGC Silver tasks were enabled. The run was announced to the team first.
+
+```bash
+databricks bundle validate --target dev --profile reached-hq
+```
+
+```bash
+databricks bundle deploy --target dev --profile reached-hq
+```
+
+```bash
+databricks bundle run edu_access_pipeline --target dev --profile reached-hq
+```
+
+The last command was run twice. The deploy replaced the old `[dev maeve_lumague] bronze_ingest` job (D-020), whose earlier runs are recorded in the Bronze evidence.
+
+| | Run 1 | Run 2 |
+|---|---|---|
+| Job run | `913496403202511` | `677939887807442` |
+| Whole job (Manila; UTC in brackets) | 09:16:42 to 09:24:14 (01:16:42 to 01:24:14), `SUCCESS` | 09:25:52 to 09:30:45 (01:25:52 to 01:30:45), `SUCCESS` |
+| Tasks | 30 `SUCCESS` on the first attempt, 33 disabled | same |
+| Bronze loads | every source skipped its files (PSGC: `skip`, 0 inserted, Bronze 43,768) | same |
+| `04_clean_psa_psgc` | 01:21:02 to 01:22:00 UTC, `SUCCESS` | 01:28:16 to 01:28:38 UTC, `SUCCESS` |
+| `90_validate_psa_psgc_clean` | 01:22:00 to 01:24:10 UTC, `SUCCESS` | 01:28:39 to 01:30:24 UTC, `SUCCESS` |
+| `silver_build` run in `pipeline_runs` | `succeeded`, `code_revision` `a6d34a9…` | `succeeded`, `code_revision` `a6d34a9…` |
+
+After run 2 the CLI printed `unexpected EOF` while fetching the task output; the run itself had ended `TERMINATED SUCCESS`, and the API shows every task's result as above.
+
+Checked read-only through the SQL warehouse after both runs, with the query in [Silver, Running on Databricks (PSGC)](../../docs/operations/silver.md#running-on-databricks-psgc) (commit filled in). Every check OK:
+
+| Check | Expected | Databricks |
+|---|---|---|
+| Clean rows 2026-Q2 / quarantined / repeated keys | 43,768 / 0 / 0 | 43,768 / 0 / 0 |
+| Master reference rows / codes starting with `0` | 43,768 / 29,620 | 43,768 / 29,620 |
+| Names ending in a space | 0 | 0 |
+| Population NULL / zero; regions' total | 1 / 12; 112,727,776 | 1 / 12; 112,727,776 |
+| Blank levels / `urban_rural` unknown / starred income classes | 2 / 38 / 6 | 2 / 38 / 6 |
+| Checks in the last run; FAIL / WARN | 50; 0 / 0 | 50; 0 / 0 |
+| Rows from another commit | 0 | 0 |
+| Silver runs succeeded at this commit; last run | 2; succeeded | 2; succeeded |
+| Candidate rows not published | 0 | 0 |
+
+Also checked: levels 42,010 / 1,493 / 149 / 82 / 18 / 14 / 2 blank; barangay parents 34,007 municipality, 7,106 city, 897 sub-municipality, none missing; the rule records equal the local run (whitespace 2,874, marker 1, star split 6, placeholders 46, blank level 2, zeros 12, footnotes 19); the four tables (clean, quarantine, and their candidates) belong to `reached-hq`, and only the two candidates carry the "Unpublished build ... Do not read" comment. The warehouse was stopped after the job; this read-only check started it, and it stops on its own when idle.
+
+What this confirms on Databricks: the Spark SQL of the build and the gate (`regexp_like`, `substr`, `split`/`array_contains`, `IS NOT DISTINCT FROM`, `CAST` to DATE and INT), publish-after-gate, and the lineage. What it does not: a failing gate, a quarantined row or a repeated code on Databricks (shown by the local tests), and the business content of run 1 against run 2 (the published table is replaced each run; identical content on rebuild is shown locally, above).
