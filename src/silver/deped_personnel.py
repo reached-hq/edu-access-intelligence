@@ -206,7 +206,7 @@ def gate_sql(spec):
     union_sql = ("\n  UNION ALL ").join(unions)
     blank_bronze = " + ".join(f"CASE WHEN b.{bq(x)} IS NULL OR b.{bq(x)} = '' THEN 1 ELSE 0 END" for x in spec.measures)
     blank_silver = " + ".join(f"CASE WHEN c.{_name(x)} IS NULL THEN 1 ELSE 0 END" for x in spec.measures)
-    zero_bronze = " + ".join(f"CASE WHEN b.{bq(x)} = '0' THEN 1 ELSE 0 END" for x in spec.measures)
+    zero_bronze = " + ".join(f"CASE WHEN {_typed('b.' + bq(x), spec.integer_max)} = 0 THEN 1 ELSE 0 END" for x in spec.measures)
     zero_silver = " + ".join(f"CASE WHEN c.{_name(x)} = 0 THEN 1 ELSE 0 END" for x in spec.measures)
     lines = _header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [
         "-- Records every rule count, stops before publishing on FAIL, then publishes quarantine before clean.", "",
