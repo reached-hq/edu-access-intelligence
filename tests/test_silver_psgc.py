@@ -326,6 +326,50 @@ def test_a_duplicated_code_is_quarantined_everywhere_and_fails_the_gate(env):
     assert not env.exists(CLEAN)
 
 
+def test_a_missing_province_row_fails_the_gate(env):
+    """Cath's review of #124: without its province row, a municipality looks like an HUC or Pateros. Only an HUC
+    (city_class) or a listed exception may have no province_code, so this must FAIL, not pass silently."""
+    rows = [r for r in default_rows() if r[0] != "0000100000"]       # drop the made-up province
+    env.deliver(rows=rows)
+    env.bronze()
+    result = env.silver()
+    assert result.status == "failed"
+    failed = env.checks(result.run_id, "FAIL")
+    assert set(failed) == {"province_code_missing_only_where_listed"}, set(failed)
+    assert failed["province_code_missing_only_where_listed"]["actual"] == "1"
+    assert not env.exists(CLEAN)
+
+
+def test_an_hucs_missing_province_is_expected(env):
+    env.deliver()                                                    # 2000102000 is an HUC with no province row
+    env.bronze()
+    result = env.silver()
+    assert result.status == "succeeded", result.error
+    assert env.checks(result.run_id)["province_code_missing_only_where_listed"]["actual"] == "0"
+    assert env.row("2000102000")["province_code"] is None
+
+
+def test_a_blank_population_is_null_with_its_reason_and_counted(env):
+    rows = default_rows()
+    rows[4][8] = ""                                                  # a blank population cell
+    env.deliver(rows=rows)
+    env.bronze()
+    result = env.silver()
+    assert result.status == "succeeded", result.error
+    blank = env.row("0000101002")
+    assert (blank["population"], blank["population_null_reason"], blank["population_is_zero"]) == (None, "blank", False)
+    assert env.checks(result.run_id)["rule_population_blank_to_null"]["actual"] == "1"
+    assert env.row("2099900000")["population_null_reason"] == "publisher_na"
+
+
+def test_rows_point_to_themselves_as_their_own_region_and_province(env):
+    env.deliver()
+    env.bronze()
+    env.silver()
+    assert env.row("0000000000")["region_code"] == "0000000000"
+    assert env.row("0000100000")["province_code"] == "0000100000"
+
+
 def test_a_malformed_correspondence_code_is_quarantined_with_a_warning(env):
     env.deliver(rows=many_barangays(150, {0: {2: "12345"}}))
     env.bronze()
@@ -411,6 +455,8 @@ def test_a_new_publisher_column_needs_a_reviewed_rule():
     (lambda m: m["categories"]["status"]["labels"].append({"published": "O'Brien", "standard": "x"}), "quotes"),
     (lambda m: m["quarantine"].update(fail_above_percent=100), "fail_above_percent"),
     (lambda m: m["hierarchy"]["levels"].update(province="Province"), "hierarchy.levels"),
+    (lambda m: m["hierarchy"].update(no_province_city_class="Metro"), "no_province_city_class"),
+    (lambda m: m["hierarchy"]["no_province_exceptions"].append({"code": "13817", "name": "x"}), "no_province_exceptions"),
     (lambda m: m.update(silver_table="psgc_clean"), "config/tables.yml"),
     (lambda m: m["categories"].pop("status"), "no Silver rule"),
 ])

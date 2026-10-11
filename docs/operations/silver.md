@@ -427,7 +427,7 @@ bronze_psa_psgc               Python: check and load the workbook (skip when alr
    │                                           psa_psgc_quarantine_candidate  rows that cannot be trusted
    │  only if it succeeded
    ▼
-90_validate_psa_psgc_clean    SQL: 50 results for one current quarter (6 whole build, 44 per batch); any FAIL:
+90_validate_psa_psgc_clean    SQL: 52 results for one current quarter (6 whole build, 46 per batch); any FAIL:
                                    'failed', stop, nothing published; else publish quarantine, then clean,
                                    then 'succeeded'
 ```
@@ -447,7 +447,7 @@ Every rule, label and count is in [config/mappings/psa_psgc.json](../../config/m
 | Current batches only | Reads Bronze rows whose `batch_id` is in `current_batches` | D-015 | 43,768 rows, one quarter |
 | Codes as published | `psgc_code` exactly as published (leading zeros kept, never padded or trimmed); `correspondence_code` too, blank → NULL, never derived | O-1, O-3, D-030 | 29,620 codes start with 0; 50 NULL correspondence codes |
 | Text | `name`, `old_names` and the renamed `population_footnote` (column J): tabs, no-break spaces and runs of spaces become one space, trimmed; blank → NULL; spelling unchanged | O-9, O-11, O-6, D-023 | 2,855 trailing spaces removed |
-| Population | `population` INT when 1 to 9 digits; `#N/A` → NULL with `population_null_reason = 'publisher_na'`; 0 stays 0 (`population_is_zero`) | O-4, D-033 | 1 NULL (City of Isabela container), 12 zeros |
+| Population | `population` INT when 1 to 9 digits; `#N/A` → NULL with `population_null_reason = 'publisher_na'`, a blank cell → NULL with `blank`; 0 stays 0 (`population_is_zero`) | O-4, D-033 | 1 NULL (City of Isabela container), 12 zeros |
 | Income class | Split into `income_class` and `income_class_retained_after_downgrade` (the star); `-` → NULL with `income_class_null_reason = 'not_classified'` | O-7 | 6 starred, 8 `-` |
 | Categories | `geographic_level`, `city_class`, `urban_rural`, `status` kept as published, each through its list of accepted labels (D-022); `urban_rural` `-` → NULL with `urban_rural_null_reason = 'unknown'`, never rural | O-2, O-8, O-12 | 38 `-` |
 | Blank level | Stays NULL with `level_blank`; no level is assigned (open decision) | O-2 | 2 rows |
@@ -459,9 +459,9 @@ A row is quarantined, with every reason that applies, when its code is blank (`p
 
 ### The gate (PSGC)
 
-FAIL checks: `current_batches_present`, `master_reference_current` (exactly one current batch of the master quarter), `lineage_complete`, `rows_resolve_to_current_bronze`, `rows_built_by_this_run`, `one_timestamp_per_run`; per batch `rows_reconcile` (Bronze rows = clean + quarantined), `psgc_code_unique`, `psgc_code_valid`, `psgc_code_duplicates_absent`, `<column>_matches_bronze` for each of the 18 Silver value columns (the value equals the rule applied to its own Bronze cell), `labels_mapped_<column>` for the five category columns (an unlisted label fails, D-022), `region_code_exists`, `province_code_exists`, `city_municipality_code_exists` (every derived parent is a published row of the same quarter), `flags_consistent`, and `quarantine_rate`. WARN checks: each quarantine reason. Records (always PASS): `flag_level_blank`, `flag_population_is_zero`, `flag_has_population_footnote`, `rule_text_whitespace_normalized`, `rule_population_marker_to_null`, `rule_income_class_star_split`, `rule_placeholder_to_null`. The gate never compares with hardcoded 2Q 2026 counts: each quarter is reconciled with its own Bronze rows, and Bronze already compared the workbook with its `National Summary`. `psa_psgc.gate_checks()` lists every check, and a test checks the SQL writes exactly those.
+FAIL checks: `current_batches_present`, `master_reference_current` (exactly one current batch of the master quarter), `lineage_complete`, `rows_resolve_to_current_bronze`, `rows_built_by_this_run`, `one_timestamp_per_run`; per batch `rows_reconcile` (Bronze rows = clean + quarantined), `psgc_code_unique`, `psgc_code_valid`, `psgc_code_duplicates_absent`, `<column>_matches_bronze` for each of the 18 Silver value columns (the value equals the rule applied to its own Bronze cell), `labels_mapped_<column>` for the five category columns (an unlisted label fails, D-022), `region_code_exists`, `province_code_exists`, `city_municipality_code_exists` (every derived parent is a published row of the same quarter), `province_code_missing_only_where_listed` (a city or municipality with no `province_code` must be an HUC or listed in the rules file's `no_province_exceptions`, today only Pateros, `1381701000`; anything else means a province row is missing), `flags_consistent`, and `quarantine_rate`. WARN checks: each quarantine reason. Records (always PASS): `flag_level_blank`, `flag_population_is_zero`, `flag_has_population_footnote`, `rule_text_whitespace_normalized`, `rule_population_marker_to_null`, `rule_population_blank_to_null`, `rule_income_class_star_split`, `rule_placeholder_to_null`. The gate never compares with hardcoded 2Q 2026 counts: each quarter is reconciled with its own Bronze rows, and Bronze already compared the workbook with its `National Summary`. `psa_psgc.gate_checks()` lists every check, and a test checks the SQL writes exactly those.
 
-On the 2Q 2026 workbook every result is PASS. Records: 2 blank levels, 12 zeros, 19 footnotes, 2,874 rows whose text changed (2,855 names, plus old names and footnotes), 1 marker, 6 starred classes, 46 placeholder cells.
+On the 2Q 2026 workbook every result is PASS. Records: 2 blank levels, 12 zeros, 0 blank populations, 19 footnotes, 2,874 rows whose text changed (2,855 names, plus old names and footnotes), 1 marker, 6 starred classes, 46 placeholder cells.
 
 ### Running locally (PSGC)
 
@@ -504,7 +504,7 @@ checks AS (
   UNION ALL SELECT 'blank levels', '2', CAST(COUNT_IF(level_blank) AS STRING) FROM c
   UNION ALL SELECT 'urban_rural unknown', '38', CAST(COUNT_IF(urban_rural_null_reason = 'unknown') AS STRING) FROM c
   UNION ALL SELECT 'starred income classes', '6', CAST(COUNT_IF(income_class_retained_after_downgrade) AS STRING) FROM c
-  UNION ALL SELECT 'checks in the last run', '50', CAST(COUNT(*) AS STRING) FROM d
+  UNION ALL SELECT 'checks in the last run', '52', CAST(COUNT(*) AS STRING) FROM d
   UNION ALL SELECT 'FAIL / WARN in the last run', '0 / 0', COUNT_IF(status = 'FAIL') || ' / ' || COUNT_IF(status = 'WARN') FROM d
   UNION ALL SELECT 'rows from another commit', '0', CAST(COUNT_IF(code_revision <> '<commit that ran>') AS STRING) FROM c
   UNION ALL SELECT 'last silver run', 'succeeded', MAX(status) FROM pr WHERE run_id = (SELECT run_id FROM last_run)
@@ -520,6 +520,8 @@ What only Databricks can show for PSGC: Spark's `regexp_like`, `substr`, `split`
 - `psgc_code` is unique per quarter, with every parent it names published in the same quarter: join on it as text, never as a number.
 - `correspondence_code` may be joined for sources that carry old 9-digit codes, one-to-one and name-checked, with `match_method = correspondence_code` (D-029, D-030). The 50 rows without one match by name only.
 - `name` is trimmed, not otherwise standardized. Match DepEd names inside their parent (`city_municipality_code`, `province_code`), never on region, then `old_names`; flag ambiguous matches and never force one (D-012). The 33 HUCs and Pateros have no `province_code`.
+- **City of Manila:** its 897 barangays point to its 14 sub-municipalities (`city_municipality_code` `1380601000` to `1380614000`), not to the City of Manila (`1380600000`), and have no `province_code` (Manila is an HUC). A sub-municipality rolls up to Manila by its first 5 digits + `00000`. For DepEd's "CITY OF MANILA" or a city-level total, Integration must include the 14 sub-municipalities, or a Manila total comes out empty or split.
+- `region_code` and `province_code` point to the row itself for a region, a province and the two blank-level containers: a group by `province_code` holds the province's own row as well as its units, so exclude `geographic_level = 'Prov'` before summing population.
 - Barangay population is `population` (D-033): NULL is not 0 (`population_null_reason`), a 0 is a published 0, and a province's population excludes the cities in its `population_footnote`. The 18 regions sum to 112,727,776, 1,708 below the national total (O-4): never compare a sum of units with the national figure.
 - `urban_rural` NULL with `unknown` is not rural; report the urban share with its denominator. `income_class` is NULL below the municipality level.
 - The two blank-level rows (`level_blank`) are containers, not provinces: City of Isabela (`0990100000`, population NULL) and the Special Geographic Area (`1999900000`). They have no level until the team decides one.

@@ -92,7 +92,10 @@ class PsgcSpec:
     income: str
     income_labels: list
     categories: dict            # Bronze column -> [Label]
-    levels: dict                # region, province, barangay -> published level
+    levels: dict                # region, province, city, municipality, barangay -> published level
+    no_province_city_class: str  # a city of this class has no province above it (HUC)
+    no_province_codes: list      # cities or municipalities listed as having no province (Pateros)
+    population_blank_reason: str
     quarantine_fail_percent: float
     mapping: dict = field(repr=False)
 
@@ -192,6 +195,17 @@ def build_spec(mapping, contract, registry_entry):
     level_labels = {l.standard for l in categories["geographic_level"]}
     if not set(levels.values()) <= level_labels:
         raise _error("hierarchy.levels must name accepted geographic_level labels.")
+    if not {"region", "province", "city", "municipality", "barangay"} <= set(levels):
+        raise _error("hierarchy.levels must name the region, province, city, municipality and barangay labels.")
+    huc = mapping["hierarchy"]["no_province_city_class"]
+    if huc not in {l.standard for l in categories["city_class"]}:
+        raise _error("hierarchy.no_province_city_class must be an accepted city_class label.")
+    exceptions = [e["code"] for e in mapping["hierarchy"].get("no_province_exceptions", [])]
+    if any(not re.fullmatch(mapping["identifier"]["pattern"], c) for c in exceptions) or len(set(exceptions)) != len(exceptions):
+        raise _error("hierarchy.no_province_exceptions must list distinct, valid PSGC codes.")
+    blank_reason = mapping["population"]["blank_reason"]
+    if not SAFE_LITERAL.match(blank_reason):
+        raise _error("population.blank_reason may not contain quotes, backslashes or ';'.")
     percent = mapping["quarantine"]["fail_above_percent"]
     if not isinstance(percent, (int, float)) or not 0 <= percent < 100:
         raise _error("quarantine.fail_above_percent must be a number from 0 to under 100.")
@@ -204,7 +218,8 @@ def build_spec(mapping, contract, registry_entry):
         identifier_pattern=mapping["identifier"]["pattern"], correspondence=correspondence,
         correspondence_pattern=mapping["codes"][correspondence]["pattern"], text_columns=text,
         population=population, population_markers=markers, income=income, income_labels=income_labels,
-        categories=categories, levels=levels, quarantine_fail_percent=percent, mapping=mapping,
+        categories=categories, levels=levels, no_province_city_class=huc, no_province_codes=exceptions,
+        population_blank_reason=blank_reason, quarantine_fail_percent=percent, mapping=mapping,
     )
 
 
@@ -275,7 +290,8 @@ def _population(ref):
 
 
 def _population_reason(spec, ref):
-    return _case(ref, [(m, lit(r)) for m, r in spec.population_markers.items()])
+    """A published marker's reason, or the blank reason: a NULL population always says why."""
+    return _case(ref, [*[(m, lit(r)) for m, r in spec.population_markers.items()], ("", lit(spec.population_blank_reason))])
 
 
 def _population_uncastable(spec, ref):
@@ -475,11 +491,13 @@ def gate_checks(spec):
              ("psgc_code_duplicates_absent", "FAIL")]
     batch += [(f"{c}_matches_bronze", "FAIL") for c in _value_checks(spec)]
     batch += [(f"labels_mapped_{c}", "FAIL") for c in [*spec.categories, spec.income]]
-    batch += [("region_code_exists", "FAIL"), ("province_code_exists", "FAIL"), ("city_municipality_code_exists", "FAIL"),
+    batch += [("region_code_exists", "FAIL"), ("province_code_exists", "FAIL"),
+              ("province_code_missing_only_where_listed", "FAIL"), ("city_municipality_code_exists", "FAIL"),
               ("flags_consistent", "FAIL"), ("quarantine_rate", "WARN/FAIL")]
     batch += [(f"quarantine_reason_{r}", "WARN") for r in QUARANTINE_REASONS]
     batch += [(f"flag_{f}", "record") for f in FLAGS]
     batch += [("rule_text_whitespace_normalized", "record"), ("rule_population_marker_to_null", "record"),
+              ("rule_population_blank_to_null", "record"),
               ("rule_income_class_star_split", "record"), ("rule_placeholder_to_null", "record")]
     return [(n, "whole", s) for n, s in whole] + [(n, "batch", s) for n, s in batch]
 
@@ -505,6 +523,7 @@ def gate_sql(spec):
         "b.batch_id", "COUNT(*) AS bronze_rows",
         f"COUNT_IF({text_changed}) AS whitespace_rows",
         f"COUNT_IF(b.{bq(spec.population)} IN ({', '.join(lit(m) for m in spec.population_markers)})) AS marker_rows",
+        f"COUNT_IF(b.{bq(spec.population)} = '') AS blank_population_rows",
         f"COUNT_IF({_norm('b.' + bq(spec.income))} IN ({', '.join(lit(s) for s in star)})) AS starred_rows",
         f"SUM({placeholder_cells}) AS placeholder_cells",
     ]
@@ -517,6 +536,11 @@ def gate_sql(spec):
           for col, labels in [*spec.categories.items(), (spec.income, spec.income_labels)]],
         "COUNT_IF(reg.psgc_code IS NULL) AS missing_region",
         "COUNT_IF(c.province_code IS NOT NULL AND prov.psgc_code IS NULL) AS missing_province",
+        # A city or municipality with no province must be an HUC or a listed exception, else a province row is missing.
+        (f"COUNT_IF(c.geographic_level IN ({lit(spec.levels['city'])}, {lit(spec.levels['municipality'])})\n"
+         f"        AND c.province_code IS NULL AND COALESCE(c.city_class, '') <> {lit(spec.no_province_city_class)}\n"
+         f"        AND c.psgc_code NOT IN ({', '.join(lit(x) for x in spec.no_province_codes) or lit('')})"
+         ") AS unexplained_no_province"),
         (f"COUNT_IF((c.geographic_level = {barangay} OR c.city_municipality_code IS NOT NULL)\n"
          "        AND cm.psgc_code IS NULL) AS missing_city_municipality"),
         (f"COUNT_IF(c.level_blank IS DISTINCT FROM ({_norm('b.geographic_level')} IS NULL)\n"
@@ -527,10 +551,11 @@ def gate_sql(spec):
     ]
     quarantine_agg = ["q.batch_id", "COUNT(*) AS quarantined_rows"] + [
         f"COUNT_IF(array_contains(q.quarantine_reasons, {lit(r)})) AS reason_{r}" for r in QUARANTINE_REASONS]
-    batch_values = ["bronze_rows", "whitespace_rows", "marker_rows", "starred_rows", "placeholder_cells", "clean_rows",
+    batch_values = ["bronze_rows", "whitespace_rows", "marker_rows", "blank_population_rows", "starred_rows",
+                    "placeholder_cells", "clean_rows",
                     "clean_codes", "invalid_codes", *[f"mismatched_{c}" for c in values],
                     *[f"unmapped_{c}" for c in [*spec.categories, spec.income]], "missing_region", "missing_province",
-                    "missing_city_municipality", "inconsistent_flags", *[f"flagged_{f}" for f in FLAGS],
+                    "unexplained_no_province", "missing_city_municipality", "inconsistent_flags", *[f"flagged_{f}" for f in FLAGS],
                     "quarantined_rows", *[f"reason_{r}" for r in QUARANTINE_REASONS]]
     batches = ["cur.batch_id"] + [f"COALESCE({v}, 0) AS {v}" for v in batch_values]
 
@@ -577,6 +602,7 @@ def gate_sql(spec):
         *[must_be_zero(f"labels_mapped_{c}", f"unmapped_{c}") for c in [*spec.categories, spec.income]],
         must_be_zero("region_code_exists", "missing_region"),
         must_be_zero("province_code_exists", "missing_province"),
+        must_be_zero("province_code_missing_only_where_listed", "unexplained_no_province"),
         must_be_zero("city_municipality_code_exists", "missing_city_municipality"),
         must_be_zero("flags_consistent", "inconsistent_flags"),
         f"-- Each current batch: quarantine (WARN above 0, FAIL above {_number(spec.quarantine_fail_percent)}% of its rows)",
@@ -589,6 +615,7 @@ def gate_sql(spec):
         *[record(f"flag_{f}", f"flagged_{f}") for f in FLAGS],
         record("rule_text_whitespace_normalized", "whitespace_rows"),
         record("rule_population_marker_to_null", "marker_rows"),
+        record("rule_population_blank_to_null", "blank_population_rows"),
         record("rule_income_class_star_split", "starred_rows"),
         record("rule_placeholder_to_null", "placeholder_cells"),
     ]
@@ -757,9 +784,12 @@ def dictionary_markdown(spec):
          "No code published (50 rows in 2Q 2026)", "O-3, D-030"),
         ("geographic_level", "STRING", "`geographic_level`", f"Accepted labels: {labels('geographic_level')}",
          "Blank in the workbook (`level_blank`)", "O-2"),
-        ("region_code", "STRING", "`psgc_code`", "First 2 digits + 8 zeros: the region the code belongs to. The gate asserts it is a published region row", "Code not valid (never in Silver)", "O-10"),
-        ("province_code", "STRING", "`psgc_code`", "First 5 digits + 5 zeros, when that code is a province row or a blank-level container of the same quarter", "No province above the unit (regions, NCR, HUCs)", "O-10"),
-        ("city_municipality_code", "STRING", "`psgc_code`", "Barangays only: first 7 digits + 3 zeros, the city, municipality or sub-municipality holding it", "Not a barangay", "O-10"),
+        ("region_code", "STRING", "`psgc_code`", "First 2 digits + 8 zeros: the region the code belongs to. A region row points to itself. The gate asserts it is a published region row", "Code not valid (never in Silver)", "O-10"),
+        ("province_code", "STRING", "`psgc_code`", "First 5 digits + 5 zeros, when that code is a province row or a blank-level container of the same quarter. "
+         "Province and container rows point to themselves, so a province's own row is in its own group", "No province above the unit: "
+         f"regions, sub-municipalities, HUCs and the listed exceptions ({', '.join(spec.no_province_codes)}); the gate FAILs any other", "O-10"),
+        ("city_municipality_code", "STRING", "`psgc_code`", "Barangays only: first 7 digits + 3 zeros, the city, municipality or sub-municipality holding it. Manila's barangays point "
+         "to its 14 sub-municipalities, which roll up to the City of Manila by their first 5 digits + `00000`", "Not a barangay", "O-10"),
         (old_to, "STRING", "`old_names`", m["free_text_columns"]["old_names"]["rule"], "No former name published", "O-11"),
         ("city_class", "STRING", "`city_class`", f"Accepted labels: {labels('city_class')}", "Not a city", "Bronze counts"),
         ("income_class", "STRING", "`income_classification`", f"The class without the star. Accepted labels: {income}",
@@ -771,7 +801,7 @@ def dictionary_markdown(spec):
          "Not a barangay, or `-` (`urban_rural_null_reason`)", "O-8"),
         ("urban_rural_null_reason", "STRING", "`urban_rural`", "`unknown` for the published `-`", "U or R published, or not a barangay", "O-8"),
         ("population", "INT", "`population`", m["population"]["rule"], "`#N/A` (`population_null_reason`) or blank", "O-4, D-033"),
-        ("population_null_reason", "STRING", "`population`", "`publisher_na` for the published `#N/A`", "A number is published", "O-4"),
+        ("population_null_reason", "STRING", "`population`", "`publisher_na` for the published `#N/A`; `blank` for a blank cell", "A number is published", "O-4"),
         (foot_to, "STRING", "`column_j_footnote`", m["renames"]["column_j_footnote"]["rule"], "No footnote", "O-6"),
         ("status", "STRING", "`status`", f"Accepted labels: {labels('status')}", "No status", "O-12, S-5"),
         ("level_blank", "BOOLEAN", "`geographic_level`", "TRUE when the level was blank in the workbook", "Never", "O-2"),

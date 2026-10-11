@@ -96,7 +96,7 @@ SELECT
   CASE n.n_urban_rural WHEN 'U' THEN 'U' WHEN 'R' THEN 'R' WHEN '-' THEN NULL ELSE NULL END AS urban_rural,
   CASE n.n_urban_rural WHEN '-' THEN 'unknown' ELSE NULL END AS urban_rural_null_reason,
   CASE WHEN regexp_like(n.`population`, '^[0-9]{1,9}$') THEN CAST(n.`population` AS INT) END AS population,
-  CASE n.`population` WHEN '#N/A' THEN 'publisher_na' ELSE NULL END AS population_null_reason,
+  CASE n.`population` WHEN '#N/A' THEN 'publisher_na' WHEN '' THEN 'blank' ELSE NULL END AS population_null_reason,
   n.n_column_j_footnote AS population_footnote,
   CASE n.n_status WHEN 'Capital' THEN 'Capital' WHEN 'Pob.' THEN 'Pob.' ELSE NULL END AS status,
   (n.n_geographic_level IS NULL) AS level_blank,

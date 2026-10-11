@@ -42,6 +42,7 @@ bronze_batches AS (
     COUNT(*) AS bronze_rows,
     COUNT_IF(TRIM(regexp_replace(translate(b.`name`, chr(9) || chr(160), '  '), ' +', ' ')) <> b.`name` OR TRIM(regexp_replace(translate(b.`old_names`, chr(9) || chr(160), '  '), ' +', ' ')) <> b.`old_names` OR TRIM(regexp_replace(translate(b.`column_j_footnote`, chr(9) || chr(160), '  '), ' +', ' ')) <> b.`column_j_footnote`) AS whitespace_rows,
     COUNT_IF(b.`population` IN ('#N/A')) AS marker_rows,
+    COUNT_IF(b.`population` = '') AS blank_population_rows,
     COUNT_IF(NULLIF(TRIM(regexp_replace(translate(b.`income_classification`, chr(9) || chr(160), '  '), ' +', ' ')), '') IN ('2nd*', '3rd*', '4th*')) AS starred_rows,
     SUM(CASE WHEN NULLIF(TRIM(regexp_replace(translate(b.`urban_rural`, chr(9) || chr(160), '  '), ' +', ' ')), '') IN ('-') THEN 1 ELSE 0 END + CASE WHEN NULLIF(TRIM(regexp_replace(translate(b.`income_classification`, chr(9) || chr(160), '  '), ' +', ' ')), '') IN ('-') THEN 1 ELSE 0 END) AS placeholder_cells
   FROM bronze AS b
@@ -71,7 +72,7 @@ clean_batches AS (
     COUNT_IF(b.source_row_number IS NULL OR NOT (c.income_class_retained_after_downgrade IS NOT DISTINCT FROM CASE NULLIF(TRIM(regexp_replace(translate(b.`income_classification`, chr(9) || chr(160), '  '), ' +', ' ')), '') WHEN '1st' THEN FALSE WHEN '2nd' THEN FALSE WHEN '3rd' THEN FALSE WHEN '4th' THEN FALSE WHEN '5th' THEN FALSE WHEN '2nd*' THEN TRUE WHEN '3rd*' THEN TRUE WHEN '4th*' THEN TRUE ELSE NULL END)) AS mismatched_income_class_retained_after_downgrade,
     COUNT_IF(b.source_row_number IS NULL OR NOT (c.income_class_null_reason IS NOT DISTINCT FROM CASE NULLIF(TRIM(regexp_replace(translate(b.`income_classification`, chr(9) || chr(160), '  '), ' +', ' ')), '') WHEN '-' THEN 'not_classified' ELSE NULL END)) AS mismatched_income_class_null_reason,
     COUNT_IF(b.source_row_number IS NULL OR NOT (c.population IS NOT DISTINCT FROM CASE WHEN regexp_like(b.`population`, '^[0-9]{1,9}$') THEN CAST(b.`population` AS INT) END)) AS mismatched_population,
-    COUNT_IF(b.source_row_number IS NULL OR NOT (c.population_null_reason IS NOT DISTINCT FROM CASE b.`population` WHEN '#N/A' THEN 'publisher_na' ELSE NULL END)) AS mismatched_population_null_reason,
+    COUNT_IF(b.source_row_number IS NULL OR NOT (c.population_null_reason IS NOT DISTINCT FROM CASE b.`population` WHEN '#N/A' THEN 'publisher_na' WHEN '' THEN 'blank' ELSE NULL END)) AS mismatched_population_null_reason,
     COUNT_IF((NULLIF(TRIM(regexp_replace(translate(b.`geographic_level`, chr(9) || chr(160), '  '), ' +', ' ')), '') IS NOT NULL AND NULLIF(TRIM(regexp_replace(translate(b.`geographic_level`, chr(9) || chr(160), '  '), ' +', ' ')), '') NOT IN ('Reg', 'Prov', 'City', 'Mun', 'SubMun', 'Bgy'))) AS unmapped_geographic_level,
     COUNT_IF((NULLIF(TRIM(regexp_replace(translate(b.`city_class`, chr(9) || chr(160), '  '), ' +', ' ')), '') IS NOT NULL AND NULLIF(TRIM(regexp_replace(translate(b.`city_class`, chr(9) || chr(160), '  '), ' +', ' ')), '') NOT IN ('HUC', 'ICC', 'CC'))) AS unmapped_city_class,
     COUNT_IF((NULLIF(TRIM(regexp_replace(translate(b.`urban_rural`, chr(9) || chr(160), '  '), ' +', ' ')), '') IS NOT NULL AND NULLIF(TRIM(regexp_replace(translate(b.`urban_rural`, chr(9) || chr(160), '  '), ' +', ' ')), '') NOT IN ('U', 'R', '-'))) AS unmapped_urban_rural,
@@ -79,6 +80,9 @@ clean_batches AS (
     COUNT_IF((NULLIF(TRIM(regexp_replace(translate(b.`income_classification`, chr(9) || chr(160), '  '), ' +', ' ')), '') IS NOT NULL AND NULLIF(TRIM(regexp_replace(translate(b.`income_classification`, chr(9) || chr(160), '  '), ' +', ' ')), '') NOT IN ('1st', '2nd', '3rd', '4th', '5th', '2nd*', '3rd*', '4th*', '-'))) AS unmapped_income_classification,
     COUNT_IF(reg.psgc_code IS NULL) AS missing_region,
     COUNT_IF(c.province_code IS NOT NULL AND prov.psgc_code IS NULL) AS missing_province,
+    COUNT_IF(c.geographic_level IN ('City', 'Mun')
+        AND c.province_code IS NULL AND COALESCE(c.city_class, '') <> 'HUC'
+        AND c.psgc_code NOT IN ('1381701000')) AS unexplained_no_province,
     COUNT_IF((c.geographic_level = 'Bgy' OR c.city_municipality_code IS NOT NULL)
         AND cm.psgc_code IS NULL) AS missing_city_municipality,
     COUNT_IF(c.level_blank IS DISTINCT FROM (NULLIF(TRIM(regexp_replace(translate(b.geographic_level, chr(9) || chr(160), '  '), ' +', ' ')), '') IS NULL)
@@ -112,6 +116,7 @@ batches AS (
     COALESCE(bronze_rows, 0) AS bronze_rows,
     COALESCE(whitespace_rows, 0) AS whitespace_rows,
     COALESCE(marker_rows, 0) AS marker_rows,
+    COALESCE(blank_population_rows, 0) AS blank_population_rows,
     COALESCE(starred_rows, 0) AS starred_rows,
     COALESCE(placeholder_cells, 0) AS placeholder_cells,
     COALESCE(clean_rows, 0) AS clean_rows,
@@ -142,6 +147,7 @@ batches AS (
     COALESCE(unmapped_income_classification, 0) AS unmapped_income_classification,
     COALESCE(missing_region, 0) AS missing_region,
     COALESCE(missing_province, 0) AS missing_province,
+    COALESCE(unexplained_no_province, 0) AS unexplained_no_province,
     COALESCE(missing_city_municipality, 0) AS missing_city_municipality,
     COALESCE(inconsistent_flags, 0) AS inconsistent_flags,
     COALESCE(flagged_level_blank, 0) AS flagged_level_blank,
@@ -288,6 +294,9 @@ unresolved AS (
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_psgc_clean_candidate' AS table_name, 'province_code_exists' AS check_name,
          CASE WHEN missing_province = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(missing_province AS STRING) AS actual FROM batches
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_psgc_clean_candidate' AS table_name, 'province_code_missing_only_where_listed' AS check_name,
+         CASE WHEN unexplained_no_province = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
+         CAST(0 AS STRING) AS expected, CAST(unexplained_no_province AS STRING) AS actual FROM batches
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_psgc_clean_candidate' AS table_name, 'city_municipality_code_exists' AS check_name,
          CASE WHEN missing_city_municipality = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(0 AS STRING) AS expected, CAST(missing_city_municipality AS STRING) AS actual FROM batches
@@ -329,6 +338,9 @@ unresolved AS (
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_psgc_clean_candidate' AS table_name, 'rule_population_marker_to_null' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(marker_rows AS STRING) AS actual FROM batches
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_psgc_clean_candidate' AS table_name, 'rule_population_blank_to_null' AS check_name,
+         'PASS' AS status,
+         CAST(NULL AS STRING) AS expected, CAST(blank_population_rows AS STRING) AS actual FROM batches
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_psgc_clean_candidate' AS table_name, 'rule_income_class_star_split' AS check_name,
          'PASS' AS status,
          CAST(NULL AS STRING) AS expected, CAST(starred_rows AS STRING) AS actual FROM batches
