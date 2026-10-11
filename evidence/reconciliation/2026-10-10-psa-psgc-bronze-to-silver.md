@@ -126,3 +126,17 @@ Cath's review of #124 added two things to the gate at `ee9392ca3019e6f46a8c3cc41
 | Content SHA-256 (as above) | | `2aa69c692ebefc61…` | `2aa69c692ebefc61…` |
 
 The content hash equals the one at `9d2ee01`: the review changed the checks, not one value of the table. Every NULL population has a reason (1 `publisher_na`, 0 `blank`); the cities and municipalities with no `province_code` are the 33 HUCs and Pateros; every other count and record equals the run above.
+
+## Databricks `dev` after review, at `a4d21b0` (2026-10-11)
+
+The same job, redeployed from `a4d21b0553810ee10c60c285e3fcc9c567b5be66` (the code of `ee9392c` plus the local evidence above; both `git_source.git_commit` and `code_revision` were `a4d21b0…`), announced, and run twice with the same commands as above.
+
+| | Run 3 | Run 4 |
+|---|---|---|
+| Job run | `375940486094107` | `918157622982175` |
+| Whole job (Manila; UTC in brackets) | 14:24:23 to 14:31:19 (06:24:23 to 06:31:19), `SUCCESS` | 14:36:43 to 14:41:55 (06:36:43 to 06:41:55), `SUCCESS` |
+| Tasks | 30 `SUCCESS` on the first attempt, 33 disabled | same |
+| PSGC lane | all five tasks `SUCCESS`; Bronze skipped the loaded workbook | same |
+| `silver_build` run | `succeeded`, `code_revision` `a4d21b0…` | `succeeded`, `code_revision` `a4d21b0…` |
+
+The query in [Silver, Running on Databricks (PSGC)](../../docs/operations/silver.md#running-on-databricks-psgc) with this commit and 52 checks: every check OK (43,768 clean, 0 quarantined, 0 repeated keys, 52 checks with 0 FAIL / 0 WARN, every row from `a4d21b0`, 2 Silver runs succeeded at this commit, nothing unpublished in the candidates). The new checks: `province_code_missing_only_where_listed` PASS with 0 (no province only for the 33 HUCs and Pateros), `rule_population_blank_to_null` 0, and no NULL population without a reason. The other records equal the earlier runs. The hash of the published table's business columns, computed on Databricks, is `25017adf…` after these runs as after runs 1 and 2: the review changed no value.
