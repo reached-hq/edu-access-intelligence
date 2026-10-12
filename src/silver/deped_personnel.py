@@ -19,7 +19,7 @@ LINEAGE = ("batch_id", "delivery_version", "schema_version", "source_sha256", "s
 STAMP = ("run_id", "cleaned_at_utc", "code_revision")
 REASONS = ("school_id_blank", "school_id_malformed", "school_id_duplicated", "measure_negative",
            "measure_uncastable", "measure_above_int_max", "measure_outside_public_scope",
-           "measure_outside_offered_level", "enrollment_not_found", "personnel_exceeds_enrollment")
+           "measure_outside_offered_level")
 
 
 def _error(message):
@@ -42,9 +42,8 @@ class PersonnelSpec:
     public_sector: str
     boolean_true: list
     boolean_false: list
+    categories: dict
     integer_max: int
-    enrollment_table: str
-    enrollment_counts: list
     all_blank_measure: str
     principal_total: str
     principal_components: list
@@ -73,12 +72,18 @@ def load_spec(repo_root=REPO_ROOT, source_id=SOURCE_ID):
     named = [mapping["all_blank_measure"], mapping["principal_total"], *mapping["principal_components"]]
     if any(c not in measures for c in named):
         raise _error("a reviewed Personnel rule names a column outside the contract's measures.")
-    enrollment_counts = [c.name for c in load_deped_spec(root, "deped_enrollment").counts]
+    enrollment = load_deped_spec(root, "deped_enrollment")
+    categories = mapping["categories"]
+    for name in ("sector", "school_management"):
+        if categories[name]["standard"] != enrollment.categories[name].standard:
+            raise _error(f"{name} must use the deped_enrollment standard set.")
+        if any(value not in categories[name]["standard"] for value in categories[name]["labels"].values()):
+            raise _error(f"{name} maps a label outside its standard set.")
     return PersonnelSpec(source_id, contract["bronze_table"], silver["clean_file"], mapping["silver_table"],
                          mapping["quarantine_table"], silver["candidate_table"], silver["candidate_quarantine_table"],
                          identifier, mapping["identifier"]["pattern"], dimensions, measures, mapping["public_sector"],
-                         mapping["boolean_true"], mapping["boolean_false"], mapping["integer_max"],
-                         mapping["enrollment_table"], enrollment_counts, mapping["all_blank_measure"],
+                         mapping["boolean_true"], mapping["boolean_false"], categories, mapping["integer_max"],
+                         mapping["all_blank_measure"],
                          mapping["principal_total"], mapping["principal_components"], mapping)
 
 
@@ -111,14 +116,18 @@ def build_sql(spec):
     source = spec.source_id
     clean, quarantine = silver_ref(spec.clean_candidate), silver_ref(spec.quarantine_candidate)
     raw_measures = [f"r.{bq(c)} AS {_name(c)}" for c in spec.measures]
-    enrollment_total = _sum([f"e.{c}" for c in spec.enrollment_counts])
     duplicated = f"COUNT(*) OVER (PARTITION BY r.school_year, r.{spec.identifier})"
-    typed = ["n.school_year", f"n.{spec.identifier}", "n.sector", "n.school_management",
+    category_sql = []
+    for name in ("sector", "school_management"):
+        cases = " ".join(f"WHEN n.{name} = {lit(published)} THEN {lit(standard)}"
+                         for published, standard in spec.categories[name]["labels"].items())
+        category_sql.append(f"CASE {cases} END AS {name}")
+    typed = ["n.school_year", f"n.{spec.identifier}", *category_sql,
              *[f"CASE WHEN n.{c} IN ({', '.join(lit(v) for v in spec.boolean_true)}) THEN TRUE "
                f"WHEN n.{c} IN ({', '.join(lit(v) for v in spec.boolean_false)}) THEN FALSE END AS {c}"
                for c in ("offers_es", "offers_jhs", "offers_shs")],
              *[f"{_typed('n.' + _name(c), spec.integer_max)} AS {_name(c)}" for c in spec.measures],
-             "n.school_id_rows", "n.enrollment_total", *[f"n.{c}" for c in LINEAGE]]
+             "n.school_id_rows", *[f"n.{c}" for c in LINEAGE]]
     invalid = {
         "measure_negative": _any([f"regexp_like(n.{_name(c)}, '^-[0-9]+([.]0+)?$')" for c in spec.measures]),
         "measure_uncastable": _any([f"n.{_name(c)} <> '' AND NOT regexp_like(n.{_name(c)}, '^-?[0-9]+([.]0+)?$')" for c in spec.measures]),
@@ -127,17 +136,12 @@ def build_sql(spec):
         "measure_outside_offered_level": _any([f"(n.offers_{level} IN ({', '.join(lit(v) for v in spec.boolean_false)}) AND (" +
                                                _any([f"n.{_name(c)} <> ''" for c in spec.measures if c.startswith(level + "_")], 10) + "))"
                                                for level in ("es", "jhs", "shs")]),
-        "personnel_exceeds_enrollment": _any([f"{_typed('n.' + _name(c), spec.integer_max)} > n.enrollment_total" for c in spec.measures]),
     }
     reason_parts = [f"CASE WHEN n.{spec.identifier} IS NULL OR n.{spec.identifier} = '' THEN 'school_id_blank' END",
                     f"CASE WHEN n.{spec.identifier} <> '' AND NOT regexp_like(n.{spec.identifier}, {lit(spec.identifier_pattern)}) THEN 'school_id_malformed' END",
                     f"CASE WHEN n.{spec.identifier} <> '' AND n.school_id_rows > 1 THEN 'school_id_duplicated' END"]
-    reason_parts += [f"CASE WHEN {invalid[r]} THEN {lit(r)} END" for r in REASONS[3:8]]
-    reason_parts += ["CASE WHEN n.enrollment_total IS NULL THEN 'enrollment_not_found' END",
-                     f"CASE WHEN n.enrollment_total IS NOT NULL AND ({invalid['personnel_exceeds_enrollment']}) THEN 'personnel_exceeds_enrollment' END"]
+    reason_parts += [f"CASE WHEN {invalid[r]} THEN {lit(r)} END" for r in REASONS[3:]]
     typed.append("concat_ws(',',\n" + joined(reason_parts, 6) + "\n    ) AS quarantine_reasons")
-    flagged = [f"CASE WHEN {_typed('n.' + _name(c), spec.integer_max)} > n.enrollment_total THEN {lit(c)} END" for c in spec.measures]
-    typed.append("concat_ws(',',\n" + joined(flagged, 6) + "\n    ) AS enrollment_outlier_fields")
     component_sum = _sum(["t." + c for c in spec.principal_components])
     status = (f"CASE WHEN t.sector <> {lit(spec.public_sector)} THEN 'out_of_scope' "
               f"WHEN COALESCE({', '.join('t.' + _name(c) for c in spec.measures)}) IS NULL THEN 'no_counts' "
@@ -146,13 +150,13 @@ def build_sql(spec):
              *[f"t.{_name(c)}" for c in spec.measures], f"{component_sum} AS shs_school_principal_calculated",
              f"CASE WHEN t.{spec.principal_total} IS NULL THEN FALSE ELSE t.{spec.principal_total} <> {component_sum} END AS shs_principal_total_discrepancy",
              f"COALESCE(t.{spec.all_blank_measure} IS NULL, TRUE) AS shs_master_teacher_iv_unavailable",
-             f"{status} AS personnel_reporting_status", "t.enrollment_total", "t.enrollment_outlier_fields",
+             f"{status} AS personnel_reporting_status",
              "t.quarantine_reasons", *[f"t.{c}" for c in LINEAGE], *[f"session.silver_{c} AS {c}" for c in STAMP]]
     clean_columns = ["school_year", spec.identifier, *spec.dimensions, *[_name(c) for c in spec.measures], "shs_school_principal_calculated",
                      "shs_principal_total_discrepancy", "shs_master_teacher_iv_unavailable", "personnel_reporting_status",
-                     "enrollment_total", *LINEAGE, *STAMP]
+                     *LINEAGE, *STAMP]
     quarantine_columns = ["school_year", spec.identifier, "split(quarantine_reasons, ',') AS quarantine_reasons",
-                          "split(enrollment_outlier_fields, ',') AS enrollment_outlier_fields", *LINEAGE, *STAMP]
+                          *LINEAGE, *STAMP]
     lines = _header(spec, "Silver build", "sql", spec.clean_file) + [
         "-- Builds unpublished candidate tables. The gate publishes them only after every FAIL check is zero.", "",
         "DECLARE OR REPLACE VARIABLE silver_run_id STRING;", "SET VARIABLE silver_run_id = :run_id;",
@@ -167,10 +171,10 @@ def build_sql(spec):
         "CREATE SCHEMA IF NOT EXISTS edu_access.`03-silver`;", f"ALTER SCHEMA edu_access.`03-silver` OWNER TO `{OWNER_GROUP}`;", "",
         f"CREATE OR REPLACE TEMPORARY VIEW {source}_classified AS", "WITH bronze AS (",
         f"  SELECT r.* FROM edu_access.`02-bronze`.{spec.bronze_table} AS r JOIN {CONTROL}.current_batches AS c ON r.batch_id = c.batch_id WHERE c.source_id = {lit(source)}",
-        "), enrollment AS (", f"  SELECT * FROM {silver_ref(spec.enrollment_table)}", "), normalized AS (", "  SELECT",
+        "), normalized AS (", "  SELECT",
         joined(["r.school_year", f"r.{spec.identifier}", "r.sector", "r.school_management", "r.offers_es", "r.offers_jhs", "r.offers_shs",
-                *raw_measures, f"{duplicated} AS school_id_rows", f"{enrollment_total} AS enrollment_total", *[f"r.{c}" for c in LINEAGE]], 4),
-        "  FROM bronze AS r LEFT JOIN enrollment AS e ON e.school_year = r.school_year AND e.school_id = r.school_id", "), typed AS (", "  SELECT",
+                *raw_measures, f"{duplicated} AS school_id_rows", *[f"r.{c}" for c in LINEAGE]], 4),
+        "  FROM bronze AS r", "), typed AS (", "  SELECT",
         joined(typed, 4), "  FROM normalized AS n", ")", "SELECT", joined(final, 2), "FROM typed AS t;", "",
         f"CREATE OR REPLACE TABLE {clean} USING DELTA AS", "SELECT", joined(clean_columns, 2), f"FROM {source}_classified WHERE quarantine_reasons = '';", "",
         candidate_comment(clean, spec.clean_table), f"ALTER TABLE {clean} OWNER TO `{OWNER_GROUP}`;", "",
@@ -195,19 +199,25 @@ def gate_sql(spec):
         ("all_blank_measure_retained", "FAIL", "all_blank_measure_non_null", "= 0", clean_name),
         ("all_blank_measure_flagged", "FAIL", "all_blank_measure_unflagged", "= 0", clean_name),
         ("principal_total_discrepancies", "PASS", "principal_discrepancies", ">= 0", clean_name),
-        ("enrollment_outlier_rows", "PASS", "personnel_exceeds_enrollment", ">= 0", quarantine_name),
     ]
+    for name in ("sector", "school_management", "offers_es", "offers_jhs", "offers_shs"):
+        check_rows.append((f"labels_mapped_{name}", "FAIL", f"unmapped_{name}", "= 0", clean_name))
     unions = []
     for name, failure, actual, condition, table in check_rows:
         status = f"CASE WHEN {actual} {condition} THEN 'PASS' ELSE '{failure}' END"
         unions.append(f"SELECT batch_id, {lit(table)} AS table_name, {lit(name)} AS check_name, {status} AS status, {lit(condition)} AS expected, CAST({actual} AS STRING) AS actual FROM summary")
     for reason in REASONS:
         unions.append(f"SELECT batch_id, {lit(quarantine_name)}, {lit('quarantine_reason_' + reason)}, CASE WHEN {reason} = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST({reason} AS STRING) FROM summary")
+    unions.append(f"SELECT batch_id, {lit(quarantine_name)}, 'quarantine_rate', CASE WHEN quarantine_rows = 0 THEN 'PASS' WHEN quarantine_rows * 100 > bronze_rows THEN 'FAIL' ELSE 'WARN' END, '0 (FAIL above 1% of ' || CAST(bronze_rows AS STRING) || ')', CAST(quarantine_rows AS STRING) FROM summary")
     union_sql = ("\n  UNION ALL ").join(unions)
     blank_bronze = " + ".join(f"CASE WHEN b.{bq(x)} IS NULL OR b.{bq(x)} = '' THEN 1 ELSE 0 END" for x in spec.measures)
     blank_silver = " + ".join(f"CASE WHEN c.{_name(x)} IS NULL THEN 1 ELSE 0 END" for x in spec.measures)
     zero_bronze = " + ".join(f"CASE WHEN {_typed('b.' + bq(x), spec.integer_max)} = 0 THEN 1 ELSE 0 END" for x in spec.measures)
     zero_silver = " + ".join(f"CASE WHEN c.{_name(x)} = 0 THEN 1 ELSE 0 END" for x in spec.measures)
+    accepted = {name: list(spec.categories[name]["labels"]) for name in ("sector", "school_management")}
+    accepted.update({name: spec.boolean_true + spec.boolean_false for name in ("offers_es", "offers_jhs", "offers_shs")})
+    unmapped = [f"    (SELECT COUNT_IF(b.{name} IS NOT NULL AND b.{name} <> '' AND b.{name} NOT IN ({', '.join(lit(v) for v in values)})) FROM bronze AS b) AS unmapped_{name}"
+                for name, values in accepted.items()]
     lines = _header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [
         "-- Records every rule count, stops before publishing on FAIL, then publishes quarantine before clean.", "",
         "DECLARE OR REPLACE VARIABLE silver_gate_started_at_utc TIMESTAMP;", "SET VARIABLE silver_gate_started_at_utc = current_timestamp();", "",
@@ -218,15 +228,16 @@ def gate_sql(spec):
         "    (SELECT COUNT(*) FROM cur) AS current_batches,", "    (SELECT COUNT(*) FROM bronze) AS bronze_rows,",
         "    (SELECT COUNT(*) FROM c) AS clean_rows,", "    (SELECT COUNT(*) FROM q) AS quarantine_rows,",
         f"    (SELECT COUNT(*) - COUNT(DISTINCT (school_year, school_id)) FROM c) AS duplicate_clean_ids,",
-        f"    (SELECT COUNT_IF({' OR '.join('x.' + v + ' IS NULL' for v in [*LINEAGE, *STAMP])}) FROM c AS x) + (SELECT COUNT_IF({' OR '.join('x.' + v + ' IS NULL' for v in [*LINEAGE, *STAMP])}) FROM q AS x) AS missing_lineage,",
-        "    (SELECT COUNT_IF(run_id <> :run_id) FROM c) + (SELECT COUNT_IF(run_id <> :run_id) FROM q) AS other_run_rows,",
+        f"    (SELECT COALESCE(COUNT_IF({' OR '.join('x.' + v + ' IS NULL' for v in [*LINEAGE, *STAMP])}), 0) FROM c AS x) + (SELECT COALESCE(COUNT_IF({' OR '.join('x.' + v + ' IS NULL' for v in [*LINEAGE, *STAMP])}), 0) FROM q AS x) AS missing_lineage,",
+        "    (SELECT COALESCE(COUNT_IF(run_id <> :run_id), 0) FROM c) + (SELECT COALESCE(COUNT_IF(run_id <> :run_id), 0) FROM q) AS other_run_rows,",
         f"    (SELECT SUM({blank_bronze}) FROM bronze AS b LEFT JOIN q ON q.source_sha256 = b.source_sha256 AND q.source_row_number = b.source_row_number WHERE q.source_row_number IS NULL) AS bronze_blank_measures,",
         f"    (SELECT SUM({blank_silver}) FROM c) AS silver_null_measures,",
         f"    (SELECT SUM({zero_bronze}) FROM bronze AS b LEFT JOIN q ON q.source_sha256 = b.source_sha256 AND q.source_row_number = b.source_row_number WHERE q.source_row_number IS NULL) AS bronze_zero_measures,",
         f"    (SELECT SUM({zero_silver}) FROM c) AS silver_zero_measures,",
         f"    (SELECT COUNT_IF({spec.all_blank_measure} IS NOT NULL) FROM c) AS all_blank_measure_non_null,",
         "    (SELECT COUNT_IF(NOT shs_master_teacher_iv_unavailable) FROM c) AS all_blank_measure_unflagged,",
-        "    (SELECT COUNT_IF(shs_principal_total_discrepancy) FROM c) AS principal_discrepancies", "), quarantine_counts AS (", "  SELECT", joined(reason_counts, 4), "  FROM q", "), summary AS (", "  SELECT cur.batch_id, counts.*, quarantine_counts.* FROM cur CROSS JOIN counts CROSS JOIN quarantine_counts", ")",
+        "    (SELECT COUNT_IF(shs_principal_total_discrepancy) FROM c) AS principal_discrepancies,",
+        joined(unmapped, 4), "), quarantine_counts AS (", "  SELECT", joined(reason_counts, 4), "  FROM q", "), summary AS (", "  SELECT cur.batch_id, counts.*, quarantine_counts.* FROM cur CROSS JOIN counts CROSS JOIN quarantine_counts", ")",
         union_sql, ") AS results;", "",
         f"MERGE INTO {CONTROL}.pipeline_runs AS t USING (SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails FROM {CONTROL}.data_quality_results WHERE run_id = :run_id AND source_id = {lit(source)} AND layer = 'silver' AND checked_at_utc >= session.silver_gate_started_at_utc) AS s",
         f"ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = {lit(source)} WHEN MATCHED AND s.fails > 0 THEN UPDATE SET status = 'failed', finished_at_utc = current_timestamp(), failure_stage = 'gate', error_message = CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results';", "",
@@ -239,16 +250,25 @@ def gate_sql(spec):
     return "\n".join(lines)
 
 
+def gate_checks(spec):
+    """Return every data-quality check written by the Personnel gate."""
+    return (["current_batch_present", "rows_reconcile", "school_id_unique", "lineage_complete",
+             "rows_built_by_this_run", "blank_measures_stay_null", "recorded_zero_preserved",
+             "all_blank_measure_retained", "all_blank_measure_flagged", "principal_total_discrepancies",
+             "labels_mapped_sector", "labels_mapped_school_management", "labels_mapped_offers_es",
+             "labels_mapped_offers_jhs", "labels_mapped_offers_shs", "quarantine_rate"]
+            + [f"quarantine_reason_{reason}" for reason in REASONS])
+
+
 def dictionary_markdown(spec):
     rows = ["| Column | Type | Meaning |", "|---|---|---|",
             "| `school_year` | `STRING` | School year from the approved Bronze batch |",
             "| `school_id` | `STRING` | Six-digit school identifier |",
-            "| `sector` / `school_management` | `STRING` | Publisher school classifications |",
+            "| `sector` / `school_management` | `STRING` | Publisher school classifications mapped to the DepEd enrollment standard sets |",
             "| `offers_es` / `offers_jhs` / `offers_shs` | `BOOLEAN` | Published offering flags |"]
     rows += [f"| `{_name(c)}` | `INT` | Published `{c}` working-personnel count. Blank is `NULL`, recorded zero is `0`. |" for c in spec.measures]
     rows += ["| `shs_school_principal_calculated` | `BIGINT` | Sum of the four published SHS principal grade fields; separate from the publisher total |",
              "| `shs_principal_total_discrepancy` | `BOOLEAN` | Publisher total differs from the calculated total |",
              "| `shs_master_teacher_iv_unavailable` | `BOOLEAN` | The retained publisher field is unavailable in this delivery |",
-             "| `personnel_reporting_status` | `STRING` | `out_of_scope`, `no_counts`, `all_zero`, or `has_personnel` |",
-             "| `enrollment_total` | `BIGINT` | Same-year enrollment used only for the reproducible outlier rule |"]
-    return "\n".join(["# `deped_personnel_clean`", "", "Generated from the reviewed Personnel contract and mapping. Counts are personnel actually working in public schools, not plantilla positions. Blank values are never changed to zero.", "", *rows, "", "## Quarantine", "", "Invalid identifiers, invalid integers, values outside the documented public or offered-level scope, missing enrollment matches, and personnel values greater than same-year enrollment are retained in `deped_personnel_quarantine` with every reason and the Bronze `batch_id`.", ""])
+             "| `personnel_reporting_status` | `STRING` | `out_of_scope`, `no_counts`, `all_zero`, or `has_personnel` |"]
+    return "\n".join(["# `deped_personnel_clean`", "", "Generated from the reviewed Personnel contract and mapping. Counts are personnel actually working in public schools, not plantilla positions. Blank values are never changed to zero.", "", *rows, "", "## Quarantine", "", "Invalid identifiers, invalid integers, and values outside the documented public or offered-level scope are retained in `deped_personnel_quarantine` with every reason and the Bronze `batch_id`. Cross-source checks against enrollment belong to Integration (#91), not this source's Silver lane.", ""])

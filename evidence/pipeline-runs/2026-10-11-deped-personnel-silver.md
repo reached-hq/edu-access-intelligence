@@ -1,5 +1,7 @@
 # Evidence: DepEd Personnel Silver builds and passes its gate on Databricks
 
+> **Superseded for the current design:** this run proved the earlier build at `287bc51`, which quarantined nine personnel-versus-enrollment outliers. D-041 moves that cross-source check to Integration (#91), keeps those rows in clean Personnel Silver, and requires a new Databricks confirmation after the review changes. The historical results below remain unchanged.
+
 Issue #87 · Databricks `dev` · 2026-10-11 · checked by @mafelisilda
 
 ## The claim

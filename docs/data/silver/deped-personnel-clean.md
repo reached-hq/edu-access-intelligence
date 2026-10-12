@@ -6,7 +6,7 @@ Generated from the reviewed Personnel contract and mapping. Counts are personnel
 |---|---|---|
 | `school_year` | `STRING` | School year from the approved Bronze batch |
 | `school_id` | `STRING` | Six-digit school identifier |
-| `sector` / `school_management` | `STRING` | Publisher school classifications |
+| `sector` / `school_management` | `STRING` | Publisher school classifications mapped to the DepEd enrollment standard sets |
 | `offers_es` / `offers_jhs` / `offers_shs` | `BOOLEAN` | Published offering flags |
 | `es_master_teacher_iv` | `INT` | Published `es_master_teacher_iv` working-personnel count. Blank is `NULL`, recorded zero is `0`. |
 | `es_master_teacher_iii` | `INT` | Published `es_master_teacher_iii` working-personnel count. Blank is `NULL`, recorded zero is `0`. |
@@ -333,8 +333,7 @@ Generated from the reviewed Personnel contract and mapping. Counts are personnel
 | `shs_principal_total_discrepancy` | `BOOLEAN` | Publisher total differs from the calculated total |
 | `shs_master_teacher_iv_unavailable` | `BOOLEAN` | The retained publisher field is unavailable in this delivery |
 | `personnel_reporting_status` | `STRING` | `out_of_scope`, `no_counts`, `all_zero`, or `has_personnel` |
-| `enrollment_total` | `BIGINT` | Same-year enrollment used only for the reproducible outlier rule |
 
 ## Quarantine
 
-Invalid identifiers, invalid integers, values outside the documented public or offered-level scope, missing enrollment matches, and personnel values greater than same-year enrollment are retained in `deped_personnel_quarantine` with every reason and the Bronze `batch_id`.
+Invalid identifiers, invalid integers, and values outside the documented public or offered-level scope are retained in `deped_personnel_quarantine` with every reason and the Bronze `batch_id`. Cross-source checks against enrollment belong to Integration (#91), not this source's Silver lane.
