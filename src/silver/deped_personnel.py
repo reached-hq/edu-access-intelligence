@@ -186,6 +186,7 @@ def build_sql(spec):
 def gate_sql(spec):
     source = spec.source_id
     clean, quarantine = silver_ref(spec.clean_candidate), silver_ref(spec.quarantine_candidate)
+    summary = silver_ref(f"{source}_gate_summary_candidate")
     clean_name, quarantine_name = dq_table_name(spec.clean_candidate), dq_table_name(spec.quarantine_candidate)
     reason_counts = [f"COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, {lit(r)})), 0) AS {r}" for r in REASONS]
     check_rows = [
@@ -205,10 +206,10 @@ def gate_sql(spec):
     unions = []
     for name, failure, actual, condition, table in check_rows:
         status = f"CASE WHEN {actual} {condition} THEN 'PASS' ELSE '{failure}' END"
-        unions.append(f"SELECT batch_id, {lit(table)} AS table_name, {lit(name)} AS check_name, {status} AS status, {lit(condition)} AS expected, CAST({actual} AS STRING) AS actual FROM summary")
+        unions.append(f"SELECT batch_id, {lit(table)} AS table_name, {lit(name)} AS check_name, {status} AS status, {lit(condition)} AS expected, CAST({actual} AS STRING) AS actual FROM {summary}")
     for reason in REASONS:
-        unions.append(f"SELECT batch_id, {lit(quarantine_name)}, {lit('quarantine_reason_' + reason)}, CASE WHEN {reason} = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST({reason} AS STRING) FROM summary")
-    unions.append(f"SELECT batch_id, {lit(quarantine_name)}, 'quarantine_rate', CASE WHEN quarantine_rows = 0 THEN 'PASS' WHEN quarantine_rows * 100 > bronze_rows THEN 'FAIL' ELSE 'WARN' END, '0 (FAIL above 1% of ' || CAST(bronze_rows AS STRING) || ')', CAST(quarantine_rows AS STRING) FROM summary")
+        unions.append(f"SELECT batch_id, {lit(quarantine_name)}, {lit('quarantine_reason_' + reason)}, CASE WHEN {reason} = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST({reason} AS STRING) FROM {summary}")
+    unions.append(f"SELECT batch_id, {lit(quarantine_name)}, 'quarantine_rate', CASE WHEN quarantine_rows = 0 THEN 'PASS' WHEN quarantine_rows * 100 > bronze_rows THEN 'FAIL' ELSE 'WARN' END, '0 (FAIL above 1% of ' || CAST(bronze_rows AS STRING) || ')', CAST(quarantine_rows AS STRING) FROM {summary}")
     union_sql = ("\n  UNION ALL ").join(unions)
     blank_bronze = " + ".join(f"CASE WHEN b.{bq(x)} IS NULL OR b.{bq(x)} = '' THEN 1 ELSE 0 END" for x in spec.measures)
     blank_silver = " + ".join(f"CASE WHEN c.{_name(x)} IS NULL THEN 1 ELSE 0 END" for x in spec.measures)
@@ -221,9 +222,9 @@ def gate_sql(spec):
     lines = _header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [
         "-- Records every rule count, stops before publishing on FAIL, then publishes quarantine before clean.", "",
         "DECLARE OR REPLACE VARIABLE silver_gate_started_at_utc TIMESTAMP;", "SET VARIABLE silver_gate_started_at_utc = current_timestamp();", "",
-        f"INSERT INTO {CONTROL}.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)",
-        f"SELECT :run_id, batch_id, {lit(source)}, 'silver', table_name, check_name, status, expected, actual, current_timestamp(), :code_revision FROM (",
-        "WITH cur AS (", f"  SELECT batch_id FROM {CONTROL}.current_batches WHERE source_id = {lit(source)}", "), bronze AS (",
+        "-- Materialize the wide aggregates once so every check reads the same one-row result.",
+        f"CREATE OR REPLACE TABLE {summary} USING DELTA AS", "WITH cur AS (",
+        f"  SELECT batch_id FROM {CONTROL}.current_batches WHERE source_id = {lit(source)}", "), bronze AS (",
         f"  SELECT b.* FROM edu_access.`02-bronze`.{spec.bronze_table} AS b JOIN cur ON b.batch_id = cur.batch_id", "), c AS (", f"  SELECT * FROM {clean}", "), q AS (", f"  SELECT * FROM {quarantine}", "), counts AS (", "  SELECT",
         "    (SELECT COUNT(*) FROM cur) AS current_batches,", "    (SELECT COUNT(*) FROM bronze) AS bronze_rows,",
         "    (SELECT COUNT(*) FROM c) AS clean_rows,", "    (SELECT COUNT(*) FROM q) AS quarantine_rows,",
@@ -237,7 +238,11 @@ def gate_sql(spec):
         f"    (SELECT COUNT_IF({spec.all_blank_measure} IS NOT NULL) FROM c) AS all_blank_measure_non_null,",
         "    (SELECT COUNT_IF(NOT shs_master_teacher_iv_unavailable) FROM c) AS all_blank_measure_unflagged,",
         "    (SELECT COUNT_IF(shs_principal_total_discrepancy) FROM c) AS principal_discrepancies,",
-        joined(unmapped, 4), "), quarantine_counts AS (", "  SELECT", joined(reason_counts, 4), "  FROM q", "), summary AS (", "  SELECT cur.batch_id, counts.*, quarantine_counts.* FROM cur CROSS JOIN counts CROSS JOIN quarantine_counts", ")",
+        joined(unmapped, 4), "), quarantine_counts AS (", "  SELECT", joined(reason_counts, 4), "  FROM q", ")",
+        "SELECT cur.batch_id, counts.*, quarantine_counts.* FROM cur CROSS JOIN counts CROSS JOIN quarantine_counts;", "",
+        f"ALTER TABLE {summary} OWNER TO `{OWNER_GROUP}`;", "",
+        f"INSERT INTO {CONTROL}.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)",
+        f"SELECT :run_id, batch_id, {lit(source)}, 'silver', table_name, check_name, status, expected, actual, current_timestamp(), :code_revision FROM (",
         union_sql, ") AS results;", "",
         f"MERGE INTO {CONTROL}.pipeline_runs AS t USING (SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails FROM {CONTROL}.data_quality_results WHERE run_id = :run_id AND source_id = {lit(source)} AND layer = 'silver' AND checked_at_utc >= session.silver_gate_started_at_utc) AS s",
         f"ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = {lit(source)} WHEN MATCHED AND s.fails > 0 THEN UPDATE SET status = 'failed', finished_at_utc = current_timestamp(), failure_stage = 'gate', error_message = CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results';", "",
@@ -246,7 +251,8 @@ def gate_sql(spec):
         f"ALTER TABLE {silver_ref(spec.quarantine_table)} OWNER TO `{OWNER_GROUP}`;", "",
         f"CREATE OR REPLACE TABLE {silver_ref(spec.clean_table)} USING DELTA AS SELECT * FROM {clean};",
         f"ALTER TABLE {silver_ref(spec.clean_table)} OWNER TO `{OWNER_GROUP}`;", "",
-        f"MERGE INTO {CONTROL}.pipeline_runs AS t USING (SELECT :run_id AS run_id) AS s ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = {lit(source)} WHEN MATCHED THEN UPDATE SET status = 'succeeded', finished_at_utc = current_timestamp(), failure_stage = NULL, error_message = NULL;", ""]
+        f"MERGE INTO {CONTROL}.pipeline_runs AS t USING (SELECT :run_id AS run_id) AS s ON t.run_id = s.run_id AND t.pipeline_name = 'silver_build' AND t.source_id = {lit(source)} WHEN MATCHED THEN UPDATE SET status = 'succeeded', finished_at_utc = current_timestamp(), failure_stage = NULL, error_message = NULL;", "",
+        f"DROP TABLE IF EXISTS {summary};", ""]
     return "\n".join(lines)
 
 

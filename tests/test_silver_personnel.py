@@ -87,6 +87,10 @@ def test_personnel_runs_independently_and_gates_labels_and_quarantine_rate():
     build = deped_personnel.build_sql(spec)
     gate = deped_personnel.gate_sql(spec)
     assert "deped_enrollment_clean" not in build
+    summary = "edu_access.`03-silver`.deped_personnel_gate_summary_candidate"
+    assert f"CREATE OR REPLACE TABLE {summary} USING DELTA AS" in gate
+    assert gate.index(f"CREATE OR REPLACE TABLE {summary}") < gate.index(f"INSERT INTO {CONTROL}.data_quality_results")
+    assert f"DROP TABLE IF EXISTS {summary};" in gate
     assert set(deped_personnel.gate_checks(spec)) == set(["current_batch_present", "rows_reconcile", "school_id_unique",
         "lineage_complete", "rows_built_by_this_run", "blank_measures_stay_null", "recorded_zero_preserved",
         "all_blank_measure_retained", "all_blank_measure_flagged", "principal_total_discrepancies",
