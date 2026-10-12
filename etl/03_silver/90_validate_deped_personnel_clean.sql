@@ -40,14 +40,14 @@ WITH cur AS (
         (SELECT COUNT_IF(b.offers_shs IS NOT NULL AND b.offers_shs <> '' AND b.offers_shs NOT IN ('True', 'False')) FROM bronze AS b) AS unmapped_offers_shs
 ), quarantine_counts AS (
   SELECT
-    COUNT_IF(array_contains(q.quarantine_reasons, 'school_id_blank')) AS school_id_blank,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'school_id_malformed')) AS school_id_malformed,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'school_id_duplicated')) AS school_id_duplicated,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'measure_negative')) AS measure_negative,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'measure_uncastable')) AS measure_uncastable,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'measure_above_int_max')) AS measure_above_int_max,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'measure_outside_public_scope')) AS measure_outside_public_scope,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'measure_outside_offered_level')) AS measure_outside_offered_level
+    COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, 'school_id_blank')), 0) AS school_id_blank,
+    COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, 'school_id_malformed')), 0) AS school_id_malformed,
+    COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, 'school_id_duplicated')), 0) AS school_id_duplicated,
+    COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, 'measure_negative')), 0) AS measure_negative,
+    COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, 'measure_uncastable')), 0) AS measure_uncastable,
+    COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, 'measure_above_int_max')), 0) AS measure_above_int_max,
+    COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, 'measure_outside_public_scope')), 0) AS measure_outside_public_scope,
+    COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, 'measure_outside_offered_level')), 0) AS measure_outside_offered_level
   FROM q
 ), summary AS (
   SELECT cur.batch_id, counts.*, quarantine_counts.* FROM cur CROSS JOIN counts CROSS JOIN quarantine_counts

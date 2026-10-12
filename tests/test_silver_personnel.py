@@ -64,6 +64,8 @@ def test_personnel_silver_preserves_values_flags_findings_and_reconciles(tmp_pat
     assert store.query(f"SELECT shs_master_teacher_iv, shs_master_teacher_iv_unavailable FROM {CLEAN} ORDER BY school_id") == [(None, True), (None, True), (None, True)]
     assert store.query(f"SELECT shs_total_school_principal, shs_school_principal_calculated, shs_principal_total_discrepancy FROM {CLEAN} WHERE school_id = '900002'") == [(2, 1, True)]
     assert store.query(f"SELECT actual FROM {CONTROL}.data_quality_results WHERE run_id = '{params['run_id']}' AND check_name = 'principal_total_discrepancies'") == [("1",)]
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = '{params['run_id']}' "
+                       "AND check_name LIKE 'quarantine_reason_%' AND status = 'PASS'") == [(len(deped_personnel.REASONS),)]
 
     store.sql("UPDATE edu_access.`02-bronze`.deped_personnel_raw SET offers_es = 'Maybe' WHERE school_id = '900001'")
     params["run_id"] = str(uuid.uuid4())

@@ -187,7 +187,7 @@ def gate_sql(spec):
     source = spec.source_id
     clean, quarantine = silver_ref(spec.clean_candidate), silver_ref(spec.quarantine_candidate)
     clean_name, quarantine_name = dq_table_name(spec.clean_candidate), dq_table_name(spec.quarantine_candidate)
-    reason_counts = [f"COUNT_IF(array_contains(q.quarantine_reasons, {lit(r)})) AS {r}" for r in REASONS]
+    reason_counts = [f"COALESCE(COUNT_IF(array_contains(q.quarantine_reasons, {lit(r)})), 0) AS {r}" for r in REASONS]
     check_rows = [
         ("current_batch_present", "FAIL", "current_batches", "> 0", clean_name),
         ("rows_reconcile", "FAIL", "clean_rows + quarantine_rows", "= bronze_rows", clean_name),
