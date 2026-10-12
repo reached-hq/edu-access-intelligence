@@ -42,6 +42,9 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-038 | 2026-10-11 | DepEd facilities Silver keeps every school, one wide row per school per school year, with per-group count maximums, and runs in parallel with every other source lane | Provisional | Gold scopes facility measures to public schools; Integration checks every facilities school is in enrollment |
 | D-039 | 2026-10-11 | Integration starts only from the source-lane fan-in, which checks every Silver lane switched on and fails if one did not succeed | Provisional | One failing source stops all Integration; the checked lanes are generated from the job |
 | D-040 | 2026-10-09 | HDX ADM3 Silver keeps the geometry as the published GeoJSON text, checks every shape on both engines, types numbers as exact DECIMALs, and has its own generator | Provisional | Silver stores no spatial type; Integration or Gold parses the text where it needs one; no shape is ever repaired |
+| D-042 | 2026-10-12 | Question v1: which cities and municipalities need more schools, classrooms, and teachers, compared with peers of the same type, income class, and population density | Provisional | Results are at city/municipality level; city class (HUC/ICC/CC) is not a peer criterion; prioritization stays with planners |
+| D-043 | 2026-10-12 | BARMM is included, with its coverage limits stated | Provisional | BARMM results show their coverage; NAT and ELLNA are not used for BARMM |
+| D-044 | 2026-10-12 | Head teachers are excluded from the primary teacher count, with a sensitivity ratio that includes them | Provisional | AP4 publishes two ratios until DepEd or the mentor confirms the treatment |
 
 ---
 
@@ -377,3 +380,30 @@ Each entry records **problem → decision → reason → consequence**. A **prov
   - Rules live in `config/mappings/hdx_boundaries.json`; `src/silver/hdx_boundaries.py` generates the build, the gate and the dictionary, chosen by the file's `generator` key (`src/silver/generators.py`, as D-034).
 - **Reason:** Text is the same value on both engines and is exactly what COD-AB published, and every shape is still checked on every run with the spatial functions. Exact DECIMALs keep every published digit while giving Gold numbers to compute with. Keeping the PSGC question out of Silver follows the cross-source finding that COD-AB reuses some PSGC code numbers for different units (#74, HB-2).
 - **Consequence:** Supersedes D-026's "Silver must parse geometry into a spatial type": Silver stores no spatial type, and Integration or Gold parses the text where it needs one. Read-only checks on 2026-10-09 (DuckDB 1.4.5 spatial, Databricks DBR 19.9): all 1,642 shapes parse and are valid, 1,273 Polygon and 369 MultiPolygon, every centre inside its shape, 0 names with extra spaces, 0 hierarchy breaks; and every geometry function in the generated SQL works on `hdx_adm3_raw` as written. Confirmed by the job on Databricks `dev` on 2026-10-09 at `853be19`, twice: 1,642 clean rows, 0 quarantined, all 38 gate checks PASS ([evidence](../../evidence/pipeline-runs/2026-10-09-hdx-adm3-silver-databricks.md)). `adm3_pcode` is not a PSGC code; Integration (`03_map_hdx_adm3_psgc`) matches by code and name together. **Provisional:** proposed by @saraevcldn on 2026-10-09.
+
+## D-042: Question v1
+
+- **Problem:** The team needs one agreed business question, sub-business question, and set of analytical questions before metrics, Gold, and dashboard work can start (#45, #61, #62, #66 and #103 wait on it). The draft consolidated in #9 on 2026-10-05 mixed barangay and city/municipality grain and compared every LGU with every other. Mentor review on 2026-10-12 asked for a comparison among similar LGUs, and pointed out that city class (HUC/ICC/CC) is largely set by income and population.
+- **Decision:**
+  - **Main business question:** Which cities and municipalities need more schools, classrooms, and teachers based on their student population and enrollment demand?
+  - **Sub-business question:** Among cities and municipalities with the same income class and population density, which show greater need for additional schools, classrooms, or teachers?
+  - **Analytical questions:** AP1 finds each LGU's peers (same type, same income class, same density band); AP2 to AP5 compare the LGU with its peers on schools relative to learners and population, learners per classroom, learners per teacher, and enrollment change. Each result shows the LGU's own value, its peer median and rank, and the national value for its type. The full definitions are in [business-analytics-problem.md](../business/business-analytics-problem.md).
+  - City class is not a peer criterion. City vs. municipality is kept, as the split inside which income class is compared.
+  - A peer group under 5 LGUs falls back to all LGUs of the same type nationwide (proposal).
+  - No hard flags or composite score in Question v1. Physical access and candidate locations are deferred; AP5 is provisional until cross-year comparability is validated (#8). Basic education only (D-003).
+- **Reason:** A raw national ranking compares LGUs whose budgets and sizes differ, so it mostly shows who is poorer or smaller. In PSGC 2Q 2026 all 33 HUCs are 1st class and four of five ICCs are 1st class, so city class adds little beyond income class. Income class uses separate brackets for cities and municipalities (RA 11964, DOF DO No. 074.2024), so they cannot share an income-class group.
+- **Consequence:** Results are at city/municipality × education level × school year; barangay-level views are outside Question v1. The 8 Special Geographic Area municipalities have no income class and no peer group, and their schools are already excluded at this level (D-031). The 9 4th-class cities may be too few to split by density. Prioritization and response selection stay with planners. **Revisit** if #7 or #8 changes what planners need or what the data can support. **Provisional:** drafted by @hyenalouise on 2026-10-12 from the #9 thread and mentor review; needs team approval. Numbered D-042 to D-044, leaving D-041 to #125.
+
+## D-043: BARMM in the analysis
+
+- **Problem:** BARMM schools are in every DepEd file, but some BARMM data is thinner or absent, and Sulu's region changed between the data year and the master PSGC.
+- **Decision:** Include BARMM in every AP, with its limits stated on the result.
+- **Reason:** Excluding it would remove all 2,603 BARMM public schools from the national picture and hide the coverage gaps instead of showing them.
+- **Consequence:** About 93% of BARMM public schools have classroom counts against about 99% elsewhere, so AP3 shows coverage and never treats a missing count as 0. NAT Grade 6 and ELLNA are not used for BARMM. Regional results for SY 2023-24 use DepEd's region column, which places Sulu in BARMM (D-012). Special Geographic Area schools stay excluded at city/municipality level (D-031). **Provisional:** proposed in #9 (2026-10-05) and #64; needs team approval.
+
+## D-044: Head teachers in the teacher count
+
+- **Problem:** AP4 needs a teacher count. The personnel file lists head teachers as separate positions, and the reviewed documentation does not say how much classroom teaching each one does.
+- **Decision:** The primary teacher count includes teaching positions only (Teacher, Master Teacher, SPED/SNED Teacher, Special Science Teacher, and documented locally funded teacher fields) and excludes principals, assistant principals, head teachers, and non-teaching staff. A sensitivity ratio adds head teachers back.
+- **Reason:** Counting every head teacher as a full classroom teacher could overstate teacher capacity, unevenly across schools. Two ratios show how much the choice matters instead of hiding it.
+- **Consequence:** AP4 publishes both ratios and the ranking difference between them. **Revisit** once DepEd or the mentor confirms how head teachers should be counted. **Provisional:** proposed by @mafelisilda in #64; needs team approval.
