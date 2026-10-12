@@ -1,6 +1,6 @@
 # deped_personnel: DepEd school-level personnel
 
-**Status:** Bronze landed; Silver implemented and locally validated
+**Status:** Bronze landed; Silver confirmed on Databricks `dev`
 
 ## Identity
 
