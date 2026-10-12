@@ -158,7 +158,7 @@ Center of gravity, clustering (K-means), or network accessibility belong to this
 
 ## Planner needs
 
-Under D-001, a question resting mostly on **assumed** needs cannot be approved. The needs behind AP1 to AP5, and the stakeholders and user story, are documented and tagged in #7 (`docs/business/needs.md`). Until #7 lands, the comparison-with-peers framing is **mentor-validated** (program mentor review, 2026-10-12), and the remaining needs are **assumed**.
+Under D-001, a question resting mostly on **assumed** needs cannot be approved. The needs behind AP1 to AP5 are cited and tagged in #7 (`docs/business/planner-needs.md`). The stakeholders, sponsors, and user story are in [stakeholders.md](stakeholders.md). Until #7 lands, the comparison-with-peers framing is **mentor-validated** (program mentor review, 2026-10-12), and the remaining needs are **assumed**.
 
 ## Revision history
 
@@ -170,7 +170,7 @@ Under D-001, a question resting mostly on **assumed** needs cannot be approved. 
 ## Follow-up work
 
 - **Open decisions:** settle the eight above and record them in `docs/governance/decisions.md`.
-- **Planner needs, stakeholders, and user story:** cite and tag them (#7).
+- **Planner needs:** cite and tag them (#7).
 - **Cross-year comparability:** validate SY 2023-24 to 2025-26 enrollment at the same geography and level before AP5 leaves provisional (#8).
 - **Metric contracts:** exact filters, source columns, grade-to-level mapping, missing-data rules, and final formulas.
 - **Gold model:** fact-table names, grain statements, and keys (milestone 03).
