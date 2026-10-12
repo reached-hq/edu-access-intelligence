@@ -65,6 +65,8 @@ AP1 to AP3 provide the school, classroom, and teacher measures. AP4 adds the dir
 
 Peer comparison is not an adequacy standard. Each LGU's own values show the observed level of provision or capacity; the peer comparison shows how unusual that value is for the selected comparison group. Both are shown with national same-type context because a whole peer group can experience pressure even when no member stands out within the group.
 
+The source-to-output lineage for all 21 profiled datasets—including context-only, deferred, cross-check, and out-of-scope sources—is documented in the [dataset use map](dataset-use-map.md).
+
 ## Peer groups
 
 A **peer group** is the set of LGUs that a city or municipality is compared with. It provides a consistent reference point; it does not prove that the LGUs are identical, control for every relevant difference, or establish a required level of education provision. It is a method, not an analytical question.
