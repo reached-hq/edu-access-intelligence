@@ -25,8 +25,8 @@ flowchart LR
     end
 
     subgraph METHOD["Geography and peer method"]
-        PSGC["PSGC<br/>codes · type · income class · population"]
-        AREA["Land area<br/>PSA recommended · HDX fallback"]
+    PSGC["PSGC<br/>codes · type · income class · population"]
+    AREA["Land area<br/>PSA recommended · HDX fallback"]
     end
 
     ENR --> AP1["AP1 · Schools"]
@@ -45,7 +45,10 @@ flowchart LR
     AP4 --> RESULT
     PEERS --> RESULT
 
-    CONTEXT["Context shown separately<br/>poverty · city class · data coverage"] --> DASH["Planner review"]
+    CONTEXT["Approved context shown separately<br/>poverty · city class · data coverage<br/>source periods"] -.-> DASH["Planner review"]
+    LIMITED["Coverage-limited reference context<br/>age structure · PSA regional education<br/>BPDA education · social infrastructure"] -.-> DASH
+    CANDIDATE["Context requiring approval<br/>CMCI"] -.-> DASH
+    POPCHECK["Population cross-check<br/>PSA barangay population"] -.-> PSGC
     RESULT --> DASH
     DEFER["Deferred sources<br/>OSM · roads · assessments · projects"] -.-> LATER["Later analyses"]
     EXCLUDED["CHED sources"] -.-> RECORD["Inventory only"]
@@ -62,7 +65,9 @@ The solid path is Question v1. Dotted paths are intentionally outside the curren
 | **AP3: students per teacher** | `deped_enrollment`; `deped_personnel`; `psa_psgc` | Enrollment supplies learners; personnel supplies teacher counts and funding source; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable personnel data. | Learners per teacher and coverage of schools and learners |
 | **AP4: enrollment change** | `deped_enrollment`; `psa_psgc` | Enrollment supplies comparable public learner counts for SY 2023-24 to 2025-26; PSGC supplies the documented current LGU reference. | Learner count, absolute change, and percentage change |
 | **Peer comparison method** | `psa_psgc`; official land area source still to be approved | PSGC supplies LGU type, income class, population, codes, and hierarchy. Density is population divided by approved land area. `hdx_boundaries.area_sqkm` is only the documented fallback unless the team selects it. | Peer-group ID, peer count, peer median, percentile rank, fallback level, and national same-type median |
-| **Context beside results** | `psa_poverty_stat`; `psa_psgc` | Poverty 2023 is displayed under its own year label and never used to group or flag. PSGC city class is visible as governance context but is not a peer criterion. | Context fields with their own source, year, and missingness labels |
+| **Approved context beside results** | `psa_poverty_stat`; `psa_psgc` | Poverty 2023 is displayed under its own year label and never used to group or flag. PSGC city class is visible as governance context but is not a peer criterion. | Context fields with their own source, year, and missingness labels |
+| **Coverage-limited or broader-grain reference context** | `psa_population_per_age_group`; `psa_openstat_education`; `bpda_barmm_education`; `bpda_barmm_social_infrastructure` | Age structure is shown only for its published geographies; OpenSTAT education remains regional or national reference; BPDA sources retain their historical periods and published geographic grain. None is copied onto an LGU as if it were a current LGU value. | Clearly labelled reference panels, coverage notes, or BARMM-specific context—not AP inputs |
+| **Context requiring approval** | `dti_cmci` | CMCI can add LGU socioeconomic or service-capacity context after reviewed PSGC matching, but it is not part of the agreed questions or current method. | Optional context panel only after a recorded team decision |
 
 ### Scope rules
 
@@ -143,11 +148,13 @@ For Question v1, keep the main result and its context visually separate:
 ```mermaid
 flowchart LR
     R["Main result<br/>school · classroom · teacher · trend"] --> P["Planner review"]
-    C["Context panel<br/>poverty 2023 · city class<br/>coverage · source periods"] -.-> P
-    N["Not used in current result<br/>CMCI · assessments · BPDA · CHED"] -.-> X["Clearly labelled future, contextual,<br/>or out-of-scope work"]
+    C["Approved context panel<br/>poverty 2023 · city class<br/>coverage · source periods"] -.-> P
+    L["Reference context with limits<br/>age structure · PSA regional education<br/>BPDA education · social infrastructure"] -.-> P
+    A["Needs team approval<br/>CMCI context"] -.-> P
+    N["Deferred or out of scope<br/>assessments · OSM/roads · projects · CHED"] -.-> X["Clearly labelled future<br/>or out-of-scope work"]
 ```
 
-This prevents a contextual variable from being mistaken for part of the need calculation while keeping potentially useful evidence discoverable.
+This prevents a contextual variable from being mistaken for part of the need calculation while keeping every potentially useful source discoverable. “Reference context with limits” must retain the dataset's actual geography and period; it must not be presented as a current city/municipality value when the source does not support that grain.
 
 ## Decisions connected to this map
 
