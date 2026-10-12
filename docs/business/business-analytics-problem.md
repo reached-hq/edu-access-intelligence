@@ -1,6 +1,6 @@
 # Business and analytics problem: Question v1
 
-**Status:** Draft for team approval (#9). Recorded as D-042. Eight choices are still open (see Open decisions).
+**Status:** Draft for team approval (#9). Recorded as D-042. The business and analytical question wording is fixed in this draft; the implementation choices under [Decisions needed](#decisions-needed) still require team confirmation.
 
 | | |
 |---|---|
@@ -12,9 +12,9 @@
 
 ## Business problem
 
-LGU education planners need to know whether their cities and municipalities have enough public schools, classrooms, and teachers for their students. National totals do not answer this. A raw ranking of all 1,642 cities and municipalities does not answer it either, because a 1st class city and a 5th class municipality differ in budget and size, so their numbers will always look different.
+LGU education planners need to know whether their cities and municipalities have enough public schools, classrooms, and teachers for their students. National totals do not answer this. A raw ranking of all 1,642 cities and municipalities also lacks context because cities and municipalities differ in fiscal capacity, settlement pattern, and scale.
 
-Planners need a fair reference point: how an LGU compares with LGUs like it. If an LGU has far more students per classroom than LGUs with the same income class and population density, its gap is not explained by being poorer or smaller, and it should be looked at more closely.
+Planners need a fairer reference point: how an LGU compares with LGUs like it. If an LGU has far more students per classroom than its selected peers, that is an additional signal for closer review. It does not prove what caused the difference or which intervention is appropriate.
 
 Enrollment is **observed demand** only. It does not include children who are not enrolled. The analysis therefore cannot measure total unmet need or prescribe an intervention.
 
@@ -30,35 +30,44 @@ Enrollment is **observed demand** only. It does not include children who are not
 
 ### Method: peer groups
 
-To compare fairly, each city or municipality is grouped with LGUs of the same type (city or municipality), the same income class, and a similar population density. Its results are read against that group as well as nationally. Before the groups are used, a check confirms that learners per school, per classroom, and per teacher actually differ by income class and density band; if they do not, LGUs are compared nationally instead. The peer group is how the comparison is made, not an analytical question of its own (see Peer groups).
+To compare consistently, each city or municipality is grouped with LGUs of the same type (city or municipality), the same income class, and the same population-density band. Cities and municipalities are separated before income class is applied because their income-class brackets differ. Each LGU's result is read against its peer group and against the national distribution for the same LGU type. The peer group is a descriptive comparison method, not an analytical question or a claim that income or density causes education need (see Peer groups).
 
 ### Decision supported
 
-The analysis helps planners decide which cities and municipalities to look at more closely, and whether the gap is in schools, classrooms, or teachers. It does not decide where to build a school, hire teachers, or construct classrooms.
+The analysis helps planners decide which cities and municipalities to look at more closely and which school, classroom, or teacher measure signals pressure. It does not decide where to build a school, hire teachers, or construct classrooms.
 
 ## How the questions fit together
 
 ```mermaid
-flowchart BT
-    METHOD["Method · Peer groups<br/>Same type, income class, and density band"] -->|defines similar LGUs| SUB["Sub business question<br/>Greater need than similar LGUs?"]
-    SUB -->|narrows it to similar LGUs| MAIN["Main business question<br/>Which cities and municipalities need more<br/>schools, classrooms, and teachers?"]
-    subgraph ANSWER["Answer the main question"]
+flowchart LR
+    subgraph QUESTIONS["Evidence from the four analytical questions"]
         AP1["AP1 · Schools"]
         AP2["AP2 · Classrooms"]
         AP3["AP3 · Teachers"]
+        AP4["AP4 · Enrollment trend"]
     end
-    ANSWER --> MAIN
-    AP4["AP4 · Enrollment trend"] -->|shows where a gap is likely to widen| ANSWER
-    METHOD -.->|peers| ANSWER
+
+    METHOD["Comparison method<br/>LGU type + income class + density band"]
+    EVIDENCE["LGU value + peer comparison<br/>+ national same-type context"]
+    SUB["Sub-BP<br/>Greater need among comparable LGUs?"]
+    MAIN["Main BP<br/>Which LGUs need more resources?"]
+    REVIEW["Planner review<br/>Priority and response decision"]
+
+    AP1 --> EVIDENCE
+    AP2 --> EVIDENCE
+    AP3 --> EVIDENCE
+    AP4 --> EVIDENCE
+    METHOD --> EVIDENCE
+    EVIDENCE --> SUB --> MAIN --> REVIEW
 ```
 
-AP1 to AP3 answer the main question. The peer-group method defines the similar LGUs each place is compared with, which is what the sub question needs. AP4 shows where a gap is likely to widen. Poverty incidence (PSA small area estimates, 2023) is context only and has no question of its own.
+AP1 to AP3 provide the school, classroom, and teacher measures. AP4 adds the direction of enrollment demand over time. The peer-group method supplies the comparison required by the sub-business question. Poverty incidence (PSA small area estimates, 2023) is context only and has no question of its own.
 
-Peer comparison is not the only basis for need. Each LGU's own values show *whether* it has a gap; the peer comparison shows *how unusual* that gap is for an LGU like it. Both are shown together, because a whole peer group can be behind: if every LGU in a group has crowded classrooms, none stands out from its peers, but all of them still need attention.
+Peer comparison is not an adequacy standard. Each LGU's own values show the observed level of provision or capacity; the peer comparison shows how unusual that value is for the selected comparison group. Both are shown with national same-type context because a whole peer group can experience pressure even when no member stands out within the group.
 
 ## Peer groups
 
-A **peer group** is the set of LGUs that a city or municipality is compared with. It exists so that comparisons are fair, not to rank LGUs into fixed tiers. It is a method, not an analytical question: it sets the reference point that AP1 to AP4 are read against.
+A **peer group** is the set of LGUs that a city or municipality is compared with. It provides a consistent reference point; it does not prove that the LGUs are identical, control for every relevant difference, or establish a required level of education provision. It is a method, not an analytical question.
 
 ### Criteria
 
@@ -70,21 +79,33 @@ A **peer group** is the set of LGUs that a city or municipality is compared with
 
 The 14 Manila sub-municipalities (`SubMun`) are not LGUs and are not peers; Manila is compared as one city.
 
-### Check before the groups are used
+### How the comparison is read
 
-The grouping assumes that income class and density shape how many learners share a school, a classroom, and a teacher. The check tests that assumption before any LGU is compared with its peers.
+The recommended display gives three pieces of information together:
 
-- **What it shows:** the median learners per public school, per instructional classroom, and per teacher for each income class and density band, separately for cities and municipalities, at each education level.
-- **If the medians differ across groups:** the grouping is used, and AP1 to AP4 read each LGU against its peers.
-- **If they do not:** the criterion that makes no difference is dropped, or LGUs are compared nationally, and the result is stated.
-- **What it does not claim:** that income or density causes a gap. It shows a difference between groups, not a cause.
-- **Poverty is not in the check,** because it is not a peer criterion. It stays context only.
+1. **LGU value:** the observed metric for the city or municipality.
+2. **Peer context:** the peer median and the LGU's percentile position within the peer group.
+3. **National context:** the median for all LGUs of the same type, shown separately for cities and municipalities.
 
-How large a difference counts is agreed with the density bands (Open decisions).
+This supports the sub-business question without treating the peer median as a minimum standard. A high peer-relative ratio is evidence for closer review, not proof of a shortage, cause, or required intervention.
+
+### Small-group fallback
+
+```mermaid
+flowchart TD
+    A["Start: same LGU type<br/>+ income class + density band"] --> B{"At least 10 LGUs<br/>in the peer group?"}
+    B -->|Yes| C["Use the full peer group"]
+    B -->|No| D["Drop density band:<br/>same LGU type + income class"]
+    D --> E{"At least 10 LGUs?"}
+    E -->|Yes| F["Use the broader peer group<br/>and label the fallback"]
+    E -->|No| G["Use all LGUs of the same type<br/>and label peer comparison unavailable"]
+```
+
+This is the recommended fallback, not yet a team decision. The dashboard must show which comparison level was used.
 
 ### Why city class (HUC, ICC, CC) is not a criterion
 
-City class is set largely by income and population, so it repeats what income class and density already measure. PSGC 2Q 2026 shows the overlap:
+City class overlaps strongly with income class in the current PSGC counts and would create smaller groups if added to the peer definition. PSGC 2Q 2026 shows the overlap:
 
 | City class | 1st | 2nd | 3rd | 4th | Total |
 |---|---|---|---|---|---|
@@ -93,7 +114,7 @@ City class is set largely by income and population, so it repeats what income cl
 | CC | 48 | 24 | 30 | 9 | 111 |
 | **All cities** | **85** | **25** | **30** | **9** | **149** |
 
-Every HUC is 1st class, and only component cities vary. Adding city class would split the 149 cities into smaller groups without adding much information.
+Every HUC is 1st class, and only component cities vary across all four income classes. Question v1 therefore keeps HUC, ICC, and CC as descriptive governance context rather than an additional peer-group criterion. This choice can be revisited if planner research shows that administrative city class materially changes the comparison they need.
 
 ### Why city vs. municipality is kept
 
@@ -118,36 +139,40 @@ City status is also a legal status set by a charter law, and it does not change 
 | # | Analytical question | Metric or output | Approximate formula | Grain | Primary sources | Main limitation |
 |---|---|---|---|---|---|---|
 | AP1 | Which areas have fewer schools relative to their number of students and population? | Learners per public school; public schools per 10,000 residents; barangays with no public school offering the level | `public-school learners at level / public schools offering level`; `public schools offering level / 2024 population * 10,000`; count of barangays with none | City/municipality × education level × school year | DepEd enrollment (school roster and `offers_*` flags), SY 2023-24; PSGC 2024 population | Total population, not school-age population; a barangay with no school may be near one in the next barangay |
-| AP2 | Which areas have the most students per classroom? | Learners per instructional classroom; classroom-data coverage | `public-school learners at level / instructional classrooms` | City/municipality × education level × school year | DepEd enrollment and facilities, public schools, SY 2023-24 | One school year only; classroom counts missing for some schools |
-| AP3 | Which areas have the most students per teacher? | Learners per teacher; personnel-data coverage | `public-school learners at level / teachers` (which positions count is open) | City/municipality × education level × school year | DepEd enrollment and personnel, public schools, SY 2023-24 | Working-personnel counts, not plantilla (personnel profile O-13) |
+| AP2 | Which areas have the most students per classroom? | Learners per instructional classroom; classroom-data coverage | `learners in schools with usable classroom data / instructional classrooms reported by those schools` | City/municipality × education level × school year | DepEd enrollment and facilities, public schools, SY 2023-24 | One school year only; classroom counts missing for some schools |
+| AP3 | Which areas have the most students per teacher? | Learners per teacher; personnel-data coverage | `learners in schools with usable personnel data / teachers reported by those schools` (which positions count is open) | City/municipality × education level × school year | DepEd enrollment and personnel, public schools, SY 2023-24 | Working-personnel counts, not plantilla (personnel profile O-13) |
 | AP4 | Which areas have student enrollment increasing or decreasing over time? | Public learner count; absolute and percentage change | `current - prior`; `(current - prior) / prior * 100` | City/municipality × education level × school year | DepEd enrollment, SY 2023-24 to 2025-26 | **Provisional** until cross-year comparability is validated (#8) |
 
-For AP1 to AP4, each LGU's result shows its own value, how it compares with its peers, and the national value for the same LGU type, so a group that is behind as a whole is still visible. Every result also reports how much of the LGU's learners the measure covers. How a value becomes a "gap" is open (see Open decisions).
+For AP1 to AP4, each LGU's result shows its own value, the recommended peer median and percentile, and the national median for the same LGU type. Every result also reports how much of the LGU's schools and enrolled learners the measure covers. Until the team adopts a cited adequacy standard, values and rankings are treated as evidence of relative pressure rather than confirmed shortages (see Decisions needed).
 
 ### Interpretation controls
 
 - **AP1 measures provision, not access.** An LGU with few schools for its population may still have schools close by in a neighbouring LGU, and a barangay with no public school may be near one in the next barangay.
 - **Schools per 10,000 residents uses total population,** because school-age population is not available at city or municipality level. The denominator is labelled as total population.
 - **AP1 to AP4 cover public schools only,** because classroom and teacher data cover public schools only (personnel profile O-3), and the same scope keeps the measures comparable.
+- **Enrollment follows the school, not learner residence.** The data count learners enrolled in public schools located in the LGU; they do not show where those learners live or capture children who are not enrolled. Cross-boundary enrollment may therefore affect an LGU's ratios.
 - **Annex schools:** AP2 and AP3 add annex enrollment and capacity to the mother school where a verified annex crosswalk exists, following DepEd's ratio method (personnel profile O-14). Results without that step are labelled provisional.
-- **No ratio from a zero or missing denominator.** Missing classroom or personnel values stay NULL, never 0 (D-023), and every result reports its coverage.
+- **Numerator and denominator use the same schools.** AP2 and AP3 include learners in the ratio only when the same schools have usable classroom or personnel data. Missing values stay NULL, never 0 (D-023), and each result reports both school and learner coverage.
+- **A peer result is descriptive.** Being worse than the peer median does not by itself prove a shortage or identify its cause. HUC, ICC, and CC status remains visible as context even though it is not a grouping criterion.
 - **AP4 reports both absolute and percentage change.** Percentage change is undefined when the prior value is 0. Rising enrollment alone does not prove a shortage, and falling enrollment does not prove a surplus.
 - **The analysis does not decide.** Planners, not the query, decide whether an LGU is a priority and what response to investigate.
 
-## Open decisions
+## Decisions needed
 
-These must be settled and recorded before #9 can close. Each lists the options or suggestions raised so far.
+The wording of the main business question, sub-business question, and AP1 to AP4 is fixed for this draft. The team still needs to decide how the questions will be implemented. A recommendation is included so the team can approve it or choose an alternative; recommendations are not decisions until recorded in D-042.
 
-| Decision | Options or suggestions | Raised in |
-|---|---|---|
-| **Main user** | (a) Provincial LGU education planner, with HUCs and ICCs kept as national context and peers, since they plan outside the province; (b) LGU education planners in general | Problem framing draft; D-013 |
-| **AP wording** | (a) Keep "Which areas have…"; (b) start each with "Compared with similar LGUs, …" so the peer comparison is explicit; (c) change "areas" to "cities and municipalities" to match the grain | Mentor check in the problem framing draft |
-| **Density bands and the check** | Suggestions: (a) national terciles of people per km², cut at 221 and 473 (dashboard sample); (b) density bands for municipalities only, with cities grouped by income class alone, since almost all cities are dense; (c) bands within each type and income class (for example terciles), so every group splits evenly. Also agree how large a difference in the check counts, for example a visible gap between group medians, or a simple test across groups | Dashboard sample; data-model check; mentor review |
-| **Too few peers** | Cutoff: under 5 (prototype) or under 10 (dashboard sample). Fallback: (a) drop the density band and keep type + income class (dashboard sample); (b) all LGUs of the same type nationwide (prototype). Also needs a rule for the 9 4th-class cities | Prototype; dashboard sample |
-| **Gap definition** | (a) A ratio in the worst 20% of all 1,642 cities and municipalities for that level; (b) (a) plus a split: a **local gap** is also in the worst quarter of its peer group, a **structural gap** is typical for its peers; (c) no flags in Question v1, values and rankings only, until a threshold can be cited | Problem framing draft; #9 consolidation (2026-10-05) |
-| **AP3 teacher count** | Head teachers: (a) excluded, with a second ratio that adds them back, since their teaching load is not documented (#64); (b) included. LGU-funded teachers: (a) included (dashboard sample); (b) reported separately by funding source | #64; problem framing draft |
-| **BARMM** | (a) Include, with its limits stated (below); (b) exclude, with the reason stated | #9 (2026-10-05); #64 |
-| **Land area source** | (a) PSA OpenSTAT, official but a new source to profile; (b) HDX ADM3 `area_sqkm`, already profiled but undocumented by the publisher (observed only), matched through `Correspondence Code` (D-030) | Problem framing draft |
+| Decision | Recommended choice | Other choices and tradeoffs | Why this is recommended | Status |
+|---|---|---|---|---|
+| **Primary user** | LGU education planners generally, with the provincial planner as the first dashboard persona | Provincial planner only; this is more focused but does not directly fit HUCs and ICCs, which plan outside provinces | Keeps the nationwide city/municipality question coherent while retaining the team's detailed provincial-planner user story | Team decision needed |
+| **Question wording** | Keep the Main BP, Sub-BP, and AP1 to AP4 exactly as written above | Rewording could make public-school scope or peer comparison explicit, but the team asked to preserve the agreed wording | Stability for mentor and team review; scope qualifications remain in the metric definitions and interpretation controls | **Fixed in this draft** |
+| **Density bands** | Calculate density terciles separately for cities and municipalities, then combine them with income class | One national set of bands is simpler but compares unlike city and municipality distributions; bands within every income class balance cells but make “high density” mean something different in every class; municipalities-only bands leave city comparisons less consistent | Type-specific terciles preserve the city/municipality split and give each type a transparent low/middle/high density meaning | Team decision needed |
+| **Small peer groups** | Require at least 10 LGUs; otherwise drop density and use type + income class; if that still has fewer than 10, show same-type national context and label peer comparison unavailable | Minimum 5 preserves more narrow groups but produces unstable medians; immediate same-type fallback discards useful income context too early | Gives a predictable hierarchy and avoids presenting very small groups as robust benchmarks | Team decision needed |
+| **Comparison statistic** | Show the peer median and percentile rank, plus the national median for the same LGU type | Mean is familiar but sensitive to extremes; rank alone hides the size of the difference; a full distribution is informative but harder to read | Median is robust, percentile gives position, and same-type national context prevents a weak peer group from looking adequate | Team decision needed |
+| **Meaning of “need” and “gap”** | In Question v1, show values and rankings as evidence for review; use a binary gap flag only after adopting a cited adequacy standard | Worst 20% gives a simple flag but always labels a fixed share; worst peer quartile does the same within every group; a team-set cutoff is usable but is not an official standard | Avoids presenting a relative rank as proof that a resource shortage exists | Team decision needed |
+| **AP3 teacher count** | Exclude head teachers from the main ratio, show a sensitivity ratio that includes them, and include LGU-funded teachers in the total while reporting funding source separately | Include head teachers in the main ratio; simpler but assumes a teaching load that is not documented. Exclude LGU-funded teachers; comparable to national staffing but understates actual classroom personnel | Keeps the main measure conservative and makes both assumptions visible | Team decision needed |
+| **BARMM** | Include BARMM with explicit coverage and geography limitations | Exclude BARMM; simpler comparisons but removes a large and policy-relevant part of the country despite usable enrollment, facilities, and personnel data | Preserves national coverage without hiding known limitations | Team decision needed |
+| **Land area source** | Profile and use PSA OpenSTAT; use HDX `area_sqkm` only as a documented fallback or cross-check | Use HDX immediately; it is already profiled but its area field is undocumented by the publisher | Population density should use an official source when it determines peer membership | Team decision needed |
+| **Time and geography reference** | Use one documented current peer definition across the three enrollment years and flag LGUs affected by boundary changes | Reconstruct peer groups for every year; historically cleaner but requires comparable annual population, income, and boundary data that are not currently available | Keeps trend comparisons stable and makes the available-data limitation explicit | Team decision needed |
 
 **If BARMM is included,** these limits go with its results:
 
@@ -173,18 +198,18 @@ Center of gravity, clustering (K-means), or network accessibility belong to this
 
 ## Planner needs
 
-Under D-001, a question resting mostly on **assumed** needs cannot be approved. The needs behind AP1 to AP4 are cited and tagged in #7 (`docs/business/planner-needs.md`). The stakeholders, sponsors, and user story are in [stakeholders.md](stakeholders.md). Until #7 lands, the comparison-with-peers framing is **mentor-validated** (program mentor review, 2026-10-12), and the remaining needs are **assumed**.
+Under D-001, a question resting mostly on **assumed** needs cannot be approved. The needs behind AP1 to AP4 are cited and tagged in #7 (`docs/business/planner-needs.md`). The stakeholders, sponsors, and user story are in [stakeholders.md](stakeholders.md). Until #7 lands, the comparison-with-peers framing is **mentor-reviewed and pending confirmation** (program mentor review, 2026-10-12), and the remaining needs are **assumed**.
 
 ## Revision history
 
 | Version | Date | Change |
 |---|---|---|
-| Question v1 (this draft) | 2026-10-12 | Reframed after mentor review around city and municipality need compared with similar LGUs. City class (HUC/ICC/CC) dropped as a criterion; city vs. municipality kept as the split for income class; peer groups moved from an analytical question to the method under the sub question, with a check that the ratios differ by income class and density; APs renumbered 1 to 4; AP1 scoped to public schools plus barangays with no public school; the overlap question folded into the peer comparison; eight choices listed as open decisions |
+| Question v1 (this draft) | 2026-10-12 | Preserved the agreed Main BP, Sub-BP, and four APs word-for-word. Peer groups are the comparison method, not an AP or a causal test. Added recommended choices with alternatives and tradeoffs, a small-group fallback, coverage-aligned ratios, and explicit interpretation limits. |
 | Draft (#9 thread) | 2026-10-05 | Consolidated by @mafelisilda: provision, classroom, teacher, enrollment-trend, and overlap questions at barangay and city/municipality level |
 
 ## Follow-up work
 
-- **Open decisions:** settle the eight above and record them in `docs/governance/decisions.md`.
+- **Decisions needed:** approve or replace each recommended choice above and record the result in `docs/governance/decisions.md`.
 - **Planner needs:** cite and tag them (#7).
 - **Cross-year comparability:** validate SY 2023-24 to 2025-26 enrollment at the same geography and level before AP4 leaves provisional (#8).
 - **Metric contracts:** exact filters, source columns, grade-to-level mapping, missing-data rules, and final formulas.
