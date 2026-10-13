@@ -365,27 +365,6 @@ GAA, and joint or department issuances.
 | DBM and DEPDev mandate pages | DBCC roles and current agency name | Official current-government pages |
 | GPPB notice | Current procurement IRR | Official procurement-policy authority |
 
-## Are website screenshots needed?
-
-Screenshots are **not required to substantiate this brief**. They are weaker
-than links to the controlling statute, GAA, order, or circular because website
-layouts can change and a screenshot can omit context. The Mermaid diagrams and
-the cited primary documents are sufficient for repository review.
-
-Screenshots would be useful only for a presentation or stakeholder walkthrough.
-If that deliverable is created, capture these three items with the page title,
-URL, and access date visible:
-
-1. DepEd's FY 2026 school-by-school MOOE allocation page or the relevant row for
-   a worked school example;
-2. DBM's budget-cycle graphic showing preparation, legislation, execution, and
-   accountability; and
-3. the FY 2026 GAA page or PDF section for the exact program used in the worked
-   example.
-
-Do not use screenshots as substitutes for citations, and do not capture browser
-profiles, account names, download histories, or other personal information.
-
 [bedp]: https://www.deped.gov.ph/wp-content/uploads/2022/05/DO_s2022_024.pdf
 [budget-process]: https://www.dbm.gov.ph/index.php/the-secretary-2/speeches/3799-the-national-budget-process-turning-plans-and-priorities-to-quality-public-services
 [budget-terms]: https://www.dbm.gov.ph/wp-content/uploads/AboutDBM/Budget%20101_Reader%20View.pdf
