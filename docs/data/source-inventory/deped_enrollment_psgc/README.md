@@ -11,10 +11,10 @@ Issue: #135. The same SY 2023-24 enrollment as [deped_enrollment](../deped_enrol
 | Source name | SY 2023-2024 School Level Data on Enrollment with PSGC, Longitude and Latitude |
 | Publisher / agency | Department of Education (DepEd), Planning Service, Education Management Information System Division (EMISD) |
 | Source system (as stated by the publisher) | Enrollment: Learner Information System (LIS), as of 2024-01-31. PSGC: PSA, 4th quarter 2024. Income class: DOF D.O. 74 s. 2024. Coordinates: NSBI, as of 2025-07-07. All from the workbook's title rows 1-6 |
-| Source URL or acquisition method | Not published online. Requested from DepEd EMISD by a team member; EMISD sent the workbook as an email attachment "in response to your request". The email is kept with the raw file, not in git |
+| Source URL or acquisition method | Not published online. Requested from DepEd EMISD by a team member; EMISD sent the workbook as an email attachment "in response to your request". The email is kept with the raw file as a PDF, not in git (see Publisher documentation) |
 | Licensing or access restrictions | Provided "for your information and reference" (EMISD email). No license terms stated; whether results may be published from it is UNVERIFIED |
 | Owner (team member) | @maeveylain |
-| Date acquired | 2026-10-14 (file saved locally 14:35 +08:00). Date of the EMISD email UNVERIFIED |
+| Date acquired | 2026-10-14, 17:46 (+08:00): date of the EMISD email |
 
 ## Files
 
@@ -28,7 +28,7 @@ Raw files are kept in raw storage, never in git. Record exactly what arrived.
 
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
-| EMISD cover email (request reply) | none (email) | n/a | Publisher office and acquisition channel only |
+| EMISD email, 2026-10-14: `Request for SY 2023–2024 Basic Education School Coordinates.pdf` (171,051 bytes), in `RAW_DATA_DIR/deped/original/` | none (email) | `9ad6cf870c41cc5afa8e294f852ca19c9406b47d7f9394c826b2cd021978a69e` | Publisher office, acquisition channel, and terms ("for your information and reference") |
 | Title rows 1-5 and notes in row 6 of the workbook itself | in the file above | as above | Reference dates and the basis of PSGC, income class, and coordinates |
 | School Characteristics Technical Notes (PDF), via deped_facilities | https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf | `a0cb8728a4b175e6eba493fa0d06146c10db9064bc3c71807162fd9266f39cbc` | NSBI covers public schools only (p. 3, 12) |
 
