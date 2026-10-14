@@ -128,7 +128,8 @@ def counts(sql):
 
 # Main block (first contiguous run of rows after the header) vs rows after the first gap.
 sheet_rows = [r for r, _ in rows]
-gaps = [r for r in range(1, max(sheet_rows) + 1) if r not in set(sheet_rows)]
+present = set(sheet_rows)
+gaps = [r for r in range(1, max(sheet_rows) + 1) if r not in present]
 first_gap = gaps[0] if gaps else max(sheet_rows) + 1
 show("run", f"{FILE}: sheets {[SHEET]}; rows below the header {len(rows) - HEADER_ROW:,}; school rows {one('SELECT count(*) FROM d'):,}")
 
@@ -224,6 +225,8 @@ show("O-10", "#N/A coordinates by sector (missing of total): " + ", ".join(
     f"{s} {m:,} of {n:,}" for s, m, n in q("SELECT sector, count(*) FILTER (WHERE lon = '#N/A'), count(*) FROM c GROUP BY 1 ORDER BY 3 DESC")))
 show("O-10", "#N/A coordinates by region (missing of total): " + ", ".join(
     f"{s} {m:,} of {n:,}" for s, m, n in q("SELECT region, count(*) FILTER (WHERE lon = '#N/A'), count(*) FROM c GROUP BY 1 ORDER BY 2 DESC, 1")))
+show("S-2", "schools with numeric coordinates by sector: " + ", ".join(
+    f"{s} {m:,} of {n:,}" for s, m, n in q("SELECT sector, count(x), count(*) FROM c GROUP BY 1 ORDER BY 3 DESC")))
 show("O-10", "#N/A coordinates that have a PSGC barangay code: {:,}".format(one("SELECT count(*) FROM c WHERE lon = '#N/A' AND psgc_bgy <> '#N/A'")))
 show("O-10", "(0, 0): {}; outside lon 116-127 / lat 4-21.5: {} (incl. zeros); swapped-looking: {}".format(
     one("SELECT count(*) FROM c WHERE x = 0 AND y = 0"),
@@ -251,6 +254,11 @@ show("O-11", "schools by km from their city/municipality median: " + counts(
                    WHEN km <= 100 THEN '50-100' ELSE 'over 100' END, count(*) FROM dist GROUP BY 1 ORDER BY min(km)"""))
 show("O-11", "over 100 km, by region (of schools with coordinates): " + ", ".join(
     f"{r} {m:,} of {n:,}" for r, m, n in q("SELECT region, count(*) FILTER (WHERE km > 100), count(*) FROM dist GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 8")))
+show("O-11", "of the over 100 km, at (0, 0) or outside the O-10 box: {} (the rest are inside the box)".format(
+    one("SELECT count(*) FROM dist WHERE km > 100 AND NOT (x BETWEEN 116 AND 127 AND y BETWEEN 4 AND 21.5)")))
+show("O-11", "over 100 km in MIMAROPA, by PSGC province (of schools with coordinates): " + ", ".join(
+    f"{p.strip()} {m:,} of {n:,}" for p, m, n in q("""SELECT g.psgc_prv_name, count(*) FILTER (WHERE km > 100), count(*)
+        FROM dist JOIN g USING (sheet_row) WHERE dist.region = 'MIMAROPA' GROUP BY 1 ORDER BY 2 DESC, 1""")))
 show("O-11", "over 100 km, not zero, examples: " + "; ".join(
     f"{i} {m} ({x}, {y}) {k:,.0f} km" for i, m, x, y, k in q(
         "SELECT school_id, psgc_mun_name, x, y, km FROM dist WHERE km > 100 AND x <> 0 ORDER BY km DESC LIMIT 5")))
