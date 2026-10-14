@@ -135,9 +135,9 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 ## D-013: Who the stakeholders are
 
 - **Problem:** The project was framed for DepEd and CHED planners. Sponsors asked what a mayor or local planner would actually need, for example whether a mayor can zoom into a barangay and trust what they see.
-- **Decision:** The stakeholders are LGU planners, with students as the focus. The analysis is basic education at city/municipality and barangay level.
+- **Decision:** The stakeholders are LGU planners, with students as the focus. This decision originally proposed analysis at city/municipality and barangay level; D-042 later fixed city/municipality as the approved analytical grain and retained barangay only for optional drill-down and validation.
 - **Reason:** LGUs take part in local school planning and funding (for example through local school boards), and they need area-level evidence that a national total cannot give; the cited needs are collected under D-001. Keeping students as the focus keeps every measure tied to learners.
-- **Consequence:** Planner needs are drawn from LGU-facing documents (D-001). Results must be trustworthy at barangay level, so place-name matching to PSGC is reported with its match rate. Higher education leaves scope (D-003).
+- **Consequence:** Planner needs are drawn from LGU-facing documents (D-001). Place-name matching to PSGC is reported with its match rate so school records can be assigned reliably to their city or municipality. Higher education leaves scope (D-003). **Refined by D-042:** the approved analytical and ranking grain is city/municipality. Barangay remains an optional school-location drill-down or validation aid, not a headline AP result or an independently ranked unit.
 
 ## D-014: How a raw delivery is identified and approved
 

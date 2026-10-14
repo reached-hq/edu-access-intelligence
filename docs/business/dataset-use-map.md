@@ -62,7 +62,7 @@ Solid paths are supported by profiled sources. A dotted path into an AP or resul
 
 | Question or method | Required datasets | How each dataset is used | Output |
 |---|---|---|---|
-| **AP1: schools relative to students and population** | `deped_enrollment`; `psa_psgc` | Enrollment supplies public-school learners, the school roster, and level-offering flags. PSGC supplies the city/municipality assignment, total 2024 population, and barangay hierarchy. | Learners per public school; public schools per 10,000 total residents; barangays with no public school offering the level |
+| **AP1: schools relative to students and population** | `deped_enrollment`; `psa_psgc` | Enrollment supplies public-school learners, the school roster, and level-offering flags. PSGC supplies the city/municipality assignment, total 2024 population, and barangay hierarchy for matching and optional drill-down. | City/municipality learners per public school and public schools per 10,000 total residents |
 | **AP2: students per classroom** | `deped_enrollment`; `deped_facilities`; `psa_psgc` | Enrollment supplies learners; facilities supplies instructional classrooms; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable classroom data. | Learners per instructional classroom and coverage of schools and learners |
 | **AP3: students per teacher** | `deped_enrollment`; `deped_personnel`; `psa_psgc` | Enrollment supplies learners; personnel supplies teacher counts and funding source; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable personnel data. | Learners per teacher and coverage of schools and learners |
 | **AP4: school-age population and enrollment gap over time** | `deped_enrollment`; official LGU-level school-age-population time series still to be acquired and profiled; `psa_psgc` | Enrollment supplies public-school learner counts and school location. The missing population source must supply an approved age range at city/municipality grain for comparable periods. PSGC supplies geographic alignment. | School-age population minus aligned public-school enrollment, with period and coverage labels |
@@ -74,6 +74,7 @@ Solid paths are supported by profiled sources. A dotted path into an AP or resul
 ### Scope rules
 
 - “Students” in AP1 to AP3 means learners enrolled in public schools in the DepEd files. It does not mean every school-age resident.
+- The approved analytical and ranking grain is city/municipality. Barangay may support school-location drill-down and match validation, but it is not a headline AP output or a separately ranked unit.
 - AP4 uses the same public-school enrollment scope for consistency. Its difference is not an out-of-school count because it can include private-school learners, cross-boundary attendance, age-grade mismatch, and non-enrollment.
 - Total population comes from PSGC's `2024 Population` field. `psa_population_per_barangay` remains its cross-check under D-033 and is not a second denominator.
 - Context fields never change an AP value, percentile, ranking, or future flag unless the team revises the approved method and records that decision.
