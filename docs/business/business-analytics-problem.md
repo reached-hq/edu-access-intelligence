@@ -71,6 +71,34 @@ For each applicable indicator, the dashboard should distinguish four kinds of ev
 
 A peer or national median must never be labelled a national baseline or adequacy standard. Until a validated official benchmark is adopted, the dashboard reports **relative pressure**, not a confirmed capacity shortage.
 
+### Recommended prioritization hierarchy
+
+When a validated official benchmark matches the metric's definition, education level, and period, prioritization should use:
+
+1. **Benchmark status:** whether the observed ratio exceeds the applicable standard;
+2. **Estimated resource gap:** the planning estimate derived from the benchmark;
+3. **Scale:** the number of enrolled learners represented by the result;
+4. **Relative context:** the peer percentile and national same-type distribution; and
+5. **Reliability:** source coverage and unresolved data-quality flags.
+
+For classrooms:
+
+```text
+required classrooms = ceiling(matched enrollment / benchmark class size)
+estimated classroom gap = max(required classrooms - usable classrooms, 0)
+```
+
+For teachers:
+
+```text
+required teachers = ceiling(matched enrollment / benchmark student-teacher ratio)
+estimated teacher gap = max(required teachers - approved teacher count, 0)
+```
+
+These are planning estimates, not construction orders, staffing items, or budget requests. They may be calculated only after the benchmark and numerator/denominator definitions are validated. When no applicable official benchmark exists, the dashboard must not estimate a deficit; it publishes a **relative capacity-pressure ranking** using the observed ratio, affected enrollment, peer percentile, national same-type context, and data coverage.
+
+The main dashboard view should remain concise: LGU, observed ratio, official benchmark when available, estimated gap when valid, enrolled learners represented, peer percentile, and data coverage. Distribution detail such as the peer interquartile range and national pooled ratio belongs in drill-down context.
+
 ### Peer-group method
 
 The proposed peer group compares an LGU with others of the same:
@@ -85,10 +113,10 @@ The proposed display shows the LGU value, peer median, peer percentile, and nati
 
 ```mermaid
 flowchart TD
-    A["Same LGU type + income class + density band"] --> B{"At least 10 LGUs?"}
-    B -->|Yes| C["Use peer median and percentile"]
+    A["Same LGU type + income class + density band"] --> B{"Meets the approved minimum peer-group size?"}
+    B -->|Yes| C["Use peer median, IQR, and percentile"]
     B -->|No| D["Drop density band:<br/>same type + income class"]
-    D --> E{"At least 10 LGUs?"}
+    D --> E{"Meets the approved minimum peer-group size?"}
     E -->|Yes| F["Use broader peers and label fallback"]
     E -->|No| G["Show national same-type context;<br/>peer comparison unavailable"]
 ```
@@ -121,10 +149,10 @@ The BP and AP wording is fixed. These implementation choices remain for the team
 
 | Decision | Recommended choice | Status |
 |---|---|---|
-| **Prioritization output** | Publish separate classroom and teacher priority views; do not create a combined score without approved weights | Team decision needed |
+| **Prioritization output** | Publish separate classroom and teacher views. Where a valid benchmark exists, use benchmark status, estimated resource gap, affected enrollment, peer/national context, and coverage. Otherwise publish relative pressure only. Do not create a combined score without approved weights. | Team decision needed |
 | **Peer criteria** | Use LGU type, income class, and type-specific density bands; retain national same-type context | Team decision needed |
-| **Small peer groups** | Require at least 10 LGUs, then fall back to type + income class, then national same-type context | Team decision needed |
-| **Comparison statistic** | Show median and percentile, not rank alone | Team decision needed |
+| **Small peer groups** | Choose the minimum after profiling group sizes and sensitivity-testing candidate values; until then, parameterize it. Fall back to type + income class, then national same-type context. | Team decision needed |
+| **Comparison statistic** | Show peer median, IQR, and percentile rather than rank alone; place the national pooled ratio in drill-down context. | Team decision needed |
 | **Official benchmarks** | Use only cited standards that match the indicator definition and period; keep descriptive medians separate | Source and team approval needed |
 | **AP3 teacher count** | Approve which personnel positions enter the denominator and show funding source separately | Team decision needed |
 | **AP4 age definition** | Approve the school-age range appropriate to public basic education | Team decision needed |
@@ -138,7 +166,7 @@ This document fixes the business and analytical meaning. Follow-on pull requests
 
 - the **data model** defines facts, dimensions, grains, and benchmark/reference structures;
 - the **ERD** defines business entities and their relationships;
-- the **analytics layer** implements formulas, peer membership, national distributions, benchmark comparisons, and validation;
+- the **analytics layer** owns a metric contract for exact columns, filters, thresholds, rounding, missingness, sort order, formulas, peer membership, national distributions, benchmark comparisons, and tests;
 - the **dashboard** presents separate classroom and teacher priorities with their comparison context and limitations.
 
 The [dataset use map](dataset-use-map.md) records which profiled sources can support each question and which source gaps remain.
