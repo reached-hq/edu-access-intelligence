@@ -22,8 +22,6 @@ Enrollment is **observed demand**: learners enrolled in public schools located i
 
 > **How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?**
 
-The concise business question uses “cities,” while the approved analytical scope explicitly covers both **cities and municipalities**. There is no sub-business question.
-
 ## Analytical questions
 
 1. **Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population?**
