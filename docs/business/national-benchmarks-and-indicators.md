@@ -44,7 +44,7 @@ Those questions are not interchangeable. An official formula may have no officia
 - the proposed school should have at least 100 prospective pupils or students in one or more grade levels, subject to justification by the Schools Division Superintendent when the minimum is not met; and
 - the proposed school should not be within two kilometres of an existing public school in a rural area or one kilometre in an urban area, subject to stated exceptions involving capacity, geographic inaccessibility, or educational interest.
 
-**Permitted use:** screen for barangays without the relevant public-school offering and identify cases for feasibility review.
+**Permitted use:** count, for each city or municipality, the barangays without a public school offering elementary, and show the barangays behind that count as drill-down for feasibility review. Barangays are not ranked or treated as a separate analytical unit.
 
 **Not permitted:** conclude from school count alone that a new school must be built. A defensible recommendation also needs the relevant grade offering, prospective learners or resident demand, distance or accessibility, existing-school capacity, and the other feasibility requirements in the order.
 
@@ -201,7 +201,7 @@ Poverty, income class, and density help explain context and support fair peer co
 | Official TLR and CLR formula text | **Reference-ready**, subject to compatible project columns |
 | Learners per reported instructional room | **Descriptive candidate only**, with the source shown as DepEd School Facilities (NSBI) and with coverage flags |
 | RA No. 7880 45:1 classroom flag or gap | **Blocked** until a compatible eligible-classroom count and intended geographic use are approved |
-| DepEd Order No. 40 school-presence screen | **Conditional**, useful as a screening flag with level, distance, demand, and feasibility caveats |
+| DepEd Order No. 40 school-presence screen | **Conditional**, as an AP1 count per city or municipality with barangay drill-down, carrying level, match-coverage, distance, demand, and feasibility caveats |
 | 2009 teacher deployment bands | **Legacy reference only**, not an active benchmark |
 | NER and BEDP targets | **Reference-ready**, but local calculation is blocked until compatible age-specific enrollment and population data exist |
 | Peer median, IQR, percentile, and national same-type median | **Descriptive method**, never labelled an official baseline |

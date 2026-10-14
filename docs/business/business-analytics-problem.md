@@ -33,7 +33,7 @@ Enrollment is **observed demand**: learners enrolled in public schools located i
 
 | Question | Role in the business decision | Primary output |
 |---|---|---|
-| **AP1 · Schools** | Supporting context on the availability of public schools; it does not independently recommend construction | Learners per public school and public schools relative to total population |
+| **AP1 · Schools** | Supporting context on the availability of public schools; it does not independently recommend construction | Learners per public school, public schools relative to total population, and barangays without a public elementary school |
 | **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school enrollment relative to reported classroom capacity, with coverage |
 | **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school enrollment relative to reported teaching personnel, with coverage |
 | **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and observed public-school enrollment | School-age population minus aligned student enrollment, by comparable period |

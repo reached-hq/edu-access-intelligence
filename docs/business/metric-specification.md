@@ -12,7 +12,7 @@ The proposed ratio structures are reasonable analytical candidates, but they are
 
 | Area | What is supported now | What prevents final approval |
 |---|---|---|
-| **AP1 · Schools** | Public-school and enrollment counts can be aggregated by matched LGU and school year | Active-school rule, education-level counting rule, and treatment of schools with zero enrollment still require an explicit contract |
+| **AP1 · Schools** | Public-school and enrollment counts can be aggregated by matched LGU and school year; 97.9% of SY 2023-24 schools (58,876 of 60,134) reach a PSGC barangay by name | Active-school rule, education-level counting rule, and treatment of schools with zero enrollment still require an explicit contract; the barangay roll-up needs a rule for the 1,258 schools without a unique barangay match |
 | **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio and has ambiguous missing values and extreme observations |
 | **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed | The included teaching positions are not approved, people may be counted across roles or levels, blanks are ambiguous, outliers remain under review, and DepEd's method requires annex-to-mother-school consolidation |
 | **AP4 · Population and enrollment** | Public-school enrollment is available across three acquired school years | No profiled nationwide city/municipality school-age-population time series exists, and the age range and period-alignment rule are not approved |
@@ -43,11 +43,18 @@ These formulas define what must be validated; they do not by themselves authoriz
 ```text
 learners_per_public_school = public_school_enrollment / public_school_count
 public_schools_per_10k_residents = public_school_count / total_population * 10,000
+
+barangays_without_public_es =
+    PSGC barangays in the LGU with no matched public school offering elementary
+barangays_without_public_es_pct =
+    barangays_without_public_es / PSGC barangays in the LGU * 100
 ```
 
 Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. Total population must retain its own reference year. This measure describes provision and school size; it does not measure travel access or prove that construction is required.
 
-**Validation status:** candidate. Approve the active-school, zero-enrollment, multi-level-school, and level-specific counting rules before implementation.
+The barangay measures follow DepEd Order No. 40, s. 2014, which expects at least one Kindergarten-to-Grade-6 school for every barangay (see the [national benchmark register](national-benchmarks-and-indicators.md#ap1--school-provision-references)). They are calculated per city or municipality and school year from the full PSGC 2Q 2026 barangay list and are never ranked by barangay. A school that does not reach a unique barangay can make a served barangay look unserved, so each LGU also shows its count of public schools without a barangay match, and a result with any such school is labelled an upper bound. A barangay without its own school may still be served by a nearby school, so the count is a screen for review, not evidence that a school is needed.
+
+**Validation status:** candidate. Approve the active-school, zero-enrollment, multi-level-school, and level-specific counting rules, and the handling of schools without a unique barangay match, before implementation.
 
 ### AP2 · Classroom pressure
 
@@ -140,7 +147,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | View | Main fields | Coverage and drill-down fields | Current status |
 |---|---|---|---|
 | **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | geography-match version, unmatched/excluded school counts, source versions | Required |
-| **AP1 context** | public-school count, public-school enrollment, learners per public school, total population, schools per 10,000 residents | population reference year, zero-enrollment school count, school-count rule | Candidate |
+| **AP1 context** | public-school count, public-school enrollment, learners per public school, total population, schools per 10,000 residents, barangays without a public elementary school (count and share) | population reference year, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Candidate |
 | **Classroom priority** | learners per reported instructional room, matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Candidate for SY 2023-24 |
 | **Teacher priority** | learners per approved teacher count, matched enrollment, approved teacher count | school and learner coverage, included-position version, funding-source split, annex status, outlier/quality flags | Blocked pending definition and annex handling |
 | **AP4 context** | school-age population, aligned public-school enrollment, arithmetic difference | age range, population source/year, alignment flag, geographic coverage | Blocked pending source and decisions |
@@ -149,7 +156,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 
 ## Decisions required before implementation
 
-1. AP1 active-school, zero-enrollment, and education-level counting rules.
+1. AP1 active-school, zero-enrollment, and education-level counting rules, and the handling of schools without a unique barangay match in the barangay roll-up.
 2. Whether and how elementary, JHS, and SHS NSBI room counts can be combined.
 3. Exact teacher positions and funding sources included in AP3, plus duplicate-person handling.
 4. Annex-to-mother-school crosswalk and aggregation behavior.
