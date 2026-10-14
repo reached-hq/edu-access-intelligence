@@ -61,7 +61,7 @@ No single office controls all three resources. DepEd and DBM are involved in nat
 | DepEd | Hires and deploys teachers; plans and funds classroom construction; runs public schools | Main data source; validates and interprets classroom and teacher pressure indicators | Yes |
 | DPWH | Often builds school buildings funded through DepEd's budget | Possible implementation partner after DepEd and local validation; no DPWH data is used | Yes |
 | DBM | Creates and funds new national teacher positions that DepEd fills | Possible partner when validated evidence supports a request for national teacher items | Added |
-| Provincial, city, and municipal LGUs | Local school boards decide how the Special Education Fund is spent, including classroom repair and construction and locally funded teachers | Decision users and implementation partners; personnel data shows how many teachers each LGU already funds | Yes |
+| Provincial, city, and municipal LGUs | Local school boards decide how the Special Education Fund is spent, including classroom repair and construction and locally funded teachers | Decision users and implementation partners; personnel data shows reported locally funded teacher counts by school and category, but not the responsible funding LGU | Yes |
 | DSWD | Runs 4Ps, whose cash grants require children to stay in school | Context for enrollment demand; 4Ps data is not part of this project | Yes |
 | PSA | Publishes the PSGC, the 2024 population count, and poverty estimates | Data source for geography, population, income class, and poverty context | Added |
 | MBHTE (BARMM) | Runs basic education in BARMM instead of DepEd | Matters for the BARMM inclusion decision, which remains open under D-042 | Added |
@@ -75,7 +75,7 @@ DSWD stays as context unless the team adds 4Ps data; without it, the analysis ca
 | Planner | Where they sit | What they plan or decide | What the dashboard must give them |
 |---|---|---|---|
 | Provincial Planning and Development Coordinator and staff (first persona) | Provincial Planning and Development Office | The province's development plan, including where education support goes across its cities and municipalities | A province view of every town, comparable pressure indicators, and figures they can copy into plan documents |
-| Provincial School Board | Chaired by the governor, co-chaired by the schools division superintendent | How the provincial Special Education Fund is spent | Classroom and teacher measures, enrollment-need context where supported, and locally funded teachers by funding source |
+| Provincial School Board | Chaired by the governor, co-chaired by the schools division superintendent | How the provincial Special Education Fund is spent | Classroom and teacher measures, enrollment-need context where supported, and reported locally funded teacher categories with attribution limitations |
 | City and Municipal Planning and Development Coordinators | City and municipal planning offices | Their own development plan and local school board budget | Their town against the national same-type distribution and against similar towns |
 | Schools division superintendent and division planning officers | DepEd schools division office | Teacher deployment and the division's school-building priorities | Teacher and classroom pressure indicators by level, down to the school |
 | Governor, mayors, and sanggunian education committees | Local chief executives and councils | Approving budgets and requests | One sentence per place they can trust: the sponsor's test is whether a mayor can zoom in and trust the numbers |
@@ -84,7 +84,7 @@ What this means for the dashboard:
 
 - **Province first.** The default view opens on one province's cities and municipalities, not the whole country.
 - **Plain numbers with their source.** Planners copy figures into plans, so every number shows its year and source.
-- **Funding source of teachers.** The school board needs Special Education Fund and LGU-funded teachers split out, which the personnel data already has.
+- **Reported funding category of teachers.** The personnel data separates locally funded categories at the school level, but it does not identify the responsible province, city, or municipality or the funding period. Attribution to a specific LGU requires a verified crosswalk.
 - **Drill-down to the school.** Division planners work school by school.
 
 **Evidence (D-001):** these roles come from the Local Government Code and DepEd's structure. The team has not interviewed these planners, so the roles are **assumed** until they are cited in #7 (`docs/business/planner-needs.md`) or checked with the mentor or a sponsor contact.
