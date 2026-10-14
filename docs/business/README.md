@@ -1,11 +1,11 @@
 # Business framing
 
-Planner needs and the business question hierarchy: business question, sub-business questions, analytical questions. Each need is tagged **documented**, **mentor-validated**, or **assumed** (D-001).
+Planner needs and the business-to-analytics hierarchy: one business question, four analytical questions, and the comparison methods used to interpret them. Each need is tagged **documented**, **mentor-validated**, or **assumed** (D-001).
 
 | Document | What it holds | Status |
 |---|---|---|
-| [business-analytics-problem.md](business-analytics-problem.md) | Question v1: fixed question wording, peer-group method, analytical definitions, and recommended choices awaiting team decisions (D-042) | Draft for approval (#9) |
-| [dataset-use-map.md](dataset-use-map.md) | Route for all 21 profiled datasets: core calculations, method support, context, cross-checks, deferred use, and exclusions | Draft for approval (#9) |
-| [stakeholders.md](stakeholders.md) | Stakeholders, sponsors, government agencies, planner roles, user story, and persona stories | Draft for approval (#9) |
+| [business-analytics-problem.md](business-analytics-problem.md) | Mentor-approved BP/AP wording, comparison and prioritization method, metric definitions, limitations, and open implementation choices (D-042) | Wording approved; implementation decisions open |
+| [dataset-use-map.md](dataset-use-map.md) | Route for all 21 profiled datasets: core calculations, method support, context, cross-checks, deferred use, and exclusions | Updated for approved questions; AP4 source gap open |
+| [stakeholders.md](stakeholders.md) | Local education planners, sponsors, government agencies, user story, and persona stories | Updated for approved questions |
 
-Question v1 is not approved yet (#9), and planner needs are still being documented (#7). Do not use the draft to reserve Gold or Analytics table names.
+The BP and AP wording was approved through mentor review on 2026-10-14. D-042 remains provisional for implementation choices, and planner needs are still being documented (#7). Data-model, ERD, Gold, analytics, and dashboard pull requests must use the approved wording and preserve the stated source gaps and limitations.

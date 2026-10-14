@@ -1,14 +1,15 @@
 # Stakeholders and user story
 
-**Status:** Draft for team approval, alongside Question v1 (#9, D-042). The primary user still requires a team decision in [Question v1](business-analytics-problem.md#decisions-needed). This document keeps the provincial planner as the first dashboard persona while allowing the approved user scope to be broader.
+**Status:** Updated for the BP and AP wording approved through mentor review on 2026-10-14. Implementation details remain subject to D-042.
 
-LGU education planners ask the question and make the planning decision. The provincial planner remains the first persona for the dashboard; the team still needs to confirm whether that persona or the broader planner group is the primary user.
+Local education planners ask the question and make the planning decision. The primary users are DepEd Schools Division Offices and LGU Local School Boards. The provincial planner remains the first dashboard persona without narrowing the approved user group.
 
 ## Stakeholders
 
 | Role | Who | What they decide or need | What ReachED gives them |
 |---|---|---|---|
-| First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer review for provincial support or a request to DepEd | Each LGU's school, classroom, teacher, and enrollment measures with peer and national same-type context |
+| First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer review for classroom support or a request to DepEd | Each LGU's classroom and teacher priority views, with school and enrollment context |
+| Primary decision users | DepEd Schools Division Offices and LGU Local School Boards | Classroom provision, teacher allocation or reallocation, validation, budgeting, and requests to the relevant agency | Separate classroom and teacher indicators, official benchmarks where validated, peer and national context, coverage, and drill-down |
 | Other decision users | City and municipal LGU education planners | Their own local school board spending, including Special Education Fund support and locally funded teachers | Their LGU's measures, comparison position, data coverage, and school-level drill-down |
 | Sponsors and funding partners | UNICEF and ADB | Which places warrant further assessment for possible support or investment | Comparable indicators, the enrolled learners covered by each measure, and stated data limitations |
 | Partner stakeholders | DepEd regional and division offices | Teacher deployment and classroom-construction priorities | Areas with high classroom or teacher pressure indicators, with school-level detail for validation |
@@ -21,8 +22,8 @@ Highly urbanized and independent component cities plan on their own, outside the
 ```mermaid
 flowchart TD
     D["DepEd and PSA data<br/>Enrollment, facilities, personnel,<br/>PSGC, population, poverty context"]
-    Q["ReachED measures<br/>Schools · classrooms · teachers · trend"]
-    C["Comparison context<br/>LGU value · peers · national same type"]
+    Q["ReachED measures<br/>School context · classrooms · teachers · AP4 where supported"]
+    C["Comparison context<br/>official benchmark · peers · national same type"]
     P["Planner review<br/>Validate, prioritize, investigate response"]
     L["City and municipal LGUs<br/>Local plans and school-board support"]
     G["DepEd, DBM, and DPWH<br/>National staffing and infrastructure processes"]
@@ -47,7 +48,7 @@ UNICEF and ADB fund the platform, but the business question stays in the planner
 | Sponsor | Their education question | What ReachED shows them | Link to a shared goal |
 |---|---|---|---|
 | UNICEF | Which cities and municipalities show the greatest school, classroom, or teacher pressure, and how many enrolled learners are covered by the evidence? | Measures by city and municipality, peer and national same-type context, poverty context, and coverage limitations | SDG 4.a (build and upgrade education facilities) and 4.c (increase the supply of qualified teachers) |
-| ADB | Which classroom and teacher pressure indicators warrant further assessment for possible investment? | Comparable measures, enrollment trends, rankings without an unsupported adequacy claim, and school-level drill-down for validation | SDG 4.a and 4.c, through investment in basic education infrastructure |
+| ADB | Which classroom and teacher pressure indicators warrant further assessment for possible investment? | Comparable measures, enrollment-need context where supported, rankings without an unsupported adequacy claim, and school-level drill-down for validation | SDG 4.a and 4.c, through investment in basic education infrastructure |
 
 Sponsors receive the same evidence and limitations as planners. Whether support should be local, national, or externally funded remains a planning decision outside the analytical result.
 
@@ -63,7 +64,7 @@ No single office controls all three resources. DepEd and DBM are involved in nat
 | Provincial, city, and municipal LGUs | Local school boards decide how the Special Education Fund is spent, including classroom repair and construction and locally funded teachers | Decision users and implementation partners; personnel data shows how many teachers each LGU already funds | Yes |
 | DSWD | Runs 4Ps, whose cash grants require children to stay in school | Context for enrollment demand; 4Ps data is not part of this project | Yes |
 | PSA | Publishes the PSGC, the 2024 population count, and poverty estimates | Data source for geography, population, income class, and poverty context | Added |
-| MBHTE (BARMM) | Runs basic education in BARMM instead of DepEd | Matters for the BARMM decision, still open in Question v1 | Added |
+| MBHTE (BARMM) | Runs basic education in BARMM instead of DepEd | Matters for the BARMM inclusion decision, which remains open under D-042 | Added |
 
 DSWD stays as context unless the team adds 4Ps data; without it, the analysis cannot show whether 4Ps changes enrollment in a given town.
 
@@ -74,7 +75,7 @@ DSWD stays as context unless the team adds 4Ps data; without it, the analysis ca
 | Planner | Where they sit | What they plan or decide | What the dashboard must give them |
 |---|---|---|---|
 | Provincial Planning and Development Coordinator and staff (first persona) | Provincial Planning and Development Office | The province's development plan, including where education support goes across its cities and municipalities | A province view of every town, comparable pressure indicators, and figures they can copy into plan documents |
-| Provincial School Board | Chaired by the governor, co-chaired by the schools division superintendent | How the provincial Special Education Fund is spent | Classroom and teacher measures, enrollment trends, and locally funded teachers by funding source |
+| Provincial School Board | Chaired by the governor, co-chaired by the schools division superintendent | How the provincial Special Education Fund is spent | Classroom and teacher measures, enrollment-need context where supported, and locally funded teachers by funding source |
 | City and Municipal Planning and Development Coordinators | City and municipal planning offices | Their own development plan and local school board budget | Their town against the national same-type distribution and against similar towns |
 | Schools division superintendent and division planning officers | DepEd schools division office | Teacher deployment and the division's school-building priorities | Teacher and classroom pressure indicators by level, down to the school |
 | Governor, mayors, and sanggunian education committees | Local chief executives and councils | Approving budgets and requests | One sentence per place they can trust: the sponsor's test is whether a mayor can zoom in and trust the numbers |
@@ -90,15 +91,15 @@ What this means for the dashboard:
 
 ## User story
 
-> As a provincial LGU education planner, I want to see which cities and municipalities show school, classroom, or teacher pressure for learners enrolled in public schools located there, and how they compare with similar LGUs, so that I can decide which results require local validation and where support or requests to DepEd may need to go first.
+> As a local education planner, I want separate classroom and teacher priority views for cities and municipalities, supported by school availability, enrollment need, validated official benchmarks, peer comparisons, and national context, so that I can decide which results require local validation and where provision or allocation may need to go first.
 
 The story is done when the planner can:
 
-1. See every city and municipality in the province with its learners per school, per classroom, and per teacher at each level.
-2. See which values indicate greater relative pressure, how many enrolled learners are covered, and how complete the source data are.
-3. See whether enrollment is growing or shrinking, so a crowded place that is still growing stands out.
-4. Compare one city or municipality with similar LGUs and with the national distribution for the same LGU type.
-5. Drill down to a single school, and trust where every number comes from.
+1. See every city and municipality in scope with its public-school learners per school, per classroom, and per teacher.
+2. Review classroom and teacher priorities separately, with enrolled-learner and source coverage shown.
+3. Compare an LGU with a validated official benchmark where available, comparable peers, and the national distribution for the same LGU type.
+4. See AP4 only where comparable school-age population and enrollment periods are supported, with the gap's limitations visible.
+5. Drill down to a single school and trace every number to its source and period.
 
 ### Persona stories
 
