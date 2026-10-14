@@ -6,6 +6,7 @@ Planner needs and the business-to-analytics hierarchy: one business question, fo
 |---|---|---|
 | [business-analytics-problem.md](business-analytics-problem.md) | Mentor-approved BP/AP wording, decision purpose, question roles, and analytical boundaries (D-042) | Wording approved |
 | [metric-specification.md](metric-specification.md) | Candidate formulas, grains, dashboard fields, comparison rules, validation status, and open implementation decisions | Draft; no production metric approved yet |
+| [national-benchmarks-and-indicators.md](national-benchmarks-and-indicators.md) | Official formulas, policy criteria, numeric references, national targets, data compatibility, and source citations | Research register; activation still requires metric-level approval |
 | [dataset-use-map.md](dataset-use-map.md) | Route for all 21 profiled datasets: core calculations, method support, context, cross-checks, deferred use, and exclusions | Updated for approved questions; AP4 source gap open |
 | [stakeholders.md](stakeholders.md) | Local education planners, sponsors, government agencies, user story, and persona stories | Updated for approved questions |
 

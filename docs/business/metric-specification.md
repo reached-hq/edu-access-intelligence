@@ -4,7 +4,7 @@
 
 ## Purpose and document boundary
 
-This document translates the approved [business and analytical questions](business-analytics-problem.md) into candidate measures and dashboard fields. It owns formulas, grains, filters, comparison rules, display fields, and validation status. It does not redefine the approved questions, assign datasets to scope, or describe stakeholder authority; those belong to the business-question document, [dataset use map](dataset-use-map.md), and [stakeholder document](stakeholders.md).
+This document translates the approved [business and analytical questions](business-analytics-problem.md) into candidate measures and dashboard fields. It owns formulas, grains, filters, comparison rules, display fields, and validation status. It does not redefine the approved questions, assign datasets to scope, describe stakeholder authority, or establish external standards; those belong to the business-question document, [dataset use map](dataset-use-map.md), [stakeholder document](stakeholders.md), and [national benchmark register](national-benchmarks-and-indicators.md).
 
 ## Current validation conclusion
 
@@ -16,7 +16,7 @@ The proposed ratio structures are reasonable analytical candidates, but they are
 | **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio and has ambiguous missing values and extreme observations |
 | **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed | The included teaching positions are not approved, people may be counted across roles or levels, blanks are ambiguous, outliers remain under review, and DepEd's method requires annex-to-mother-school consolidation |
 | **AP4 · Population and enrollment** | Public-school enrollment is available across three acquired school years | No profiled nationwide city/municipality school-age-population time series exists, and the age range and period-alignment rule are not approved |
-| **Resource-gap estimates** | The arithmetic form can be documented as a candidate | No applicable classroom or teacher benchmark has been approved, and the operational assumptions behind converting a ratio into rooms or teachers have not been validated |
+| **Resource-gap estimates** | RA No. 7880 supplies a 45:1 statutory classroom-shortage reference; the arithmetic form can be documented as a candidate | The current NSBI room field includes spaces excluded by the law, no current general teacher threshold has been validated, and the operational assumptions behind converting a ratio into rooms or teachers have not been approved |
 
 The DepEd evidence for these limitations is recorded in the source cards for [enrollment](../data/source-inventory/deped_enrollment/README.md#limitations-for-analysis), [facilities](../data/source-inventory/deped_facilities/README.md#limitations-for-analysis), and [personnel](../data/source-inventory/deped_personnel/README.md#limitations-for-analysis), with observed tests in their linked profiles.
 
@@ -105,7 +105,7 @@ The dashboard may show four distinct evidence types without treating them as int
 | Evidence | Permitted use |
 |---|---|
 | **LGU observed value** | Primary local measure, with coverage and quality status |
-| **Validated official benchmark** | Benchmark comparison only when authority, formula, scope, education level, and effective period match the observed metric |
+| **Validated official benchmark** | Benchmark comparison only when authority, formula, scope, education level, effective period, and denominator compatibility match the observed metric; see the [research register](national-benchmarks-and-indicators.md) |
 | **Peer distribution** | Relative context using an approved peer definition; not proof of shortage |
 | **National same-type distribution** | Descriptive context for cities and municipalities separately; not an official standard |
 
@@ -153,7 +153,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 2. Whether and how elementary, JHS, and SHS NSBI room counts can be combined.
 3. Exact teacher positions and funding sources included in AP3, plus duplicate-person handling.
 4. Annex-to-mother-school crosswalk and aggregation behavior.
-5. Official classroom and teacher benchmarks, if any, with authority, formula, scope, level, and effective period.
+5. Which researched classroom and teacher references, if any, are approved for the intended use after the compatibility conditions in the [national benchmark register](national-benchmarks-and-indicators.md) are met.
 6. AP4 age range, official LGU source, comparable periods, and whether modelled values are allowed.
 7. Peer criteria, density source and bands, minimum group size, fallback, and percentile convention.
 8. Relative-priority sorting or banding rule; a combined score remains out of scope unless separately approved.

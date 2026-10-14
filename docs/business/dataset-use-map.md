@@ -66,7 +66,7 @@ Solid paths are supported by profiled sources. A dotted path into an AP or resul
 | **AP2: students per classroom** | `deped_enrollment`; `deped_facilities`; `psa_psgc` | Enrollment supplies learners; facilities supplies instructional classrooms; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable classroom data. | Learners per instructional classroom and coverage of schools and learners |
 | **AP3: students per teacher** | `deped_enrollment`; `deped_personnel`; `psa_psgc` | Enrollment supplies learners; personnel supplies teacher counts and funding source; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable personnel data. | Learners per teacher and coverage of schools and learners |
 | **AP4: school-age population and enrollment gap over time** | `deped_enrollment`; official LGU-level school-age-population time series still to be acquired and profiled; `psa_psgc` | Enrollment supplies public-school learner counts and school location. The missing population source must supply an approved age range at city/municipality grain for comparable periods. PSGC supplies geographic alignment. | School-age population minus aligned public-school enrollment, with period and coverage labels |
-| **Peer comparison method** | `psa_psgc`; official land area source still to be approved | PSGC supplies LGU type, income class, population, codes, and hierarchy. Density is population divided by approved land area. `hdx_boundaries.area_sqkm` is only the documented fallback unless the team selects it. | Comparison inputs and peer-membership fields; exact statistics belong to the metric specification |
+| **Peer comparison method** | `psa_psgc`; [PSA OpenSTAT table 1A6DLPD0](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/) to be acquired and profiled | PSGC supplies LGU type, income class, population, codes, and hierarchy. The identified PSA table publishes city/municipality land area and 2024 population density. `hdx_boundaries.area_sqkm` remains only the documented fallback unless the team approves it. | Comparison inputs and peer-membership fields; exact statistics belong to the metric specification |
 | **Approved context beside results** | `psa_poverty_stat`; `psa_psgc` | Poverty 2023 is displayed under its own year label and never used to group or flag. PSGC city class is visible as governance context but is not a peer criterion. | Context fields with their own source, year, and missingness labels |
 | **Coverage-limited or broader-grain reference context** | `psa_population_per_age_group`; `psa_openstat_education`; `bpda_barmm_education`; `bpda_barmm_social_infrastructure` | Age structure is shown only for its published geographies; OpenSTAT education remains regional or national reference; BPDA sources retain their historical periods and published geographic grain. None is copied onto an LGU as if it were a current LGU value. | Clearly labelled reference panels, coverage notes, or BARMM-specific context—not AP inputs |
 | **Context requiring approval** | `dti_cmci` | CMCI can add LGU socioeconomic or service-capacity context after reviewed PSGC matching, but it is not part of the agreed questions or current method. | Optional context panel only after a recorded team decision |
@@ -116,9 +116,9 @@ flowchart TD
 
 Acquire and profile the official 2020 city/municipality workbook now, while submitting a PSA data request for the equivalent 2024 city/municipality table. Keep total population in AP1 only. Publish AP4 only for periods and LGUs supported by an approved official or explicitly modelled school-age source.
 
-## Known gap: official classroom and teacher benchmarks
+## Known gap: compatible classroom and teacher benchmarks
 
-No registered dataset is currently approved as the authoritative benchmark source for a classroom or teacher gap. The analytics may compute peer and national same-type medians from the project data, but those are descriptive references rather than standards.
+The [national benchmark register](national-benchmarks-and-indicators.md) identifies a statutory 45:1 classroom-shortage reference and legacy teacher-deployment bands, but neither is currently approved for the project metric. The classroom reference is incompatible with the current broad NSBI room field, and the teacher bands require current-applicability confirmation. Peer and national same-type medians remain descriptive references rather than standards.
 
 Before a dashboard value is labelled against an official benchmark, the team must record:
 
@@ -162,8 +162,8 @@ This table accounts for all 21 profiled sources in `config/sources.json`.
 
 This map owns only source-selection and source-routing decisions. Formula, comparison-statistic, priority, and dashboard-field decisions belong to the [metric specification](metric-specification.md).
 
-1. **Land area:** select a complete official source; retain HDX only as a documented fallback.
+1. **Land area:** acquire and profile PSA OpenSTAT table `1A6DLPD0`, then approve its version and PSGC alignment; retain HDX only as a documented fallback.
 2. **BARMM:** decide inclusion and geography treatment. BPDA sources remain context, not replacements for the DepEd indicators.
 3. **School-age population:** acquire and profile the approved LGU-level source and periods; AP4 remains unavailable where they are missing.
-4. **Official benchmarks:** acquire and validate the issuing document before routing a standard into an analytical comparison.
+4. **Official benchmarks:** resolve the data-compatibility and current-applicability conditions in the [national benchmark register](national-benchmarks-and-indicators.md) before routing a standard into an analytical comparison.
 5. **Optional context:** any use of CMCI, assessments, age-group population, BPDA data, or another context source inside a peer definition, score, threshold, or flag requires a recorded scope decision.
