@@ -1,6 +1,6 @@
 # How Philippine public-school funding reaches schools
 
-**Status:** research brief · Closes #131
+**Status:** research brief · Closes #131  
 **Research date:** 2026-10-13  
 **Scope:** national and local funding for DepEd-supervised public basic education
 
