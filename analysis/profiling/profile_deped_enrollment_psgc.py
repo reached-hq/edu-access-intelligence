@@ -42,6 +42,13 @@ HEADER_ROW = 8  # rows 1-5 are titles, 6 is the grade band, 7 is sex, 8 is the c
 ENROLLMENT_ZIP = "Enrollment-in-SY-2023-2024.zip"
 ENROLLMENT_ZIP_SHA256 = "a10f4d0f9082919c13b3a091774c8231c99c95b1b1872310714107013b77dbbb"
 ENROLLMENT_CSV = "Enrollment in SY 2023-2024/enrollment_2023-24.csv"
+# Later deped_enrollment years, used only to look up school IDs (S-3): zip, SHA-256, csv inside, encoding.
+LATER_YEARS = {
+    "2024-25": ("Enrollment-in-SY-2024-2025.zip", "fd5dd74a62b828608c62335b7c324ddf05be58e3f05465fee68854795f5b1a92",
+                "Enrollment in SY 2024-2025/enrollment_2024-25.csv", "utf-8"),
+    "2025-26": ("Enrollment-in-SY-2025-2026.zip", "ab4d7e24b3a46a99db2c76dee5279a976e4c3a76062e79f7217e70dc6dd1b450",
+                "Enrollment-in-SY-2025-2026/enrollment_2025-26.csv", "cp1252"),
+}
 PSGC_2Q2026 = ("PSGC-2Q-2026-Publication-Datafile.xlsx", "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d")
 PSGC_Q4_2023 = ("PSGC-Q4_2023-API-all.csv", "38a92ceba5120fe10fb45ba23a8f74458ee076829306db795044beeb40715335")
 
@@ -318,6 +325,28 @@ else:
     unmapped = sorted(set(e_counts) - set(mapping.values()))
     show("X-1", "csv count columns with no workbook column: " + ", ".join(
         f"{ec} filled {one(f'SELECT count({ec}) FROM e'):,}" for ec in unmapped))
+
+# %% S-3 The appended block: learners, and whether its schools appear in later school years
+show("S-3", "appended schools {}: learners {:,}; with 0 learners {}; learners by sector: {}".format(
+    one(f"SELECT count(*) FROM t WHERE NOT {main}"), one(f"SELECT sum(total) FROM t WHERE NOT {main}"),
+    one(f"SELECT count(*) FROM t WHERE NOT {main} AND total = 0"),
+    counts(f"SELECT d.sector, sum(t.total) FROM t JOIN d USING (sheet_row) WHERE NOT {main} GROUP BY 1 ORDER BY 2 DESC, 1")))
+show("S-3", "appended schools with learners: " + "; ".join(
+    f"{i} {n!r} {s} {v:,}" for i, n, s, v in q(
+        f"SELECT d.school_id, d.school_name, d.sector, t.total FROM t JOIN d USING (sheet_row) WHERE NOT {main} AND t.total > 0 ORDER BY t.total DESC, 1")))
+appended_ids = {i for (i,) in q(f"SELECT DISTINCT school_id FROM d WHERE NOT {main}")}
+seen = {}
+for year, (zip_name, zip_sha, member, encoding) in LATER_YEARS.items():
+    zp = ORIGINAL / zip_name
+    if not zp.exists() or sha256(zp) != zip_sha:
+        show("S-3", f"skipped SY {year}: {zip_name} with the SHA-256 on the deped_enrollment card is not in {ORIGINAL}")
+        continue
+    with zipfile.ZipFile(zp) as zf:
+        ids = {r["school_id"] for r in csv.DictReader(io.StringIO(zf.read(member).decode(encoding), newline=""))}
+    seen[year] = appended_ids & ids
+    show("S-3", f"appended school IDs found in deped_enrollment SY {year}: {len(seen[year])} of {len(appended_ids)}")
+if len(seen) == len(LATER_YEARS):
+    show("S-3", f"appended school IDs in no later year: {len(appended_ids - set().union(*seen.values()))} of {len(appended_ids)}")
 
 # %% X-2 PSGC codes against PSA PSGC versions (psa_psgc)
 psa = RAW / "psa" / "original"
