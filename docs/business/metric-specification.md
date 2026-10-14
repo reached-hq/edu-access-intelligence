@@ -64,7 +64,7 @@ learner_coverage_pct =
 
 The ratio of sums is computed only from schools with a usable denominator. Schools with a recorded zero room count are not silently dropped: they receive a separate zero-denominator flag and count. Missing room counts remain NULL and are reported separately.
 
-The dashboard label must say **learners per NSBI instructional room**, not “DepEd classroom–learner ratio.” DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator.
+The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator.
 
 **Validation status:** candidate for a project-defined descriptive measure, limited to SY 2023-24. Review the extreme upper tail and decide whether elementary, JHS, and SHS fields may be combined before publication.
 
@@ -141,7 +141,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 |---|---|---|---|
 | **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | geography-match version, unmatched/excluded school counts, source versions | Required |
 | **AP1 context** | public-school count, public-school enrollment, learners per public school, total population, schools per 10,000 residents | population reference year, zero-enrollment school count, school-count rule | Candidate |
-| **Classroom priority** | learners per NSBI instructional room, matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags | Candidate for SY 2023-24 |
+| **Classroom priority** | learners per reported instructional room, matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Candidate for SY 2023-24 |
 | **Teacher priority** | learners per approved teacher count, matched enrollment, approved teacher count | school and learner coverage, included-position version, funding-source split, annex status, outlier/quality flags | Blocked pending definition and annex handling |
 | **AP4 context** | school-age population, aligned public-school enrollment, arithmetic difference | age range, population source/year, alignment flag, geographic coverage | Blocked pending source and decisions |
 | **Comparisons** | applicable benchmark and status, peer percentile, peer median, national same-type median | benchmark citation/version, peer ID/count/fallback, IQR, national distribution, comparison status | Blocked until method approval |

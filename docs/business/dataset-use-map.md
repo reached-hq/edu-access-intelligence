@@ -45,7 +45,7 @@ flowchart LR
     AP3 --> RESULT
     AP4 --> RESULT
     PEERS --> RESULT
-    STANDARD["Validated official standards<br/>source still to be approved"] -.-> RESULT
+    STANDARD["Researched official standards<br/>compatibility and activation pending"] -.-> RESULT
 
     CONTEXT["Approved context shown separately<br/>poverty · city class · data coverage<br/>source periods"] -.-> DASH["Planner review"]
     LIMITED["Coverage-limited reference context<br/>age structure · PSA regional education<br/>BPDA education · social infrastructure"] -.-> DASH

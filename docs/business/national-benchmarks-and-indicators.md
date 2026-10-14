@@ -83,7 +83,7 @@ The project's `*_classrooms_instructional` fields include ALS rooms, audio-visua
 
 Therefore:
 
-- the dashboard may currently publish only the clearly labelled **learners per NSBI instructional room** descriptive measure;
+- if the candidate metric is approved after data validation, the dashboard may publish the clearly labelled **learners per reported instructional room** descriptive measure, with its source shown as **DepEd School Facilities (NSBI)**;
 - it must not call that result the official DepEd classroom–learner ratio; and
 - it must not apply the 45:1 shortage threshold until a compatible count of K–12 classrooms excluding the legally excluded spaces is available.
 
@@ -199,7 +199,7 @@ Poverty, income class, and density help explain context and support fair peer co
 | Candidate dashboard element | Decision |
 |---|---|
 | Official TLR and CLR formula text | **Reference-ready**, subject to compatible project columns |
-| Learners per NSBI instructional room | **Descriptive only**, with the NSBI label and coverage flags |
+| Learners per reported instructional room | **Descriptive candidate only**, with the source shown as DepEd School Facilities (NSBI) and with coverage flags |
 | RA No. 7880 45:1 classroom flag or gap | **Blocked** until a compatible eligible-classroom count and intended geographic use are approved |
 | DepEd Order No. 40 school-presence screen | **Conditional**, useful as a screening flag with level, distance, demand, and feasibility caveats |
 | 2009 teacher deployment bands | **Legacy reference only**, not an active benchmark |
