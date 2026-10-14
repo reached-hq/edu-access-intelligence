@@ -1,6 +1,6 @@
 # Business and analytical questions
 
-**Status:** The question wording below was approved through mentor review on 2026-10-14. The implementation choices under [Decisions still needed](#decisions-still-needed) remain open and are recorded in D-042.
+**Status:** The question wording below was approved through mentor review on 2026-10-14. Metric and dashboard implementation choices remain open under D-042 and the separate [metric specification](metric-specification.md).
 
 | | |
 |---|---|
@@ -34,8 +34,8 @@ Enrollment is **observed demand**: learners enrolled in public schools located i
 | Question | Role in the business decision | Primary output |
 |---|---|---|
 | **AP1 · Schools** | Supporting context on the availability of public schools; it does not independently recommend construction | Learners per public school and public schools relative to total population |
-| **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school learners per usable instructional classroom, with coverage |
-| **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school learners per approved teacher count, with coverage |
+| **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school enrollment relative to reported classroom capacity, with coverage |
+| **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school enrollment relative to reported teaching personnel, with coverage |
 | **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and observed public-school enrollment | School-age population minus aligned student enrollment, by comparable period |
 
 ```mermaid
@@ -54,117 +54,23 @@ flowchart LR
 
 Classroom and teacher priorities remain separate. A city or municipality may show classroom pressure without teacher pressure, or the reverse. A combined score is not part of the approved question and requires a later decision on weights and interpretation.
 
-## Comparison and prioritization framework
+## Analytical boundaries
 
-Peer groups, national indicators, and official benchmarks are **methods used to interpret the analytical results**. They are not a sub-business question or additional analytical questions.
+- **Public-school scope:** the classroom and personnel sources cover public schools, so AP1 to AP3 use public-school enrollment.
+- **School location is not learner residence:** enrollment is assigned to the LGU where the school is located. Cross-boundary attendance can affect every result.
+- **AP1 is context, not a construction recommendation:** fewer schools per learner or resident does not establish that a new school should be built.
+- **AP2 and AP3 require matched coverage:** missing classroom or personnel values remain missing, not zero, and must be reported with coverage.
+- **AP4 is not an out-of-school count:** its difference can include private-school learners, cross-boundary attendance, age-grade mismatch, and non-enrollment.
+- **Comparison is not an adequacy claim:** peer and national distributions are descriptive. Only a cited standard that matches the metric's definition, level, and period may be called an official benchmark.
+- **Planners make the response decision:** the evidence can lead to provision, reallocation, further investigation, another operational action, or no action.
 
-For each applicable indicator, the dashboard should distinguish four kinds of evidence:
+## Implementation boundary
 
-| Evidence | Meaning | Interpretation rule |
-|---|---|---|
-| **LGU observed value** | The city or municipality's own metric | Primary evidence for the local result |
-| **Official benchmark** | A cited, applicable DepEd or other authoritative standard | May support a benchmark gap only when the definition, level, and effective period match the metric |
-| **Peer comparison** | Median and percentile among comparable LGUs | Relative context; not proof of adequacy or shortage |
-| **National same-type comparison** | Median or distribution for cities or municipalities separately | Descriptive national reference; not an official standard |
+This document fixes the approved business and analytical meaning; it does not approve formulas or dashboard fields. The separate [metric and dashboard specification](metric-specification.md) owns candidate calculations, required columns, comparison rules, validation status, and unresolved choices. The [dataset use map](dataset-use-map.md) owns source routing and source gaps.
 
-A peer or national median must never be labelled a national baseline or adequacy standard. Until a validated official benchmark is adopted, the dashboard reports **relative pressure**, not a confirmed capacity shortage.
+Follow-on workstreams use those contracts as follows:
 
-### Recommended prioritization hierarchy
-
-When a validated official benchmark matches the metric's definition, education level, and period, prioritization should use:
-
-1. **Benchmark status:** whether the observed ratio exceeds the applicable standard;
-2. **Estimated resource gap:** the planning estimate derived from the benchmark;
-3. **Scale:** the number of enrolled learners represented by the result;
-4. **Relative context:** the peer percentile and national same-type distribution; and
-5. **Reliability:** source coverage and unresolved data-quality flags.
-
-For classrooms:
-
-```text
-required classrooms = ceiling(matched enrollment / benchmark class size)
-estimated classroom gap = max(required classrooms - usable classrooms, 0)
-```
-
-For teachers:
-
-```text
-required teachers = ceiling(matched enrollment / benchmark student-teacher ratio)
-estimated teacher gap = max(required teachers - approved teacher count, 0)
-```
-
-These are planning estimates, not construction orders, staffing items, or budget requests. They may be calculated only after the benchmark and numerator/denominator definitions are validated. When no applicable official benchmark exists, the dashboard must not estimate a deficit; it publishes a **relative capacity-pressure ranking** using the observed ratio, affected enrollment, peer percentile, national same-type context, and data coverage.
-
-The main dashboard view should remain concise: LGU, observed ratio, official benchmark when available, estimated gap when valid, enrolled learners represented, peer percentile, and data coverage. Distribution detail such as the peer interquartile range and national pooled ratio belongs in drill-down context.
-
-### Peer-group method
-
-The proposed peer group compares an LGU with others of the same:
-
-1. LGU type: city or municipality;
-2. income class; and
-3. population-density band.
-
-Cities and municipalities are separated before income class is applied because their statutory income brackets differ. Peer grouping does not claim that income class or density causes education pressure.
-
-The proposed display shows the LGU value, peer median, peer percentile, and national same-type median together. National context remains visible because an entire peer group may experience pressure even when no member stands out within that group.
-
-```mermaid
-flowchart TD
-    A["Same LGU type + income class + density band"] --> B{"Meets the approved minimum peer-group size?"}
-    B -->|Yes| C["Use peer median, IQR, and percentile"]
-    B -->|No| D["Drop density band:<br/>same type + income class"]
-    D --> E{"Meets the approved minimum peer-group size?"}
-    E -->|Yes| F["Use broader peers and label fallback"]
-    E -->|No| G["Show national same-type context;<br/>peer comparison unavailable"]
-```
-
-The criteria, density-band construction, and small-group fallback remain implementation decisions. They must be approved before peer ranks are published.
-
-## Metric definitions and current feasibility
-
-| # | Metric or output | Approximate formula | Grain | Primary sources | Current limitation |
-|---|---|---|---|---|---|
-| AP1 | Learners per public school; public schools per 10,000 total residents | `public-school learners / public schools`; `public schools / total population * 10,000` | City/municipality × education level × school year | DepEd enrollment; PSGC population | Provision is not physical access; school size varies |
-| AP2 | Learners per instructional classroom | `learners in schools with usable classroom data / classrooms reported by those schools` | City/municipality × school year, with level detail where valid | DepEd enrollment and facilities | Facilities are available only for SY 2023-24; missing rooms are not zero |
-| AP3 | Learners per teacher | `learners in schools with usable personnel data / approved teacher count for those schools` | City/municipality × education level × school year | DepEd enrollment and personnel | Personnel are available only for SY 2023-24; included positions require approval |
-| AP4 | School-age-population and enrollment difference over time | `school-age population - aligned student enrollment` | City/municipality × comparable period | DepEd enrollment; official LGU school-age population source still needed | No profiled nationwide LGU-level school-age-population time series currently supports the question |
-
-### Interpretation controls
-
-- **Public-school scope:** classroom and personnel measures cover public schools, so the prioritization outputs use public-school enrollment.
-- **School location is not learner residence:** enrollment is assigned to the location of the school. Cross-boundary attendance can affect every LGU result.
-- **Matched coverage:** AP2 and AP3 include learners in a ratio only when the same schools have usable denominator data. Missing values remain NULL, never zero, and coverage is reported.
-- **AP1 is provision context:** fewer schools per learner or resident does not by itself prove that a new school is required.
-- **AP4 is not an out-of-school count:** when school-age population is compared with public-school enrollment, the difference may include private-school learners, cross-boundary enrollment, age-grade mismatch, and non-enrollment.
-- **Comparable periods are required:** population reference years and school years must be aligned or their mismatch labelled explicitly.
-- **Official standards require validation:** a benchmark enters the dashboard only after its source, scope, formula, applicable level, and effective period are documented.
-- **The analysis supports the decision:** planners validate local conditions and decide whether the response is provision, reallocation, another operational action, or no action.
-
-## Decisions still needed
-
-The BP and AP wording is fixed. These implementation choices remain for the team and the data-model, ERD, analytics, and dashboard workstreams.
-
-| Decision | Recommended choice | Status |
-|---|---|---|
-| **Prioritization output** | Publish separate classroom and teacher views. Where a valid benchmark exists, use benchmark status, estimated resource gap, affected enrollment, peer/national context, and coverage. Otherwise publish relative pressure only. Do not create a combined score without approved weights. | Team decision needed |
-| **Peer criteria** | Use LGU type, income class, and type-specific density bands; retain national same-type context | Team decision needed |
-| **Small peer groups** | Choose the minimum after profiling group sizes and sensitivity-testing candidate values; until then, parameterize it. Fall back to type + income class, then national same-type context. | Team decision needed |
-| **Comparison statistic** | Show peer median, IQR, and percentile rather than rank alone; place the national pooled ratio in drill-down context. | Team decision needed |
-| **Official benchmarks** | Use only cited standards that match the indicator definition and period; keep descriptive medians separate | Source and team approval needed |
-| **AP3 teacher count** | Approve which personnel positions enter the denominator and show funding source separately | Team decision needed |
-| **AP4 age definition** | Approve the school-age range appropriate to public basic education | Team decision needed |
-| **AP4 source and period** | Acquire and profile an official city/municipality school-age-population time series before publishing AP4 | Data gap |
-| **BARMM** | Include with explicit coverage and geography limitations | Team decision needed |
-| **Land area for density** | Prefer a complete official source; use HDX only as a documented fallback | Team decision needed |
-
-## Workstream boundary
-
-This document fixes the business and analytical meaning. Follow-on pull requests own the implementation:
-
-- the **data model** defines facts, dimensions, grains, and benchmark/reference structures;
+- the **data model** defines facts, dimensions, grains, and reference structures;
 - the **ERD** defines business entities and their relationships;
-- the **analytics layer** owns a metric contract for exact columns, filters, thresholds, rounding, missingness, sort order, formulas, peer membership, national distributions, benchmark comparisons, and tests;
-- the **dashboard** presents separate classroom and teacher priorities with their comparison context and limitations.
-
-The [dataset use map](dataset-use-map.md) records which profiled sources can support each question and which source gaps remain.
+- the **analytics layer** implements only metrics marked ready in the metric specification and tests their exact behavior;
+- the **dashboard** presents only approved outputs, with their coverage and limitations.

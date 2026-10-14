@@ -66,7 +66,7 @@ Solid paths are supported by profiled sources. A dotted path into an AP or resul
 | **AP2: students per classroom** | `deped_enrollment`; `deped_facilities`; `psa_psgc` | Enrollment supplies learners; facilities supplies instructional classrooms; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable classroom data. | Learners per instructional classroom and coverage of schools and learners |
 | **AP3: students per teacher** | `deped_enrollment`; `deped_personnel`; `psa_psgc` | Enrollment supplies learners; personnel supplies teacher counts and funding source; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable personnel data. | Learners per teacher and coverage of schools and learners |
 | **AP4: school-age population and enrollment gap over time** | `deped_enrollment`; official LGU-level school-age-population time series still to be acquired and profiled; `psa_psgc` | Enrollment supplies public-school learner counts and school location. The missing population source must supply an approved age range at city/municipality grain for comparable periods. PSGC supplies geographic alignment. | School-age population minus aligned public-school enrollment, with period and coverage labels |
-| **Peer comparison method** | `psa_psgc`; official land area source still to be approved | PSGC supplies LGU type, income class, population, codes, and hierarchy. Density is population divided by approved land area. `hdx_boundaries.area_sqkm` is only the documented fallback unless the team selects it. | Peer-group ID, peer count, peer median, percentile rank, fallback level, and national same-type median |
+| **Peer comparison method** | `psa_psgc`; official land area source still to be approved | PSGC supplies LGU type, income class, population, codes, and hierarchy. Density is population divided by approved land area. `hdx_boundaries.area_sqkm` is only the documented fallback unless the team selects it. | Comparison inputs and peer-membership fields; exact statistics belong to the metric specification |
 | **Approved context beside results** | `psa_poverty_stat`; `psa_psgc` | Poverty 2023 is displayed under its own year label and never used to group or flag. PSGC city class is visible as governance context but is not a peer criterion. | Context fields with their own source, year, and missingness labels |
 | **Coverage-limited or broader-grain reference context** | `psa_population_per_age_group`; `psa_openstat_education`; `bpda_barmm_education`; `bpda_barmm_social_infrastructure` | Age structure is shown only for its published geographies; OpenSTAT education remains regional or national reference; BPDA sources retain their historical periods and published geographic grain. None is copied onto an LGU as if it were a current LGU value. | Clearly labelled reference panels, coverage notes, or BARMM-specific context—not AP inputs |
 | **Context requiring approval** | `dti_cmci` | CMCI can add LGU socioeconomic or service-capacity context after reviewed PSGC matching, but it is not part of the agreed questions or current method. | Optional context panel only after a recorded team decision |
@@ -158,30 +158,12 @@ This table accounts for all 21 profiled sources in `config/sources.json`.
 | [`ched_school_count`](../data/source-inventory/ched_school_count/) | **Out of scope** | Inventory only | Higher education is excluded by D-003, and HEI counts are not basic-education school counts |
 | [`ched_student_faculty_ratio`](../data/source-inventory/ched_student_faculty_ratio/) | **Out of scope** | Inventory only | Higher education is excluded by D-003; the regional student-faculty ratio cannot substitute for AP3 |
 
-## Context-panel recommendation
+## Source decisions still open
 
-For the approved questions, keep the main result and its context visually separate:
+This map owns only source-selection and source-routing decisions. Formula, comparison-statistic, priority, and dashboard-field decisions belong to the [metric specification](metric-specification.md).
 
-```mermaid
-flowchart LR
-    R["Main result<br/>school context · classroom priority<br/>teacher priority · AP4 where supported"] --> P["Planner review"]
-    C["Approved context panel<br/>poverty 2023 · city class<br/>coverage · source periods"] -.-> P
-    L["Reference context with limits<br/>age structure · PSA regional education<br/>BPDA education · social infrastructure"] -.-> P
-    A["Needs team approval<br/>CMCI context"] -.-> P
-    N["Deferred or out of scope<br/>assessments · OSM/roads · projects · CHED"] -.-> X["Clearly labelled future<br/>or out-of-scope work"]
-```
-
-This prevents a contextual variable from being mistaken for part of the need calculation while keeping every potentially useful source discoverable. “Reference context with limits” must retain the dataset's actual geography and period; it must not be presented as a current city/municipality value when the source does not support that grain.
-
-## Decisions connected to this map
-
-The dataset routes depend on unresolved choices listed in the business and analytical question document:
-
-1. **Land area:** PSA OpenSTAT is recommended; HDX is the fallback.
-2. **BARMM:** inclusion is recommended with the documented coverage and geography limits. BPDA sources remain context, not replacements for the DepEd indicators.
-3. **Teacher count:** the selected personnel positions determine the AP3 denominator; funding source remains visible.
-4. **Official benchmarks:** identify and validate any DepEd or other authoritative classroom and teacher standard before it is used as a gap threshold. Peer and national medians remain descriptive references.
-5. **Time and geography:** use documented geography and period alignment, with boundary-change flags.
-6. **School-age population:** approve the age range, acceptable reference years, source, and whether a modelled estimate is allowed. Until then, AP4 remains unavailable where the required denominator is missing.
-
-Any future decision to use CMCI, assessment results, age-group population, BPDA data, or another context source inside a peer group, score, threshold, or flag changes the analytical definition and must be recorded before implementation.
+1. **Land area:** select a complete official source; retain HDX only as a documented fallback.
+2. **BARMM:** decide inclusion and geography treatment. BPDA sources remain context, not replacements for the DepEd indicators.
+3. **School-age population:** acquire and profile the approved LGU-level source and periods; AP4 remains unavailable where they are missing.
+4. **Official benchmarks:** acquire and validate the issuing document before routing a standard into an analytical comparison.
+5. **Optional context:** any use of CMCI, assessments, age-group population, BPDA data, or another context source inside a peer definition, score, threshold, or flag requires a recorded scope decision.
