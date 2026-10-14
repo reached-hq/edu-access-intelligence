@@ -63,7 +63,9 @@ The SY 2023-24 school enrollment that the team already has (deped_enrollment), p
 
 ## Questions for the publisher or mentor
 
-- Where is this file published, and by which DepEd office? (Origin is UNVERIFIED on the [card](README.md).)
+Ask DepEd EMISD by replying to the email that delivered the file (EMISD invites follow-up questions there).
+
+- May results derived from this file be published (licensing, [card](README.md))?
 - What are the 108 rows after the blank rows (S-3)?
 - What is `URP`, and what does `Partially Urban` mean (S-4)?
 - Where do the coordinates of private schools come from, if NSBI covers public schools only (S-2)?
