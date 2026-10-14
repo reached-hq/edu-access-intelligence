@@ -1,6 +1,6 @@
 # How Philippine public-school funding reaches schools
 
-**Status:** research brief · Part of #131  
+**Status:** research brief · Closes #131
 **Research date:** 2026-10-13  
 **Scope:** national and local funding for DepEd-supervised public basic education
 
@@ -67,7 +67,9 @@ flowchart TD
     Q[Payroll]
     R[Goods and services]
     S[Infrastructure]
-    T[Local SEF support]
+    T[Additional local<br/>real-property tax]
+    U[LGU treasury and<br/>Local School Board]
+    V[Local SEF support]
 
     A --> B --> C --> D
     E --> F
@@ -77,7 +79,7 @@ flowchart TD
     O --> Q
     O --> R
     O --> S
-    O --> T
+    T --> U --> V
 ```
 
 This figure is a conceptual map, not a claim that funds physically pass through
@@ -214,6 +216,13 @@ DBM releases allotments to implementing units and issues cash allocations to
 their MDS sub-accounts, while SDO accounts cover non-IU schools. Republic Act
 No. 9155 supplies the statutory basis for direct release to field offices.
 
+This SDO-administered route is the usual case, not an edge case. The [EDCOM II
+Year Two Report][edcom-y2] states that 94% of the country's 45,225 public
+schools were non-IUs; only 2,661 were IUs, based on data submitted by DepEd's
+Finance Service. For most schools, access to School MOOE therefore depends on
+cash-advance requests and liquidation through the division office rather than a
+direct DBM release to a school MDS sub-account.
+
 For FY 2026, DepEd announced use of a Simplified Normative Funding Formula based
 on enrollment and basic school data to estimate the minimum operating budget
 needed to meet service standards. The current school-level allocations are
@@ -251,6 +260,16 @@ whether DepEd, the Department of Public Works and Highways (DPWH), or an LGU
 procures and manages the project. The implementing entity contracts the work,
 inspects it, and turns over the completed facility.
 
+The [Fair and Equitable Access to Education Act (RA 7880)][ra7880], commonly
+called the Roxas Law, allocates DepEd capital outlay from its second year onward
+by three criteria: 50% in proportion to each legislative district's student
+population, 40% among districts with classroom shortages, and 10% as determined
+by DepEd in implementing the law. The [EDCOM II Year Two Report][edcom-y2]
+notes that the classroom-shortage data used in this process may be up to three
+years old. Analyses of classroom need and allocation should therefore preserve
+the reference year of both the enrollment and facilities data instead of
+assuming that an allocation reflects current-year conditions.
+
 As a current example, DBM reported an April 2026 SARO release of PHP 17.27
 billion to DepEd for 4,960 classrooms under the FY 2026 Basic Education
 Facilities Fund, with implementation tied to the national classroom program and
@@ -269,8 +288,22 @@ against the approved school-board budget.
 Sections 98–100 and 272 of the [Local Government Code][lgc] establish the Local
 School Board and authorize SEF use for school operation and maintenance,
 construction and repair, facilities and equipment, educational research, books
-and periodicals, and sports development. DepEd, DBM, DILG, and DOF published
-updated [omnibus SEF guidelines][sef2026] in 2026.
+and periodicals, and sports development. [Joint Circular No. 01, s.
+2025][sef-guidelines], issued by DepEd, DBM, DILG, and DOF and posted by DBM in
+January 2026, expands the eligible uses to include early childhood care and
+development, Alternative Learning System programs, school-based feeding, ARAL
+Program tutors, and locally hired teachers where DepEd's teacher-deployment
+analysis identifies shortages.
+
+The same circular makes the Schools Division Superintendent responsible for
+preparing the Local School Board budget and requires the budget to align with
+School Improvement Plans and the Division Education Development Plan. It also
+distinguishes local revenue arrangements: cities retain their additional 1%
+real-property-tax proceeds for their city SEF, while proceeds collected on
+property in a province are divided equally between the provincial SEF and the
+SEFs of the component municipalities where the property is located. City and
+municipality SEF amounts should therefore remain separate in peer-group or
+school-funding comparisons.
 
 ## Agencies and decision rights
 
@@ -358,9 +391,12 @@ GAA, and joint or department issuances.
 | 1987 Constitution, Official Gazette | Budget authorization and COA authority | Controlling constitutional text |
 | RA 9155, Lawphil | DepEd governance and direct field-office release | Statutory text in the Supreme Court-hosted legal repository |
 | RA 7160, Official Gazette | Local School Boards and SEF | Statutory text |
+| RA 7880, Senate Legislative Reference Bureau | Capital-outlay allocation criteria | Statutory text in an official legislative repository |
 | FY 2026 GAA, DBM | Current appropriations and output structure | Enacted budget, not the proposed NEP |
 | DepEd Orders 13/2016 and 18/2023 | School MOOE and facilities planning | Official department issuances |
 | COA-DBM-DepEd JC 2019-1 | Non-IU cash advances and liquidation | Official inter-agency circular |
+| Joint Circular No. 01, s. 2025 | Current SEF governance, eligible uses, and revenue sharing | Official inter-agency circular hosted by DBM |
+| EDCOM II Year Two Report | IU prevalence and classroom-allocation data limitations | Official congressional commission report |
 | COA-DBM and COA-DBM-BTr issuances | Reporting, cash authority, and MDS | Official oversight and treasury rules |
 | DBM and DEPDev mandate pages | DBCC roles and current agency name | Official current-government pages |
 | GPPB notice | Current procurement IRR | Official procurement-policy authority |
@@ -378,11 +414,13 @@ GAA, and joint or department issuances.
 [depdev]: https://dro5.depdev.gov.ph/legal-mandates/
 [do13]: https://www.deped.gov.ph/wp-content/uploads/2016/03/DO_s2016_13.pdf
 [do18]: https://www.deped.gov.ph/wp-content/uploads/DO_s2023_018.pdf
+[edcom-y2]: https://edcom2.gov.ph/media/2025/01/EDCOM-2-Year-2-Report-Fixing-the-Foundations-2025.pdf
 [gaa2026]: https://www.dbm.gov.ph/index.php/2026/general-appropriations-act-gaa-fy-2026
 [lgc]: https://officialgazette.gov.ph/1991/10/10/republic-act-no-7160/
 [mds]: https://www.treasury.gov.ph/wp-content/uploads/2022/03/COA-DBM-BTr-Joint-Circular-No.-1-s.-2022-1.pdf
 [ngpa]: https://www.gppb.gov.ph/public-advisory-no-09-2026/
+[ra7880]: https://issuances-library.senate.gov.ph/legislative%2Bissuances/Republic%20Act%20No.%207880
 [ra9155]: https://lawphil.net/statutes/repacts/ra2001/ra_9155_2001.html
 [reporting]: https://www.dbm.gov.ph/wp-content/uploads/Issuances/2019/Joint-Circular/COA-DBM-JOINT-CIRCULAR-NO-2019-1-DATED-JANUARY-1-2019.pdf
-[sef2026]: https://www.dbm.gov.ph/index.php/dbm-issuances/joint-circulars?catid=390&id=3897%3Ajoint-circular-no-1-s-2025-deped-dbm-dilg-dof&view=article
+[sef-guidelines]: https://www.dbm.gov.ph/index.php/dbm-issuances/joint-circulars?catid=390&id=3897%3Ajoint-circular-no-1-s-2025-deped-dbm-dilg-dof&view=article
 [snff]: https://www.deped.gov.ph/2026/04/13/angara-nagdagdag-ng-pondo-para-palakasin-ang-classroom-resources/
