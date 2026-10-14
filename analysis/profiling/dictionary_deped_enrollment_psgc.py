@@ -184,8 +184,8 @@ INTERPRETATION = {
          "the same header as AA. Never disagrees with AA (O-8)."),
     29: ("**[other source]** NSBI is the National School Building Inventory; the Technical Notes (p. 3, 12) say it covers public schools only "
          "(deped_facilities README). **[observed]** `#N/A` on 13,793 schools (22.9%), blank on 108; 6 schools at (0, 0) and 54 others "
-         "outside the Philippines; 13,536 longitudes carry binary-float digits (O-10). 2,275 schools are over 100 km from the other schools of their city or municipality (O-11). "
-         "Private schools have coordinates too, 7,597 of 12,207 (S-2)."),
+         "outside the Philippines; 13,536 longitudes carry binary-float digits (O-10). 2,275 schools, including those 60, are over 100 km from the other schools of their city or municipality (O-11). "
+         "Private schools have coordinates too, 7,503 of 12,207 (S-2)."),
     30: ("**[observed]** As column AC (O-10, O-11). Values carry binary-float digits, e.g. `5.0999999999999996` for 5.1 (O-10)."),
 }
 for i in range(31, WIDTH + 1):

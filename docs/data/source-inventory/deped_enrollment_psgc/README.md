@@ -75,7 +75,7 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** a report layout: 5 title rows, a 3-row header, 9 blank rows, and one row of `#N/A` only (O-1).
 - **Observed:** 108 schools appended after the main block, with no PSGC, coordinates, or `URP`; they include one duplicated and one 7-digit school ID (O-2, O-3).
 - **Observed:** PSGC codes lost their leading zero for regions I to IX (O-5); 667 schools have `#N/A` codes (O-6); 3 schools have a barangay outside their city or municipality (O-7).
-- **Observed:** 23% of coordinates are `#N/A`; 60 are at (0, 0) or outside the Philippines; 2,275 are over 100 km from their own city or municipality (O-10, O-11).
+- **Observed:** 23% of coordinates are `#N/A`, and 2,275 are over 100 km from their own city or municipality; these 2,275 include the 60 points at (0, 0) or outside the Philippines (O-10, O-11).
 - **Observed:** two urban/rural columns that disagree, one undocumented (O-9); income class has a `1St` typo (O-8).
 - **Suspected:** far-off coordinates are wrong locations (S-1); private-school coordinates come from somewhere other than NSBI (S-2).
 
