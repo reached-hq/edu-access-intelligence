@@ -20,7 +20,8 @@ Proposed dimensions:
 Proposed facts:
 
 - `fact_school_enrollment`
-- `fact_school_capacity`
+- `fact_school_classroom_capacity`
+- `fact_school_teacher_capacity`
 - `fact_city_population`
 - `fact_city_poverty_estimate`
 
