@@ -256,7 +256,9 @@ show("O-10", "coordinate pairs shared by more than one school: {} pairs, {} scho
 
 # %% O-11 Coordinates far from the other schools in the same city/municipality
 # Reference point: the median longitude and latitude of the schools with in-box coordinates
-# that share the PSGC city/municipality code. Distance is an equirectangular approximation.
+# that share the PSGC city/municipality code, the school itself included. Schools without a
+# numeric barangay code have no city/municipality to measure against and are counted apart.
+# Distance is an equirectangular approximation.
 con.execute("""CREATE TABLE mm AS SELECT m10, median(x) mx, median(y) my, count(*) n FROM g
                JOIN c USING (sheet_row) WHERE x BETWEEN 116 AND 127 AND y BETWEEN 4 AND 21.5 GROUP BY 1""")
 KM = "111.32 * sqrt(power((c.x - mm.mx) * cos(radians(mm.my)), 2) + power(c.y - mm.my, 2))"
@@ -265,6 +267,9 @@ con.execute(f"""CREATE TABLE dist AS SELECT c.sheet_row, c.school_id, c.region, 
 show("O-11", "schools by km from their city/municipality median: " + counts(
     """SELECT CASE WHEN km <= 10 THEN '0-10' WHEN km <= 25 THEN '10-25' WHEN km <= 50 THEN '25-50'
                    WHEN km <= 100 THEN '50-100' ELSE 'over 100' END, count(*) FROM dist GROUP BY 1 ORDER BY min(km)"""))
+show("O-11", "schools with numeric coordinates measured {:,} of {:,}; not measured, no numeric barangay code: {}".format(
+    one("SELECT count(*) FROM dist"), one("SELECT count(x) FROM c"),
+    counts("SELECT psgc_bgy, count(*) FROM c WHERE x IS NOT NULL AND sheet_row NOT IN (SELECT sheet_row FROM g) GROUP BY 1")))
 show("O-11", "over 100 km, by region (of schools with coordinates): " + ", ".join(
     f"{r} {m:,} of {n:,}" for r, m, n in q("SELECT region, count(*) FILTER (WHERE km > 100), count(*) FROM dist GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 8")))
 show("O-11", "of the over 100 km, at (0, 0) or outside the O-10 box: {} (the rest are inside the box)".format(

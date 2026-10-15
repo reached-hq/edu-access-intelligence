@@ -2,7 +2,7 @@
 
 **Status:** profiled
 
-Issue: #135. The same SY 2023-24 enrollment as [deped_enrollment](../deped_enrollment/README.md), with PSGC codes and school coordinates added. Whether it replaces or supplements deped_enrollment for SY 2023-24 is not yet decided.
+Issue: #135. The same SY 2023-24 enrollment as [deped_enrollment](../deped_enrollment/README.md), with PSGC codes and school coordinates added. It supplements deped_enrollment rather than replacing it: the team agreed in #137 on option B, so deped_enrollment stays the only enrollment source and this file is used as a `school_id` → PSGC crosswalk, the first DepEd match method, with name matching as the fallback. The decision is recorded in `docs/governance/decisions.md` when #137 closes.
 
 ## Identity
 
@@ -12,7 +12,7 @@ Issue: #135. The same SY 2023-24 enrollment as [deped_enrollment](../deped_enrol
 | Publisher / agency | Department of Education (DepEd), Planning Service, Education Management Information System Division (EMISD) |
 | Source system (as stated by the publisher) | Enrollment: Learner Information System (LIS), as of 2024-01-31. PSGC: PSA, 4th quarter 2024. Income class: DOF D.O. 74 s. 2024. Coordinates: NSBI, as of 2025-07-07. All from the workbook's title rows 1-6 |
 | Source URL or acquisition method | Not published online. Requested from DepEd EMISD by a team member; EMISD sent the workbook as an email attachment "in response to your request". The email is kept with the raw file as a PDF, not in git (see Publisher documentation) |
-| Licensing or access restrictions | Provided "for your information and reference" (EMISD email). No license terms stated; whether results may be published from it is UNVERIFIED |
+| Licensing or access restrictions | Provided "for your information and reference" (EMISD email). No license terms stated; whether results may be published from it is UNVERIFIED. Publishing derived outputs (presentation, dashboard) is on hold until EMISD clarifies; the question is listed in the [profile](profile.md#questions-for-the-publisher-or-mentor) |
 | Owner (team member) | @maeveylain |
 | Date acquired | 2026-10-14, 17:46 (+08:00): date of the EMISD email |
 
