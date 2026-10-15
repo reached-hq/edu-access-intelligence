@@ -245,7 +245,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 2. **Set (D-047):** ES, JHS, and SHS room counts are combined into one total per school.
 3. **Set (D-047):** AP3 teacher positions, levels, and funding columns. Possible double counting of one person is a documented limit the source cannot resolve.
 4. **Set (D-047):** no annex-to-mother-school link exists, so AP3 is labelled project-defined, and annexes that report 0 teachers keep their learners in the city or municipality total.
-5. Which researched classroom and teacher references, if any, are approved for the intended use after the compatibility conditions in the [national benchmark register](national-benchmarks-and-indicators.md) are met.
+5. **Set (D-045):** only the DepEd Order No. 40, s. 2014 school-presence screen is active, for AP1. RA No. 7880's 45:1 rule and the 2009 teacher bands stay in documentation, and the PSIP III 45-seat configuration is a design reference for the candidate classroom planning calculation only.
 6. AP4 name-match rule from the PSA census workbooks to PSGC, and how the dashboard shows cities and municipalities flagged for the 2020-to-2024 change. The age range, matched periods, enrollment scope, and the no-modelling rule are set in the AP4 section above.
 7. Peer criteria, density bands, minimum group size, fallback, and percentile convention. The land-area source is HDX.
 8. Relative-priority sorting or banding rule; a combined score remains out of scope unless separately approved.
