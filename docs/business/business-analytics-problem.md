@@ -36,7 +36,7 @@ Enrollment is **observed demand**: learners enrolled in public schools located i
 | **AP1 · Schools** | Supporting context on the availability of public schools; it does not independently recommend construction | Learners per public school, public schools relative to total population, and barangays without a public elementary school |
 | **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school enrollment relative to reported classroom capacity, with coverage |
 | **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school enrollment relative to reported teaching personnel, with coverage |
-| **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and observed public-school enrollment | School-age population minus aligned student enrollment, by comparable period |
+| **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Population aged 5–17 minus enrollment in all sectors, for 2020 and 2024, and the change between them; the public-school share is shown beside it |
 
 ```mermaid
 flowchart LR
@@ -57,10 +57,12 @@ Classroom and teacher priorities remain separate. A city or municipality may sho
 ## Analytical boundaries
 
 - **Public-school scope:** the classroom and personnel sources cover public schools, so AP1 to AP3 use public-school enrollment.
+- **AP4 enrollment scope:** AP4 compares all school-age residents with all enrolled learners, so it counts enrollment in every sector (public, private, and SUC/LUC) except Philippine Schools Overseas, and shows the public-school share beside it.
+- **AP4 "over time" means two matched points:** the 2020 Census with SY 2020-21 enrollment, and the 2024 Census with SY 2024-25 enrollment. School years without a census in the same year have no AP4 value; nothing is interpolated or projected.
 - **School location is not learner residence:** enrollment is assigned to the LGU where the school is located. Cross-boundary attendance can affect every result.
 - **AP1 is context, not a construction recommendation:** fewer schools per learner or resident does not establish that a new school should be built.
 - **AP2 and AP3 require matched coverage:** missing classroom or personnel values remain missing, not zero, and must be reported with coverage.
-- **AP4 is not an out-of-school count:** its difference can include private-school learners, cross-boundary attendance, age-grade mismatch, and non-enrollment.
+- **AP4 is not an out-of-school count:** population is counted where people live, while enrollment is counted where the school is. The difference can include cross-boundary attendance, learners outside ages 5–17, and non-enrollment, and it can be negative where a city or municipality enrolls learners from neighboring areas.
 - **Comparison is not an adequacy claim:** peer and national distributions are descriptive. Only a cited standard that matches the metric's definition, level, and period may be called an official benchmark.
 - **Planners make the response decision:** the evidence can lead to provision, reallocation, further investigation, another operational action, or no action.
 
