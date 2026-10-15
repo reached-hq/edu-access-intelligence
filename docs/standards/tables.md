@@ -58,7 +58,7 @@ implemented.
 
 Implemented: `deped_annex_mother_map`, one row per annex school and school year.
 It keeps the mother ID and match method NULL while the approved DepEd releases
-provide no reliable link, and lists every unmatched annex with evidence (D-042).
+provide no reliable link, and lists every unmatched annex with evidence (D-044).
 
 These are working names only:
 
