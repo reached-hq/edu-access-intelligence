@@ -1317,7 +1317,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 
 `deped_enrollment_psgc` loads through the same pipeline, from its own contract, [`config/ingestion/deped_enrollment_psgc.json`](../../config/ingestion/deped_enrollment_psgc.json) (`format: xlsx_report`). What differs is in [`src/ingestion/xlsx_report.py`](../../src/ingestion/xlsx_report.py): the header is in row 8, below title rows that state the school year and the basis of the PSGC codes and coordinates; the period is a school year; every row below the header is kept with its kind. Issue #152; the pipeline use is #137 (option B: a `school_id` to PSGC crosswalk, not a second enrollment table).
 
-**Status:** built and tested locally with made-up workbooks (`tests/test_ingestion_report.py`), and loaded locally from the real SY 2023-24 workbook: 60,285 rows, every count equal to the source card and the profile, 0 FAIL, then a skip ([evidence](../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-local-idempotency.md)). **Not yet uploaded to the raw volume or run on Databricks.** Bronze only: no Silver task exists yet. The source stays `profiled`.
+**Status:** built and tested locally with made-up workbooks (`tests/test_ingestion_report.py`), and loaded locally from the real SY 2023-24 workbook: 60,285 rows, every count equal to the source card and the profile, 0 FAIL, then a skip ([evidence](../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-local-idempotency.md)). **Verified on Databricks `dev`** on 2026-10-16 at commit `a769301`: 60,285 rows loaded (60,275 `unit`, 9 `blank`, 1 `no_identifier`), 41 checks all PASS, then a skip with Bronze unchanged ([evidence](../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-databricks-idempotency.md)). Bronze only: no Silver task exists yet. The source stays `profiled`.
 
 ### The flow (EMISD)
 
@@ -1392,6 +1392,6 @@ As for the other sources ([Runbook](#runbook)): the batch and check queries with
 
 ### Limitations (EMISD)
 
-- Verified on made-up workbooks and on the real file locally (DuckDB); the raw upload (#10) and the Databricks confirmation run are pending.
+- Verified on made-up workbooks, on the real file locally (DuckDB), and on Databricks `dev` (2026-10-16). Not yet run from `main`.
 - Bronze keeps the `#N/A` and blank rows and the 108 appended schools as received; deciding what Silver keeps for the crosswalk is the Silver issue's job (#137).
 - The workbook's licensing is unverified (source card).
