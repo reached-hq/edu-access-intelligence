@@ -207,9 +207,9 @@ Poverty, income class, and density help explain context and support fair peer co
 | Peer median, IQR, percentile, and national same-type median | **Descriptive method**, never labelled an official baseline |
 | Poverty incidence | **Context only**, carrying estimate year, interval, CV, and missingness |
 
-## Benchmark metadata required in the data model
+## Benchmark metadata required in the benchmark config
 
-Every activated benchmark or target should retain:
+Each approved benchmark is stored as a reviewed config entry that the Analytics comparison step reads ([D-045](../governance/decisions.md#d-045-question-v1-uses-only-compatible-official-benchmarks)). Every activated benchmark or target should retain:
 
 - benchmark ID and version;
 - evidence label from this document;
