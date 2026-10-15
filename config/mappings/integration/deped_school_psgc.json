@@ -1,0 +1,52 @@
+{
+  "source_id": "deped_enrollment",
+  "used_by": "analysis/cross_source/cross_source_deped_enrollment_psgc.py now; etl/04_integration/01_map_deped_school_psgc.sql once the EMISD crosswalk has a Silver table (#91, #137 Option B)",
+  "owner": "@saraevcldn",
+  "status": "Proposed in the #91 pull request; not yet approved",
+  "how_to_change": "Add or change an override in a pull request that names its evidence and reason, rerun the script, and quote the changed EP- counts in the pull request. The approving reviewer is written into the override's reviewer field.",
+  "psgc_version": "2Q 2026",
+  "rule_order": {
+    "city_mun": [
+      "A reviewed override for the school's DepEd place, if one is listed below",
+      "Special Geographic Area school (BARMM / NORTH COTABATO): excluded, as D-031 says",
+      "EMISD code and name match give the same unit: matched, method code",
+      "They give different units: matched by code when the DepEd barangay name matches the barangay of the EMISD code (the place moved, e.g. a newer municipality or Embo); otherwise ambiguous",
+      "Only one of them is found: matched by it (code, or the name tier)",
+      "Neither: unmatched"
+    ],
+    "bgy": [
+      "A reviewed override for the school's DepEd place, if one is listed below",
+      "The city or municipality is ambiguous or unmatched: the barangay is too",
+      "EMISD code and name match give the same barangay: matched, method code",
+      "They give different barangays: matched by code when the code's barangay name matches the DepEd barangay name; otherwise ambiguous",
+      "Only one of them is found: matched by it (code, or the name tier)",
+      "Neither: unmatched",
+      "Any barangay accepted above must lie inside the accepted city or municipality; otherwise ambiguous (this catches EMISD codes that break the PSGC hierarchy, profile O-7)"
+    ]
+  },
+  "match_method_from_name_tier": {
+    "exact": "name_exact",
+    "independent city": "name_exact",
+    "city, province unmatched": "name_exact",
+    "old name": "name_old",
+    "folded old name": "name_old",
+    "folded": "name_normalized",
+    "brackets dropped": "name_normalized",
+    "word City ignored": "name_normalized",
+    "truncated at 40": "name_normalized",
+    "reviewed alias": "reviewed_alias"
+  },
+  "overrides": [
+    {
+      "level": "bgy",
+      "deped_province": "NCR FOURTH DISTRICT",
+      "deped_municipality": "TAGUIG CITY",
+      "deped_barangay": "SIGNAL VILLAGE",
+      "use": "code",
+      "match_method": "reviewed_alias",
+      "reason": "DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there; the EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in; the name match cannot.",
+      "evidence": "21 SY 2023-24 schools carry this DepEd barangay; for 14 of them the EMISD code and the name match disagree (work/emisd_unexplained_disagreements.csv, group B). Rerun cross_source_deped_enrollment_psgc.py: EP-16.",
+      "reviewer": null
+    }
+  ]
+}
