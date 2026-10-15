@@ -342,14 +342,15 @@ show("S-3", "appended schools with learners: " + "; ".join(
         f"SELECT d.school_id, d.school_name, d.sector, t.total FROM t JOIN d USING (sheet_row) WHERE NOT {main} AND t.total > 0 ORDER BY t.total DESC, 1")))
 appended_ids = {i for (i,) in q(f"SELECT DISTINCT school_id FROM d WHERE NOT {main}")}
 seen = {}
+later = {}  # school year -> {school_id: sector}, also used in X-4
 for year, (zip_name, zip_sha, member, encoding) in LATER_YEARS.items():
     zp = ORIGINAL / zip_name
     if not zp.exists() or sha256(zp) != zip_sha:
         show("S-3", f"skipped SY {year}: {zip_name} with the SHA-256 on the deped_enrollment card is not in {ORIGINAL}")
         continue
     with zipfile.ZipFile(zp) as zf:
-        ids = {r["school_id"] for r in csv.DictReader(io.StringIO(zf.read(member).decode(encoding), newline=""))}
-    seen[year] = appended_ids & ids
+        later[year] = {r["school_id"]: r["sector"] for r in csv.DictReader(io.StringIO(zf.read(member).decode(encoding), newline=""))}
+    seen[year] = appended_ids & later[year].keys()
     show("S-3", f"appended school IDs found in deped_enrollment SY {year}: {len(seen[year])} of {len(appended_ids)}")
 if len(seen) == len(LATER_YEARS):
     show("S-3", f"appended school IDs in no later year: {len(appended_ids - set().union(*seen.values()))} of {len(appended_ids)}")
@@ -430,5 +431,18 @@ else:
         moved = collections.Counter((units_by_id[n].name, units_by_id[c].name)
                                     for i, (o, n, c) in results.items() if o == "disagree" and sector_of.get(i) == "Public")
         show("X-3", "public, disagree, name matching -> this file: " + ", ".join(f"{a} -> {b} {k}" for (a, b), k in moved.most_common(15)))
+
+# %% X-4 The barangay codes carried to every deped_enrollment school year by school_id
+# Used as a school_id -> PSGC crosswalk, the SY 2023-24 codes reach a later year's school
+# only if its school_id is in this file's main block with a numeric barangay code.
+coded = {i for (i,) in q(f"SELECT school_id FROM g WHERE {main}")}
+years = {"2023-24": dict(q(f"SELECT school_id, sector FROM d WHERE {main}")), **later}
+for year, sectors in years.items():
+    public = {i for i, s in sectors.items() if s == "Public"}
+    show("X-4", "SY {}: schools {:,}, with a code from this file {:,} ({:.1%}); public {:,}, with a code {:,} ({:.1%})".format(
+        year, len(sectors), len(coded & sectors.keys()), len(coded & sectors.keys()) / len(sectors),
+        len(public), len(coded & public), len(coded & public) / len(public)))
+if len(later) < len(LATER_YEARS):
+    show("X-4", "later years skipped above (S-3) are not shown")
 
 workdir.cleanup()
