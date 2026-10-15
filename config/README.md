@@ -10,6 +10,7 @@ This folder contains non-secret, reviewable project configuration.
 | `tables.yml` | Final Bronze/Silver names and draft Integration candidates |
 | `ingestion/` | Source-specific delivery contracts used by Bronze ingestion |
 | `mappings/` | Reviewed category maps and manual cross-source overrides |
+| `integration/` | Reviewed rules and manual overrides for each PSGC mapping table (D-042) |
 
 Credentials, workspace tokens, raw source files, and user-specific paths do not
 belong here. When executable configuration changes, update its tests and the

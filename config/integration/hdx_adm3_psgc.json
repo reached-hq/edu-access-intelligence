@@ -1,0 +1,42 @@
+{
+  "map_table": "hdx_adm3_psgc_map",
+  "owner": "@saraevcldn",
+  "how_to_change": "Change a rule or add an override by a reviewed pull request that edits this file, then regenerate etl/04_integration (python -m src.integration.hdx_adm3_psgc sql|gate). tests/test_integration_hdx.py fails until the files match.",
+  "source": {
+    "source_id": "hdx_boundaries",
+    "silver_table": "hdx_adm3_clean",
+    "note": "One map row per HDX ADM3 feature of the published Silver table; none is dropped."
+  },
+  "psgc": {
+    "source_id": "psa_psgc",
+    "silver_table": "psa_psgc_clean",
+    "version_rule": "Match only against the master quarter (is_master_reference = TRUE in psa_psgc_clean, today 2026-Q2). When the master quarter changes, the map is rebuilt and the gate's records show what moved.",
+    "levels": [
+      "City",
+      "Mun"
+    ],
+    "finding": "D-012, D-035"
+  },
+  "rules": {
+    "order": [
+      "override: a reviewed entry below, applied before every rule",
+      "code: the P-code's digits, padded to ten, are a PSGC city or municipality code, and the names agree",
+      "correspondence_code: the old 9-digit form of that code equals the unit's PSGC Correspondence Code, and the names agree (D-030)",
+      "code_region_moved: the code starts with region 19 and the same code under region 09 exists (Sulu), and the names agree",
+      "name in province: the name matches exactly one city or municipality inside the PSGC province found for adm2_pcode (by code, else by Correspondence Code); if that province has none, among every city and municipality",
+      "code_renamed: a code rule found a unit but the names differ and no name in the province matched: kept as matched, review_status pending until an override confirms it",
+      "unmatched: nothing above applies; ambiguous: the best name tier matched two or more units"
+    ],
+    "name_tiers": [
+      "exact: upper case, spaces collapsed, a trailing (Capital) dropped, 'City of X' read as 'X City'",
+      "old name: the same against PSGC old_names",
+      "folded: accents and the punctuation . - ' dropped",
+      "folded old name",
+      "brackets dropped: bracketed text dropped",
+      "word City ignored: the words CITY and OF dropped"
+    ],
+    "finding": "#74 (analysis/cross_source/cross_source_hdx_boundaries.py, HB-2): 1,634 of 1,642 one-to-one; a code counts only if the names agree, because COD-AB reuses some PSGC code numbers for different units (16 in Maguindanao)."
+  },
+  "overrides": [],
+  "overrides_note": "Each override: {\"adm3_pcode\", \"psgc_code\" (null for a feature reviewed as unmatched), \"match_method\" (one of D-029's; null when psgc_code is null), \"reason\", \"evidence\"}. Add the 8 Special Geographic Area units as reviewed unmatched (D-031) and the renamed LGUs as code_renamed after the first local run lists them as pending."
+}

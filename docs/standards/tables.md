@@ -65,6 +65,7 @@ These are working names only:
 | `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
-and PSGC-version behavior are agreed. Gold and Analytics names remain deferred
+and PSGC-version behavior are agreed. `hdx_adm3_psgc_map` is the first agreed and built
+(D-042); the others follow its shape unless their own decision says otherwise. Gold and Analytics names remain deferred
 until the business problem, analytical questions, measures, and grains are
 approved.
