@@ -397,6 +397,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Problem:** Metrics, Gold, the data model, the ERD, and the dashboard need one business decision and a stable set of analytical questions. Earlier drafts asked which LGUs needed more schools, classrooms, and teachers and introduced a peer-based sub-business question. Mentor review instead required an action-oriented business question, left the detailed city/municipality unit to the analytical scope, and removed the sub-business question.
 - **Decision:**
   - **Business question:** How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?
+  - “Cities” in the business question means cities and municipalities. The approved wording is kept unchanged.
   - **AP1:** Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population?
   - **AP2:** Which cities and municipalities have the most public-school students per classroom?
   - **AP3:** Which cities and municipalities have the most public-school students per teacher?

@@ -22,6 +22,8 @@ Enrollment is **observed demand**: learners enrolled in public schools located i
 
 > **How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?**
 
+In this question, “cities” means cities and municipalities, the same unit the analytical questions use. The approved wording is kept as it is.
+
 ## Analytical questions
 
 1. **Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population?**
