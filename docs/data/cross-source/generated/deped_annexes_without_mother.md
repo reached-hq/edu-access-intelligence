@@ -3,6 +3,7 @@
 
 Every acquired enrollment release identifies annex schools but has no mother-school ID column.
 `mother_school_id` and `match_method` therefore remain blank; `evidence` records the checked source limitation.
+The list contains 2,331 annex-school years in total: 2,091 public records in scope for AP2 and AP3 and 240 non-public records retained for source completeness.
 
 | School year | Annex school ID | Mother school ID | Match method | Evidence |
 |---|---|---|---|---|

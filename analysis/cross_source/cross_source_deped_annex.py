@@ -45,12 +45,15 @@ def read_rows(path, expected_sha, encoding):
 def main():
     folder = source_folder()
     listed = []
+    public_annexes = 0
     for year, (name, sha, encoding, annex_label) in FILES.items():
         rows = read_rows(folder / name, sha, encoding)
         columns = set(rows[0])
         link_columns = sorted(column for column in columns if "mother" in column.lower())
         annexes = [row for row in rows if row["annex_status"] == annex_label]
-        print(f"[AN-1] SY {year}: checksum OK; mother-school columns {link_columns}; annexes {len(annexes):,}")
+        year_public_annexes = sum(row["sector"] == "Public" for row in annexes)
+        public_annexes += year_public_annexes
+        print(f"[AN-1] SY {year}: checksum OK; mother-school columns {link_columns}; annexes {len(annexes):,}; public {year_public_annexes:,}")
         listed.extend((year, row["school_id"]) for row in annexes)
 
     lines = [
@@ -59,13 +62,14 @@ def main():
         "",
         "Every acquired enrollment release identifies annex schools but has no mother-school ID column.",
         "`mother_school_id` and `match_method` therefore remain blank; `evidence` records the checked source limitation.",
+        f"The list contains {len(listed):,} annex-school years in total: {public_annexes:,} public records in scope for AP2 and AP3 and {len(listed) - public_annexes:,} non-public records retained for source completeness.",
         "",
         "| School year | Annex school ID | Mother school ID | Match method | Evidence |",
         "|---|---|---|---|---|",
     ]
     lines.extend(f"| {year} | {school_id} |  |  | deped_enrollment_annex_status_only |" for year, school_id in sorted(listed))
     OUTPUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"[AN-2] listed {len(listed):,} unmatched annex-school years in {OUTPUT.relative_to(REPO)}")
+    print(f"[AN-2] listed {len(listed):,} unmatched annex-school years ({public_annexes:,} public) in {OUTPUT.relative_to(REPO)}")
 
 
 if __name__ == "__main__":
