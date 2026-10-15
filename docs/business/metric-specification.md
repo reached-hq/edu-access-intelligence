@@ -34,6 +34,18 @@ Every published measure must declare:
 8. **period** — school year or population reference year shown on every result; and
 9. **quality status** — unresolved outliers, annex handling, and definition mismatches remain visible.
 
+### Education levels
+
+Every level-specific measure uses these enrollment columns (D-047):
+
+| Level | Enrollment columns |
+|---|---|
+| **ES** | Kindergarten, Grades 1–6, and ES non-graded |
+| **JHS** | Grades 7–10 and JHS non-graded |
+| **SHS** | Grades 11–12, all strands |
+
+Non-graded learners are learners in special education classes without a grade level. They count in their level: 82,347 public-school learners in SY 2023-24.
+
 ## Candidate analytical metrics
 
 These formulas define what must be validated; they do not by themselves authorize publication.

@@ -45,6 +45,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-041 | 2026-10-12 | Personnel Silver keeps one row per school, types publisher counts without changing their meaning, and runs independently of enrollment | Provisional | Blank stays NULL, zero stays 0, publisher and calculated principal totals remain separate, and Integration checks personnel against enrollment |
 | D-042 | 2026-10-14 | Approved BP/AP wording for prioritizing classroom provision and teacher allocation; peer, national, and official references are comparison methods | Provisional | Wording is mentor-approved; implementation choices remain open, and AP4's population source is found but not yet ingested |
 | D-045 | 2026-10-15 | Question v1 uses only official benchmarks that match its metrics; AP2 and AP3 are compared with peers and national same-type distributions | Provisional | Only the DepEd Order 40 school-presence screen is active; RA 7880 and the 2009 teacher bands stay in documentation; a new benchmark is a reviewed config entry, not a pipeline change |
+| D-047 | 2026-10-16 | Question v1 metric counting rules: education levels and the AP1 to AP3 definitions | Provisional | ES, JHS, and SHS are fixed sets of enrollment columns, and non-graded learners count |
 
 ---
 
@@ -424,3 +425,11 @@ Each entry records **problem → decision → reason → consequence**. A **prov
   - An approved benchmark is stored as a reviewed config entry carrying the metadata listed in the benchmark register. The Analytics comparison step reads it and writes the benchmark value, citation, and status for each city or municipality; the dashboards only display that status.
 - **Reason:** The register's compatibility test requires the numerator, denominator, education level, geography, and period to match the observed metric. Only the DepEd Order No. 40 screen passes with current data. Keeping benchmarks in config lets one be added after review without changing a table or task.
 - **Consequence:** Benchmark status is "not applicable" for AP2 and AP3 until a compatible source exists. Revisit when DepEd provides a classroom count that excludes the spaces RA 7880 excludes, or confirms a current teacher deployment norm.
+
+## D-047: Question v1 metric counting rules
+
+- **Problem:** The draft [metric specification](../business/metric-specification.md) left the education levels and the AP1 to AP3 counting rules open, so the data model and Analytics could not build the measures the same way.
+- **Decision:**
+  - **Levels:** ES is Kindergarten, Grades 1–6, and ES non-graded; JHS is Grades 7–10 and JHS non-graded; SHS is Grades 11–12. Non-graded learners count in their level: 82,347 public-school learners in SY 2023-24.
+- **Reason:** Non-graded learners are enrolled and use classrooms and teachers, so leaving them out would undercount demand at ES and JHS.
+- **Consequence:** Every level-specific measure uses the same column sets. The full rules are in the metric specification. **Provisional:** proposed by @hyenalouise on 2026-10-16 in #129; the team has not yet reviewed it.
