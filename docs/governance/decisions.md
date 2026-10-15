@@ -420,6 +420,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
   - DepEd Order No. 40, s. 2014 is active for AP1 as a count, per city or municipality, of barangays without a public school offering elementary, with barangay drill-down and its level, match-coverage, distance, demand, and feasibility caveats.
   - Republic Act No. 7880's 45:1 rule is not applied. The NSBI instructional-room field includes laboratories, workshops, and similar rooms that the law excludes, and the law allocates at legislative-district level.
   - The DepEd Order No. 88, s. 2009 secondary deployment bands are legacy guidance and are not applied.
+  - The DepEd PSIP III Project Information Memorandum's 45 individual learners' tables and chairs per new classroom (p. 12) is a design reference. It sets the 45 in the candidate classroom planning calculation, which stays a candidate planning estimate; it is not an active benchmark or an official shortage threshold.
   - NER and the BEDP 2030 targets are shown as reference text only; local NER cannot be computed from current data.
   - AP2 and AP3 are compared only with peer and national same-type distributions and labelled "relative capacity pressure", never an official shortage.
   - An approved benchmark is stored as a reviewed config entry carrying the metadata listed in the benchmark register. The Analytics comparison step reads it and writes the benchmark value, citation, and status for each city or municipality; the dashboards only display that status.

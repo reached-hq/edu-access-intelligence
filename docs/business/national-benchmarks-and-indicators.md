@@ -18,6 +18,7 @@ Those questions are not interchangeable. An official formula may have no officia
 | **Official computation** | A government technical note defines the numerator, denominator, and interpretation | May define a metric after project-data compatibility is tested |
 | **Statutory threshold** | A law supplies a numeric rule for a stated legal purpose | Use only for that purpose and with a compatible denominator |
 | **Policy screening criterion** | An issuance supplies conditions for evaluating a possible action | May support a flag or drill-down; it is not an automatic recommendation |
+| **Design reference** | A program document states how new facilities are configured | May set a parameter in a candidate planning calculation; not an adequacy threshold or shortage determination |
 | **National planning target** | A national plan supplies a desired future result | Context only unless the local metric reproduces the same indicator |
 | **National performance context** | An official report supplies an observed national result | Validation or context, not a local adequacy threshold |
 | **Legacy guidance** | An older issuance supplies a rule whose current applicability has not been confirmed | Do not activate as a current benchmark without written confirmation |
@@ -28,7 +29,7 @@ Those questions are not interchangeable. An official formula may have no officia
 | Research area | Best-supported reference | What the project can say now |
 |---|---|---|
 | **AP1 · School provision** | DepEd Order No. 40, s. 2014 gives school-establishment screening criteria | School presence can be screened against the published criteria, but learners per school and schools per 10,000 residents have no validated national cutoff in the reviewed sources |
-| **AP2 · Classrooms** | DepEd defines the classroom–learner formula; Republic Act No. 7880 defines classroom shortage using 45 learners per classroom | The 45:1 rule cannot be applied to the current NSBI field because that field includes rooms the law excludes |
+| **AP2 · Classrooms** | DepEd defines the classroom–learner formula; Republic Act No. 7880 defines classroom shortage using 45 learners per classroom | The 45:1 rule cannot be applied to the current NSBI field because that field includes rooms the law excludes; the PSIP III memorandum configures each new classroom for 45 learners, a design reference for candidate planning only |
 | **AP3 · Teachers** | DepEd defines the teacher–learner formula and annex consolidation | No current, general national teacher threshold was found; 2009 secondary-school deployment bands are legacy evidence only |
 | **AP4 · Enrollment need** | DepEd defines GER and NER by official school age; BEDP 2030 sets national NER targets | NER is a validated participation indicator, but the current project data cannot reproduce it at LGU level; a raw population-minus-public-enrollment difference is not an out-of-school count |
 | **Peer context** | PSA and DOF provide official LGU type, income class, population, land area, density, and poverty data | These variables can describe comparable contexts, but the resulting peer group and its median are project-defined—not national standards |
@@ -86,6 +87,18 @@ Therefore:
 - if the candidate metric is approved after data validation, the dashboard may publish the clearly labelled **learners per reported instructional room** descriptive measure, with its source shown as **DepEd School Facilities (NSBI)**;
 - it must not call that result the official DepEd classroom–learner ratio; and
 - it must not apply the 45:1 shortage threshold until a compatible count of K–12 classrooms excluding the legally excluded spaces is available.
+
+### PSIP III classroom configuration
+
+DepEd's [PPP for School Infrastructure Project Phase III (PSIP III) Project Information Memorandum](https://www.deped.gov.ph/wp-content/uploads/PSIP-III_Project-Information-Memorandum.pdf) (2026), p. 12, says each new PSIP III classroom will be equipped with **45 individual learners' tables and chairs**, which it calls the finalized standard classroom configuration for PSIP III. It is the most recent DepEd statement of how many learners a newly built classroom is set up for.
+
+This is a **design reference**, not a general adequacy threshold:
+
+- it describes classrooms built under PSIP III, a public–private partnership building 16,435 classrooms in 1,092 existing Luzon schools (p. 4);
+- the same memorandum expects average class size to fall from 50 to 39 learners (p. 4), so 45 is seats per room, not a target class size; and
+- it is separate from Republic Act No. 7880's 45:1 statutory shortage definition above.
+
+It may set the 45 in the candidate classroom planning calculation in the [metric specification](metric-specification.md#candidate-resource-gap-calculations--blocked), which stays a candidate planning estimate (D-045). It must not be applied to every existing NSBI instructional room as an official shortage, for the same room-definition reason as above.
 
 ### National performance context
 
@@ -237,6 +250,7 @@ This permits more than one reference to coexist without treating a statutory cap
 |---|---|
 | [DepEd School Characteristics Technical Notes](https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf), effective 2024-09-10 | GER, NER, teacher–learner ratio, classroom–learner ratio, age mappings, annex treatment, source systems, and interpretation cautions |
 | [Republic Act No. 7880](https://lawphil.net/statutes/repacts/ra1995/ra_7880_1995.html), 1995 | 45:1 classroom-shortage definition, eligible-room exclusions, and legislative-district capital-outlay mechanism |
+| [DepEd PSIP III Project Information Memorandum](https://www.deped.gov.ph/wp-content/uploads/PSIP-III_Project-Information-Memorandum.pdf), 2026 | 45 individual learners' tables and chairs per new PSIP III classroom (p. 12); project scope and expected class sizes (p. 4) |
 | [DepEd Order No. 40, s. 2014](https://www.deped.gov.ph/wp-content/uploads/2014/08/DO_s2014_040.pdf) | School-establishment need, coverage, prospective-enrollment, and distance criteria |
 | [DepEd Order No. 88, s. 2009](https://www.deped.gov.ph/2009/08/20/do-88-s-2009-revised-color-coding-scheme-for-the-deployment-of-teachers-in-public-secondary-schools/) | Legacy public-secondary teacher deployment bands |
 | [Basic Education Development Plan 2030](https://www.deped.gov.ph/wp-content/uploads/2022/05/DO_s2022_024.pdf), Table 16 | National NER baselines and 2030 targets |

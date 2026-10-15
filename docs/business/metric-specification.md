@@ -214,14 +214,16 @@ Maintain separate classroom and teacher views. Until an official benchmark and t
 The following equations are arithmetically coherent but **not validated for dashboard use**:
 
 ```text
-candidate_required_classrooms = ceiling(aligned_enrollment / approved_class_size_norm)
-candidate_classroom_gap = max(candidate_required_classrooms - approved_existing_classrooms, 0)
+candidate_required_classrooms = ceiling(aligned_enrollment / 45)
+candidate_classroom_gap = max(candidate_required_classrooms - aligned_existing_classrooms, 0)
 
 candidate_required_teachers = ceiling(aligned_enrollment / approved_student_teacher_norm)
 candidate_teacher_gap = max(candidate_required_teachers - approved_existing_teacher_count, 0)
 ```
 
-They may be activated only if the cited norm is intended for this conversion and matches the observed denominator. Validation must also address education level, shifts, room utilization and condition, temporary spaces, multi-grade classes, annexes, teacher roles, funding source, and whether reallocation is feasible. Even after validation, the result is a planning estimate—not a construction order, staffing item, or budget request.
+The 45 is the PSIP III classroom configuration: 45 individual learners' tables and chairs per new classroom ([PSIP III Project Information Memorandum](https://www.deped.gov.ph/wp-content/uploads/PSIP-III_Project-Information-Memorandum.pdf), p. 12; see the [benchmark register](national-benchmarks-and-indicators.md#psip-iii-classroom-configuration)). The result is a candidate planning estimate. It must not be called an official classroom shortage, construction requirement, or allocation order unless the team confirms that the classroom count is compatible with that use. The current NSBI instructional-room count includes laboratories and other rooms that are not classrooms, so it would understate the gap.
+
+The equations may be activated only if the cited norm is intended for this conversion and matches the observed denominator. Validation must also address education level, shifts, room utilization and condition, temporary spaces, multi-grade classes, annexes, teacher roles, funding source, and whether reallocation is feasible. Even after validation, the result is a planning estimate—not a construction order, staffing item, or budget request.
 
 ## Dashboard output contract
 
