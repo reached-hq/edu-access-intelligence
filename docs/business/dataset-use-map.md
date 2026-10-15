@@ -36,7 +36,7 @@ flowchart LR
     ENR --> AP3["AP3 · Students per teacher"]
     PER --> AP3
     ENR --> AP4["AP4 · Population-enrollment gap"]
-    AGE["Official LGU school-age population<br/>source still needed"] -.-> AP4
+    AGE["PSA single-year-age population<br/>2020 CPH · 2024 POPCEN<br/>found, not yet profiled"] -.-> AP4
 
     PSGC --> PEERS["Peer groups<br/>type + income class + density band"]
     AREA --> PEERS
@@ -65,7 +65,7 @@ Solid paths are supported by profiled sources. A dotted path into an AP or resul
 | **AP1: schools relative to students and population** | `deped_enrollment`; `psa_psgc` | Enrollment supplies public-school learners, the school roster, and level-offering flags. PSGC supplies the city/municipality assignment, total 2024 population, and the barangay list used for the barangay roll-up and drill-down. | City/municipality learners per public school; public schools per 10,000 total residents; count and share of the LGU's barangays with no public school offering elementary |
 | **AP2: students per classroom** | `deped_enrollment`; `deped_facilities`; `psa_psgc` | Enrollment supplies learners; facilities supplies instructional classrooms; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable classroom data. | Learners per instructional classroom and coverage of schools and learners |
 | **AP3: students per teacher** | `deped_enrollment`; `deped_personnel`; `psa_psgc` | Enrollment supplies learners; personnel supplies teacher counts and funding source; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable personnel data. | Learners per teacher and coverage of schools and learners |
-| **AP4: school-age population and enrollment gap over time** | `deped_enrollment`; official LGU-level school-age-population time series still to be acquired and profiled; `psa_psgc` | Enrollment supplies public-school learner counts and school location. The missing population source must supply an approved age range at city/municipality grain for comparable periods. PSGC supplies geographic alignment. | School-age population minus aligned public-school enrollment, with period and coverage labels |
+| **AP4: school-age population and enrollment gap over time** | `deped_enrollment` (SY 2024-25 acquired; SY 2020-21 still to acquire); PSA Total Population by single-year age for 2020 (CPH) and 2024 (POPCEN), found but not yet profiled or ingested; `psa_psgc` | Enrollment supplies learner counts in all sectors except Philippine Schools Overseas, the public-school share, and school location. The PSA workbooks supply population aged 5–17 for every city and municipality. PSGC supplies geographic alignment through a name match. | Population aged 5–17 minus enrollment for 2020 and 2024, gap share, and the change between them, with period, comparability, and coverage labels |
 | **Peer comparison method** | `psa_psgc`; [PSA OpenSTAT table 1A6DLPD0](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/) to be acquired and profiled | PSGC supplies LGU type, income class, population, codes, and hierarchy. The identified PSA table publishes city/municipality land area and 2024 population density. `hdx_boundaries.area_sqkm` remains only the documented fallback unless the team approves it. | Comparison inputs and peer-membership fields; exact statistics belong to the metric specification |
 | **Approved context beside results** | `psa_poverty_stat`; `psa_psgc` | Poverty 2023 is displayed under its own year label and never used to group or flag. PSGC city class is visible as governance context but is not a peer criterion. | Context fields with their own source, year, and missingness labels |
 | **Coverage-limited or broader-grain reference context** | `psa_population_per_age_group`; `psa_openstat_education`; `bpda_barmm_education`; `bpda_barmm_social_infrastructure` | Age structure is shown only for its published geographies; OpenSTAT education remains regional or national reference; BPDA sources retain their historical periods and published geographic grain. None is copied onto an LGU as if it were a current LGU value. | Clearly labelled reference panels, coverage notes, or BARMM-specific context—not AP inputs |
@@ -75,47 +75,42 @@ Solid paths are supported by profiled sources. A dotted path into an AP or resul
 
 - “Students” in AP1 to AP3 means learners enrolled in public schools in the DepEd files. It does not mean every school-age resident.
 - The approved analytical and ranking grain is city/municipality. Barangay enters AP1 only as a roll-up to the city or municipality (barangays with no public elementary school) and otherwise supports school-location drill-down and match validation. Barangays are never ranked or given their own ratios.
-- AP4 uses the same public-school enrollment scope for consistency. Its difference is not an out-of-school count because it can include private-school learners, cross-boundary attendance, age-grade mismatch, and non-enrollment.
+- AP4 uses enrollment in all sectors except Philippine Schools Overseas, because its population side counts every resident child; the public-school share is shown beside it. Its difference is not an out-of-school count: population is counted where people live and enrollment where the school is, so it can include cross-boundary attendance, learners outside ages 5–17, and non-enrollment.
 - Total population comes from PSGC's `2024 Population` field. `psa_population_per_barangay` remains its cross-check under D-033 and is not a second denominator.
 - Context fields never change an AP value, percentile, ranking, or future flag unless the team revises the approved method and records that decision.
 - An available dataset with a different grain is not silently aggregated into an LGU result. Regional, provincial, historical-division, and sample assessment sources keep their published grain.
 - Every displayed value keeps its source period. Poverty 2023, population 2024, SY 2023-24 capacity, and later enrollment years are not presented as one common date.
 
-## Known gap: school-age population
+## School-age population source
 
-The project does not currently have a school-age-population time series for every city and municipality. The registered `psa_population_per_age_group` source covers regions, provinces, HUCs, Pateros, Isabela City, and the Special Geographic Area—not all municipalities—so it cannot answer AP4 nationwide. AP1 continues to use total population and labels that denominator explicitly.
+The project has found an official city/municipality source for AP4, but it is **not yet profiled or ingested**. The registered `psa_population_per_age_group` source covers regions, provinces, HUCs, Pateros, Isabela City, and the Special Geographic Area—not all municipalities—so it cannot answer AP4 nationwide. AP1 continues to use total population and labels that denominator explicitly.
 
-### Best official acquisition path
+### Found source
 
-1. **Profile the PSA 2020 CPH city/municipality workbook first.** PSA's [2020 Age and Sex Distribution release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2020-census-population-and-housing) includes an official Excel attachment titled **Household Population by Age Group, Sex, Region, Province and City/Municipality**. This is the strongest available nationwide official source at the required LGU grain, but it is a 2020 household-population baseline.
-2. **Ask PSA for a 2024 city/municipality age tabulation.** PSA's [2024 Age and Sex Distribution release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2024-census-population) reports 5–24 school-age population nationally, while the project's acquired 2024 age-group table does not cover every municipality. The preferred production source is an official 2024 table at city/municipality grain, ideally by single year of age or bands that can isolate the chosen basic-education ages.
-3. **Do not manufacture a municipal figure silently.** Applying a national or provincial school-age share to every LGU would assume identical local age structures. If the team estimates 2024 LGU values from the 2020 distribution, the result must be labelled **modelled**, carry its assumptions and uncertainty, and remain separate from an official count.
-4. **Do not substitute total population into AP4.** Total population may remain the explicitly labelled AP1 denominator, but AP4 stays unavailable for uncovered periods and LGUs until the approved school-age source exists.
+PSA publishes **Total Population by Single-Year Age, Sex, Region, Province, and City/Municipality** for both census points AP4 uses:
 
-### Age definition must be decided first
+| AP4 period | Census | Reference date | Workbook sheet used | Matching enrollment |
+|---|---|---|---|---|
+| **2020** | 2020 Census of Population and Housing (CPH) | May 1, 2020 | `2020 Total Pop` | SY 2020-21, not yet acquired |
+| **2024** | 2024 Census of Population (POPCEN) | July 1, 2024 | `2024 Total Pop` | SY 2024-25, acquired |
 
-PSA uses **5–24 years old** for its published “school-age population.” That is broader than the Kinder-to-Grade-12 population relevant to the approved scope. Before acquisition becomes a metric, the team must choose whether the denominator means:
+Each workbook has a Total Population sheet and a Household Population sheet, with single-year ages 5 to 24. AP4 uses the Total Population sheet and ages 5–17 (columns B to N in both workbooks), both sexes. Checked on local copies, the 2024 national total for ages 5–17 is 27,569,038 and the 2020 total is 28,680,299.
 
-- PSA school-age population, ages **5–24**;
-- a basic-education-age population such as **5–17**, if single-year ages are available; or
-- separate age ranges for Kinder, elementary, junior high school, and senior high school.
+Before ingestion:
 
-The selected age definition must match the analytical purpose and the source's actual age bands. It must not be inferred from grade level without documenting the mapping.
+- **Names only, no PSGC codes.** Cities and municipalities must be matched to PSGC by name under the D-029 match columns, as was done for other name-only sources.
+- **Different layouts.** The 2020 workbook places Both Sexes, Male, and Female side by side as column blocks, one row per area. The 2024 workbook places Total, Male, and Female as three stacked rows under each area name. Each needs its own parsing rule.
+- **Footnotes carry geography changes.** The 2024 workbook footnotes the Makati and Taguig barangay transfer, the Negros Island Region, Sulu's move to Region IX, the Maguindanao split, and the eight Special Geographic Area municipalities. The 2020 workbook shows the Special Geographic Area as three "Pikit Cluster" rows instead. These feed the 2020-to-2024 comparability flag in the [metric specification](metric-specification.md#ap4--school-age-population-and-enrollment-gap).
+- **SY 2020-21 enrollment is still needed.** It is published in the same DepEd School Characteristics machine-ready files as the three acquired years and must be acquired and profiled the same way.
 
-```mermaid
-flowchart TD
-    A{"Official 2024 age data for every<br/>city and municipality available?"}
-    A -->|Yes| B["Profile and join to PSGC<br/>Use the approved age definition"]
-    A -->|No| C["Profile official 2020<br/>city/municipality age workbook"]
-    C --> D{"Team accepts a dated<br/>2020 denominator?"}
-    D -->|Yes| E["Use as 2020 context or denominator<br/>with an explicit year label"]
-    D -->|No| F["Keep AP4 unavailable for the period;<br/>do not substitute total population"]
-    C -.-> G["Optional modelled 2024 estimate<br/>requires a separate method decision"]
-```
+### Age definition
 
-### Recommendation
+PSA uses **5–24 years old** for its published "school-age population." AP4 instead uses **5–17**, the official school ages for Kindergarten to Grade 12, which the single-year ages allow exactly. PSA's 5–24 band is not used.
 
-Acquire and profile the official 2020 city/municipality workbook now, while submitting a PSA data request for the equivalent 2024 city/municipality table. Keep total population in AP1 only. Publish AP4 only for periods and LGUs supported by an approved official or explicitly modelled school-age source.
+### Rules kept
+
+- **No modelled values in version 1.** Population is not interpolated or extrapolated to school years without a census in the same year. SY 2023-24 and SY 2025-26 show AP4 as not available.
+- **Do not substitute total population into AP4.** Total population remains the explicitly labelled AP1 denominator only.
 
 ## Known gap: compatible classroom and teacher benchmarks
 
@@ -137,13 +132,13 @@ This table accounts for all 21 profiled sources in `config/sources.json`.
 
 | Dataset | Role in the approved questions | Destination or use | Why it does or does not enter the calculation |
 |---|---|---|---|
-| [`deped_enrollment`](../data/source-inventory/deped_enrollment/) | **Core: AP1–AP4** | School roster, level offerings, enrolled learners, trend, and school location used for LGU assignment | Only source that supplies school-level enrollment for all four APs; public-school scope is applied with the other DepEd measures |
+| [`deped_enrollment`](../data/source-inventory/deped_enrollment/) | **Core: AP1–AP4** | School roster, level offerings, enrolled learners, trend, and school location used for LGU assignment | Only source that supplies school-level enrollment for all four APs; AP1 to AP3 use public schools, while AP4 uses all sectors except Philippine Schools Overseas; SY 2020-21 must still be acquired for AP4 |
 | [`deped_facilities`](../data/source-inventory/deped_facilities/) | **Core: AP2** | Instructional-classroom denominator and classroom-data coverage | Direct capacity source; available for SY 2023-24 only |
 | [`deped_personnel`](../data/source-inventory/deped_personnel/) | **Core: AP3** | Teacher denominator, personnel coverage, and reported funding-category detail | Direct staffing source; the exact teacher positions remain a team decision, and locally funded categories cannot be attributed to a specific LGU without a verified crosswalk |
 | [`psa_psgc`](../data/source-inventory/psa_psgc/) | **Core + method support** | Master geography, LGU type, income class, 2024 total population, hierarchy, and city-class context | Common reference for LGU assignment, AP1 population, and peer construction |
 | [`psa_poverty_stat`](../data/source-inventory/psa_poverty_stat/) | **Context** | Poverty 2023 beside the education measures, with missing LGUs left blank | Useful for interpretation but not a peer criterion, denominator, or gap flag under D-042 |
 | [`psa_population_per_barangay`](../data/source-inventory/psa_population_per_barangay/) | **Cross-check** | Verifies PSGC's coded 2024 population values | D-033 selects PSGC population for downstream use, so this source is not separately ingested into the approved metrics |
-| [`psa_population_per_age_group`](../data/source-inventory/psa_population_per_age_group/) | **Partial AP4 candidate + limitation evidence** | Shows 2024 age structure only where its published geography permits and documents why a new source is needed | Does not cover every municipality or provide the required LGU time series, so it cannot answer AP4 nationwide; the official 2020 CPH city/municipality workbook is the recommended next source to profile |
+| [`psa_population_per_age_group`](../data/source-inventory/psa_population_per_age_group/) | **Partial AP4 candidate + limitation evidence** | Shows 2024 age structure only where its published geography permits and documents why a new source is needed | Does not cover every municipality or provide the required LGU time series, so it cannot answer AP4 nationwide; the PSA single-year-age workbooks for 2020 and 2024 are the AP4 source instead |
 | [`psa_openstat_education`](../data/source-inventory/psa_openstat_education/) | **Context / validation only** | Regional or national education and literacy reference | Its regional grain cannot answer the city/municipality APs and must not be joined as though it were LGU data |
 | [`hdx_boundaries`](../data/source-inventory/hdx_boundaries/) | **Method-support candidate + deferred** | Map geometry; possible `area_sqkm` fallback for density; later spatial analysis | Land-area use still needs a team decision; boundaries do not measure education need |
 | [`dti_cmci`](../data/source-inventory/dti_cmci/) | **Available context, not approved as an input** | Optional LGU socioeconomic or service-capacity context after reviewed PSGC matching | CMCI is not part of the agreed questions or peer definition; adding it to a score or group would require a new decision |
@@ -165,6 +160,6 @@ This map owns only source-selection and source-routing decisions. Formula, compa
 
 1. **Land area:** acquire and profile PSA OpenSTAT table `1A6DLPD0`, then approve its version and PSGC alignment; retain HDX only as a documented fallback.
 2. **BARMM:** decide inclusion and geography treatment. BPDA sources remain context, not replacements for the DepEd indicators.
-3. **School-age population:** acquire and profile the approved LGU-level source and periods; AP4 remains unavailable where they are missing.
+3. **School-age population:** register, profile, and ingest the PSA 2020 and 2024 single-year-age workbooks, name-match them to PSGC, and acquire SY 2020-21 enrollment. AP4 stays blocked until these are done.
 4. **Official benchmarks:** resolve the data-compatibility and current-applicability conditions in the [national benchmark register](national-benchmarks-and-indicators.md) before routing a standard into an analytical comparison.
 5. **Optional context:** any use of CMCI, assessments, age-group population, BPDA data, or another context source inside a peer definition, score, threshold, or flag requires a recorded scope decision.
