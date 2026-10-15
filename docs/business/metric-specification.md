@@ -26,7 +26,7 @@ Every published measure must declare:
 
 1. **grain** — LGU, school year, and education level where supported;
 2. **scope** — public schools only for AP1 to AP3; all sectors for AP4; Philippine Schools Overseas excluded from every LGU result;
-3. **numerator and denominator** — exact approved fields and filters;
+3. **numerator and denominator** — exact approved fields and filters, covering the same schools, education level, school scope, geography, and period;
 4. **aggregation** — calculate ratios from aggregated sums, not the unweighted average of school ratios;
 5. **missingness** — NULL remains missing and is never converted to zero without publisher evidence;
 6. **coverage** — both school and enrolled-learner coverage accompany AP2 and AP3;
@@ -223,7 +223,7 @@ candidate_teacher_gap = max(candidate_required_teachers - approved_existing_teac
 
 The 45 is the PSIP III classroom configuration: 45 individual learners' tables and chairs per new classroom ([PSIP III Project Information Memorandum](https://www.deped.gov.ph/wp-content/uploads/PSIP-III_Project-Information-Memorandum.pdf), p. 12; see the [benchmark register](national-benchmarks-and-indicators.md#psip-iii-classroom-configuration)). The result is a candidate planning estimate. It must not be called an official classroom shortage, construction requirement, or allocation order unless the team confirms that the classroom count is compatible with that use. The current NSBI instructional-room count includes laboratories and other rooms that are not classrooms, so it would understate the gap.
 
-The equations may be activated only if the cited norm is intended for this conversion and matches the observed denominator. Validation must also address education level, shifts, room utilization and condition, temporary spaces, multi-grade classes, annexes, teacher roles, funding source, and whether reallocation is feasible. Even after validation, the result is a planning estimate—not a construction order, staffing item, or budget request.
+In every equation, the enrollment and the classroom or teacher counts must cover the same schools, education level, geography, and school year. The equations may be activated only if the cited norm is intended for this conversion and matches the observed denominator. Validation must also address education level, shifts, room utilization and condition, temporary spaces, multi-grade classes, annexes, teacher roles, funding source, and whether reallocation is feasible. Even after validation, the result is a planning estimate—not a construction order, staffing item, or budget request.
 
 ## Dashboard output contract
 
