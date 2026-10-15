@@ -159,7 +159,7 @@ public_school_share = public_school_enrollment / enrollment_all_sectors
 
 SY 2023-24 and SY 2025-26 have no census in the same year, so their AP4 value is **not available**. Their enrollment can still appear in a separate enrollment trend. Version 1 does not interpolate or extrapolate population between or beyond the two census years.
 
-**Age range.** Ages 5–17 match Kindergarten to Grade 12 at official school age. PSA's broader 5–24 "school-age population" is not used. Population comes from the Total Population sheet (not Household Population), both sexes combined.
+**Age range.** Ages 5–17 match Kindergarten to Grade 12 at official school age. The [DepEd School Characteristics Technical Notes](https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf) (pp. 4–5) map Kindergarten to age 5, Grades 1–6 to ages 6–11, Grades 7–10 to ages 12–15, and Grades 11–12 to ages 16–17. PSA's broader 5–24 "school-age population" is not used. Population comes from the Total Population sheet (not Household Population), both sexes combined.
 
 **Enrollment scope.** Unlike AP1 to AP3, AP4 counts learners in every sector, because the population side counts every resident child wherever they study. Philippine Schools Overseas are excluded because their learners are abroad and belong to no city or municipality. The public-school share is shown beside the gap. Using public-school enrollment alone would count private-school learners as part of the gap. For 2024 nationally:
 

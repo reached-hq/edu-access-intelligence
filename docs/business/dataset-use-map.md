@@ -105,7 +105,7 @@ Before ingestion:
 
 ### Age definition
 
-PSA uses **5–24 years old** for its published "school-age population." AP4 instead uses **5–17**, the official school ages for Kindergarten to Grade 12, which the single-year ages allow exactly. PSA's 5–24 band is not used.
+PSA uses **5–24 years old** for its published "school-age population." AP4 instead uses **5–17**, the official school ages for Kindergarten to Grade 12 in the [DepEd School Characteristics Technical Notes](https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf) (pp. 4–5): Kindergarten age 5, Grades 1–6 ages 6–11, Grades 7–10 ages 12–15, and Grades 11–12 ages 16–17. The single-year ages allow this range exactly. PSA's 5–24 band is not used.
 
 ### Rules kept
 
