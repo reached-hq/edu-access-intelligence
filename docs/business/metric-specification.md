@@ -13,7 +13,7 @@ The proposed ratio structures are reasonable analytical candidates, but they are
 | Area | What is supported now | What prevents final approval |
 |---|---|---|
 | **AP1 · Schools** | Public-school and enrollment counts can be aggregated by matched LGU and school year; 97.9% of SY 2023-24 schools (58,876 of 60,134) reach a PSGC barangay by name; the active-school, zero-enrollment, and annex rules are set | How a multi-level school counts in level-specific school counts is still open; the barangay roll-up needs a rule for the 1,258 schools without a unique barangay match |
-| **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio and has ambiguous missing values and extreme observations |
+| **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio, and its extreme observations are still under review |
 | **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed | The included teaching positions are not approved, people may be counted across roles or levels, blanks are ambiguous, outliers remain under review, and DepEd's method requires annex-to-mother-school consolidation |
 | **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found for 2020 and 2024; SY 2024-25 enrollment is acquired | The PSA workbooks are not yet profiled or ingested and carry names only, with no PSGC codes; SY 2020-21 enrollment is not yet acquired |
 | **Resource-gap estimates** | RA No. 7880 supplies a 45:1 statutory classroom-shortage reference; the arithmetic form can be documented as a candidate | The current NSBI room field includes spaces excluded by the law, no current general teacher threshold has been validated, and the operational assumptions behind converting a ratio into rooms or teachers have not been approved |
@@ -76,8 +76,13 @@ The barangay measures follow DepEd Order No. 40, s. 2014, which expects at least
 ### AP2 · Classroom pressure
 
 ```text
-learners_per_nsbi_instructional_room =
-    matched_public_school_enrollment / reported_nsbi_instructional_rooms
+total_instructional_rooms =
+    sum of es_, jhs_, and shs_classrooms_instructional that are not blank
+    (missing when all three are blank)
+
+learners_per_reported_instructional_room =
+    sum(total_learners) / sum(total_instructional_rooms)
+    over public schools with total_instructional_rooms > 0
 
 school_coverage_pct =
     public_schools_with_usable_room_count / public_schools_in_scope * 100
@@ -86,11 +91,13 @@ learner_coverage_pct =
     enrollment_in_schools_with_usable_room_count / public_school_enrollment * 100
 ```
 
-The ratio of sums is computed only from schools with a usable denominator. Schools with a recorded zero room count are not silently dropped: they receive a separate zero-denominator flag and count. Missing room counts remain NULL and are reported separately.
+The ratio uses each school's total learners and total instructional rooms across all levels, per school year, and then sums to the city or municipality (D-047). This follows the form of the Technical Notes classroom–learner formula (p. 8), total learners over total classrooms; the room definition still differs, as explained below. A school is usable when its total rooms are above 0. When all three room counts are blank the total is missing, not zero (608 public schools in SY 2023-24), and is reported separately. A school with a total of 0 is not silently dropped: it gets a separate zero-denominator flag and count.
+
+Levels are combined because rooms are shared across levels: 768 public schools have JHS learners and ES rooms but no JHS rooms. Learner coverage is 99.3% with totals, compared with 98.8% when learners and rooms are matched level by level.
 
 The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator.
 
-**Validation status:** candidate for a project-defined descriptive measure, limited to SY 2023-24. Review the extreme upper tail and decide whether elementary, JHS, and SHS fields may be combined before publication.
+**Validation status:** candidate for a project-defined descriptive measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before publication.
 
 ### AP3 · Teacher pressure
 
@@ -208,7 +215,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 |---|---|---|---|
 | **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | geography-match version, unmatched/excluded school counts, source versions | Required |
 | **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, total population, schools per 10,000 residents, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Candidate |
-| **Classroom priority** | learners per reported instructional room, matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Candidate for SY 2023-24 |
+| **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Candidate for SY 2023-24 |
 | **Teacher priority** | learners per approved teacher count, matched enrollment, approved teacher count | school and learner coverage, included-position version, funding-source split, annex status, outlier/quality flags | Blocked pending definition and annex handling |
 | **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending ingestion and profiling |
 | **Comparisons** | applicable benchmark and status, peer percentile, peer median, national same-type median | benchmark citation/version, peer ID/count/fallback, IQR, national distribution, comparison status | Blocked until method approval |
@@ -217,7 +224,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 ## Decisions required before implementation
 
 1. AP1 level-specific counting for multi-level schools, and the handling of schools without a unique barangay match in the barangay roll-up. The active-school, zero-enrollment, and annex rules are set (D-047).
-2. Whether and how elementary, JHS, and SHS NSBI room counts can be combined.
+2. **Set (D-047):** ES, JHS, and SHS room counts are combined into one total per school.
 3. Exact teacher positions and funding sources included in AP3, plus duplicate-person handling.
 4. Annex-to-mother-school crosswalk and aggregation behavior.
 5. Which researched classroom and teacher references, if any, are approved for the intended use after the compatibility conditions in the [national benchmark register](national-benchmarks-and-indicators.md) are met.
