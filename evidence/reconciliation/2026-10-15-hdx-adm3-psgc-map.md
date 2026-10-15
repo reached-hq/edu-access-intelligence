@@ -6,7 +6,7 @@ Issue #93 · local DuckDB (D-017) · 2026-10-15, Manila time (UTC+8) · run by @
 
 With the rules and overrides in `config/integration/hdx_adm3_psgc.json` at commit `adcbf0c`, the generated map build and gate (`etl/04_integration/03_map_hdx_adm3_psgc.sql`, `90_validate_hdx_adm3_psgc_map.sql`) turn the real `hdx_adm3_clean` (1,642 COD-AB ADM3 features, valid on 2025-02-13) and `psa_psgc_clean` (2Q 2026) into `hdx_adm3_psgc_map` with one row per feature, none dropped. 1,634 features match one PSGC city or municipality each, no PSGC code is taken twice, the 8 Special Geographic Area units stay unmatched by review (D-031), no feature is left pending, and every FAIL check passes.
 
-Databricks `dev` is still to be confirmed.
+Databricks `dev` was confirmed afterwards, the same day, in two runs at `99b0387` with the same count per method: [2026-10-15 Databricks record](../pipeline-runs/2026-10-15-hdx-adm3-psgc-map-databricks.md).
 
 ## What was run
 
@@ -81,7 +81,7 @@ Each override's reason and evidence is in the config. The script writes the same
 
 ## Limitations
 
-- Local DuckDB stands in for Spark and Delta (D-017). The map has not yet run on Databricks.
+- Local DuckDB stands in for Spark and Delta (D-017). The Databricks runs are in their own record, linked above.
 - The map ran through the verification script, not through the job, because the job's other lanes had no raw files on this computer. The job runs the same two files after the fan-in.
 - `code_revision` on the map rows is `local`, not the commit. Run 2's working tree was committed unchanged as `adcbf0c`, after the run.
 - One build per configuration; a rebuild's identical content is not compared here.
