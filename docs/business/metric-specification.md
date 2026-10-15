@@ -12,7 +12,7 @@ The proposed ratio structures are reasonable analytical candidates, but they are
 
 | Area | What is supported now | What prevents final approval |
 |---|---|---|
-| **AP1 · Schools** | Public-school and enrollment counts can be aggregated by matched LGU and school year; 97.9% of SY 2023-24 schools (58,876 of 60,134) reach a PSGC barangay by name | Active-school rule, education-level counting rule, and treatment of schools with zero enrollment still require an explicit contract; the barangay roll-up needs a rule for the 1,258 schools without a unique barangay match |
+| **AP1 · Schools** | Public-school and enrollment counts can be aggregated by matched LGU and school year; 97.9% of SY 2023-24 schools (58,876 of 60,134) reach a PSGC barangay by name; the active-school, zero-enrollment, and annex rules are set | How a multi-level school counts in level-specific school counts is still open; the barangay roll-up needs a rule for the 1,258 schools without a unique barangay match |
 | **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio and has ambiguous missing values and extreme observations |
 | **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed | The included teaching positions are not approved, people may be counted across roles or levels, blanks are ambiguous, outliers remain under review, and DepEd's method requires annex-to-mother-school consolidation |
 | **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found for 2020 and 2024; SY 2024-25 enrollment is acquired | The PSA workbooks are not yet profiled or ingested and carry names only, with no PSGC codes; SY 2020-21 enrollment is not yet acquired |
@@ -64,9 +64,14 @@ barangays_without_public_es_pct =
 
 Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. Total population must retain its own reference year. This measure describes provision and school size; it does not measure travel access or prove that construction is required.
 
+**Which schools count.** `public_school_count` counts active public schools, including annexes (D-047):
+
+- **Active school:** total enrollment above 0 in that school year. A school with zero or blank total enrollment stays in the record and is shown as a count, but it is not counted and does not serve a barangay. There are 4 such public schools in SY 2023-24, 1 in SY 2024-25, and 3 in SY 2025-26 (the SY 2025-26 schools have every enrollment field blank).
+- **Annexes:** annex and extension schools count as schools. The label is **public schools (including annexes)**, with the annex count shown beside it. DepEd publishes no mother-school ID (#134), and 52 annexes are the only public elementary school in their barangay, so dropping them would mark served barangays as unserved. The Technical Notes rule that adds annexes to their mother school (p. 8) applies only to the teacher–learner ratio.
+
 The barangay measures follow DepEd Order No. 40, s. 2014, which expects at least one Kindergarten-to-Grade-6 school for every barangay (see the [national benchmark register](national-benchmarks-and-indicators.md#ap1--school-provision-references)). They are calculated per city or municipality and school year from the full PSGC 2Q 2026 barangay list and are never ranked by barangay. A school that does not reach a unique barangay can make a served barangay look unserved, so each LGU also shows its count of public schools without a barangay match, and a result with any such school is labelled an upper bound. A barangay without its own school may still be served by a nearby school, so the count is a screen for review, not evidence that a school is needed.
 
-**Validation status:** candidate. Approve the active-school, zero-enrollment, multi-level-school, and level-specific counting rules, and the handling of schools without a unique barangay match, before implementation.
+**Validation status:** candidate. The active-school, zero-enrollment, and annex rules are set. Before implementation, approve how a multi-level school counts in level-specific school counts and how schools without a unique barangay match are handled.
 
 ### AP2 · Classroom pressure
 
@@ -202,7 +207,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | View | Main fields | Coverage and drill-down fields | Current status |
 |---|---|---|---|
 | **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | geography-match version, unmatched/excluded school counts, source versions | Required |
-| **AP1 context** | public-school count, public-school enrollment, learners per public school, total population, schools per 10,000 residents, barangays without a public elementary school (count and share) | population reference year, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Candidate |
+| **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, total population, schools per 10,000 residents, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Candidate |
 | **Classroom priority** | learners per reported instructional room, matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Candidate for SY 2023-24 |
 | **Teacher priority** | learners per approved teacher count, matched enrollment, approved teacher count | school and learner coverage, included-position version, funding-source split, annex status, outlier/quality flags | Blocked pending definition and annex handling |
 | **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending ingestion and profiling |
@@ -211,7 +216,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 
 ## Decisions required before implementation
 
-1. AP1 active-school, zero-enrollment, and education-level counting rules, and the handling of schools without a unique barangay match in the barangay roll-up.
+1. AP1 level-specific counting for multi-level schools, and the handling of schools without a unique barangay match in the barangay roll-up. The active-school, zero-enrollment, and annex rules are set (D-047).
 2. Whether and how elementary, JHS, and SHS NSBI room counts can be combined.
 3. Exact teacher positions and funding sources included in AP3, plus duplicate-person handling.
 4. Annex-to-mother-school crosswalk and aggregation behavior.
