@@ -411,7 +411,7 @@ def gate_checks(spec):
              "unmatched_has_no_psgc", "status_valid", "method_valid", "review_status_valid", "code_is_the_pcode",
              "correspondence_is_the_old_code", "region_moved_is_sulu", "overrides_applied", "one_psgc_version",
              "lineage_complete", "rows_built_by_this_run"]
-    warns = ["review_pending", "unmatched", "ambiguous"]
+    warns = ["review_pending", "unmatched", "ambiguous", "override_feature_missing"]
     records = [f"method_{m}" for m in MATCH_METHODS] + ["match_rate_percent"]
     return [(n, "FAIL") for n in fails] + [(n, "WARN") for n in warns] + [(n, "record") for n in records]
 
@@ -481,13 +481,14 @@ def gate_sql(spec):
         zero("code_is_the_pcode", "code_mismatch"),
         zero("correspondence_is_the_old_code", "correspondence_mismatch"),
         zero("region_moved_is_sulu", "region_mismatch"),
-        equal("overrides_applied", "overrides_listed", "overrides_used"),
+        equal("overrides_applied", "overrides_present", "overrides_used"),
         equal("one_psgc_version", "1", "versions"),
         zero("lineage_complete", "missing_lineage"),
         zero("rows_built_by_this_run", "other_run_rows"),
         warn("review_pending", "pending_rows"),
         warn("unmatched", "unmatched_rows"),
         warn("ambiguous", "ambiguous_rows"),
+        warn("override_feature_missing", "overrides_missing"),
         *[record(f"method_{x}", f"method_{x}") for x in MATCH_METHODS],
         record("match_rate_percent", "CASE WHEN map_rows = 0 THEN 0 ELSE ROUND(100.0 * matched_rows / map_rows, 2) END"),
     ]
@@ -500,7 +501,8 @@ def gate_sql(spec):
         "-- data_quality_results (layer 'integration'). On any FAIL it records the run 'failed' and stops",
         f"-- before publishing, so {spec.map_table} keeps the last map that passed. Otherwise it copies",
         "-- the candidate to the map table and records the run 'succeeded'. WARN (pending reviews, unmatched,",
-        "-- ambiguous) is recorded and the map is published. Results hold counts, never row values.",
+        "-- ambiguous, an override whose P-code is not in this HDX release) is recorded and the map is",
+        "-- published. Results hold counts, never row values.",
         "",
         "DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;",
         "SET VARIABLE integration_gate_started_at_utc = current_timestamp();",
@@ -515,7 +517,9 @@ def gate_sql(spec):
         f"overrides AS ({overrides}),",
         "totals AS (",
         "  SELECT (SELECT COUNT(*) FROM hdx) AS hdx_rows, (SELECT COUNT(*) FROM units) AS psgc_units,",
-        "         (SELECT COUNT(*) FROM overrides) AS overrides_listed",
+        "         (SELECT COUNT(*) FROM overrides AS o JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode) AS overrides_present,",
+        "         (SELECT COUNT(*) FROM overrides AS o LEFT JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode",
+        "          WHERE h.adm3_pcode IS NULL) AS overrides_missing",
         "),",
         "agg AS (",
         "  SELECT",

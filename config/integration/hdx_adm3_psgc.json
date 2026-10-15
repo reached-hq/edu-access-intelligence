@@ -37,6 +37,91 @@
     ],
     "finding": "#74 (analysis/cross_source/cross_source_hdx_boundaries.py, HB-2): 1,634 of 1,642 one-to-one; a code counts only if the names agree, because COD-AB reuses some PSGC code numbers for different units (16 in Maguindanao)."
   },
-  "overrides": [],
-  "overrides_note": "Each override: {\"adm3_pcode\", \"psgc_code\" (null for a feature reviewed as unmatched), \"match_method\" (one of D-029's; null when psgc_code is null), \"reason\", \"evidence\"}. Add the 8 Special Geographic Area units as reviewed unmatched (D-031) and the renamed LGUs as code_renamed after the first local run lists them as pending."
+  "overrides": [
+    {
+      "adm3_pcode": "PH0907226",
+      "psgc_code": "0907226000",
+      "match_method": "code_renamed",
+      "reason": "renamed LGU: COD-AB Bacungan (Leon T. Postigo) is PSGC Leon T. Postigo, Zamboanga del Norte",
+      "evidence": "Same code in both sources and the same province; COD-AB keeps the old name Bacungan and gives the current name in brackets. The same unit is a reviewed alias in the CMCI match (#8, analysis/cross_source/cross_source_dti_cmci.py). First local run of the map, #93."
+    },
+    {
+      "adm3_pcode": "PH1004217",
+      "psgc_code": "1004217000",
+      "match_method": "code_renamed",
+      "reason": "renamed LGU: COD-AB Don Victoriano Chiongbian (Don Mariano Marcos) is PSGC Don Victoriano, Misamis Occidental",
+      "evidence": "Same code in both sources and the same province; COD-AB gives the old name Don Mariano Marcos in brackets; PSGC shortens the current name to Don Victoriano; the PSA population workbook pairs its barangays with Don Victoriano at equal population (BP-4). The same unit is a reviewed alias in the CMCI match (#8, analysis/cross_source/cross_source_dti_cmci.py). First local run of the map, #93."
+    },
+    {
+      "adm3_pcode": "PH1102324",
+      "psgc_code": "1102324000",
+      "match_method": "code_renamed",
+      "reason": "renamed LGU: COD-AB San Isidro is PSGC Sawata, Davao del Norte",
+      "evidence": "Same code in both sources and the same province; the same municipality under its other name; the PSA population workbook pairs its barangays with Sawata at equal population (BP-4, docs/data/cross-source/coverage.md). The same unit is a reviewed alias in the CMCI match (#8, analysis/cross_source/cross_source_dti_cmci.py). First local run of the map, #93."
+    },
+    {
+      "adm3_pcode": "PH1705323",
+      "psgc_code": "1705323000",
+      "match_method": "code_renamed",
+      "reason": "renamed LGU: COD-AB Rizal (Marcos) is PSGC Dr. Jose P. Rizal, Palawan",
+      "evidence": "Same code in both sources and the same province; COD-AB gives the old name Marcos in brackets; PSGC uses the full name Dr. Jose P. Rizal. The same unit is a reviewed alias in the CMCI match (#8, analysis/cross_source/cross_source_dti_cmci.py). First local run of the map, #93."
+    },
+    {
+      "adm3_pcode": "PH1909901",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "Special Geographic Area unit (SGA - Carmen): no PSGC equivalent until a spatial check (D-031)",
+      "evidence": "COD-AB groups the Special Geographic Area barangays by their former Cotabato town; PSGC 2026-Q2 has 8 new SGA municipalities formed from barangays of several towns, so no unit lines up one-to-one by code or name (#74 HB-2, D-031, docs/governance/limitations.md)."
+    },
+    {
+      "adm3_pcode": "PH1909902",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "Special Geographic Area unit (SGA - Kabacan): no PSGC equivalent until a spatial check (D-031)",
+      "evidence": "COD-AB groups the Special Geographic Area barangays by their former Cotabato town; PSGC 2026-Q2 has 8 new SGA municipalities formed from barangays of several towns, so no unit lines up one-to-one by code or name (#74 HB-2, D-031, docs/governance/limitations.md)."
+    },
+    {
+      "adm3_pcode": "PH1909903",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "Special Geographic Area unit (SGA - Midsayap I): no PSGC equivalent until a spatial check (D-031)",
+      "evidence": "COD-AB groups the Special Geographic Area barangays by their former Cotabato town; PSGC 2026-Q2 has 8 new SGA municipalities formed from barangays of several towns, so no unit lines up one-to-one by code or name (#74 HB-2, D-031, docs/governance/limitations.md)."
+    },
+    {
+      "adm3_pcode": "PH1909904",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "Special Geographic Area unit (SGA - Midsayap II): no PSGC equivalent until a spatial check (D-031)",
+      "evidence": "COD-AB groups the Special Geographic Area barangays by their former Cotabato town; PSGC 2026-Q2 has 8 new SGA municipalities formed from barangays of several towns, so no unit lines up one-to-one by code or name (#74 HB-2, D-031, docs/governance/limitations.md)."
+    },
+    {
+      "adm3_pcode": "PH1909905",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "Special Geographic Area unit (SGA - Pigkawayan): no PSGC equivalent until a spatial check (D-031)",
+      "evidence": "COD-AB groups the Special Geographic Area barangays by their former Cotabato town; PSGC 2026-Q2 has 8 new SGA municipalities formed from barangays of several towns, so no unit lines up one-to-one by code or name (#74 HB-2, D-031, docs/governance/limitations.md)."
+    },
+    {
+      "adm3_pcode": "PH1909906",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "Special Geographic Area unit (SGA - Pikit I): no PSGC equivalent until a spatial check (D-031)",
+      "evidence": "COD-AB groups the Special Geographic Area barangays by their former Cotabato town; PSGC 2026-Q2 has 8 new SGA municipalities formed from barangays of several towns, so no unit lines up one-to-one by code or name (#74 HB-2, D-031, docs/governance/limitations.md)."
+    },
+    {
+      "adm3_pcode": "PH1909907",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "Special Geographic Area unit (SGA - Pikit II): no PSGC equivalent until a spatial check (D-031)",
+      "evidence": "COD-AB groups the Special Geographic Area barangays by their former Cotabato town; PSGC 2026-Q2 has 8 new SGA municipalities formed from barangays of several towns, so no unit lines up one-to-one by code or name (#74 HB-2, D-031, docs/governance/limitations.md)."
+    },
+    {
+      "adm3_pcode": "PH1909908",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "Special Geographic Area unit (SGA - Pikit III): no PSGC equivalent until a spatial check (D-031)",
+      "evidence": "COD-AB groups the Special Geographic Area barangays by their former Cotabato town; PSGC 2026-Q2 has 8 new SGA municipalities formed from barangays of several towns, so no unit lines up one-to-one by code or name (#74 HB-2, D-031, docs/governance/limitations.md)."
+    }
+  ],
+  "overrides_note": "Each override: {\"adm3_pcode\", \"psgc_code\" (null for a feature reviewed as unmatched), \"match_method\" (one of D-029's; null when psgc_code is null), \"reason\", \"evidence\"}. Reviewed after the first local run on the real data (#93): the 4 renamed LGUs as code_renamed, the 8 Special Geographic Area units as reviewed unmatched (D-031)."
 }

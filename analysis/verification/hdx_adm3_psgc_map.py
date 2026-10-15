@@ -1,4 +1,4 @@
-"""Run the HDX ADM3 → PSGC crosswalk (#93) on a local DuckDB that already holds both Silver tables.
+"""Run the HDX ADM3 to PSGC crosswalk (#93) on a local DuckDB that already holds both Silver tables.
 
 First build Silver locally with the job (it writes local_state/edu_access.duckdb by default):
 
@@ -9,8 +9,8 @@ then:
     python analysis/verification/hdx_adm3_psgc_map.py [--db local_state/edu_access.duckdb]
 
 It runs the committed build and gate SQL (etl/04_integration/) as the job would, prints counts for an
-evidence record, and writes the features that need a person (pending, unmatched, ambiguous) to
-local_state/hdx_adm3_psgc_review.md, git-ignored, so overrides can be written into
+evidence record, and writes every feature a person decided or still has to decide (review_status
+reviewed or pending) to local_state/hdx_adm3_psgc_review.md, git-ignored, so overrides can be written into
 config/integration/hdx_adm3_psgc.json. COD-AB and PSGC names are public reference data.
 """
 
@@ -53,18 +53,19 @@ def main(argv=None):
                            "GROUP BY ALL ORDER BY n DESC"):
         print(f"  {r['match_status']:<10} {str(r['match_method']):<20} {r['review_status']:<9} {r['n']:>5}")
     review = store.records(f"SELECT adm3_pcode, adm3_name, adm2_name, code_candidate, psgc_code, psgc_name, "
-                           f"match_status, match_method, reason FROM {table} "
-                           "WHERE review_status = 'pending' ORDER BY adm3_pcode")
+                           f"match_status, match_method, review_status, reason FROM {table} "
+                           "WHERE review_status <> 'rule' ORDER BY review_status, adm3_pcode")
     out = REPO_ROOT / "local_state" / "hdx_adm3_psgc_review.md"
     out.parent.mkdir(exist_ok=True)
-    lines = ["# HDX ADM3 → PSGC: features that need a person", "",
-             "| P-code | COD-AB name | Province | Code as PSGC | PSGC code | PSGC name | Status | Method | Reason |",
-             "|---|---|---|---|---|---|---|---|---|"]
+    lines = ["# HDX ADM3 to PSGC: features decided by a person (reviewed) or waiting for one (pending)", "",
+             "| P-code | COD-AB name | Province | Code as PSGC | PSGC code | PSGC name | Status | Method | Review | Reason |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     lines += ["| " + " | ".join(str(r[k] or "") for k in ("adm3_pcode", "adm3_name", "adm2_name", "code_candidate",
                                                           "psgc_code", "psgc_name", "match_status", "match_method",
-                                                          "reason")) + " |" for r in review]
+                                                          "review_status", "reason")) + " |" for r in review]
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"{len(review)} features need review: {out.relative_to(REPO_ROOT)}")
+    pending = sum(r["review_status"] == "pending" for r in review)
+    print(f"{len(review) - pending} reviewed, {pending} still pending: {out.relative_to(REPO_ROOT)}")
     store.close()
     return 0
 

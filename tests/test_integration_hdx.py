@@ -20,7 +20,9 @@ from src.integration import hdx_adm3_psgc as hdx
 CONTROL = "edu_access.`01-control`"
 MAP = "edu_access.`04-integration`.hdx_adm3_psgc_map"
 CANDIDATE = "edu_access.`04-integration`.hdx_adm3_psgc_map_candidate"
-RULES = json.loads((REPO_ROOT / "config" / "integration" / "hdx_adm3_psgc.json").read_text(encoding="utf-8"))
+# The committed rules without its reviewed overrides, which name real COD-AB features: each test adds its own.
+RULES = {**json.loads((REPO_ROOT / "config" / "integration" / "hdx_adm3_psgc.json").read_text(encoding="utf-8")),
+         "overrides": []}
 
 PSGC = [  # psgc_code, name, old_names, correspondence_code, geographic_level
     ("0100000000", "Region I (Ilocos Region)", None, "010000000", "Reg"),
@@ -172,8 +174,6 @@ def test_overrides_are_applied_and_marked_reviewed(tmp_path):
 @pytest.mark.parametrize("override, failed", [
     ({"adm3_pcode": "PH0102898", "psgc_code": "0102801000", "match_method": "reviewed_alias",
       "reason": "takes Adams a second time", "evidence": "made up"}, "psgc_code_taken_once"),
-    ({"adm3_pcode": "PH0109999", "psgc_code": None, "match_method": None,
-      "reason": "not an HDX feature", "evidence": "made up"}, "overrides_applied"),
 ])
 def test_a_bad_override_fails_the_gate_and_nothing_is_published(tmp_path, override, failed):
     env = Env(tmp_path, rules=with_overrides(override))
@@ -182,6 +182,23 @@ def test_a_bad_override_fails_the_gate_and_nothing_is_published(tmp_path, overri
     assert env.checks(run_id)[failed]["status"] == "FAIL"
     assert env.run_status(run_id) == "failed"
     assert not published(env)
+
+
+def test_an_override_for_a_feature_not_in_this_release_warns_and_publishes(tmp_path):
+    """A later COD-AB release may drop a reviewed feature: the gate warns so the override is reviewed again."""
+    env = Env(tmp_path, rules=with_overrides(
+        {"adm3_pcode": "PH0109999", "psgc_code": None, "match_method": None, "reason": "not an HDX feature", "evidence": "made up"}))
+    run_id, error = env.run()
+    assert error is None
+    checks = env.checks(run_id)
+    assert (checks["override_feature_missing"]["status"], checks["override_feature_missing"]["actual"]) == ("WARN", "1")
+    assert checks["overrides_applied"]["status"] == "PASS"
+    assert published(env)
+
+
+def test_the_committed_overrides_are_valid():
+    spec = hdx.load_spec(REPO_ROOT)
+    assert len(spec.overrides) == len({o.adm3_pcode for o in spec.overrides}) > 0
 
 
 def test_a_feature_is_never_dropped(tmp_path):

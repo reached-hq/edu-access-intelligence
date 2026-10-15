@@ -6,7 +6,8 @@
 -- data_quality_results (layer 'integration'). On any FAIL it records the run 'failed' and stops
 -- before publishing, so hdx_adm3_psgc_map keeps the last map that passed. Otherwise it copies
 -- the candidate to the map table and records the run 'succeeded'. WARN (pending reviews, unmatched,
--- ambiguous) is recorded and the map is published. Results hold counts, never row values.
+-- ambiguous, an override whose P-code is not in this HDX release) is recorded and the map is
+-- published. Results hold counts, never row values.
 
 DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;
 SET VARIABLE integration_gate_started_at_utc = current_timestamp();
@@ -18,10 +19,12 @@ SELECT :run_id, CAST(NULL AS STRING), 'hdx_boundaries', 'integration', 'edu_acce
 FROM (
 WITH hdx AS (SELECT adm3_pcode FROM edu_access.`03-silver`.hdx_adm3_clean),
 units AS (SELECT psgc_code, correspondence_code FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference AND geographic_level IN ('City', 'Mun')),
-overrides AS (SELECT CAST(NULL AS STRING) AS adm3_pcode, CAST(NULL AS STRING) AS psgc_code, CAST(NULL AS STRING) AS match_method, CAST(NULL AS STRING) AS reason WHERE 1 = 0),
+overrides AS (SELECT * FROM (VALUES ('PH0907226', '0907226000', 'code_renamed', 'renamed LGU: COD-AB Bacungan (Leon T. Postigo) is PSGC Leon T. Postigo, Zamboanga del Norte'), ('PH1004217', '1004217000', 'code_renamed', 'renamed LGU: COD-AB Don Victoriano Chiongbian (Don Mariano Marcos) is PSGC Don Victoriano, Misamis Occidental'), ('PH1102324', '1102324000', 'code_renamed', 'renamed LGU: COD-AB San Isidro is PSGC Sawata, Davao del Norte'), ('PH1705323', '1705323000', 'code_renamed', 'renamed LGU: COD-AB Rizal (Marcos) is PSGC Dr. Jose P. Rizal, Palawan'), ('PH1909901', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Carmen): no PSGC equivalent until a spatial check (D-031)'), ('PH1909902', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Kabacan): no PSGC equivalent until a spatial check (D-031)'), ('PH1909903', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Midsayap I): no PSGC equivalent until a spatial check (D-031)'), ('PH1909904', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Midsayap II): no PSGC equivalent until a spatial check (D-031)'), ('PH1909905', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pigkawayan): no PSGC equivalent until a spatial check (D-031)'), ('PH1909906', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit I): no PSGC equivalent until a spatial check (D-031)'), ('PH1909907', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit II): no PSGC equivalent until a spatial check (D-031)'), ('PH1909908', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit III): no PSGC equivalent until a spatial check (D-031)')) AS v(adm3_pcode, psgc_code, match_method, reason)),
 totals AS (
   SELECT (SELECT COUNT(*) FROM hdx) AS hdx_rows, (SELECT COUNT(*) FROM units) AS psgc_units,
-         (SELECT COUNT(*) FROM overrides) AS overrides_listed
+         (SELECT COUNT(*) FROM overrides AS o JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode) AS overrides_present,
+         (SELECT COUNT(*) FROM overrides AS o LEFT JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode
+          WHERE h.adm3_pcode IS NULL) AS overrides_missing
 ),
 agg AS (
   SELECT
@@ -70,13 +73,14 @@ checks AS (
   UNION ALL SELECT 'code_is_the_pcode' AS check_name, CASE WHEN code_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(code_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'correspondence_is_the_old_code' AS check_name, CASE WHEN correspondence_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(correspondence_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'region_moved_is_sulu' AS check_name, CASE WHEN region_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(region_mismatch AS STRING) AS actual FROM stats
-  UNION ALL SELECT 'overrides_applied' AS check_name, CASE WHEN overrides_used = overrides_listed THEN 'PASS' ELSE 'FAIL' END AS status, CAST(overrides_listed AS STRING) AS expected, CAST(overrides_used AS STRING) AS actual FROM stats
+  UNION ALL SELECT 'overrides_applied' AS check_name, CASE WHEN overrides_used = overrides_present THEN 'PASS' ELSE 'FAIL' END AS status, CAST(overrides_present AS STRING) AS expected, CAST(overrides_used AS STRING) AS actual FROM stats
   UNION ALL SELECT 'one_psgc_version' AS check_name, CASE WHEN versions = 1 THEN 'PASS' ELSE 'FAIL' END AS status, CAST(1 AS STRING) AS expected, CAST(versions AS STRING) AS actual FROM stats
   UNION ALL SELECT 'lineage_complete' AS check_name, CASE WHEN missing_lineage = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(missing_lineage AS STRING) AS actual FROM stats
   UNION ALL SELECT 'rows_built_by_this_run' AS check_name, CASE WHEN other_run_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(other_run_rows AS STRING) AS actual FROM stats
   UNION ALL SELECT 'review_pending' AS check_name, CASE WHEN pending_rows = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(pending_rows AS STRING) AS actual FROM stats
   UNION ALL SELECT 'unmatched' AS check_name, CASE WHEN unmatched_rows = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(unmatched_rows AS STRING) AS actual FROM stats
   UNION ALL SELECT 'ambiguous' AS check_name, CASE WHEN ambiguous_rows = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(ambiguous_rows AS STRING) AS actual FROM stats
+  UNION ALL SELECT 'override_feature_missing' AS check_name, CASE WHEN overrides_missing = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(overrides_missing AS STRING) AS actual FROM stats
   UNION ALL SELECT 'method_code' AS check_name, 'PASS' AS status, CAST(NULL AS STRING) AS expected, CAST(method_code AS STRING) AS actual FROM stats
   UNION ALL SELECT 'method_code_renamed' AS check_name, 'PASS' AS status, CAST(NULL AS STRING) AS expected, CAST(method_code_renamed AS STRING) AS actual FROM stats
   UNION ALL SELECT 'method_code_region_moved' AS check_name, 'PASS' AS status, CAST(NULL AS STRING) AS expected, CAST(method_code_region_moved AS STRING) AS actual FROM stats
