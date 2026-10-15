@@ -15,7 +15,7 @@ Proposed dimensions:
 - `dim_school`
 - `dim_school_year`
 - `dim_education_level`
-- `dim_population_group`
+- `dim_city_poverty`
 
 Proposed facts:
 
@@ -23,7 +23,7 @@ Proposed facts:
 - `fact_school_classroom_capacity`
 - `fact_school_teacher_capacity`
 - `fact_city_population`
-- `fact_city_poverty_estimate`
+- `fact_city_school_age_population`
 
 When approved, use one dimension or fact per file and give each dimension gate
 a uniqueness check on its declared key. Files follow `NN_<verb>_<object>.sql`,

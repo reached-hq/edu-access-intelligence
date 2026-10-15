@@ -79,10 +79,10 @@ contract is approved.
 | `dim_barangay` | One PSGC barangay, plus technical members |
 | `dim_school` | One DepEd school |
 | `dim_school_year` | One school year |
-| `dim_education_level` | One education reporting level or the whole-school `ALL` scope |
-| `dim_population_group` | One reviewed population definition |
+| `dim_education_level` | One education reporting level: ES, JHS, or SHS |
+| `dim_city_poverty` | One city or municipality with its selected 2023 poverty context |
 | `fact_school_enrollment` | School x school year x education level |
-| `fact_school_classroom_capacity` | School x school year x education-level scope (`ES`, `JHS`, `SHS`, or `ALL`) |
+| `fact_school_classroom_capacity` | School x school year |
 | `fact_school_teacher_capacity` | School x school year x education level |
-| `fact_city_population` | City or municipality x reference year x population group |
-| `fact_city_poverty_estimate` | City or municipality x estimate year |
+| `fact_city_population` | City or municipality x reference year |
+| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |

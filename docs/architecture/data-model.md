@@ -15,13 +15,13 @@ in Analytics views, not in these facts or in individual dashboard charts.
 | Analytical question | Gold inputs | Analytics rule |
 |---|---|---|
 | Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_population`, geography dimensions | Count distinct public schools and sum learners by city or municipality. Report learners per public school and population per public school separately. Use barangays for LGU-level context and drill-down, not as the ranking grain. |
-| Which cities and municipalities have the most public-school students per classroom? | `fact_school_enrollment`, `fact_school_classroom_capacity` | Join learners and instructional classrooms at school x school year x education level, restrict to public schools with a positive classroom denominator, then divide summed learners by summed classrooms for each level. Show coverage. |
-| Which cities and municipalities have the most public-school students per teacher? | `fact_school_enrollment`, `fact_school_teacher_capacity` | Join learners and teachers at school x school year x education level, restrict to public schools with a positive teacher denominator, then divide summed learners by summed teachers for each level. The teacher count includes head teachers. Show coverage. |
-| Which cities and municipalities have the largest gap between school-age population and student enrollment over time? | `fact_school_enrollment`, `fact_city_population` | Compare enrollment with the `school_age` population group for aligned years and use the enrollment geography recorded for each school year. Total population must not stand in for school-age population. |
+| Which cities and municipalities have the most public-school students per classroom? | `fact_school_enrollment`, `fact_school_classroom_capacity` | Aggregate public-school learners across levels to school x school year before joining whole-school instructional rooms. Divide summed learners by summed rooms by city or municipality and show denominator coverage. Do not create level ratios because integrated schools share rooms across levels. |
+| Which cities and municipalities have the most public-school students per teacher? | `fact_school_enrollment`, `fact_school_teacher_capacity` | Sum public-school learners and the approved teacher roles by city or municipality, school year, and education level. Keep annex learners even when the annex reports zero teachers. Divide the LGU totals and label the result project-defined because mother-school links are unavailable. Show coverage. |
+| Which cities and municipalities have the largest gap between school-age population and student enrollment over time? | `fact_school_enrollment`, `fact_city_school_age_population` | Compare ages 5–17 with enrollment from all sectors except Philippine Schools Overseas for 2020 with SY 2020-21 and 2024 with SY 2024-25. Other school years are not available for AP4. Use enrollment geography for each school year and disclose the residence-versus-school-location limitation. |
 
-Poverty is contextual.
-`fact_city_poverty_estimate` is retained because its source is already in scope,
-but Analytics must not use it for priority scoring without a separate decision.
+Poverty is contextual. `dim_city_poverty` carries the selected 2023 estimate
+and availability status, but Analytics must not use poverty for priority scoring
+without a separate decision.
 
 ## Dimensions
 
@@ -31,37 +31,44 @@ but Analytics must not use it for priority scoring without a separate decision.
 | `dim_barangay` | One PSGC barangay, plus technical members | `barangay_psgc_code` | Barangay name, city or municipality parent, and urban/rural classification |
 | `dim_school` | One DepEd school | `school_id` | Stable school identifier and name |
 | `dim_school_year` | One school year | `school_year` | Start and end calendar years, plus source availability for enrollment, facilities, and personnel |
-| `dim_education_level` | One reporting level | `education_level_code` | `ES`, `JHS`, `SHS`, and the whole-school `ALL` member |
-| `dim_population_group` | One population definition | `population_group_code` | Separates `total` from a future approved `school_age` population and records its age bounds |
+| `dim_education_level` | One reporting level | `education_level_code` | `ES`, `JHS`, or `SHS`, with the included grades documented below |
+| `dim_city_poverty` | One city or municipality | `city_mun_psgc_code` | Selected 2023 poverty estimate, uncertainty, and availability status for dashboard context |
 
 `member_type` on both geography dimensions is one of `regular`, `unknown`, or
-`excluded`. `unknown` keeps an in-scope record whose geography did not match.
-`excluded` keeps a record intentionally outside Philippine city-level analysis.
-Facts use these explicit members instead of silent NULL geography keys.
+`excluded`. Each regular city or municipality has its own unknown-barangay
+member so a school with a matched city but no unique barangay still rolls up to
+that city. A separate global unknown city and barangay retain schools whose city
+cannot be matched. `excluded` keeps a record intentionally outside Philippine
+city-level analysis. Facts use these explicit members instead of silent NULL
+geography keys.
 
 ## Facts
 
 | Table | Grain | Key | Measures |
 |---|---|---|---|
 | `fact_school_enrollment` | School x school year x education level | (`school_id`, `school_year`, `education_level_code`) | Whether the level is offered and its learner count; school-year geography, sector, and annex status provide the aggregation context |
-| `fact_school_classroom_capacity` | School x school year x education-level scope | (`school_id`, `school_year`, `education_level_code`) | ES/JHS/SHS rows hold instructional classrooms; the `ALL` row holds whole-school makeshift rooms and classes in temporary spaces |
-| `fact_school_teacher_capacity` | School x school year x education level | (`school_id`, `school_year`, `education_level_code`) | Teachers recorded for that education level, including head teachers; locally funded teachers remain visible as a subset |
-| `fact_city_population` | City or municipality x reference year x population group | (`city_mun_psgc_code`, `reference_year`, `population_group_code`) | Population and its availability status |
-| `fact_city_poverty_estimate` | City or municipality x estimate year | (`city_mun_psgc_code`, `estimate_year`) | Poverty incidence, interval, coefficient of variation, and estimate status |
+| `fact_school_classroom_capacity` | School x school year | (`school_id`, `school_year`) | Total reported instructional rooms plus all four published temporary-learning-space and makeshift measures |
+| `fact_school_teacher_capacity` | School x school year x education level | (`school_id`, `school_year`, `education_level_code`) | Approved teaching roles by level, including head teachers, with the four published local-funding categories kept separately |
+| `fact_city_population` | City or municipality x reference year | (`city_mun_psgc_code`, `reference_year`) | PSGC total population and its availability status |
+| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | (`city_mun_psgc_code`, `reference_year`, `age`, `sex`) | PSA single-year-age population for AP4; Analytics selects ages 5–17 |
 
-Enrollment, classroom capacity, and teacher capacity share the same school x
-school year x education-level grain. Both capacity ratios therefore join on all
-three key columns. The classroom ratio compares each level's learners with that
-level's instructional classrooms. The teacher ratio compares each level's
-learners with the teachers recorded for that level, including head teachers.
-The Analytics views must show denominator coverage and retain a reported zero as
-different from a missing classroom or teacher count.
+Classroom capacity is stored at school x school year because integrated schools
+share rooms across levels. Analytics first aggregates enrollment across ES, JHS,
+and SHS, then joins the whole-school room total. The classroom fact preserves
+all four supporting source measures: temporary learning spaces, classes using
+temporary learning spaces, makeshift rooms, and classes using makeshift rooms.
+None is silently substituted into the instructional-room denominator.
 
-The classroom fact also has one `ALL` row per school-year. Makeshift rooms and
-classes in temporary spaces are summed to the whole-school level and stored only
-on that row because the source splits them into ES and combined HS, not separate
-JHS and SHS values. They are supporting whole-school measures and are not used
-as the denominator of the level-specific learners-per-classroom ratio.
+Teacher capacity remains at school x school year x education level. The approved
+teacher count includes Teacher I–III, Master Teacher I–IV, Head Teacher I–VI,
+SPED/SNED teachers, Special Science teachers, instructors, and locally funded
+teachers. Kindergarten locally funded teachers belong to ES. Principals and
+non-teaching staff are excluded. SPED/SNED teachers are included because the
+enrollment numerator includes non-graded SPED learners. An annex with learners
+and zero teachers remains in the LGU numerator; it is not dropped. This allows
+its learners to be divided by teachers reported elsewhere in the same LGU, but
+the result is project-defined because the missing mother-school ID prevents the
+team from confirming that the mother school is in the same LGU.
 
 School geography is stored on `fact_school_enrollment` because a school's
 reported address can change between school years. AP1 to AP4 use the city or
@@ -70,7 +77,9 @@ therefore a trend in enrollment at schools located in each LGU in each period,
 not a fixed cohort of schools and not a trend by learner residence. Geography
 changes and unmatched-school counts must be disclosed with the result. A
 separate fixed-geography or `trend_city_mun_psgc_code` field is not part of this
-model.
+model. `psgc_match_status` preserves whether the source row was `matched`,
+`unmatched`, `ambiguous`, or `excluded`; technical geography members do not
+erase that reason.
 
 Benchmarks remain in the national benchmark register and metric specification,
 not in the Gold model. Analytics may use a reference only after the team approves
@@ -142,98 +151,12 @@ or education level has a usable value; fact-level coverage must still be shown.
 | `education_level_code` | STRING |
 | `education_level_name` | STRING |
 
-The reviewed codes are `ES`, `JHS`, `SHS`, and `ALL`. Enrollment and teacher
-capacity use the three education levels. Classroom capacity also uses `ALL` for
-measures that are available only at whole-school scope.
+The reviewed codes are `ES`, `JHS`, and `SHS`. ES includes Kindergarten,
+Grades 1–6, and ES non-graded learners. JHS includes Grades 7–10 and JHS
+non-graded learners. SHS includes Grades 11–12. Classroom capacity has no level
+key, so no `ALL` education-level member is needed.
 
-### `dim_population_group`
-
-| Column | Type |
-|---|---|
-| `population_group_code` | STRING |
-| `population_group_name` | STRING |
-| `age_lower_bound` | INT |
-| `age_upper_bound` | INT |
-
-The initial `total` member has no age bounds. Do not add `school_age` until its
-source and age definition are approved.
-
-### `fact_school_enrollment`
-
-| Column | Type |
-|---|---|
-| `school_id` | STRING |
-| `school_year` | STRING |
-| `education_level_code` | STRING |
-| `city_mun_psgc_code` | STRING |
-| `barangay_psgc_code` | STRING |
-| `sector` | STRING |
-| `annex_status` | STRING |
-| `is_offered` | BOOLEAN |
-| `learner_count` | BIGINT |
-
-NULL learner counts remain distinct from reported zero. `is_public`, overseas
-exclusion, and enrollment-status labels are derived in reviewed Analytics
-views from the standardized source values.
-
-### `fact_school_classroom_capacity`
-
-| Column | Type |
-|---|---|
-| `school_id` | STRING |
-| `school_year` | STRING |
-| `education_level_code` | STRING |
-| `instructional_classrooms` | INT |
-| `makeshift_rooms` | INT |
-| `classes_in_temporary_spaces` | INT |
-
-NULL remains distinct from zero. Classroom availability and denominator
-usability are derived under the reviewed metric contract. For `ES`, `JHS`, and
-`SHS`, `instructional_classrooms` is populated and the two whole-school measures
-are not applicable. For `ALL`, `makeshift_rooms` and
-`classes_in_temporary_spaces` are populated and `instructional_classrooms` is
-not used for the level-specific ratio.
-
-Example:
-
-| School | School year | Level | Instructional classrooms | Makeshift rooms | Classes in temporary spaces |
-|---|---|---|---:|---:|---:|
-| School A | 2023-24 | ES | 10 | NULL | NULL |
-| School A | 2023-24 | JHS | 5 | NULL | NULL |
-| School A | 2023-24 | SHS | 2 | NULL | NULL |
-| School A | 2023-24 | ALL | NULL | 5 | 4 |
-
-### `fact_school_teacher_capacity`
-
-| Column | Type |
-|---|---|
-| `school_id` | STRING |
-| `school_year` | STRING |
-| `education_level_code` | STRING |
-| `teacher_count` | INT |
-| `locally_funded_teacher_count` | INT |
-
-NULL remains distinct from zero. Personnel availability and denominator
-usability are derived from these measures under the reviewed metric contract.
-`teacher_count` includes the reviewed teaching roles for the level, head
-teachers, and locally funded teachers. `locally_funded_teacher_count` is a subset
-for funding context and must not be added to `teacher_count` again.
-
-### `fact_city_population`
-
-| Column | Type |
-|---|---|
-| `city_mun_psgc_code` | STRING |
-| `reference_year` | INT |
-| `population_group_code` | STRING |
-| `population` | BIGINT |
-| `estimate_status` | STRING |
-| `status_reason` | STRING |
-
-`estimate_status` is `available`, `missing`, `provisional`, or `excluded`.
-`status_reason` explains a non-available value and is NULL when available.
-
-### `fact_city_poverty_estimate`
+### `dim_city_poverty`
 
 | Column | Type |
 |---|---|
@@ -244,11 +167,106 @@ for funding context and must not be added to `teacher_count` again.
 | `poverty_ci90_upper` | DECIMAL(12,6) |
 | `poverty_cv` | DECIMAL(12,6) |
 | `estimate_status` | STRING |
+
+The selected estimate year is 2023. `estimate_status` is `estimated`,
+`no_estimate`, or `not_in_source`, following D-046. This contextual dimension
+has one row for every city or municipality, including those without an estimate.
+
+### `fact_school_enrollment`
+
+| Column | Type |
+|---|---|
+| `school_id` | STRING |
+| `school_year` | STRING |
+| `education_level_code` | STRING |
+| `city_mun_psgc_code` | STRING |
+| `barangay_psgc_code` | STRING |
+| `psgc_match_status` | STRING |
+| `sector` | STRING |
+| `annex_status` | STRING |
+| `is_offered` | BOOLEAN |
+| `learner_count` | BIGINT |
+
+`psgc_match_status` is `matched`, `unmatched`, `ambiguous`, or `excluded` and
+preserves the Integration result even when a technical geography member is
+used. NULL learner counts remain distinct from reported zero. `is_public`, overseas
+exclusion, and enrollment-status labels are derived in reviewed Analytics
+views from the standardized source values.
+
+### `fact_school_classroom_capacity`
+
+| Column | Type |
+|---|---|
+| `school_id` | STRING |
+| `school_year` | STRING |
+| `instructional_classrooms_total` | INT |
+| `temporary_learning_spaces` | INT |
+| `classes_using_temporary_learning_spaces` | INT |
+| `makeshift_rooms` | INT |
+| `classes_using_makeshift_rooms` | INT |
+
+`instructional_classrooms_total` sums the nonblank ES, JHS, and SHS
+instructional-room counts. The other four columns retain the complete source
+distinction between spaces or rooms and the classes using them. The source
+publishes those measures as ES and combined HS, so Gold sums them to the
+whole-school row without pretending that HS can be split between JHS and SHS.
+NULL remains distinct from zero. Classroom availability and denominator
+usability are derived under the reviewed metric contract.
+
+Example:
+
+| School | School year | Instructional classrooms total | Temporary learning spaces | Classes using temporary learning spaces | Makeshift rooms | Classes using makeshift rooms |
+|---|---|---:|---:|---:|---:|---:|
+| School A | 2023-24 | 17 | 2 | 4 | 5 | 6 |
+
+### `fact_school_teacher_capacity`
+
+| Column | Type |
+|---|---|
+| `school_id` | STRING |
+| `school_year` | STRING |
+| `education_level_code` | STRING |
+| `teacher_count` | INT |
+| `sef_provincial_teacher_count` | INT |
+| `sef_city_municipal_teacher_count` | INT |
+| `lgu_funded_teacher_count` | INT |
+| `other_funded_teacher_count` | INT |
+
+NULL remains distinct from zero. Personnel availability and denominator
+usability are derived from these measures under the reviewed metric contract.
+`teacher_count` includes the reviewed teaching roles for the level, head
+teachers, and all four locally funded categories. Each funding column is a
+subset of `teacher_count` for the dashboard funding split and must not be added
+to `teacher_count` again.
+
+### `fact_city_population`
+
+| Column | Type |
+|---|---|
+| `city_mun_psgc_code` | STRING |
+| `reference_year` | INT |
+| `population` | BIGINT |
+| `estimate_status` | STRING |
 | `status_reason` | STRING |
 
-The status preserves the Silver distinction between `estimated`,
-`partial_estimate`, and `no_estimate`. A reason may explain a missing mapping or
-an intentional exclusion; it is NULL for a normal estimate.
+`estimate_status` is `available`, `missing`, `provisional`, or `excluded`.
+`status_reason` explains a non-available value and is NULL when available.
+
+### `fact_city_school_age_population`
+
+| Column | Type |
+|---|---|
+| `city_mun_psgc_code` | STRING |
+| `reference_year` | INT |
+| `age` | INT |
+| `sex` | STRING |
+| `population` | BIGINT |
+| `match_status` | STRING |
+
+The source supplies 2020 and 2024 single-year-age population by sex and city or
+municipality. Analytics sums both sexes and ages 5–17. The row-level
+`match_status` retains the reviewed name-to-PSGC result. This fact must not be
+filled by interpolating or substituting the broader PSA ages 5–24 category.
 
 ## ERD
 
@@ -257,7 +275,8 @@ erDiagram
   dim_city_municipality ||--o{ dim_barangay : contains
   dim_city_municipality ||--o{ fact_school_enrollment : locates
   dim_city_municipality ||--o{ fact_city_population : has
-  dim_city_municipality ||--o{ fact_city_poverty_estimate : has
+  dim_city_municipality ||--|| dim_city_poverty : describes
+  dim_city_municipality ||--o{ fact_city_school_age_population : has
   dim_barangay ||--o{ fact_school_enrollment : locates
   dim_school ||--o{ fact_school_enrollment : enrolls
   dim_school ||--o{ fact_school_classroom_capacity : has
@@ -266,9 +285,7 @@ erDiagram
   dim_school_year ||--o{ fact_school_classroom_capacity : dates
   dim_school_year ||--o{ fact_school_teacher_capacity : dates
   dim_education_level ||--o{ fact_school_enrollment : classifies
-  dim_education_level ||--o{ fact_school_classroom_capacity : classifies
   dim_education_level ||--o{ fact_school_teacher_capacity : classifies
-  dim_population_group ||--o{ fact_city_population : defines
 
   dim_city_municipality {
     string city_mun_psgc_code PK
@@ -310,11 +327,14 @@ erDiagram
     string education_level_code PK
     string education_level_name
   }
-  dim_population_group {
-    string population_group_code PK
-    string population_group_name
-    int age_lower_bound
-    int age_upper_bound
+  dim_city_poverty {
+    string city_mun_psgc_code PK,FK
+    int estimate_year
+    decimal poverty_incidence
+    decimal poverty_ci90_lower
+    decimal poverty_ci90_upper
+    decimal poverty_cv
+    string estimate_status
   }
   fact_school_enrollment {
     string school_id PK,FK
@@ -322,6 +342,7 @@ erDiagram
     string education_level_code PK,FK
     string city_mun_psgc_code FK
     string barangay_psgc_code FK
+    string psgc_match_status
     string sector
     string annex_status
     boolean is_offered
@@ -330,35 +351,36 @@ erDiagram
   fact_school_classroom_capacity {
     string school_id PK,FK
     string school_year PK,FK
-    string education_level_code PK,FK
-    int instructional_classrooms
+    int instructional_classrooms_total
+    int temporary_learning_spaces
+    int classes_using_temporary_learning_spaces
     int makeshift_rooms
-    int classes_in_temporary_spaces
+    int classes_using_makeshift_rooms
   }
   fact_school_teacher_capacity {
     string school_id PK,FK
     string school_year PK,FK
     string education_level_code PK,FK
     int teacher_count
-    int locally_funded_teacher_count
+    int sef_provincial_teacher_count
+    int sef_city_municipal_teacher_count
+    int lgu_funded_teacher_count
+    int other_funded_teacher_count
   }
   fact_city_population {
     string city_mun_psgc_code PK,FK
     int reference_year PK
-    string population_group_code PK,FK
     bigint population
     string estimate_status
     string status_reason
   }
-  fact_city_poverty_estimate {
+  fact_city_school_age_population {
     string city_mun_psgc_code PK,FK
-    int estimate_year PK
-    decimal poverty_incidence
-    decimal poverty_ci90_lower
-    decimal poverty_ci90_upper
-    decimal poverty_cv
-    string estimate_status
-    string status_reason
+    int reference_year PK
+    int age PK
+    string sex PK
+    bigint population
+    string match_status
   }
 ```
 
