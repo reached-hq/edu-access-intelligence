@@ -31,7 +31,7 @@ Those questions are not interchangeable. An official formula may have no officia
 | **AP1 · School provision** | DepEd Order No. 40, s. 2014 gives school-establishment screening criteria | School presence can be screened against the published criteria, but learners per school and schools per 10,000 residents have no validated national cutoff in the reviewed sources |
 | **AP2 · Classrooms** | DepEd defines the classroom–learner formula; Republic Act No. 7880 defines classroom shortage using 45 learners per classroom | The 45:1 rule cannot be applied to the current NSBI field because that field includes rooms the law excludes; the PSIP III memorandum configures each new classroom for 45 learners, a design reference for candidate planning only |
 | **AP3 · Teachers** | DepEd defines the teacher–learner formula and annex consolidation | No current, general national teacher threshold was found; 2009 secondary-school deployment bands are legacy evidence only |
-| **AP4 · Enrollment need** | DepEd defines GER and NER by official school age; BEDP 2030 sets national NER targets | NER is a validated participation indicator, but the current project data cannot reproduce it at LGU level; a raw population-minus-public-enrollment difference is not an out-of-school count |
+| **AP4 · Enrollment need** | DepEd defines GER and NER by official school age; BEDP 2030 sets national NER targets | NER is a validated participation indicator, but the current project data cannot reproduce it at LGU level; the AP4 gap (population aged 5–17 minus enrollment in all sectors) is a project-defined difference, not NER or an out-of-school count |
 | **Peer context** | PSA and DOF provide official LGU type, income class, population, land area, density, and poverty data | These variables can describe comparable contexts, but the resulting peer group and its median are project-defined—not national standards |
 
 ## AP1 · School-provision references
@@ -182,13 +182,13 @@ The [Basic Education Development Plan 2030](https://www.deped.gov.ph/wp-content/
 
 The NEDA Board approved BEDP 2030 as the national policy and plan for basic education in April 2024. These values are national planning targets, not evidence that an LGU with a lower public-school-enrollment ratio has an equivalent number of out-of-school children.
 
-### Population data and the current AP4 limitation
+### Population data for AP4
 
 PSA defines “school-age population” in its general census release as ages **5–24**. The [2024 Census release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2024-census-population) reports 42.10 million people aged 5–24, or 37.5% of household population. This age band is broader than the project's K–12 scope of ages 5–17 and the release's national figure cannot be copied to an LGU.
 
-The [2020 CPH release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2020-census-population-and-housing) provides an official workbook by age group, sex, region, province, and city/municipality. It is the best presently identified nationwide LGU-age baseline, but it represents 2020 household population. A comparable time series or a 2024 LGU table with ages that isolate 5–17 is still needed for AP4.
+PSA also publishes **Total Population by Single-Year Age, Sex, Region, Province, and City/Municipality** for the 2020 Census of Population and Housing and the 2024 Census of Population. These isolate ages 5–17 for every city and municipality, and AP4 uses them for its two matched periods. They are found but not yet profiled or ingested; see the [dataset use map](dataset-use-map.md#school-age-population-source).
 
-The proposed `school_age_population - public_school_enrollment` value therefore remains a **project-defined arithmetic difference**, not NER, enrollment demand, or an out-of-school count. It excludes private-school enrollment, compares residence-based population with school-location enrollment, and may mix age and grade populations.
+The AP4 value, population aged 5–17 minus enrollment in all sectors except Philippine Schools Overseas, therefore remains a **project-defined arithmetic difference**, not GER, NER, enrollment demand, or an out-of-school count. It compares residence-based population with school-location enrollment and may mix age and grade populations.
 
 ## Supporting data for comparisons and equity context
 
@@ -199,8 +199,8 @@ The proposed `school_age_population - public_school_enrollment` value therefore 
 | Land area and density | `hdx_boundaries.area_sqkm` (current source); [PSA OpenSTAT table 1A6DLPD0](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/) (possible later cross-check) | City/municipality land area for population density and density bands | HDX does not document how area is computed; peer-band boundaries and minimum group size remain project decisions |
 | Poverty and equity context | [PSA 2023 city- and municipality-level poverty estimates](https://psa.gov.ph/statistics/poverty-sae/stat-tables) | Display poverty incidence, confidence interval, and coefficient of variation beside capacity results | Small-area estimates are model-based; HUCs, Isabela, and Cotabato use a separate direct-estimate source; poverty must not silently alter the priority score |
 | Total population for AP1 | PSA PSGC 2024 Census population | Explicit denominator for schools per 10,000 total residents | Total population is not school-age population |
-| K–12-age population for AP4 | PSA 2020 CPH city/municipality age workbook; request equivalent 2024 data | Ages 5–17 or level-specific denominators after profiling | 2020 is dated; the currently acquired 2024 age table does not cover every municipality |
-| Enrollment | DepEd LIS/BOSY machine-ready files | Numerator for AP1–AP3 and trend input | Current project files are school-location counts; AP4 access rates need the correct age and sector scope |
+| K–12-age population for AP4 | PSA Total Population by single-year age and city/municipality, 2020 CPH and 2024 POPCEN | Ages 5–17, both sexes, for the two matched AP4 periods | Found but not yet profiled or ingested; names only, no PSGC codes |
+| Enrollment | DepEd LIS/BOSY machine-ready files | Numerator for AP1–AP3, AP4 enrollment in all sectors except Philippine Schools Overseas, and trend input | Current project files are school-location counts; SY 2020-21 is still to be acquired for AP4 |
 | K–12 classrooms | DepEd NSBI with a K–12-only room definition | Official classroom–learner ratio and possible RA No. 7880 comparison | Current project field is broader than the required denominator |
 | Teachers working in schools | DepEd BEIS personnel data | Teacher–learner ratio after role approval and annex consolidation | Does not show authorized positions or vacancies |
 | Authorized teacher positions and vacancies | DBM PSIPOP/GMIS or a validated DepEd/DBM extract | Distinguish reallocation, vacancy filling, and creation of positions | Not present in the current public project data |
@@ -240,7 +240,7 @@ This permits more than one reference to coexist without treating a statutory cap
 1. **Adopt the DepEd formulas, not unsupported labels.** AP2 and AP3 can follow the official ratio structure only after their denominators and annex treatment match the technical notes.
 2. **Request a compatible classroom count.** The current NSBI field cannot support the 45:1 statutory shortage calculation.
 3. **Ask DepEd to confirm the current teacher deployment norm.** Do not promote the 2009 secondary bands or the FY 2024 45-learner beneficiary assumption into a current standard.
-4. **Acquire and profile the PSA 2020 LGU age workbook, then request the 2024 equivalent.** Keep AP4 unavailable where ages 5–17 and comparable periods are not supported.
+4. **Profile and ingest the PSA 2020 and 2024 single-year-age workbooks, and acquire SY 2020-21 enrollment.** Keep AP4 unavailable until both are done; version 1 uses no modelled values.
 5. **Use HDX `area_sqkm` as the current land-area source.** PSA OpenSTAT table 1A6DLPD0 is an official alternative that can be acquired and profiled later as a cross-check or replacement.
 6. **Keep equity variables visible but separate.** Poverty, income class, and density should explain context; they should not change an education-capacity result unless the team approves a transparent prioritization rule.
 
@@ -257,7 +257,7 @@ This permits more than one reference to coexist without treating a statutory cap
 | [NEDA Board approval of BEDP 2030](https://www.deped.gov.ph/2024/04/27/depeds-matatag-agenda-bedp-2030-approved-by-neda-board-as-national-policy-and-plan-for-basic-education/) | Status of BEDP 2030 as national policy and plan |
 | [DepEd FY 2024 Q4 Budget Accountability Report](https://www.deped.gov.ph/wp-content/uploads/FY-2024-Q4-BAR-1_As-of-Dec-31-2024_Signed.pdf) | National percentage and count of schools reported as meeting the classroom standard |
 | [DepEd FY 2024 major-program beneficiaries report](https://www.deped.gov.ph/wp-content/uploads/Major-Projects-Program-and-Activities-Beneficiaries-FY-2024.pdf) | 45 learners per newly hired teacher used as a beneficiary estimate, not an adequacy standard |
-| [PSA 2020 age and sex release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2020-census-population-and-housing) | Official LGU-level age workbook acquisition path and 2020 school-age context |
+| [PSA 2020 age and sex release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2020-census-population-and-housing) | 2020 age and sex context |
 | [PSA 2024 age and sex release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2024-census-population) | National 5–24 school-age definition and 2024 national count |
 | [PSA PSGC](https://psa.gov.ph/classification/psgc) | Official geography, LGU type, population, and published income-class field |
 | [PSA OpenSTAT population, land area, and density table](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/) | Official city/municipality land area and population density; possible later cross-check for HDX land area |
