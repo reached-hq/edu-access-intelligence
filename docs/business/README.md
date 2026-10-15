@@ -11,3 +11,7 @@ Planner needs and the business-to-analytics hierarchy: one business question, fo
 | [stakeholders.md](stakeholders.md) | Local education planners, sponsors, government agencies, user story, and persona stories | Updated for approved questions |
 
 The BP and AP wording was approved through mentor review on 2026-10-14. The metric specification remains a draft analytical contract, D-042 remains provisional for implementation choices, and planner needs are still being documented (#7). Data-model, ERD, Gold, analytics, and dashboard pull requests must use the approved wording and preserve the stated source gaps and limitations.
+
+## Research briefs
+
+- [How Philippine public-school funding reaches schools](ph-public-school-budget-flow.md) — the national authorization process, school-level MOOE, centrally managed programs, infrastructure, local SEF, and accountability trail.
