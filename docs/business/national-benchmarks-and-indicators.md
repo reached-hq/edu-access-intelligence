@@ -183,7 +183,7 @@ The proposed `school_age_population - public_school_enrollment` value therefore 
 |---|---|---|---|
 | Stable city/municipality identity and type | [PSA Philippine Standard Geographic Code](https://psa.gov.ph/classification/psgc) | Master PSGC code, LGU type, city class, hierarchy, and 2024 population | Version geography must be reconciled with the school year |
 | Current LGU income class | [DOF-BLGF LGU Income Class](https://blgf.gov.ph/lgu-income-class/) and DOF Department Order No. 074-2024 | Peer descriptor using the current five-class reclassification under RA No. 11964 | Income class is a fiscal descriptor, not an education-need threshold |
-| Official land area and density | [PSA OpenSTAT table 1A6DLPD0](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/) | Candidate source for city/municipality land area, 2024 population density, and density bands | Peer-band boundaries and minimum group size remain project decisions |
+| Land area and density | `hdx_boundaries.area_sqkm` (current source); [PSA OpenSTAT table 1A6DLPD0](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/) (possible later cross-check) | City/municipality land area for population density and density bands | HDX does not document how area is computed; peer-band boundaries and minimum group size remain project decisions |
 | Poverty and equity context | [PSA 2023 city- and municipality-level poverty estimates](https://psa.gov.ph/statistics/poverty-sae/stat-tables) | Display poverty incidence, confidence interval, and coefficient of variation beside capacity results | Small-area estimates are model-based; HUCs, Isabela, and Cotabato use a separate direct-estimate source; poverty must not silently alter the priority score |
 | Total population for AP1 | PSA PSGC 2024 Census population | Explicit denominator for schools per 10,000 total residents | Total population is not school-age population |
 | K–12-age population for AP4 | PSA 2020 CPH city/municipality age workbook; request equivalent 2024 data | Ages 5–17 or level-specific denominators after profiling | 2020 is dated; the currently acquired 2024 age table does not cover every municipality |
@@ -228,7 +228,7 @@ This permits more than one reference to coexist without treating a statutory cap
 2. **Request a compatible classroom count.** The current NSBI field cannot support the 45:1 statutory shortage calculation.
 3. **Ask DepEd to confirm the current teacher deployment norm.** Do not promote the 2009 secondary bands or the FY 2024 45-learner beneficiary assumption into a current standard.
 4. **Acquire and profile the PSA 2020 LGU age workbook, then request the 2024 equivalent.** Keep AP4 unavailable where ages 5–17 and comparable periods are not supported.
-5. **Profile PSA OpenSTAT table 1A6DLPD0 as the preferred density source.** This is a stronger official candidate than the current HDX fallback.
+5. **Use HDX `area_sqkm` as the current land-area source.** PSA OpenSTAT table 1A6DLPD0 is an official alternative that can be acquired and profiled later as a cross-check or replacement.
 6. **Keep equity variables visible but separate.** Poverty, income class, and density should explain context; they should not change an education-capacity result unless the team approves a transparent prioritization rule.
 
 ## Official source register
@@ -246,6 +246,6 @@ This permits more than one reference to coexist without treating a statutory cap
 | [PSA 2020 age and sex release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2020-census-population-and-housing) | Official LGU-level age workbook acquisition path and 2020 school-age context |
 | [PSA 2024 age and sex release](https://psa.gov.ph/content/age-and-sex-distribution-philippine-population-2024-census-population) | National 5–24 school-age definition and 2024 national count |
 | [PSA PSGC](https://psa.gov.ph/classification/psgc) | Official geography, LGU type, population, and published income-class field |
-| [PSA OpenSTAT population, land area, and density table](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/) | Official city/municipality land area and population-density candidate |
+| [PSA OpenSTAT population, land area, and density table](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/) | Official city/municipality land area and population density; possible later cross-check for HDX land area |
 | [DOF-BLGF LGU Income Class](https://blgf.gov.ph/lgu-income-class/) | Current income reclassification source |
 | [PSA city- and municipality-level poverty tables](https://psa.gov.ph/statistics/poverty-sae/stat-tables) | 2023 small-area poverty estimates and uncertainty fields |

@@ -201,7 +201,7 @@ The dashboard may show four distinct evidence types without treating them as int
 
 ### Proposed peer method
 
-The current proposal groups LGUs by type, income class, and a type-specific population-density band. If a group does not meet the approved minimum size, density is dropped; if the broader group is still too small, only national same-type context is shown. The minimum group size, density bands, and fallback labels remain team decisions.
+The current proposal groups LGUs by type, income class, and a type-specific population-density band. Density uses land area from `hdx_boundaries.area_sqkm` (see the [dataset use map](dataset-use-map.md)). If a group does not meet the approved minimum size, density is dropped; if the broader group is still too small, only national same-type context is shown. The minimum group size, density bands, and fallback labels remain team decisions.
 
 For an approved peer group, show the median, interquartile range, percentile, and group count. Median is not the only statistic: the IQR shows spread, the percentile locates the LGU, and the national same-type distribution reveals whether pressure is widespread beyond one peer group.
 
@@ -245,7 +245,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 4. **Set (D-047):** no annex-to-mother-school link exists, so AP3 is labelled project-defined, and annexes that report 0 teachers keep their learners in the city or municipality total.
 5. Which researched classroom and teacher references, if any, are approved for the intended use after the compatibility conditions in the [national benchmark register](national-benchmarks-and-indicators.md) are met.
 6. AP4 name-match rule from the PSA census workbooks to PSGC, and how the dashboard shows cities and municipalities flagged for the 2020-to-2024 change. The age range, matched periods, enrollment scope, and the no-modelling rule are set in the AP4 section above.
-7. Peer criteria, density source and bands, minimum group size, fallback, and percentile convention.
+7. Peer criteria, density bands, minimum group size, fallback, and percentile convention. The land-area source is HDX.
 8. Relative-priority sorting or banding rule; a combined score remains out of scope unless separately approved.
 9. BARMM coverage and geography treatment.
 
