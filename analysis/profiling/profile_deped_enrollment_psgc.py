@@ -7,15 +7,21 @@
 # RAW_DATA_DIR must contain deped/original/ with FILE. The cross-checks (X-*) also use
 # deped/original/Enrollment-in-SY-2023-2024.zip and psa/original/ (PSGC 2Q 2026 workbook
 # and Q4_2023 API extract); each is skipped with a message when its file is absent.
+# X-3 reuses the team's name matching by running analysis/cross_source/cross_source_deped.py,
+# so it needs that script's files too (all five DepEd zips in deped/original/); running it
+# also rewrites its generated list, docs/data/cross-source/generated/deped_psgc_unmatched.md.
 # The xlsx reader is shared with the other profiling scripts: src/profiling/xlsx.py (D-007).
 # Raw files are read, never modified. Runs locally with DuckDB; no Databricks compute.
 
 # %% Setup
+import collections
+import contextlib
 import csv
 import hashlib
 import io
 import os
 import re
+import runpy
 import sys
 import tempfile
 import zipfile
@@ -356,9 +362,9 @@ if not have:
 else:
     with (Path(workdir.name) / "psgc.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["id", "level"])
+        w.writerow(["id", "name", "level"])
         for _, cells in read_sheet(psa / PSGC_2Q2026[0], "PSGC")[1:]:
-            w.writerow([cells.get(1, ""), cells.get(4, "")])
+            w.writerow([cells.get(1, ""), cells.get(2, "").strip(), cells.get(4, "")])
     con.execute(f"CREATE TABLE p AS SELECT * FROM read_csv('{Path(workdir.name) / 'psgc.csv'}', all_varchar = true, header = true)")
     con.execute(f"CREATE TABLE o AS SELECT * FROM read_csv({sql_string(psa / PSGC_Q4_2023[0])}, all_varchar = true, header = true, strict_mode = true)")
     in_p, in_o = "b10 IN (SELECT id FROM p)", "b10 IN (SELECT code FROM o)"
@@ -371,5 +377,58 @@ else:
     show("X-2", "'-' urban/rural schools whose barangay is in 2Q 2026 / Q4_2023: {} / {} of {}".format(
         one(f"SELECT count(*) FROM g WHERE urban_rural = '-' AND {in_p}"), one(f"SELECT count(*) FROM g WHERE urban_rural = '-' AND {in_o}"),
         one("SELECT count(*) FROM g WHERE urban_rural = '-'")))
+    # Sulu is no longer in BARMM: 2Q 2026 codes it 0906600000 (Region IX), the file still 19066 (BARMM).
+    # Test whether swapping the province prefix alone gives a 2Q 2026 barangay with the same name.
+    show("X-2", "codes not in 2Q 2026 with prefix 19066, recoded to 09066: distinct codes {}; found in 2Q 2026 {}; same barangay name {}".format(
+        *q(f"""WITH s AS (SELECT DISTINCT b10, psgc_bgy_name FROM g WHERE NOT {in_p} AND b10 LIKE '19066%')
+               SELECT count(*), count(p.id), count(*) FILTER (WHERE upper(trim(p.name)) = upper(trim(s.psgc_bgy_name)))
+               FROM s LEFT JOIN p ON p.id = '09066' || substr(s.b10, 6)""")[0]))
+    show("X-2", "schools with a code not in 2Q 2026, by sector (schools, learners): " + ", ".join(
+        f"{s} {n:,}, {v:,}" for s, n, v in q(f"""SELECT g.sector, count(*), sum(t.total) FROM g JOIN t USING (sheet_row)
+            WHERE NOT {in_p} GROUP BY 1 ORDER BY 2 DESC""")))
+
+# %% X-3 City or municipality from this file's codes against the team's name matching
+# deped_enrollment schools are placed in PSGC 2Q 2026 by their place names (cross_source_deped.py,
+# rules in docs/data/cross-source/deped-dataset-research.md). For each school in the main block,
+# compare that city or municipality with the one its barangay code here gives. Manila
+# sub-municipalities roll up to the City of Manila on both sides, as in the name matching.
+if not have:
+    show("X-3", "skipped: needs the psa_psgc files of X-2")
+else:
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            names = runpy.run_path(str(REPO / "analysis" / "cross_source" / "cross_source_deped.py"), run_name="__main__")
+    except (SystemExit, FileNotFoundError) as stop:
+        names = None
+        show("X-3", f"skipped: cross_source_deped.py could not run ({stop}); it needs every zip in its FILES in {ORIGINAL}")
+    if names is not None:
+        units_by_id, city = names["units_by_id"], names["city_or_municipality"]
+        by_name = {}
+        for school_id, _, province, municipality, _ in names["schools"]:  # overseas schools already excluded
+            locality = names["loc_result"][(province, municipality)][1]
+            by_name[school_id] = city(locality).id if locality is not None else None
+        code_of = dict(q(f"SELECT school_id, b10 FROM g WHERE {main}"))
+        sector_of = dict(q(f"SELECT school_id, sector FROM d WHERE {main}"))
+
+        def outcome(school_id):
+            code, named = code_of.get(school_id), by_name[school_id]
+            parent = units_by_id.get(code[:7] + "000") if code in units_by_id else None
+            coded = city(parent).id if parent is not None else None
+            if coded and named:
+                return ("agree" if coded == named else "disagree"), named, coded
+            if coded:
+                return "placed only by this file", named, coded
+            if named:
+                why = "this file's code not in 2Q 2026" if code else "this file's code #N/A or blank"
+                return f"placed only by name ({why})", named, coded
+            return "placed by neither", named, coded
+
+        results = {i: outcome(i) for i in by_name}
+        for label, keep in (("public", lambda i: sector_of.get(i) == "Public"), ("all sectors", lambda i: True)):
+            tally = collections.Counter(r[0] for i, r in results.items() if keep(i))
+            show("X-3", f"{label}, {sum(tally.values()):,} schools: " + ", ".join(f"{k} {n:,}" for k, n in tally.most_common()))
+        moved = collections.Counter((units_by_id[n].name, units_by_id[c].name)
+                                    for i, (o, n, c) in results.items() if o == "disagree" and sector_of.get(i) == "Public")
+        show("X-3", "public, disagree, name matching -> this file: " + ", ".join(f"{a} -> {b} {k}" for (a, b), k in moved.most_common(15)))
 
 workdir.cleanup()
