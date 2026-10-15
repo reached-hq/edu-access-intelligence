@@ -14,7 +14,7 @@ The proposed ratio structures are reasonable analytical candidates, but they are
 |---|---|---|
 | **AP1 · Schools** | Public-school and enrollment counts can be aggregated by matched LGU and school year; 97.9% of SY 2023-24 schools (58,876 of 60,134) reach a PSGC barangay by name; the active-school, zero-enrollment, and annex rules are set | How a multi-level school counts in level-specific school counts is still open; the barangay roll-up needs a rule for the 1,258 schools without a unique barangay match |
 | **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio, and its extreme observations are still under review |
-| **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level and the teacher positions are set | The source cannot show whether one person is counted in two columns, blanks are ambiguous, outliers remain under review, and DepEd's method requires annex-to-mother-school consolidation |
+| **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level and the teacher positions are set | The source cannot show whether one person is counted in two columns, blanks are ambiguous, outliers remain under review, and without a mother-school ID the ratio is project-defined, not DepEd's indicator |
 | **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found for 2020 and 2024; SY 2024-25 enrollment is acquired | The PSA workbooks are not yet profiled or ingested and carry names only, with no PSGC codes; SY 2020-21 enrollment is not yet acquired |
 | **Resource-gap estimates** | RA No. 7880 supplies a 45:1 statutory classroom-shortage reference; the arithmetic form can be documented as a candidate | The current NSBI room field includes spaces excluded by the law, no current general teacher threshold has been validated, and the operational assumptions behind converting a ratio into rooms or teachers have not been approved |
 
@@ -106,7 +106,8 @@ for each level (ES, JHS, SHS):
 
 learners_per_teacher =
     sum(public_school_enrollment at the level) / sum(teacher_count at the level)
-    over public schools with teacher_count at the level > 0
+    over public schools with teacher_count at the level > 0,
+    plus the learners of annexes that report 0 teachers
 
 school_coverage_pct =
     public_schools_with_usable_teacher_count / public_schools_in_scope * 100
@@ -129,9 +130,9 @@ Known limit: the source cannot show whether one person is counted in two columns
 
 The source measures personnel actually working in public schools; they are not authorized plantilla positions, vacancies, or approved new items.
 
-DepEd's documented teacher–learner method adds annex enrollment and teachers to the mother school before division. A DepEd-aligned result is blocked until an annex-to-mother-school crosswalk and the teacher-column list are validated. A provisional ratio that leaves annexes separate must be labelled as project-defined and must not claim to reproduce DepEd's indicator.
+DepEd's documented teacher–learner method adds annex enrollment and teachers to the mother school before division. DepEd publishes no mother-school ID (#134), so AP3 cannot do this school by school. The ratio is labelled **project-defined** and must not claim to reproduce DepEd's indicator (D-047). An annex that reports 0 teachers keeps its learners in the city or municipality total instead of being dropped by the usable-denominator rule: 48 annexes with 21,114 learners in SY 2023-24. Because the ratio is summed to the city or municipality, this matches DepEd's add-to-mother rule whenever the annex and its mother school are in the same city or municipality.
 
-**Validation status:** teacher positions and levels are set (D-047), limited to SY 2023-24. Blocked for publication as a DepEd-aligned ratio. Also resolve the reviewed personnel outliers and ambiguous blanks.
+**Validation status:** candidate for a project-defined ratio by level, limited to SY 2023-24. Teacher positions, levels, and annex handling are set (D-047). It is not DepEd's teacher–learner ratio. Resolve the reviewed personnel outliers and ambiguous blanks before publication.
 
 ### AP4 · School-age population and enrollment gap
 
@@ -231,7 +232,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | geography-match version, unmatched/excluded school counts, source versions | Required |
 | **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, total population, schools per 10,000 residents, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Candidate |
 | **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Candidate for SY 2023-24 |
-| **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Blocked pending definition and annex handling |
+| **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Candidate (project-defined) for SY 2023-24 |
 | **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending ingestion and profiling |
 | **Comparisons** | applicable benchmark and status, peer percentile, peer median, national same-type median | benchmark citation/version, peer ID/count/fallback, IQR, national distribution, comparison status | Blocked until method approval |
 | **Priority label** | relative-pressure band or benchmark status, affected enrollment | sort rule/version, missingness and quality warnings | Blocked until ranking rule approval |
@@ -241,7 +242,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 1. AP1 level-specific counting for multi-level schools, and the handling of schools without a unique barangay match in the barangay roll-up. The active-school, zero-enrollment, and annex rules are set (D-047).
 2. **Set (D-047):** ES, JHS, and SHS room counts are combined into one total per school.
 3. **Set (D-047):** AP3 teacher positions, levels, and funding columns. Possible double counting of one person is a documented limit the source cannot resolve.
-4. Annex-to-mother-school crosswalk and aggregation behavior.
+4. **Set (D-047):** no annex-to-mother-school link exists, so AP3 is labelled project-defined, and annexes that report 0 teachers keep their learners in the city or municipality total.
 5. Which researched classroom and teacher references, if any, are approved for the intended use after the compatibility conditions in the [national benchmark register](national-benchmarks-and-indicators.md) are met.
 6. AP4 name-match rule from the PSA census workbooks to PSGC, and how the dashboard shows cities and municipalities flagged for the 2020-to-2024 change. The age range, matched periods, enrollment scope, and the no-modelling rule are set in the AP4 section above.
 7. Peer criteria, density source and bands, minimum group size, fallback, and percentile convention.
