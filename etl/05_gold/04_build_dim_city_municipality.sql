@@ -1,3 +1,3 @@
--- PLACEHOLDER: build dim_city_municipality (D-048). One city or municipality; reads PSGC Silver only, so an
--- HDX failure cannot block it (D-051). land_area_sqkm stays NULL until #140 picks a land-area source.
+-- PLACEHOLDER: build dim_city_municipality (D-048). One city or municipality; reads PSGC Silver, and the HDX
+-- map for land_area_sqkm (hdx_boundaries.area_sqkm, D-042).
 -- Implement the grain and columns in docs/architecture/data-model.md before activating this task.
