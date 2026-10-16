@@ -189,6 +189,25 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     store.close()
 
 
+def test_a_failed_lane_stops_only_the_tasks_that_read_it(repo, tmp_path):
+    """The annex map reads enrollment only, so a failed poverty lane does not stop it; the fan-in
+    still records the failed lane and fails the run (D-050)."""
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    run_job(repo, landing, db, REVISION, log=lambda *_: None)
+    poverty = "edu_access.`02-bronze`.psa_poverty_stat_raw"
+    store = DuckDBStore(db)
+    store.sql(f"INSERT INTO {poverty} SELECT * REPLACE ('ghost' AS batch_id) FROM {poverty} LIMIT 1")
+    store.close()
+    results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
+    assert results["90_validate_psa_poverty_stat_raw"] == "failed"
+    assert results["05_clean_psa_poverty_stat"] == "upstream_failed"
+    assert results["90_validate_control"] == "failed"              # the run still shows the failed lane
+    assert results["04_map_deped_annex_mother"] == "succeeded"       # but a map that does not read poverty runs
+    assert results["90_validate_deped_annex_mother_map"] == "succeeded"
+
+
 @pytest.mark.parametrize("error", [RuntimeError("made-up Python task crash"), RuntimeError()], ids=["message", "no-message"])
 def test_a_crashed_python_task_fails_and_an_independent_source_still_runs(repo, tmp_path, monkeypatch, error):
     landing = tmp_path / "landing"
