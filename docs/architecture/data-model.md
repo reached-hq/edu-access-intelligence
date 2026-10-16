@@ -14,9 +14,9 @@ in Analytics views, not in these facts or in individual dashboard charts.
 
 | Analytical question | Gold inputs | Analytics rule |
 |---|---|---|
-| Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_population`, geography dimensions | Follow D-047: count a public school only when its enrollment for that school year is above 0; show zero-enrollment schools separately and do not count them as serving a barangay. Count annexes as schools, label the result "public schools (including annexes)", and show the annex count. Report learners per public school and population per public school separately. Use barangays for LGU-level context and drill-down, not as the ranking grain. |
+| Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_population`, geography dimensions | Follow D-047: count a public school only when its enrollment for that school year is above 0; show zero-enrollment schools separately and do not count them as serving a barangay. Count annexes as schools, label the result "public schools (including annexes)", and show the annex count. Count only `member_type = 'regular'` barangays when identifying barangays without a public elementary school. If an LGU has a school assigned to its unknown-barangay member, label the unserved-barangay result "at most" and show the unmatched-school count. Report learners per public school and population per public school separately. Use 2024 population for every enrollment school year and label it "Population 2024". Use barangays for LGU-level context and drill-down, not as the ranking grain. |
 | Which cities and municipalities have the most public-school students per classroom? | `fact_school_enrollment`, `fact_school_classroom_capacity` | Aggregate public-school learners across levels to school x school year before joining whole-school instructional rooms. Divide summed learners by summed rooms by city or municipality and show denominator coverage. Do not create level ratios because integrated schools share rooms across levels. |
-| Which cities and municipalities have the most public-school students per teacher? | `fact_school_enrollment`, `fact_school_teacher_capacity` | Sum public-school learners and the approved teacher roles by city or municipality, school year, and education level. Keep annex learners even when the annex reports zero teachers. Divide the LGU totals and label the result project-defined because mother-school links are unavailable. Show coverage. |
+| Which cities and municipalities have the most public-school students per teacher? | `fact_school_enrollment`, `fact_school_teacher_capacity` | Sum public-school learners and the approved teacher roles by city or municipality, school year, and education level. Include learners only from schools with `teacher_count > 0` at that level, except that annex learners remain when the annex reports zero teachers. Exclude other zero-teacher schools from the ratio and show their school and learner counts in coverage. Divide the LGU totals and label the result project-defined because mother-school links are unavailable. |
 | Which cities and municipalities have the largest gap between school-age population and student enrollment over time? | `fact_school_enrollment`, `fact_city_school_age_population` | Compare ages 5–17 with enrollment from all sectors except Philippine Schools Overseas for 2020 with SY 2020-21 and 2024 with SY 2024-25. Other school years are not available for AP4. Use enrollment geography for each school year and disclose the residence-versus-school-location limitation. |
 
 Poverty is contextual. `dim_city_poverty` carries the selected 2023 estimate
@@ -52,6 +52,13 @@ geography keys.
 | `fact_city_population` | City or municipality x reference year | (`city_mun_psgc_code`, `reference_year`) | PSGC total population and its availability status |
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | (`city_mun_psgc_code`, `reference_year`, `age`, `sex`) | PSA single-year-age population for AP4; Analytics selects ages 5–17 |
 
+`fact_school_enrollment` has exactly one row for each school, school year, and
+reporting level (`ES`, `JHS`, and `SHS`). A level that is not offered has
+`is_offered = false` and `learner_count = 0`. A level that is offered but whose
+count was not published has `is_offered = true` and `learner_count = NULL`.
+Consumers must filter `is_offered = true` when counting schools that offer a
+specific level.
+
 Classroom capacity is stored at school x school year because integrated schools
 share rooms across levels. Analytics first aggregates enrollment across ES, JHS,
 and SHS, then joins the whole-school room total. The classroom fact preserves
@@ -65,9 +72,11 @@ SPED/SNED teachers, Special Science teachers, instructors, and locally funded
 teachers. Kindergarten locally funded teachers belong to ES. Principals and
 non-teaching staff are excluded. SPED/SNED teachers are included because the
 enrollment numerator includes non-graded SPED learners. An annex with learners
-and zero teachers remains in the LGU numerator; it is not dropped. This allows
-its learners to be divided by teachers reported elsewhere in the same LGU, but
-the result is project-defined because the missing mother-school ID prevents the
+and zero teachers remains in the LGU numerator; it is not dropped. For a
+non-annex school, learners at a level with zero teachers at that level are
+excluded from the ratio and reported in the coverage gap. This allows annex
+learners to be divided by teachers reported elsewhere in the same LGU, but the
+result is project-defined because the missing mother-school ID prevents the
 team from confirming that the mother school is in the same LGU.
 
 School geography is stored on `fact_school_enrollment` because a school's
@@ -405,7 +414,8 @@ The design becomes buildable only after all of these are true:
 
 1. The team and mentor approve this ERD and the grains above.
 2. #44 provides reviewed PSGC mappings and explicit unknown/excluded behavior.
-3. #66 approves the classroom and teacher denominator definitions.
+3. D-047 supplies the approved classroom and teacher denominator definitions;
+   #66 must resolve only any implementation detail that remains open.
 4. Each dimension build has a uniqueness check on its declared key.
 5. Every fact foreign key resolves to a regular, unknown, or excluded dimension
    member; no records disappear through inner joins.
