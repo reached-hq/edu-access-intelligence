@@ -1,2 +1,3 @@
--- PLACEHOLDER: assign every city and municipality to a peer group (#148).
+-- PLACEHOLDER: assign every city and municipality to a peer group (#148). Reads the city dimension, city
+-- population, and the HDX map for land area and density, so an HDX failure stops only this task, AP2, and AP3 (D-051).
 -- Implement the approved peer-group rule (#142) before activating this task.

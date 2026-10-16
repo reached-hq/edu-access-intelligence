@@ -895,7 +895,6 @@ resources:
           disabled: true
           depends_on:
             - task_key: 90_validate_psa_psgc_clean
-            - task_key: 90_validate_hdx_adm3_psgc_map
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -1074,6 +1073,7 @@ resources:
           depends_on:
             - task_key: 90_validate_dim_city_municipality
             - task_key: 90_validate_fact_city_population
+            - task_key: 90_validate_hdx_adm3_psgc_map
           run_if: ALL_SUCCESS
           sql_task:
             file:

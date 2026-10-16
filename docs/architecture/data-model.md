@@ -114,7 +114,7 @@ deployment bands are not an active current benchmark.
 | `city_class` | STRING | `HUC`, `ICC`, `CC`, or NULL for a municipality |
 | `income_class` | STRING | `1st` through `5th`, or NULL when not classified |
 | `income_class_retained` | BOOLEAN | Whether the published starred class means retained after downgrade |
-| `land_area_sqkm` | DECIMAL(18,4) | Reviewed city or municipality land area |
+| `land_area_sqkm` | DECIMAL(18,4) | Reviewed city or municipality land area. NULL until #140 picks a source; the dimension reads PSGC only, and the peer group (#148) reads the HDX map for density (D-051) |
 | `land_area_source` | STRING | Source used when land-area values are mixed; otherwise one documented constant |
 | `is_sga` | BOOLEAN | Approved Special Geographic Area rule |
 | `member_type` | STRING | `regular`, `unknown`, or `excluded` |
