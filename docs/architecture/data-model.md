@@ -14,7 +14,7 @@ in Analytics views, not in these facts or in individual dashboard charts.
 
 | Analytical question | Gold inputs | Analytics rule |
 |---|---|---|
-| Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_population`, geography dimensions | Count distinct public schools and sum learners by city or municipality. Report learners per public school and population per public school separately. Use barangays for LGU-level context and drill-down, not as the ranking grain. |
+| Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_population`, geography dimensions | Follow D-047: count a public school only when its enrollment for that school year is above 0; show zero-enrollment schools separately and do not count them as serving a barangay. Count annexes as schools, label the result "public schools (including annexes)", and show the annex count. Report learners per public school and population per public school separately. Use barangays for LGU-level context and drill-down, not as the ranking grain. |
 | Which cities and municipalities have the most public-school students per classroom? | `fact_school_enrollment`, `fact_school_classroom_capacity` | Aggregate public-school learners across levels to school x school year before joining whole-school instructional rooms. Divide summed learners by summed rooms by city or municipality and show denominator coverage. Do not create level ratios because integrated schools share rooms across levels. |
 | Which cities and municipalities have the most public-school students per teacher? | `fact_school_enrollment`, `fact_school_teacher_capacity` | Sum public-school learners and the approved teacher roles by city or municipality, school year, and education level. Keep annex learners even when the annex reports zero teachers. Divide the LGU totals and label the result project-defined because mother-school links are unavailable. Show coverage. |
 | Which cities and municipalities have the largest gap between school-age population and student enrollment over time? | `fact_school_enrollment`, `fact_city_school_age_population` | Compare ages 5–17 with enrollment from all sectors except Philippine Schools Overseas for 2020 with SY 2020-21 and 2024 with SY 2024-25. Other school years are not available for AP4. Use enrollment geography for each school year and disclose the residence-versus-school-location limitation. |
@@ -166,11 +166,16 @@ key, so no `ALL` education-level member is needed.
 | `poverty_ci90_lower` | DECIMAL(12,6) |
 | `poverty_ci90_upper` | DECIMAL(12,6) |
 | `poverty_cv` | DECIMAL(12,6) |
+| `cv_over_20` | BOOLEAN |
 | `estimate_status` | STRING |
+| `status_reason` | STRING |
 
 The selected estimate year is 2023. `estimate_status` is `estimated`,
 `no_estimate`, or `not_in_source`, following D-046. This contextual dimension
 has one row for every city or municipality, including those without an estimate.
+`cv_over_20` supports the dashboard's `less precise` label. `status_reason` is
+shown when no estimate is available. This table follows D-046 if that decision
+changes before #151 is merged.
 
 ### `fact_school_enrollment`
 
@@ -206,7 +211,8 @@ views from the standardized source values.
 | `classes_using_makeshift_rooms` | INT |
 
 `instructional_classrooms_total` sums the nonblank ES, JHS, and SHS
-instructional-room counts. The other four columns retain the complete source
+instructional-room counts. It is NULL, not 0, when all three source counts are
+blank, following D-047. The other four columns retain the complete source
 distinction between spaces or rooms and the classes using them. The source
 publishes those measures as ES and combined HS, so Gold sums them to the
 whole-school row without pretending that HS can be split between JHS and SHS.
@@ -261,12 +267,18 @@ to `teacher_count` again.
 | `age` | INT |
 | `sex` | STRING |
 | `population` | BIGINT |
-| `match_status` | STRING |
+| `psgc_match_status` | STRING |
+| `is_2020_2024_geography_comparable` | BOOLEAN |
 
 The source supplies 2020 and 2024 single-year-age population by sex and city or
-municipality. Analytics sums both sexes and ages 5–17. The row-level
-`match_status` retains the reviewed name-to-PSGC result. This fact must not be
-filled by interpolating or substituting the broader PSA ages 5–24 category.
+municipality. `sex` contains only `male` and `female`; the published total row is
+used for reconciliation and is not stored as another fact row. Analytics sums
+the male and female rows for ages 5–17, avoiding double counting. The row-level
+`psgc_match_status` retains the reviewed name-to-PSGC result.
+`is_2020_2024_geography_comparable` is false where boundary or hierarchy changes,
+including the Makati/Taguig transfer and the new Special Geographic Area
+municipalities, prevent a like-for-like trend. This fact must not be filled by
+interpolating or substituting the broader PSA ages 5–24 category.
 
 ## ERD
 
@@ -334,7 +346,9 @@ erDiagram
     decimal poverty_ci90_lower
     decimal poverty_ci90_upper
     decimal poverty_cv
+    boolean cv_over_20
     string estimate_status
+    string status_reason
   }
   fact_school_enrollment {
     string school_id PK,FK
@@ -380,7 +394,8 @@ erDiagram
     int age PK
     string sex PK
     bigint population
-    string match_status
+    string psgc_match_status
+    boolean is_2020_2024_geography_comparable
   }
 ```
 
