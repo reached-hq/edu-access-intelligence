@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validation gate for the peer comparison: every AP2 and AP3 row has one peer result or a fallback label.
+-- Implement the gate and its data_quality_results writes before activating this task.

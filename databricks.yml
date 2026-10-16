@@ -1067,7 +1067,7 @@ resources:
               path: etl/05_gold/90_validate_fact_city_school_age_population.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-        # Analytics outputs, each from the fact and peer-group gates it reads.
+        # Analytics outputs, each from the fact gates it reads; the peer comparison comes last.
         # Dashboard resources are added when an .lvdash.json exists.
         - task_key: 05_assign_peer_group
           disabled: true
@@ -1117,7 +1117,6 @@ resources:
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
             - task_key: 90_validate_fact_school_classroom_capacity
-            - task_key: 90_validate_peer_group
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -1139,7 +1138,6 @@ resources:
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
             - task_key: 90_validate_fact_school_teacher_capacity
-            - task_key: 90_validate_peer_group
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -1177,6 +1175,33 @@ resources:
               path: etl/06_analytics/90_validate_ap4.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
+
+        # Peer comparison (D-042, D-045): medians, IQR, and percentiles for AP2 and AP3 within each
+        # approved peer group. Kept apart from the core ratios so they run before #142 and #148 land.
+        - task_key: 06_compare_peer_groups
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_ap2
+            - task_key: 90_validate_ap3
+            - task_key: 90_validate_peer_group
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/06_compare_peer_groups.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 90_validate_peer_comparison
+          disabled: true
+          depends_on:
+            - task_key: 06_compare_peer_groups
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/90_validate_peer_comparison.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
       environments:
         - environment_key: ingestion
           spec:
