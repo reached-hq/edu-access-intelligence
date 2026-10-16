@@ -47,6 +47,8 @@ def repo(tmp_path):
     features = [hdx_geojson.silver_feature(i) for i in range(1, 4)]
     hdx_geojson.approve(hdx, hdx_geojson.write_features(tmp_path / "landing" / "admin_boundaries", features), 3)
     write_config(root, hdx)
+    # The EMISD workbook is Bronze only so far (#152): its lane runs with nothing approved, as personnel's does.
+    write_config(root, empty_config("deped_enrollment_psgc"))
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
@@ -84,21 +86,32 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
         (len(psgc_workbooks.UNITS), "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_poverty_stat_clean") == [(18, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
-    # Integration runs after the fan-in: every made-up HDX feature has one map row (#93, D-042).
+    # Integration runs after the fan-in: every made-up HDX feature has one map row (#93, D-049).
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".hdx_adm3_psgc_map") == [(3, "job-run-1")]
     assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
                        "AND source_id = 'hdx_boundaries'") == [("succeeded",)]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
-                       "WHERE run_id = 'job-run-1' AND layer = 'control' ORDER BY 1") == [
+                       "WHERE run_id = 'job-run-1' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
         ("deped_enrollment", "PASS"), ("deped_facilities", "PASS"), ("deped_personnel", "PASS"),
         ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"),
         ("psa_psgc", "PASS")]   # one per Silver lane on
+    fresh = store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
+                        "WHERE run_id = 'job-run-1' AND check_name = 'source_fresh' ORDER BY 1")
+    # One per loaded source, after the fan-in. Every batch was just loaded, so each source with one is fresh;
+    # the fake repository approves no personnel or EMISD delivery, so those two have none.
+    assert [(source, status) for source, status, _ in fresh] == [
+        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "WARN"), ("deped_facilities", "PASS"),
+        ("deped_personnel", "WARN"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS")]
+    assert all(actual.startswith("last succeeded ") for _, status, actual in fresh if status == "PASS")
+    assert dict((s, a) for s, _, a in fresh)["deped_personnel"] == "no succeeded batch"
+    assert dict((s, a) for s, _, a in fresh)["deped_enrollment_psgc"] == "no succeeded batch"
     linked = store.query(f"""
         SELECT r.source_id, COUNT(q.check_name) FROM {CONTROL}.pipeline_runs AS r
         JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
         WHERE r.job_run_id = 'job-run-1' AND q.layer = 'bronze' GROUP BY 1 ORDER BY 1""")
     assert [source for source, checks in linked if checks > 0] == [
-        "deped_enrollment", "deped_facilities", "deped_personnel", "hdx_boundaries", "psa_poverty_stat", "psa_psgc"]
+        "deped_enrollment", "deped_enrollment_psgc", "deped_facilities", "deped_personnel", "hdx_boundaries",
+        "psa_poverty_stat", "psa_psgc"]
     store.close()
 
 
@@ -134,7 +147,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 6), ("integration_build", 1), ("silver_build", 6)]   # one filter, both layers
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 7), ("integration_build", 1), ("silver_build", 6)]   # one filter, both layers; EMISD is Bronze only; the HDX map writes its own run
     store.close()
 
 
@@ -165,13 +178,14 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     assert results["bronze_deped_facilities"] == "succeeded"      # independent root: enrollment cannot block it
     assert results["05_clean_psa_poverty_stat"] == "succeeded"    # another lane still runs to the end
     assert results["90_validate_control"] == "failed"             # the fan-in runs anyway, records, and stops
+    assert results["90_validate_freshness"] == "succeeded"        # and freshness is still checked after it
     store = DuckDBStore(db)
     assert store.query(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
                        "AND status = 'FAIL' ORDER BY 1") == [
         ("no_pipeline_duplicates",), ("rows_have_a_known_batch",), ("silver_lane_succeeded",),
         ("succeeded_batches_reconcile",)]
     assert store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
-                       "WHERE run_id = 'job-run-2' AND layer = 'control' ORDER BY 1") == [
+                       "WHERE run_id = 'job-run-2' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
         ("deped_enrollment", "FAIL", "not run"), ("deped_facilities", "PASS", "succeeded"),
         ("deped_personnel", "PASS", "succeeded"), ("hdx_boundaries", "PASS", "succeeded"),
         ("psa_poverty_stat", "PASS", "succeeded"), ("psa_psgc", "PASS", "succeeded")]

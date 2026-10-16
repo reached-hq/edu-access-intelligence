@@ -164,7 +164,7 @@ def empty_config(source_id=DEFAULT):
 
 
 def fake_repo(root, config):
-    """A throwaway repository root: the real registries, Silver mappings, and etl/ SQL, with `config` as the contract."""
+    """A throwaway repository root: the real registries, mappings, and etl/ SQL, with `config` as the contract."""
     import shutil
 
     root = Path(root)

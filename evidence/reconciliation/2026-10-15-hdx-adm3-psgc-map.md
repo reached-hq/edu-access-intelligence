@@ -60,7 +60,7 @@ The other FAIL checks (`matched_has_psgc_unit`, `unmatched_has_no_psgc`, `status
 
 ### The issue's 1,500 exact matches
 
-#93 counted 1,500 features whose P-code, read as a PSGC code, exists in PSGC. The map counts a code only when the names also agree (D-042), so 20 of those 1,500 move out of `code`:
+#93 counted 1,500 features whose P-code, read as a PSGC code, exists in PSGC. The map counts a code only when the names also agree (D-049), so 20 of those 1,500 move out of `code`:
 
 - 16 in Maguindanao, where COD-AB reuses a PSGC code number for a different town (`docs/governance/limitations.md`). Each is matched to its own town by name, inside the 29 `name_exact`.
 - 4 renamed LGUs, kept as `code_renamed` and confirmed by review.

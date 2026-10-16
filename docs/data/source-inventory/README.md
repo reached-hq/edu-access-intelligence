@@ -23,6 +23,7 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/data/cross
 | source_id | Name | Publisher | Status | Owner |
 |---|---|---|---|---|
 | [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise |
+| [deped_enrollment_psgc](deped_enrollment_psgc/) | DepEd school-level enrollment with PSGC and coordinates (SY 2023-24) | DepEd | profiled | @maeveylain |
 | [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise |
 | [deped_ellna](deped_ellna/) | DepEd selected school-level ELLNA results | DepEd | profiled | @mafelisilda |
 | [deped_nat_gr6](deped_nat_gr6/) | DepEd selected school-level NAT Grade 6 results | DepEd | profiled | @mafelisilda |
@@ -42,4 +43,5 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/data/cross
 | [psa_openstat_education](psa_openstat_education/) | PSA OpenSTAT education and literacy tables | PSA | profiled | @hyenalouise |
 | [psa_population_per_barangay](psa_population_per_barangay/) | PSA 2024 population by barangay | PSA | profiled | @mafelisilda |
 | [psa_population_per_age_group](psa_population_per_age_group/) | PSA 2024 household population by age group | PSA | profiled | @mafelisilda |
+| [psa_school_age_population](psa_school_age_population/) | PSA population aged 5-24 by single-year age, sex and city/municipality (2020, 2024) | PSA | profiled | @saraevcldn |
 | [hdx_boundaries](hdx_boundaries/) | Philippine administrative boundaries | UN OCHA | profiled | @saraevcldn |
