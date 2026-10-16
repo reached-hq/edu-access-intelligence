@@ -29,7 +29,7 @@ without a separate decision.
 |---|---|---|---|
 | `dim_city_municipality` | One PSGC city or municipality, plus technical members | `city_mun_psgc_code` | City names, parent province and region, LGU classifications, land area, and the PSGC reference quarter |
 | `dim_barangay` | One PSGC barangay, plus technical members | `barangay_psgc_code` | Barangay name, city or municipality parent, and urban/rural classification |
-| `dim_school` | One DepEd school | `school_id` | Stable school identifier and name |
+| `dim_school` | One DepEd school | `school_id` | Stable school identifier and latest available reported name |
 | `dim_school_year` | One school year | `school_year` | Start and end calendar years, plus source availability for enrollment, facilities, and personnel |
 | `dim_education_level` | One reporting level | `education_level_code` | `ES`, `JHS`, or `SHS`, with the included grades documented below |
 | `dim_city_poverty` | One city or municipality | `city_mun_psgc_code` | Selected 2023 poverty estimate, uncertainty, and availability status for dashboard context |
@@ -136,6 +136,9 @@ deployment bands are not an active current benchmark.
 |---|---|
 | `school_id` | STRING |
 | `school_name` | STRING |
+
+`school_name` uses the name from the latest available enrollment school year.
+It is a current display label, not a historical attribute.
 
 ### `dim_school_year`
 
@@ -296,7 +299,7 @@ erDiagram
   dim_city_municipality ||--o{ dim_barangay : contains
   dim_city_municipality ||--o{ fact_school_enrollment : locates
   dim_city_municipality ||--o{ fact_city_population : has
-  dim_city_municipality ||--|| dim_city_poverty : describes
+  dim_city_municipality ||--o| dim_city_poverty : describes
   dim_city_municipality ||--o{ fact_city_school_age_population : has
   dim_barangay ||--o{ fact_school_enrollment : locates
   dim_school ||--o{ fact_school_enrollment : enrolls
