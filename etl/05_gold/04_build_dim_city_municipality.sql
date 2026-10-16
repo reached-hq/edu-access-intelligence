@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build dim_city_municipality (D-048). One city or municipality; reads PSGC Silver and the HDX map.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

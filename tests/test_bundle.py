@@ -153,32 +153,75 @@ def test_non_source_tasks_declare_dependencies(jobs):
                 assert task.get("depends_on"), f"{name}/{task['task_key']} has no dependency"
 
 
-def test_parallel_stages_fan_in_only_at_the_next_stage(jobs):
+SILVER_GATES = {
+    "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean", "90_validate_deped_personnel_clean",
+    "90_validate_psa_psgc_clean", "90_validate_psa_poverty_stat_clean", "90_validate_hdx_adm3_clean",
+}
+
+# Each downstream task and the gates it reads (D-050). A task waits for these and nothing else.
+DOWNSTREAM = {
+    "01_map_deped_school_psgc": {"90_validate_deped_enrollment_clean", "90_validate_psa_psgc_clean"},
+    "02_map_psa_poverty_psgc": {"90_validate_psa_poverty_stat_clean", "90_validate_psa_psgc_clean"},
+    "03_map_hdx_adm3_psgc": {"90_validate_hdx_adm3_clean", "90_validate_psa_psgc_clean"},
+    "04_map_deped_annex_mother": {"90_validate_deped_enrollment_clean"},
+    "05_map_psa_school_age_population_psgc": {"90_validate_psa_psgc_clean"},
+    "01_build_dim_school": {"90_validate_deped_enrollment_clean"},
+    "02_build_dim_school_year": {"05_create_current_batches"},
+    "03_build_dim_education_level": {"04_create_data_quality_results"},
+    "04_build_dim_city_municipality": {"90_validate_psa_psgc_clean", "90_validate_hdx_adm3_psgc_map"},
+    "05_build_dim_barangay": {"90_validate_psa_psgc_clean"},
+    "06_build_dim_city_poverty": {"90_validate_psa_poverty_psgc_map", "90_validate_psa_poverty_stat_clean"},
+    "10_build_fact_school_enrollment": {
+        "90_validate_deped_school_psgc_map", "90_validate_dim_school", "90_validate_dim_school_year",
+        "90_validate_dim_education_level", "90_validate_dim_city_municipality", "90_validate_dim_barangay"},
+    "11_build_fact_school_classroom_capacity": {
+        "90_validate_deped_facilities_clean", "90_validate_dim_school", "90_validate_dim_school_year"},
+    "90_validate_fact_school_classroom_capacity": {
+        "11_build_fact_school_classroom_capacity", "90_validate_fact_school_enrollment"},
+    "12_build_fact_school_teacher_capacity": {
+        "90_validate_deped_personnel_clean", "90_validate_dim_school", "90_validate_dim_school_year",
+        "90_validate_dim_education_level"},
+    "13_build_fact_city_population": {"90_validate_psa_psgc_clean", "90_validate_dim_city_municipality"},
+    "14_build_fact_city_school_age_population": {
+        "90_validate_psa_school_age_population_psgc_map", "90_validate_dim_city_municipality"},
+    "05_assign_peer_group": {"90_validate_dim_city_municipality", "90_validate_fact_city_population"},
+    "01_answer_ap1": {"90_validate_fact_school_enrollment", "90_validate_fact_city_population", "90_validate_dim_barangay"},
+    "02_answer_ap2": {"90_validate_fact_school_enrollment", "90_validate_fact_school_classroom_capacity",
+                      "90_validate_peer_group"},
+    "03_answer_ap3": {"90_validate_fact_school_enrollment", "90_validate_fact_school_teacher_capacity",
+                      "90_validate_peer_group"},
+    "04_answer_ap4": {"90_validate_fact_school_enrollment", "90_validate_fact_city_school_age_population"},
+}
+
+
+def test_the_fan_in_is_an_audit_no_task_waits_for(jobs):
+    """Every Silver gate fans in to 90_validate_control, which runs even when a lane failed (ALL_DONE)
+    and fails itself if one did, so the job run fails; freshness runs beside it (D-050)."""
     tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
+    for key in ("90_validate_control", "90_validate_freshness"):
+        assert tasks[key].get("run_if") == "ALL_DONE" and not tasks[key].get("disabled")
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == SILVER_GATES
+    waiting = [k for k, t in tasks.items() if {"task_key": "90_validate_control"} in t.get("depends_on", [])]
+    assert not waiting, f"{waiting} wait for the fan-in, which is an audit (D-050)"
 
-    # Every Silver gate fans in to 90_validate_control, which runs even when a lane failed (ALL_DONE)
-    # and fails itself if one did; Integration starts only from it (D-039).
-    control = tasks["90_validate_control"]
-    assert control.get("run_if") == "ALL_DONE" and not control.get("disabled")
-    assert {d["task_key"] for d in control["depends_on"]} == {
-        "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean", "90_validate_deped_personnel_clean",
-        "90_validate_psa_psgc_clean", "90_validate_psa_poverty_stat_clean", "90_validate_hdx_adm3_clean",
-    }
-    for key in ("01_map_deped_school_psgc", "02_map_psa_poverty_psgc", "03_map_hdx_adm3_psgc"):
-        assert {d["task_key"] for d in tasks[key]["depends_on"]} == {"90_validate_control"}
-        assert tasks[key].get("run_if") == "ALL_SUCCESS"
 
-    integration_gate = {"90_validate_education_geography_integrated"}
-    for key in ("01_placeholder_dim_geography", "02_placeholder_dim_school"):
-        assert {d["task_key"] for d in tasks[key]["depends_on"]} == integration_gate
+def test_downstream_tasks_start_from_the_gates_they_read(jobs):
+    tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
+    for key, gates in DOWNSTREAM.items():
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == gates, key
+        assert tasks[key].get("run_if") == "ALL_SUCCESS", key
 
-    dimension_gates = {"90_placeholder_validate_dim_geography", "90_placeholder_validate_dim_school"}
-    for key in ("10_placeholder_fact_school_year", "20_placeholder_fact_poverty_estimate"):
-        assert {d["task_key"] for d in tasks[key]["depends_on"]} == dimension_gates
 
-    fact_gates = {"90_placeholder_validate_fact_school_year", "90_placeholder_validate_fact_poverty_estimate"}
-    for key in ("01_answer_ap1", "02_answer_ap2", "03_answer_ap3", "04_answer_ap4"):
-        assert {d["task_key"] for d in tasks[key]["depends_on"]} == fact_gates
+def test_every_downstream_build_has_its_own_gate_after_it(jobs):
+    """A build or answer task is followed by its 90_validate_ gate; nothing downstream reads an unchecked build."""
+    tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
+    for key in DOWNSTREAM:
+        if key.startswith("90_"):
+            continue
+        gates = [k for k, t in tasks.items() if k.startswith("90_") and {"task_key": key} in t.get("depends_on", [])]
+        assert len(gates) == 1, f"{key} should have one gate, found {gates}"
+        readers = [k for k, t in tasks.items() if k not in gates and {"task_key": key} in t.get("depends_on", [])]
+        assert not readers, f"{readers} read {key} before its gate"
 
 
 def test_a_load_that_skips_its_gate_is_gated_by_it(jobs, repo_root):

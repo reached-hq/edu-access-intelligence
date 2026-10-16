@@ -1,0 +1,2 @@
+-- PLACEHOLDER: assign every city and municipality to a peer group (#148).
+-- Implement the approved peer-group rule (#142) before activating this task.

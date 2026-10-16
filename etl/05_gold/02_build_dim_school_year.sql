@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build dim_school_year (D-048). One school year; reads current_batches.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.
