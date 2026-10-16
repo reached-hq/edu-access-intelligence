@@ -13,7 +13,7 @@
 --   psa_psgc                 120 days  Quarterly (Metadata sheet). The master reference stays 2Q 2026 (D-012); a WARN means a newer quarter is likely out and the owner decides whether to load it
 --   psa_poverty_stat        1125 days  Small area estimates about every three years (2018, 2021, 2023); the 2023 estimates were released 6 Feb 2026, PSA press release 2026-43
 --   hdx_boundaries           395 days  Every year (HDX expected update frequency); HDX lists the dataset past its 2025-04-01 due date, and the 2026-05 files keep the 2018 boundaries (version 03, reviewed 2024-04-01)
---   deped_enrollment_psgc    400 days  One school year (SY 2023-24), sent by DepEd EMISD on request (2026-10-14); no publication schedule is known, so the DepEd annual limit is used
+--   deped_enrollment_psgc    400 days  One school year (SY 2023-24), sent by DepEd EMISD on request (2026-10-14); no publication schedule is known, so the DepEd annual limit is used. A WARN means it is time to ask EMISD for a newer file
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id           the job run

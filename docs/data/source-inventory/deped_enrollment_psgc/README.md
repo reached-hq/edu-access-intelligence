@@ -92,6 +92,7 @@ Summary only; evidence lives in [profile.md](profile.md).
 
 ## Limitations for analysis
 
+- Licensing is UNVERIFIED (EMISD sent the file "for your information and reference"). Keep its values out of published dashboard outputs until EMISD confirms the terms.
 - Adds no enrollment information beyond deped_enrollment SY 2023-24; only location columns are new.
 - One school year only. Other years still need name matching to PSGC.
 - Coordinates are not fit for distance or travel-time measures until checked against boundaries (S-1), and their absence is not random: NCR and private schools are missing most often (O-10).

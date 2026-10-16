@@ -1382,10 +1382,15 @@ Reading the 162 MB sheet takes about two minutes locally.
 ### Runbook (EMISD)
 
 **1. How do I add a new workbook from EMISD?**
-Save the attachment unchanged and the email as PDF. Upload both to `raw/deped/<received date>/` (never over an existing file). Profile the workbook (`analysis/profiling/profile_deped_enrollment_psgc.py`, with its name and checksum), update the card, and add the delivery to the contract in a pull request: `school_year`, `delivery_version` and `supersedes`, `workbook` and its checksum, `sheet`, `range`, `schema_version`, every `title_cells` value as read, the four row counts, and `retrieved_at_utc` (the email's time). If the header changed, add a schema version and regenerate the SQL (`cli ddl`, `cli gate`). Then run the job.
+Approve first, upload last. The lane searches `raw/deped/` at every depth, so a workbook there that the contract does not approve is `blocked` (`unregistered_delivery`) and fails the shared job for everyone.
+
+1. Save the attachment unchanged and the email as PDF, in your local `RAW_DATA_DIR/deped/original/` only.
+2. Profile the workbook locally (`analysis/profiling/profile_deped_enrollment_psgc.py`, with its name and checksum) and update the card.
+3. Add the delivery to the contract in a pull request: `school_year`, `delivery_version` and `supersedes`, `workbook` and its checksum, `sheet`, `range`, `schema_version`, every `title_cells` value as read, the four row counts, and `retrieved_at_utc` (the email's time). If the header changed, add a schema version and regenerate the SQL (`cli ddl`, `cli gate`). Load it locally before review.
+4. Only after that pull request is merged, upload the workbook and the email PDF to `raw/deped/<received date>/` (never over an existing file), then run the job.
 
 **2. What if EMISD sends a corrected SY 2023-24 file?**
-Approve it as `delivery_version: 2` with `supersedes` set to v1's checksum. Both stay in Bronze; `current_batches` makes v2 current.
+Follow step 1 and approve it as `delivery_version: 2` with `supersedes` set to v1's checksum; upload it only after that merges. Both stay in Bronze; `current_batches` makes v2 current.
 
 **3. How do I inspect a failed batch, rerun, and prove no duplicates?**
 As for the other sources ([Runbook](#runbook)): the batch and check queries with `source_id = 'deped_enrollment_psgc'`; fix and run again; run twice and see `load` then `skip`, with 60,285 rows and 0 duplicate `(source_sha256, source_row_number)` pairs.
