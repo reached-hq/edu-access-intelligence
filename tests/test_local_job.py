@@ -175,7 +175,7 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     assert results["05_clean_psa_poverty_stat"] == "succeeded"    # another lane still runs to the end
     assert results["90_validate_control"] == "failed"             # the fan-in runs anyway, records, and stops
     assert results["90_validate_freshness"] == "succeeded"        # and freshness is still checked beside it
-    assert results["04_map_deped_annex_mother"] == "upstream_failed"   # the map reads enrollment (D-050)
+    assert results["04_map_deped_annex_mother"] == "upstream_failed"   # the map reads enrollment (D-051)
     store = DuckDBStore(db)
     assert store.query(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
                        "AND status = 'FAIL' ORDER BY 1") == [
@@ -191,7 +191,7 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
 
 def test_a_failed_lane_stops_only_the_tasks_that_read_it(repo, tmp_path):
     """The annex map reads enrollment only, so a failed poverty lane does not stop it; the fan-in
-    still records the failed lane and fails the run (D-050)."""
+    still records the failed lane and fails the run (D-051)."""
     landing = tmp_path / "landing"
     deliver(repo, landing)
     db = tmp_path / "job.duckdb"

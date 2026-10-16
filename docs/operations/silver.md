@@ -25,7 +25,7 @@ bronze_deped_enrollment             Python: check and load the deliveries       
    │
    ▼  this source lane is complete; other source lanes run independently in parallel
       90_validate_control is the fan-in: it records every Silver lane and fails if one did not succeed;
-      no task waits for it. Each Integration and Gold task starts from the Silver gates it reads (D-050),
+      no task waits for it. Each Integration and Gold task starts from the Silver gates it reads (D-051),
       and reads a Silver table only when the run its rows carry succeeded
 ```
 
@@ -285,7 +285,7 @@ bronze_psa_poverty_stat             Python: check and load the workbook (skip wh
                                          nothing published; else publish quarantine, then clean, then 'succeeded'
 ```
 
-The lane does not wait for any other source; `90_validate_control` is the fan-in (D-050).
+The lane does not wait for any other source; `90_validate_control` is the fan-in (D-051).
 
 ### Grain and shape (PSA)
 
@@ -433,7 +433,7 @@ bronze_psa_psgc               Python: check and load the workbook (skip when alr
                                    then 'succeeded'
 ```
 
-The lane does not wait for any other source; `90_validate_control` is the fan-in (D-050). The mapping tasks of Integration that need PSGC (`01_map_deped_school_psgc`, `02_map_psa_poverty_psgc`, `03_map_hdx_adm3_psgc`, `05_map_psa_school_age_population_psgc`) start from this lane's gate, together with the gate of the other source each one reads.
+The lane does not wait for any other source; `90_validate_control` is the fan-in (D-051). The mapping tasks of Integration that need PSGC (`01_map_deped_school_psgc`, `02_map_psa_poverty_psgc`, `03_map_hdx_adm3_psgc`, `05_map_psa_school_age_population_psgc`) start from this lane's gate, together with the gate of the other source each one reads.
 
 ### Grain and shape (PSGC)
 

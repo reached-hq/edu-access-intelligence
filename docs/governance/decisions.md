@@ -40,7 +40,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-034 | 2026-10-09 | PSA Poverty Stat Silver is one row per unit and estimate year, typed as DOUBLE, with statistical warnings flagged and impossible values quarantined | Provisional | Gold reads one estimate per row with its CV and interval; a new estimate year needs the Silver SQL regenerated |
 | D-035 | 2026-10-10 | PSGC Silver keeps one row per code per quarter, flags the master quarter, derives parent codes, and fails on a repeated code | Provisional | Integration matches against `is_master_reference` rows; a repeated PSGC code stops Silver however few |
 | D-038 | 2026-10-11 | DepEd facilities Silver keeps every school, one wide row per school per school year, with per-group count maximums, and runs in parallel with every other source lane | Provisional | Gold scopes facility measures to public schools; Integration checks every facilities school is in enrollment |
-| D-039 | 2026-10-11 | Integration starts only from the source-lane fan-in, which checks every Silver lane switched on and fails if one did not succeed | Superseded by D-050 | One failing source stops all Integration; the checked lanes are generated from the job |
+| D-039 | 2026-10-11 | Integration starts only from the source-lane fan-in, which checks every Silver lane switched on and fails if one did not succeed | Superseded by D-051 | One failing source stops all Integration; the checked lanes are generated from the job |
 | D-040 | 2026-10-09 | HDX ADM3 Silver keeps the geometry as the published GeoJSON text, checks every shape on both engines, types numbers as exact DECIMALs, and has its own generator | Provisional | Silver stores no spatial type; Integration or Gold parses the text where it needs one; no shape is ever repaired |
 | D-041 | 2026-10-12 | Personnel Silver keeps one row per school, types publisher counts without changing their meaning, and runs independently of enrollment | Provisional | Blank stays NULL, zero stays 0, publisher and calculated principal totals remain separate, and Integration checks personnel against enrollment |
 | D-042 | 2026-10-14 | Approved BP/AP wording for prioritizing classroom provision and teacher allocation; peer, national, and official references are comparison methods | Provisional | Wording is mentor-approved; implementation choices remain open, and AP4's population source is found but not yet ingested |
@@ -50,7 +50,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-047 | 2026-10-16 | Question v1 metric counting rules: education levels and the AP1 to AP3 definitions | Provisional | Levels, active schools, annexes, room totals, and teacher positions are fixed; AP3 is labelled project-defined because no mother-school link exists |
 | D-048 | 2026-10-16 | Gold stores time-varying school geography and source-aligned classroom, teacher, population, and poverty grains | Provisional | Integration and Analytics build on one reviewed ERD while mentor approval remains pending |
 | D-049 | 2026-10-16 | The EMISD workbook is used only as a school-to-PSGC crosswalk: Integration matches DepEd schools by its code first, then by name (revisits D-012) | Provisional | Enrollment still comes from `deped_enrollment`; name matching becomes the fallback for the schools without a code |
-| D-050 | 2026-10-16 | Each Integration, Gold, and Analytics task starts from the gates of the tasks it reads; the source-lane fan-in becomes an audit that no task waits for (supersedes D-039) | Provisional | One failing source stops only the tasks that read it; a lane failure still fails the job run through the fan-in |
+| D-051 | 2026-10-16 | Each Integration, Gold, and Analytics task starts from the gates of the tasks it reads; the source-lane fan-in becomes an audit that no task waits for (supersedes D-039) | Provisional | One failing source stops only the tasks that read it; a lane failure still fails the job run through the fan-in |
 
 ---
 
@@ -367,7 +367,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
 ## D-039: Integration starts only from the source-lane fan-in
 
-> **Superseded by D-050** (2026-10-16): Integration, Gold, and Analytics now start from the gates of the tasks they read. The fan-in below still runs and records every lane, but no task waits for it.
+> **Superseded by D-051** (2026-10-16): Integration, Gold, and Analytics now start from the gates of the tasks they read. The fan-in below still runs and records every lane, but no task waits for it.
 
 - **Problem:** `90_validate_control` runs after every Silver gate with `run_if: ALL_DONE`, so it runs even when a lane failed, and it was a placeholder that checked nothing. "The fan-in finished" therefore did not mean "the sources passed", so each map task also depended directly on the Silver gates it needs. The picture had two kinds of arrows into every map, and the fan-in recorded nothing.
 - **Decision:**
@@ -489,7 +489,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
   - Of 47,818 SY 2023-24 public schools, both methods place 46,822: they agree for 46,652 and disagree for 170 (X-3). Most disagreements are in places that changed in 2024: the new Special Geographic Area municipalities, and the EMBO barangays moved from Makati to Taguig. The code also places 346 schools that name matching cannot.
 - **Consequence:** D-012's "names only" premise no longer holds for DepEd schools; name matching remains the fallback for `deped_enrollment` schools without a code: those with `#N/A` codes, and schools new after SY 2023-24. The 108 appended rows are not in `deped_enrollment` SY 2023-24, so they are not matched; 6 of their IDs appear in a later school year, where they have no code and fall back to names (S-3). D-012's rule against PSGC regions for Negros and Sulu in SY 2023-24 results still applies. D-031's condition is met once #44 matches the 112 Special Geographic Area schools by code, so they return to city- and municipality-level results (see the note on D-031). The workbook's licensing is unverified. Until EMISD confirms the terms, published outputs use its codes only to place schools in their city or municipality and report at that level; they do not republish the workbook's rows or its coordinates. Revisit if EMISD sends codes for later school years or corrected coordinates. **Provisional:** proposed by @maeveylain, agreed by @hyenalouise in #137 (2026-10-14).
 
-## D-050: Each downstream task starts from the gates it reads; the source-lane fan-in is an audit
+## D-051: Each downstream task starts from the gates it reads; the source-lane fan-in is an audit
 
 - **Problem:** Under D-039 every Integration map waits for `90_validate_control`, so one failing source stops every map, including maps that do not read it (D-039's own **Revisit** condition). The Gold model approved in D-048 (six dimensions, five facts) and the AP1 to AP4 outputs (#143) did not match the job either: the job still showed `dim_geography`, `fact_school_year`, `fact_poverty_estimate`, and two integrated tables that the model no longer has.
 - **Decision:**

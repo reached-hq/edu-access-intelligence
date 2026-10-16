@@ -10,7 +10,7 @@ if an annex is dropped, duplicated, or represented inconsistently. No totals are
 consolidated until a reliable crosswalk is reviewed (D-044).
 
 Each map starts from the Silver gates of the sources it reads, not from the
-source-lane fan-in (D-050). The other maps are disabled placeholders:
+source-lane fan-in (D-051). The other maps are disabled placeholders:
 `01_map_deped_school_psgc` (enrollment, the EMISD crosswalk, PSGC),
 `02_map_psa_poverty_psgc` (poverty, PSGC), `03_map_hdx_adm3_psgc` (HDX, PSGC),
 and `05_map_psa_school_age_population_psgc` (school-age population, PSGC).

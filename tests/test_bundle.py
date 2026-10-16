@@ -159,7 +159,7 @@ SILVER_GATES = {
     "90_validate_deped_enrollment_psgc_clean", "90_validate_psa_school_age_population_clean",
 }
 
-# Each downstream task and the gates it reads (D-050). A task waits for these and nothing else.
+# Each downstream task and the gates it reads (D-051). A task waits for these and nothing else.
 DOWNSTREAM = {
     "01_map_deped_school_psgc": {
         "90_validate_deped_enrollment_clean", "90_validate_deped_enrollment_psgc_clean",
@@ -202,13 +202,13 @@ DOWNSTREAM = {
 
 def test_the_fan_in_is_an_audit_no_task_waits_for(jobs):
     """Every Silver gate fans in to 90_validate_control, which runs even when a lane failed (ALL_DONE)
-    and fails itself if one did, so the job run fails; freshness runs beside it (D-050)."""
+    and fails itself if one did, so the job run fails; freshness runs beside it (D-051)."""
     tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
     for key in ("90_validate_control", "90_validate_freshness"):
         assert tasks[key].get("run_if") == "ALL_DONE" and not tasks[key].get("disabled")
         assert {d["task_key"] for d in tasks[key]["depends_on"]} == SILVER_GATES
     waiting = [k for k, t in tasks.items() if {"task_key": "90_validate_control"} in t.get("depends_on", [])]
-    assert not waiting, f"{waiting} wait for the fan-in, which is an audit (D-050)"
+    assert not waiting, f"{waiting} wait for the fan-in, which is an audit (D-051)"
 
 
 def test_downstream_tasks_start_from_the_gates_they_read(jobs):

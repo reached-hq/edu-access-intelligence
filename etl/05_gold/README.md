@@ -8,7 +8,7 @@ They remain design-only until the team and mentor approve them under #45 and
 Integration prerequisite #44 is ready. The placeholder SQL files remain
 non-executable during that review: each dimension and fact has a disabled
 `NN_build_<object>.sql` task and its `90_validate_<object>.sql` gate in the job,
-wired to the gates it reads (D-050).
+wired to the gates it reads (D-051).
 
 Proposed dimensions:
 

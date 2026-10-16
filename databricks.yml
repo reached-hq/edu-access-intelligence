@@ -36,7 +36,7 @@ resources:
       description: >-
         Validates and ingests six approved education and geography sources
         through Bronze and Silver. Each Integration, Gold, and Analytics task
-        starts from the gates it reads (D-050); placeholders stay visible but
+        starts from the gates it reads (D-051); placeholders stay visible but
         disabled.
 
       parameters:
@@ -683,7 +683,7 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
-        # Source-lane fan-in, an audit (D-050): after every Silver gate has finished, passed or not, it
+        # Source-lane fan-in, an audit (D-051): after every Silver gate has finished, passed or not, it
         # records each Silver lane that is switched on and fails if any did not succeed, so the job run
         # shows as failed. No task waits for it. Generated: python -m src.job.fan_in.
         - task_key: 90_validate_control
@@ -720,7 +720,7 @@ resources:
               path: etl/01_control/90_validate_freshness.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-        # Integration maps start from the Silver gates of the sources they read (D-050).
+        # Integration maps start from the Silver gates of the sources they read (D-051).
         - task_key: 01_map_deped_school_psgc
           disabled: true
           depends_on:

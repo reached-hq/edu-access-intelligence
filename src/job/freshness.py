@@ -1,7 +1,7 @@
 """The source freshness check, `90_validate_freshness`, generated from the job (D-043).
 
 `90_validate_freshness` runs beside the source-lane fan-in, once every Silver
-gate has finished, passed or not (`run_if: ALL_DONE`, D-050), so every run records, for each source the job
+gate has finished, passed or not (`run_if: ALL_DONE`, D-051), so every run records, for each source the job
 loads, whether its latest succeeded batch is older than that source's limit.
 A stale source is a WARN, never a FAIL: the run goes on, and the stale-source
 alert in `databricks.yml` reports it.
