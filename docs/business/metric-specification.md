@@ -270,6 +270,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 7. Peer criteria, density bands, minimum group size, fallback, and percentile convention. The land-area source is HDX.
 8. Relative-priority sorting or banding rule; a combined score remains out of scope unless separately approved.
 9. BARMM coverage and geography treatment.
+10. **Set (D-046):** poverty 2023 is context only, never a ranking, flag, peer criterion, or score input; see Context · Poverty 2023.
 
 ## Validation gate
 
