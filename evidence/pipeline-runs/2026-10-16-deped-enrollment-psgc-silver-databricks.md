@@ -1,12 +1,12 @@
-# Evidence: the DepEd school-to-PSGC crosswalk builds and passes its Silver gate on Databricks `dev`, in two clean job runs
+# Evidence: the DepEd school-to-PSGC crosswalk builds, reconciles, and passes its Silver gate on Databricks `dev`, with the same result in every run
 
 Issue #163 · Databricks `dev` (D-017) · 2026-10-16, Manila time (UTC+8) · run by @maeveylain
 
 ## The claim
 
-On Databricks `dev`, the job `edu_access_pipeline`, deployed from `feat/163-silver-deped-enrollment-psgc`, runs the crosswalk lane end to end in two separate job runs: Bronze load (skipped, already loaded), Bronze gate, Silver build `07_clean_deped_enrollment_psgc`, and Silver gate `90_validate_deped_enrollment_psgc_clean`. Both gates passed, so both runs published the tables. The source-lane fan-in `90_validate_control` passed in both runs, with the new lane included.
+On Databricks `dev`, the job `edu_access_pipeline`, deployed from `feat/163-silver-deped-enrollment-psgc`, runs the crosswalk lane end to end in two separate job runs: Bronze load (skipped, already loaded), Bronze gate, Silver build `07_clean_deped_enrollment_psgc`, and Silver gate `90_validate_deped_enrollment_psgc_clean`. Both gates passed, so both runs published the tables. The source-lane fan-in `90_validate_control` passed in both runs, with the new lane included. The published tables reconcile to Bronze (60,275 = 60,273 + 2), and every run of the lane recorded the same 27 PASS and 1 WARN, with each profiled count equal to the rules file.
 
-**Not claimed:** anything about the published table's contents on `dev`. The SQL checks of the tables (row counts, gate results, sample rows) were not run on `dev`; see "Not checked here". The contents are evidenced locally on the same Bronze batch ([local reconciliation](../reconciliation/2026-10-16-deped-enrollment-psgc-bronze-to-silver.md)).
+**Not claimed:** row-by-row identity of the published content between runs on `dev`. It is shown by equal counts on every rule, and locally by identical content hashes ([local reconciliation](../reconciliation/2026-10-16-deped-enrollment-psgc-bronze-to-silver.md)).
 
 ## What was run
 
@@ -40,8 +40,46 @@ Run 2 failed in two other lanes:
 
 Run 3 was started after the other job had finished, and succeeded throughout. Runs 1 and 3 are the two clean runs.
 
+## The published tables (SQL, after run 3)
+
+Queried in a notebook on 2026-10-17 at 00:11–00:12 Manila (2026-10-16 16:11–16:12 UTC), after checking no other job was running (screenshots kept by @maeveylain).
+
+**Reconciliation**
+
+```sql
+SELECT
+  (SELECT COUNT(*) FROM edu_access.`02-bronze`.deped_enrollment_psgc_raw WHERE source_row_kind = 'unit') AS bronze_unit_rows,
+  (SELECT COUNT(*) FROM edu_access.`03-silver`.deped_enrollment_psgc_clean) AS clean_rows,
+  (SELECT COUNT(*) FROM edu_access.`03-silver`.deped_enrollment_psgc_quarantine) AS quarantine_rows;
+```
+
+| `bronze_unit_rows` | `clean_rows` | `quarantine_rows` |
+|---|---|---|
+| 60,275 | 60,273 | 2 |
+
+The same as the local run on the same batch.
+
+**Gate results per run**
+
+```sql
+SELECT run_id, status, COUNT(*) AS checks
+FROM edu_access.`01-control`.data_quality_results
+WHERE source_id = 'deped_enrollment_psgc' AND layer = 'silver'
+GROUP BY run_id, status
+ORDER BY run_id, status;
+```
+
+| `run_id` (the job run) | PASS | WARN | FAIL |
+|---|---|---|---|
+| `1094635918316055` (run 1) | 27 | 1 | 0 |
+| `302526353474448` (run 2) | 27 | 1 | 0 |
+| `737211160986857` (run 3) | 27 | 1 | 0 |
+
+The WARN is `quarantine_rate` (2 rows; FAIL only above 1%). The 27 PASS include all 15 `profiled_*` records, which PASS only when the count equals the rules file (for example 467 Sulu recodes, 36,010 padded codes, 13,899 missing coordinates), so every run produced the same counts on every rule.
+
 ## Not checked here
 
-- **The published tables on `dev`:** row counts (expected 60,273 clean, 2 quarantined, from the local evidence), the gate's 28 results per run, the two quarantined rows, sample rows, and whether runs 1 and 3 published identical content. These need SQL warehouse queries, which were not run. Locally, two builds on the same batch gave identical content (SHA-256 `dbf4fa1e…`).
+- Row-by-row identity of the published content between the runs on `dev` (no content hash was taken there). Locally, two builds on the same batch gave identical content (SHA-256 `dbf4fa1e…`).
+- The individual quarantined rows and sample rows on `dev` (expected `1406363` and `404520`, as locally).
 - Table ownership by `reached-hq` on the new Silver tables.
 - The failed check in run 2's personnel gate.
