@@ -113,12 +113,19 @@ source_tables:
       workbook: EMISD xlsx
       sheet: DB
       note: >-
-        Loaded for its PSGC codes and coordinates, not its counts (#137, option B). No silver
-        entry until the Silver issue settles the crosswalk's table names.
+        Loaded for its PSGC codes and coordinates, not its counts (D-049). Silver is the
+        school_id to PSGC crosswalk, one row per school (#163).
     bronze:
       table: deped_enrollment_psgc_raw
       create_file: 07_create_deped_enrollment_psgc_raw.sql
       validate_file: 90_validate_deped_enrollment_psgc_raw.sql
+    silver:
+      table: deped_enrollment_psgc_clean
+      quarantine_table: deped_enrollment_psgc_quarantine
+      candidate_table: deped_enrollment_psgc_clean_candidate
+      candidate_quarantine_table: deped_enrollment_psgc_quarantine_candidate
+      clean_file: 07_clean_deped_enrollment_psgc.sql
+      validate_file: 90_validate_deped_enrollment_psgc_clean.sql
 
 # Candidates only. Keep them out of executable ETL until their keys, review
 # workflow, and grains are approved.

@@ -163,6 +163,7 @@ def test_parallel_stages_fan_in_only_at_the_next_stage(jobs):
     assert {d["task_key"] for d in control["depends_on"]} == {
         "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean", "90_validate_deped_personnel_clean",
         "90_validate_psa_psgc_clean", "90_validate_psa_poverty_stat_clean", "90_validate_hdx_adm3_clean",
+        "90_validate_deped_enrollment_psgc_clean",
     }
     for key in ("01_map_deped_school_psgc", "02_map_psa_poverty_psgc", "03_map_hdx_adm3_psgc"):
         assert {d["task_key"] for d in tasks[key]["depends_on"]} == {"90_validate_control"}
