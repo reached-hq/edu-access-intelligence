@@ -166,7 +166,9 @@ DOWNSTREAM = {
     "04_map_deped_annex_mother": {"90_validate_deped_enrollment_clean"},
     "05_map_psa_school_age_population_psgc": {"90_validate_psa_psgc_clean"},
     "01_build_dim_school": {"90_validate_deped_enrollment_clean"},
-    "02_build_dim_school_year": {"05_create_current_batches"},
+    "02_build_dim_school_year": {
+        "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean",
+        "90_validate_deped_personnel_clean"},
     "03_build_dim_education_level": {"04_create_data_quality_results"},
     "04_build_dim_city_municipality": {"90_validate_psa_psgc_clean", "90_validate_hdx_adm3_psgc_map"},
     "05_build_dim_barangay": {"90_validate_psa_psgc_clean"},
