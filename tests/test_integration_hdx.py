@@ -48,7 +48,7 @@ HDX = {
     "PH1908711": ("Parang", "PH19087", ("1908712000", "matched", "name_exact", "rule")),   # the code names Sultan Mastura
     "PH0604501": ("Bacolod City", "PH06045", ("1804501000", "matched", "correspondence_code", "rule")),
     "PH1906601": ("Jolo", "PH19066", ("0906601000", "matched", "code_region_moved", "rule")),
-    "PH0102802": ("Bacarra New Name", "PH01028", ("0102802000", "matched", "code_renamed", "pending")),
+    "PH0102802": ("Bacarra New Name", "PH01028", (None, "ambiguous", None, "pending")),  # code agrees, name differs
     "PH0102899": ("Batac City", "PH01028", ("0102803000", "matched", "name_exact", "rule")),
     "PH0102898": ("Banna", "PH01028", (None, "ambiguous", None, "pending")),
     "PH1909901": ("Special Geographic Area - Carmen", "PH19099", (None, "unmatched", None, "pending")),
@@ -151,9 +151,9 @@ def test_the_gate_passes_and_warns_on_what_needs_review(tmp_path):
     checks = env.checks(run_id)
     assert set(checks) == {n for n, _ in hdx.gate_checks(hdx.build_spec(RULES))}
     assert not [n for n, c in checks.items() if c["status"] == "FAIL"]
-    assert {n: checks[n]["actual"] for n in ("review_pending", "unmatched", "ambiguous")} == {
-        "review_pending": "3", "unmatched": "1", "ambiguous": "1"}
-    assert {checks[n]["status"] for n in ("review_pending", "unmatched", "ambiguous")} == {"WARN"}
+    assert {n: checks[n]["actual"] for n in ("review_pending", "unmatched", "ambiguous", "psgc_units_without_feature")} == {
+        "review_pending": "3", "unmatched": "1", "ambiguous": "2", "psgc_units_without_feature": "4"}
+    assert {checks[n]["status"] for n in ("review_pending", "unmatched", "ambiguous", "psgc_units_without_feature")} == {"WARN"}
     assert checks["rows_reconcile"]["actual"] == str(len(HDX))
 
 
@@ -205,8 +205,61 @@ def test_a_feature_is_never_dropped(tmp_path):
     env = Env(tmp_path, hdx_rows={"PH0700000": ("Nowhere", "PH07000", None)})
     run_id, error = env.run()
     assert error is None
-    assert env.rows(f"SELECT match_status, reason FROM {MAP}") == [
-        {"match_status": "unmatched", "reason": "no code or name match"}]
+    assert env.rows(f"SELECT match_status, geographic_level, reason FROM {MAP}") == [
+        {"match_status": "unmatched", "geographic_level": "city_mun",
+         "reason": "no PSGC province found for adm2_pcode, so no name match was tried"}]
+
+
+def test_a_code_with_another_name_is_never_published_as_matched(tmp_path):
+    """Review on #139: a code that points to a unit whose name differs is ambiguous until an override confirms it."""
+    env = Env(tmp_path)
+    env.run()
+    row = env.rows(f"SELECT * FROM {MAP} WHERE adm3_pcode = 'PH0102802'")[0]
+    assert (row["match_status"], row["psgc_code"], row["match_method"], row["review_status"]) == ("ambiguous", None, None, "pending")
+    assert row["code_candidate"] == "0102802000" and "0102802000" in row["reason"]
+
+
+def test_names_are_matched_only_inside_a_matched_province(tmp_path):
+    """Review on #139: no nationwide fallback. A feature whose province is not in PSGC stays unmatched,
+    even when its name is a PSGC unit elsewhere."""
+    env = Env(tmp_path, hdx_rows={"PH0799901": ("Adams", "PH07999", None)})
+    env.run()
+    row = env.rows(f"SELECT * FROM {MAP}")[0]
+    assert (row["match_status"], row["psgc_code"]) == ("unmatched", None)
+    assert row["reason"] == "no PSGC province found for adm2_pcode, so no name match was tried"
+
+
+def test_every_row_has_a_level_and_a_source_row_ref(tmp_path):
+    env = Env(tmp_path)
+    env.run()
+    rows = env.rows(f"SELECT adm3_pcode, geographic_level, source_row_ref FROM {MAP}")
+    assert {r["geographic_level"] for r in rows} == {"city_mun"}
+    assert {r["source_row_ref"] for r in rows} == {f"{p}/2025-02-13" for p in HDX}
+
+
+def test_a_feature_in_two_releases_gets_a_row_per_release(tmp_path):
+    """The key is (adm3_pcode, source_reference_date): uniqueness and PSGC reuse are checked per release."""
+    env = Env(tmp_path)
+    env.store.sql("INSERT INTO edu_access.`03-silver`.hdx_adm3_clean VALUES "
+                  "('PH0102801', 'Adams', 'PH01028', NULL, 'PH01', DATE '2026-01-01', 'B2', 'sha2', 1)")
+    run_id, error = env.run()
+    assert error is None
+    rows = env.rows(f"SELECT source_reference_date, psgc_code FROM {MAP} WHERE adm3_pcode = 'PH0102801' ORDER BY 1")
+    assert [r["psgc_code"] for r in rows] == ["0102801000", "0102801000"]
+    checks = env.checks(run_id)
+    assert {n: checks[n]["status"] for n in ("one_row_per_feature", "psgc_code_taken_once")} == {
+        "one_row_per_feature": "PASS", "psgc_code_taken_once": "PASS"}
+
+
+def test_two_master_psgc_periods_fail_the_gate(tmp_path):
+    """Review on #139: one_psgc_version counts the master periods in the PSGC input, not the map's own column."""
+    env = Env(tmp_path)
+    env.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES "
+                  "('0102807000', 'Burgos', NULL, '012807000', 'Mun', '2026-Q1', TRUE, 'P0', 99)")
+    run_id, error = env.run()
+    assert error and "Integration gate failed" in error
+    assert env.checks(run_id)["one_psgc_version"]["actual"] == "2"
+    assert not published(env)
 
 
 # --- The rules file and the committed files ------------------------------------------------

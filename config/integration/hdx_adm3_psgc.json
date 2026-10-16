@@ -23,8 +23,8 @@
       "code: the P-code's digits, padded to ten, are a PSGC city or municipality code, and the names agree",
       "correspondence_code: the old 9-digit form of that code equals the unit's PSGC Correspondence Code, and the names agree (D-030)",
       "code_region_moved: the code starts with region 19 and the same code under region 09 exists (Sulu), and the names agree",
-      "name in province: the name matches exactly one city or municipality inside the PSGC province found for adm2_pcode (by code, else by Correspondence Code); if that province has none, among every city and municipality",
-      "code_renamed: a code rule found a unit but the names differ and no name in the province matched: kept as matched, review_status pending until an override confirms it",
+      "name in province: the name matches exactly one city or municipality inside the PSGC province found for adm2_pcode (by code, else by Correspondence Code); a feature whose province is not found is not name-matched at all and stays unmatched until an override places it",
+      "code with another name: a code rule found a unit but the names differ and no name in the province matched: ambiguous, no psgc_code, review_status pending, until an override confirms it as code_renamed",
       "unmatched: nothing above applies; ambiguous: the best name tier matched two or more units"
     ],
     "name_tiers": [

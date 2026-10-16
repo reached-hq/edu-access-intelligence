@@ -6,7 +6,8 @@
 -- data_quality_results (layer 'integration'). On any FAIL it records the run 'failed' and stops
 -- before publishing, so hdx_adm3_psgc_map keeps the last map that passed. Otherwise it copies
 -- the candidate to the map table and records the run 'succeeded'. WARN (pending reviews, unmatched,
--- ambiguous, an override whose P-code is not in this HDX release) is recorded and the map is
+-- ambiguous, an override whose P-code is not in this HDX release, PSGC cities and municipalities
+-- no feature matched) is recorded and the map is
 -- published. Results hold counts, never row values.
 
 DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;
@@ -24,14 +25,16 @@ totals AS (
   SELECT (SELECT COUNT(*) FROM hdx) AS hdx_rows, (SELECT COUNT(*) FROM units) AS psgc_units,
          (SELECT COUNT(*) FROM overrides AS o JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode) AS overrides_present,
          (SELECT COUNT(*) FROM overrides AS o LEFT JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode
-          WHERE h.adm3_pcode IS NULL) AS overrides_missing
+          WHERE h.adm3_pcode IS NULL) AS overrides_missing,
+         (SELECT COUNT(DISTINCT publication_period) FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference) AS master_periods,
+         (SELECT COUNT(*) FROM units AS u LEFT JOIN (SELECT DISTINCT psgc_code FROM edu_access.`04-integration`.hdx_adm3_psgc_map_candidate WHERE match_status = 'matched') AS mm ON mm.psgc_code = u.psgc_code WHERE mm.psgc_code IS NULL) AS units_without_feature
 ),
 agg AS (
   SELECT
     COUNT(*) AS map_rows,
-    COUNT(DISTINCT m.adm3_pcode) AS map_features,
+    COUNT(DISTINCT m.source_row_ref) AS map_features,
     COUNT_IF(m.match_status = 'matched') AS matched_rows,
-    COUNT(DISTINCT CASE WHEN m.match_status = 'matched' THEN m.psgc_code END) AS matched_codes,
+    COUNT(DISTINCT CASE WHEN m.match_status = 'matched' THEN m.psgc_code || '/' || CAST(m.source_reference_date AS STRING) END) AS matched_codes,
     COUNT_IF(m.match_status = 'matched' AND (m.psgc_code IS NULL OR u.psgc_code IS NULL)) AS matched_without_unit,
     COUNT_IF(m.match_status <> 'matched' AND m.psgc_code IS NOT NULL) AS unmatched_with_code,
     COUNT_IF(m.match_status IS NULL OR m.match_status NOT IN ('matched', 'unmatched', 'ambiguous')) AS bad_status,
@@ -41,8 +44,7 @@ agg AS (
     COUNT_IF(m.match_method = 'correspondence_code' AND m.review_status = 'rule' AND (u.correspondence_code IS NULL OR u.correspondence_code <> substr(m.code_candidate, 1, 2) || substr(m.code_candidate, 4, 2) || substr(m.code_candidate, 6, 2) || substr(m.code_candidate, 8, 3))) AS correspondence_mismatch,
     COUNT_IF(m.match_method = 'code_region_moved' AND m.review_status = 'rule' AND (m.code_candidate NOT LIKE '19%' OR m.psgc_code <> '09' || substr(m.code_candidate, 3))) AS region_mismatch,
     COUNT_IF(m.review_status = 'reviewed') AS overrides_used,
-    COUNT(DISTINCT m.psgc_version) AS versions,
-    COUNT_IF(m.batch_id IS NULL OR m.source_sha256 IS NULL OR m.source_row_number IS NULL OR m.run_id IS NULL OR m.built_at_utc IS NULL OR m.code_revision IS NULL OR (m.psgc_code IS NOT NULL AND m.psgc_batch_id IS NULL)) AS missing_lineage,
+    COUNT_IF(m.source_row_ref IS NULL OR m.batch_id IS NULL OR m.source_sha256 IS NULL OR m.source_row_number IS NULL OR m.run_id IS NULL OR m.built_at_utc IS NULL OR m.code_revision IS NULL OR (m.psgc_code IS NOT NULL AND m.psgc_batch_id IS NULL)) AS missing_lineage,
     COUNT_IF(m.run_id IS NULL OR m.run_id <> :run_id) AS other_run_rows,
     COUNT_IF(m.review_status = 'pending') AS pending_rows,
     COUNT_IF(m.match_status = 'unmatched') AS unmatched_rows,
@@ -74,13 +76,14 @@ checks AS (
   UNION ALL SELECT 'correspondence_is_the_old_code' AS check_name, CASE WHEN correspondence_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(correspondence_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'region_moved_is_sulu' AS check_name, CASE WHEN region_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(region_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'overrides_applied' AS check_name, CASE WHEN overrides_used = overrides_present THEN 'PASS' ELSE 'FAIL' END AS status, CAST(overrides_present AS STRING) AS expected, CAST(overrides_used AS STRING) AS actual FROM stats
-  UNION ALL SELECT 'one_psgc_version' AS check_name, CASE WHEN versions = 1 THEN 'PASS' ELSE 'FAIL' END AS status, CAST(1 AS STRING) AS expected, CAST(versions AS STRING) AS actual FROM stats
+  UNION ALL SELECT 'one_psgc_version' AS check_name, CASE WHEN master_periods = 1 THEN 'PASS' ELSE 'FAIL' END AS status, CAST(1 AS STRING) AS expected, CAST(master_periods AS STRING) AS actual FROM stats
   UNION ALL SELECT 'lineage_complete' AS check_name, CASE WHEN missing_lineage = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(missing_lineage AS STRING) AS actual FROM stats
   UNION ALL SELECT 'rows_built_by_this_run' AS check_name, CASE WHEN other_run_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(other_run_rows AS STRING) AS actual FROM stats
   UNION ALL SELECT 'review_pending' AS check_name, CASE WHEN pending_rows = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(pending_rows AS STRING) AS actual FROM stats
   UNION ALL SELECT 'unmatched' AS check_name, CASE WHEN unmatched_rows = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(unmatched_rows AS STRING) AS actual FROM stats
   UNION ALL SELECT 'ambiguous' AS check_name, CASE WHEN ambiguous_rows = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(ambiguous_rows AS STRING) AS actual FROM stats
   UNION ALL SELECT 'override_feature_missing' AS check_name, CASE WHEN overrides_missing = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(overrides_missing AS STRING) AS actual FROM stats
+  UNION ALL SELECT 'psgc_units_without_feature' AS check_name, CASE WHEN units_without_feature = 0 THEN 'PASS' ELSE 'WARN' END AS status, '0' AS expected, CAST(units_without_feature AS STRING) AS actual FROM stats
   UNION ALL SELECT 'method_code' AS check_name, 'PASS' AS status, CAST(NULL AS STRING) AS expected, CAST(method_code AS STRING) AS actual FROM stats
   UNION ALL SELECT 'method_code_renamed' AS check_name, 'PASS' AS status, CAST(NULL AS STRING) AS expected, CAST(method_code_renamed AS STRING) AS actual FROM stats
   UNION ALL SELECT 'method_code_region_moved' AS check_name, 'PASS' AS status, CAST(NULL AS STRING) AS expected, CAST(method_code_region_moved AS STRING) AS actual FROM stats

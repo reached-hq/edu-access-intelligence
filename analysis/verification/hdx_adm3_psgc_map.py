@@ -38,11 +38,13 @@ def main(argv=None):
     params = {"run_id": run_id, "code_revision": "local", "environment": "local"}
     folder = REPO_ROOT / "etl" / "04_integration"
     store.run_file(folder / "03_map_hdx_adm3_psgc.sql", params)
+    gate_failed = False
     try:
         store.run_file(folder / "90_validate_hdx_adm3_psgc_map.sql", params)
         print("gate: passed, map published")
-    except Exception as e:  # the gate stops on any FAIL; its results are still recorded
-        print(f"gate: {e}")
+    except Exception as e:  # the gate stops on any FAIL; its results are still recorded and printed below
+        gate_failed = True
+        print(f"gate: FAILED, map not published: {e}")
     for r in store.records(f"SELECT check_name, status, expected, actual FROM {CONTROL}.data_quality_results "
                            f"WHERE run_id = '{run_id}' ORDER BY check_name"):
         print(f"  {r['status']:<4} {r['check_name']:<32} expected {r['expected']}, actual {r['actual']}")
@@ -67,7 +69,7 @@ def main(argv=None):
     pending = sum(r["review_status"] == "pending" for r in review)
     print(f"{len(review) - pending} reviewed, {pending} still pending: {out.relative_to(REPO_ROOT)}")
     store.close()
-    return 0
+    return 1 if gate_failed else 0  # a failed gate must not look like success to a shell or CI step
 
 
 if __name__ == "__main__":
