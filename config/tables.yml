@@ -128,10 +128,14 @@ source_tables:
       validate_file: 90_validate_deped_enrollment_psgc_clean.sql
 
   - source_id: psa_school_age_population
-    dataset: PSA school-age population by single year of age and sex
+    dataset: PSA school-age population by single-year age, sex and city/municipality
     scope:
-      reference_years: [2020, 2024]
-      note: Planned source lane for AP4; all tasks remain disabled until #157 and #158 land.
+      census_years: [2020, 2024]
+      workbook: one xlsx per census
+      sheets: ["<year> Total Pop", "<year> Household Pop"]
+      note: >-
+        Both sheets of each workbook are one logical source table; a row is identified by its sheet too (#157).
+        The silver names are placeholders until #158 confirms them; every task stays disabled until #157 and #158 land.
     bronze:
       table: psa_school_age_population_raw
       create_file: 08_create_psa_school_age_population_raw.sql
