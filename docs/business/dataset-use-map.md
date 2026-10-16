@@ -27,8 +27,10 @@ flowchart LR
     subgraph METHOD["Geography and peer method"]
     PSGC["PSGC<br/>codes · type · income class · population"]
     AREA["Land area<br/>HDX"]
+    XWALK["DepEd school PSGC codes<br/>school_id → barangay · #137"]
     end
 
+    XWALK -.->|"school to LGU"| ENR
     ENR --> AP1["AP1 · Schools"]
     PSGC --> AP1
     ENR --> AP2["AP2 · Students per classroom"]
@@ -52,7 +54,7 @@ flowchart LR
     CANDIDATE["Context requiring approval<br/>CMCI"] -.-> DASH
     POPCHECK["Population cross-check<br/>PSA barangay population"] -.-> PSGC
     RESULT --> DASH
-    DEFER["Deferred sources<br/>OSM · roads · assessments · projects"] -.-> LATER["Later analyses"]
+    DEFER["Deferred sources<br/>OSM · roads · assessments · projects<br/>DepEd school coordinates"] -.-> LATER["Later analyses"]
     EXCLUDED["CHED sources"] -.-> RECORD["Inventory only"]
 ```
 
@@ -67,6 +69,7 @@ Solid paths are supported by profiled sources. A dotted path into an AP or resul
 | **AP3: students per teacher** | `deped_enrollment`; `deped_personnel`; `psa_psgc` | Enrollment supplies learners; personnel supplies teacher counts and funding source; PSGC supplies the LGU assignment. Learners enter the ratio only for schools with usable personnel data. | Learners per teacher and coverage of schools and learners |
 | **AP4: school-age population and enrollment gap over time** | `deped_enrollment` (SY 2024-25 acquired; SY 2020-21 still to acquire); PSA Total Population by single-year age for 2020 (CPH) and 2024 (POPCEN), found but not yet profiled or ingested; `psa_psgc` | Enrollment supplies learner counts in all sectors except Philippine Schools Overseas, the public-school share, and school location. The PSA workbooks supply population aged 5–17 for every city and municipality. PSGC supplies geographic alignment through a name match. | Population aged 5–17 minus enrollment for 2020 and 2024, gap share, and the change between them, with period, comparability, and coverage labels |
 | **Peer comparison method** | `psa_psgc`; `hdx_boundaries` | PSGC supplies LGU type, income class, population, codes, and hierarchy. `hdx_boundaries.area_sqkm` is the current land-area source for density, joined to PSGC through the reviewed HDX-to-PSGC crosswalk (#139). [PSA OpenSTAT table 1A6DLPD0](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/), which publishes city/municipality land area and 2024 population density, may be acquired and profiled later as a cross-check or replacement. | Comparison inputs and peer-membership fields; exact statistics belong to the metric specification |
+| **School-to-LGU assignment (all APs, #137)** | `deped_enrollment_psgc`; `deped_enrollment`; `psa_psgc` | DepEd's own barangay PSGC code per `school_id` places each school in its city or municipality, ahead of name matching: 98.1–99.0% of schools in SY 2023-24 to 2025-26 have a code (profile X-4). Where both place a public school, the code and the name match agree for 46,652 and differ for 170, mostly the 2024 Special Geographic Area towns and EMBO, where the code follows the current boundaries (X-3). Sulu's late-2024 codes are recoded to 2Q 2026 (`19066` → `09066`, X-2). Name matching stays the fallback for schools without a code, including SY 2020-21 IDs that are gone by SY 2023-24. Enrollment counts still come from `deped_enrollment` only, because this file's counts are identical (X-1) | The PSGC code and match method recorded per school, used by AP1 to AP4 |
 | **Approved context beside results** | `psa_poverty_stat`; `psa_psgc` | Poverty 2023 is displayed under its own year label and never used to group or flag. PSGC city class is visible as governance context but is not a peer criterion. | Context fields with their own source, year, and missingness labels |
 | **Coverage-limited or broader-grain reference context** | `psa_population_per_age_group`; `psa_openstat_education`; `bpda_barmm_education`; `bpda_barmm_social_infrastructure` | Age structure is shown only for its published geographies; OpenSTAT education remains regional or national reference; BPDA sources retain their historical periods and published geographic grain. None is copied onto an LGU as if it were a current LGU value. | Clearly labelled reference panels, coverage notes, or BARMM-specific context—not AP inputs |
 | **Context requiring approval** | `dti_cmci` | CMCI can add LGU socioeconomic or service-capacity context after reviewed PSGC matching, but it is not part of the agreed questions or current method. | Optional context panel only after a recorded team decision |
@@ -128,11 +131,12 @@ The data-model work may reserve a standards/reference structure, but it must not
 
 ## All registered sources
 
-This table accounts for all 21 profiled sources in `config/sources.json`.
+This table accounts for all 22 profiled sources in `config/sources.json`.
 
 | Dataset | Role in the approved questions | Destination or use | Why it does or does not enter the calculation |
 |---|---|---|---|
 | [`deped_enrollment`](../data/source-inventory/deped_enrollment/) | **Core: AP1–AP4** | School roster, level offerings, enrolled learners, trend, and school location used for LGU assignment | Only source that supplies school-level enrollment for all four APs; AP1 to AP3 use public schools, while AP4 uses all sectors except Philippine Schools Overseas; SY 2020-21 must still be acquired for AP4 |
+| [`deped_enrollment_psgc`](../data/source-inventory/deped_enrollment_psgc/) | **Method support (#137) + deferred coordinates** | `school_id` → barangay PSGC crosswalk for every school year, ahead of name matching; school coordinates kept, flagged, for a later AP1 nearest-school check | Supplies location, not counts: its enrollment equals `deped_enrollment` for every shared school, so it is not a second enrollment source. Its urban/rural and income class columns are copies of PSGC, so those come from `psa_psgc`. Coordinates wait for the boundary test (S-1): 23% are missing and at least 2,275 lie over 100 km from their municipality. Derived outputs are not published until EMISD confirms the terms |
 | [`deped_facilities`](../data/source-inventory/deped_facilities/) | **Core: AP2** | Instructional-classroom denominator and classroom-data coverage | Direct capacity source; available for SY 2023-24 only |
 | [`deped_personnel`](../data/source-inventory/deped_personnel/) | **Core: AP3** | Teacher denominator, personnel coverage, and reported funding-category detail | Direct staffing source; the exact teacher positions remain a team decision, and locally funded categories cannot be attributed to a specific LGU without a verified crosswalk |
 | [`psa_psgc`](../data/source-inventory/psa_psgc/) | **Core + method support** | Master geography, LGU type, income class, 2024 total population, hierarchy, and city-class context | Common reference for LGU assignment, AP1 population, and peer construction |
@@ -162,4 +166,5 @@ This map owns only source-selection and source-routing decisions. Formula, compa
 2. **BARMM:** decide inclusion and geography treatment. BPDA sources remain context, not replacements for the DepEd indicators.
 3. **School-age population:** register, profile, and ingest the PSA 2020 and 2024 single-year-age workbooks, name-match them to PSGC, and acquire SY 2020-21 enrollment. AP4 stays blocked until these are done.
 4. **Official benchmarks:** resolve the data-compatibility and current-applicability conditions in the [national benchmark register](national-benchmarks-and-indicators.md) before routing a standard into an analytical comparison.
-5. **Optional context:** any use of CMCI, assessments, age-group population, BPDA data, or another context source inside a peer definition, score, threshold, or flag requires a recorded scope decision.
+5. **DepEd school PSGC crosswalk:** the team agreed in #137 (option B) to use `deped_enrollment_psgc` as the first DepEd match method, with names as the fallback; the decision entry and the update to D-012 are still to be recorded. The codes also place the Special Geographic Area schools in their 2024 municipalities, which D-031 excludes from city and municipality joins until they are matched, so D-031 should be revisited with it. The coordinates stay deferred until the boundary test (S-1) and EMISD's reply.
+6. **Optional context:** any use of CMCI, assessments, age-group population, BPDA data, or another context source inside a peer definition, score, threshold, or flag requires a recorded scope decision.
