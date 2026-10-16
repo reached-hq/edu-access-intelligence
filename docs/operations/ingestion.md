@@ -1363,7 +1363,7 @@ DepEd EMISD, by email request              (not published online; one workbook p
 
 Refused before any row is read (the batch stops): an unknown or changed file, an unsafe workbook (the shared opener's checks), a sheet other than `DB`, a title cell that differs from the approval, a school year that disagrees between the name, cell A2 and the approval, and a header that is not a known schema version.
 
-Recorded per batch: FAIL (blocks) when the row count, the range, or any row-kind count differs from the approval, or a required column is missing. PASS at the profiled count and WARN when it changes, never FAIL, for each known characteristic: school IDs not 6 digits (1), repeated school IDs (1), fully repeated rows (1), `#N/A` cells (34,904), mojibake (280), formulas (0), and the twelve `quality_checks` of the contract (9-digit PSGC codes, `#N/A` and blank codes and coordinates, `(0, 0)` longitudes, `1St`, `-`; profile O-2 to O-12). Nothing is padded, trimmed, typed or dropped: those are Silver's rules.
+Recorded per batch: FAIL (blocks) when the row count, the range, or any row-kind count differs from the approval, or a required column is missing. PASS at the profiled count and WARN when it changes, never FAIL, for each known characteristic: school IDs not 6 digits (1), repeated school IDs (1), fully repeated rows (1), `#N/A` cells (34,904), mojibake (280), formulas (0), and the twelve `quality_checks` of the contract (9-digit PSGC codes, `#N/A` and blank codes and coordinates, `(0, 0)` longitudes, `1St`, `-`; profile O-2 to O-13). Nothing is padded, trimmed, typed or dropped: those are Silver's rules.
 
 ### Running locally (EMISD)
 

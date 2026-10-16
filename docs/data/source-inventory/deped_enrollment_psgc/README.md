@@ -86,7 +86,7 @@ Summary only; evidence lives in [profile.md](profile.md).
 | Contract (approved deliveries, schema versions) | [`config/ingestion/deped_enrollment_psgc.json`](../../../../config/ingestion/deped_enrollment_psgc.json), format `xlsx_report` |
 | Bronze table | `` edu_access.`02-bronze`.deped_enrollment_psgc_raw ``: every sheet row below the header (rows 9 to 60293) as text, each with its Excel row number and its kind (`unit`, `blank`, `no_identifier`) |
 | Schema versions | `v1` (SY 2023-24): the 88 headers of row 8, mapped by position to Bronze names; columns AA and AB, which share a header, become `income_class` and `income_class_long` |
-| Known characteristics | WARN checks at their profiled counts (O-2 to O-12), never corrections: nothing is padded, trimmed, or typed in Bronze |
+| Known characteristics | WARN checks at their profiled counts (O-2 to O-13), never corrections: nothing is padded, trimmed, or typed in Bronze |
 | Loaded | Locally and on Databricks `dev`, 2026-10-16: 60,285 rows, then a skip ([local](../../../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-local-idempotency.md), [`dev`](../../../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-databricks-idempotency.md)) |
 | Runbook | [ingestion.md, DepEd EMISD workbook](../../../operations/ingestion.md#deped-emisd-workbook-xlsx_report) |
 

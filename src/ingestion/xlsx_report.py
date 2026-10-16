@@ -14,7 +14,7 @@ has the same shape as xlsx_table.prepare_delivery, so pipeline.py runs both alik
 | Rows loaded | every row from 2 | every row below the header, blank rows included |
 | Row kind | none | `unit` (has an identifier), `blank`, `no_identifier` (cells but no identifier), counted against the approval |
 | Identifier | must match its pattern, else FAIL | a known mismatch is a WARN at its profiled count |
-| Mojibake | FAIL | a WARN at its profiled count: DepEd's published names hold `Ã‘` (deped_enrollment O-17) |
+| Mojibake | FAIL | a WARN at its profiled count: DepEd's published names hold `Ã‘` (deped_enrollment_psgc O-13) |
 
 The rows above the header are not loaded: their text is checked against the
 approval instead, and the header itself is the schema version. Every sheet is
