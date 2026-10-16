@@ -156,15 +156,19 @@ def test_non_source_tasks_declare_dependencies(jobs):
 SILVER_GATES = {
     "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean", "90_validate_deped_personnel_clean",
     "90_validate_psa_psgc_clean", "90_validate_psa_poverty_stat_clean", "90_validate_hdx_adm3_clean",
+    "90_validate_deped_enrollment_psgc_clean", "90_validate_psa_school_age_population_clean",
 }
 
 # Each downstream task and the gates it reads (D-050). A task waits for these and nothing else.
 DOWNSTREAM = {
-    "01_map_deped_school_psgc": {"90_validate_deped_enrollment_clean", "90_validate_psa_psgc_clean"},
+    "01_map_deped_school_psgc": {
+        "90_validate_deped_enrollment_clean", "90_validate_deped_enrollment_psgc_clean",
+        "90_validate_psa_psgc_clean"},
     "02_map_psa_poverty_psgc": {"90_validate_psa_poverty_stat_clean", "90_validate_psa_psgc_clean"},
     "03_map_hdx_adm3_psgc": {"90_validate_hdx_adm3_clean", "90_validate_psa_psgc_clean"},
     "04_map_deped_annex_mother": {"90_validate_deped_enrollment_clean"},
-    "05_map_psa_school_age_population_psgc": {"90_validate_psa_psgc_clean"},
+    "05_map_psa_school_age_population_psgc": {
+        "90_validate_psa_school_age_population_clean", "90_validate_psa_psgc_clean"},
     "01_build_dim_school": {"90_validate_deped_enrollment_clean"},
     "02_build_dim_school_year": {
         "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean",
