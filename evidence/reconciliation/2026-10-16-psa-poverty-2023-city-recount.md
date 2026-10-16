@@ -83,4 +83,4 @@ The 11 `not_in_source` areas that are not highly urbanized cities are Isabela Ci
 ## Not checked
 
 - Databricks `dev`: not run there. Running the query above in the SQL editor should give the same counts.
-- `dim_city_poverty` itself: it is not built yet (#45). These counts are what its gate must check.
+- `dim_city_poverty` itself: it is not built yet (#174). These counts are what its gate must check.
