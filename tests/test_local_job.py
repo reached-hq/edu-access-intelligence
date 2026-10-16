@@ -86,7 +86,7 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
         (len(psgc_workbooks.UNITS), "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_poverty_stat_clean") == [(18, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
-    # Integration runs after the fan-in: every made-up HDX feature has one map row (#93, D-049).
+    # Integration runs after the fan-in: every made-up HDX feature has one map row (#93, D-050).
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".hdx_adm3_psgc_map") == [(3, "job-run-1")]
     assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
                        "AND source_id = 'hdx_boundaries'") == [("succeeded",)]

@@ -4,4 +4,4 @@ One reviewed file per mapping table: the order of its rules, what it matches aga
 
 | File | Map table |
 |---|---|
-| `hdx_adm3_psgc.json` | `hdx_adm3_psgc_map` (#93, D-049) |
+| `hdx_adm3_psgc.json` | `hdx_adm3_psgc_map` (#93, D-050) |
