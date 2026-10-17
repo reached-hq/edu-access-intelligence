@@ -853,8 +853,6 @@ resources:
           disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
-            - task_key: 90_validate_deped_facilities_clean
-            - task_key: 90_validate_deped_personnel_clean
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -1173,6 +1171,33 @@ resources:
           sql_task:
             file:
               path: etl/06_analytics/90_validate_ap4.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        # Which DepEd sources have data for each school year, for the dashboard only. Kept out of
+        # dim_school_year so a facilities or personnel failure does not stop every fact (D-051).
+        - task_key: 15_build_fact_school_year_source_availability
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_deped_enrollment_clean
+            - task_key: 90_validate_deped_facilities_clean
+            - task_key: 90_validate_deped_personnel_clean
+            - task_key: 90_validate_dim_school_year
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/15_build_fact_school_year_source_availability.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 90_validate_fact_school_year_source_availability
+          disabled: true
+          depends_on:
+            - task_key: 15_build_fact_school_year_source_availability
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_fact_school_year_source_availability.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
 

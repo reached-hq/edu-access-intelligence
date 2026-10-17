@@ -26,6 +26,7 @@ Proposed facts:
 - `fact_school_teacher_capacity`
 - `fact_city_population`
 - `fact_city_school_age_population`
+- `fact_school_year_source_availability`
 
 When approved, use one dimension or fact per file and give each dimension gate
 a uniqueness check on its declared key. Files follow `NN_<verb>_<object>.sql`,
