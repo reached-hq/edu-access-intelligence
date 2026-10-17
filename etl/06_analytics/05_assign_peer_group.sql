@@ -1,0 +1,3 @@
+-- PLACEHOLDER: assign every city and municipality to a peer group (#148). Reads the city dimension (land area,
+-- D-042) and city population for density.
+-- Implement the approved peer-group rule (#142) before activating this task.

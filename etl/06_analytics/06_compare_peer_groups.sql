@@ -1,0 +1,2 @@
+-- PLACEHOLDER: compare AP2 and AP3 results within each peer group: median, IQR, percentile, and group count
+-- (D-042, D-045). Implement once #142 approves the peer rule and #148 builds the groups.

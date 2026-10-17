@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validation gate for the peer group: one group per city or municipality.
+-- Implement the gate and its data_quality_results writes before activating this task.

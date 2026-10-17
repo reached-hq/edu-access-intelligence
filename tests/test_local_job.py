@@ -93,7 +93,7 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
         ("psa_psgc", "PASS")]   # one per Silver lane on
     fresh = store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                         "WHERE run_id = 'job-run-1' AND check_name = 'source_fresh' ORDER BY 1")
-    # One per loaded source, after the fan-in. Every batch was just loaded, so each source with one is fresh;
+    # One per loaded source, beside the fan-in. Every batch was just loaded, so each source with one is fresh;
     # the fake repository approves no personnel or EMISD delivery, so those two have none.
     assert [(source, status) for source, status, _ in fresh] == [
         ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "WARN"), ("deped_facilities", "PASS"),
@@ -174,7 +174,8 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     assert results["bronze_deped_facilities"] == "succeeded"      # independent root: enrollment cannot block it
     assert results["05_clean_psa_poverty_stat"] == "succeeded"    # another lane still runs to the end
     assert results["90_validate_control"] == "failed"             # the fan-in runs anyway, records, and stops
-    assert results["90_validate_freshness"] == "succeeded"        # and freshness is still checked after it
+    assert results["90_validate_freshness"] == "succeeded"        # and freshness is still checked beside it
+    assert results["04_map_deped_annex_mother"] == "upstream_failed"   # the map reads enrollment (D-051)
     store = DuckDBStore(db)
     assert store.query(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
                        "AND status = 'FAIL' ORDER BY 1") == [
@@ -186,6 +187,25 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
         ("deped_personnel", "PASS", "succeeded"), ("hdx_boundaries", "PASS", "succeeded"),
         ("psa_poverty_stat", "PASS", "succeeded"), ("psa_psgc", "PASS", "succeeded")]
     store.close()
+
+
+def test_a_failed_lane_stops_only_the_tasks_that_read_it(repo, tmp_path):
+    """The annex map reads enrollment only, so a failed poverty lane does not stop it; the fan-in
+    still records the failed lane and fails the run (D-051)."""
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    run_job(repo, landing, db, REVISION, log=lambda *_: None)
+    poverty = "edu_access.`02-bronze`.psa_poverty_stat_raw"
+    store = DuckDBStore(db)
+    store.sql(f"INSERT INTO {poverty} SELECT * REPLACE ('ghost' AS batch_id) FROM {poverty} LIMIT 1")
+    store.close()
+    results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
+    assert results["90_validate_psa_poverty_stat_raw"] == "failed"
+    assert results["05_clean_psa_poverty_stat"] == "upstream_failed"
+    assert results["90_validate_control"] == "failed"              # the run still shows the failed lane
+    assert results["04_map_deped_annex_mother"] == "succeeded"       # but a map that does not read poverty runs
+    assert results["90_validate_deped_annex_mother_map"] == "succeeded"
 
 
 @pytest.mark.parametrize("error", [RuntimeError("made-up Python task crash"), RuntimeError()], ids=["message", "no-message"])
