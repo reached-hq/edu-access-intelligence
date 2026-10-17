@@ -47,7 +47,7 @@ def repo(tmp_path):
     features = [hdx_geojson.silver_feature(i) for i in range(1, 4)]
     hdx_geojson.approve(hdx, hdx_geojson.write_features(tmp_path / "landing" / "admin_boundaries", features), 3)
     write_config(root, hdx)
-    # The EMISD workbook is Bronze only so far (#152): its lane runs with nothing approved, as personnel's does.
+    # The EMISD crosswalk lane (Bronze #152, Silver #163) runs with nothing approved, as personnel's does.
     write_config(root, empty_config("deped_enrollment_psgc"))
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
@@ -78,7 +78,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") == [(0,)]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_enrollment_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'silver_build' "
-                       "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_facilities", "succeeded"),
+                       "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_enrollment_psgc", "succeeded"),
+                                         ("deped_facilities", "succeeded"),
                                          ("deped_personnel", "succeeded"), ("hdx_boundaries", "succeeded"),
                                          ("psa_poverty_stat", "succeeded"), ("psa_psgc", "succeeded")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_facilities_clean") == [(3, "job-run-1")]
@@ -88,8 +89,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-1' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
-        ("deped_enrollment", "PASS"), ("deped_facilities", "PASS"), ("deped_personnel", "PASS"),
-        ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"),
+        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
+        ("deped_personnel", "PASS"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"),
         ("psa_psgc", "PASS")]   # one per Silver lane on
     fresh = store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                         "WHERE run_id = 'job-run-1' AND check_name = 'source_fresh' ORDER BY 1")
@@ -143,7 +144,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 7), ("silver_build", 6)]   # one filter, both layers; EMISD is Bronze only
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 7), ("silver_build", 7)]   # one filter, both layers
     store.close()
 
 
@@ -182,9 +183,10 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
         ("succeeded_batches_reconcile",)]
     assert store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-2' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
-        ("deped_enrollment", "FAIL", "not run"), ("deped_facilities", "PASS", "succeeded"),
-        ("deped_personnel", "PASS", "succeeded"), ("hdx_boundaries", "PASS", "succeeded"),
-        ("psa_poverty_stat", "PASS", "succeeded"), ("psa_psgc", "PASS", "succeeded")]
+        ("deped_enrollment", "FAIL", "not run"), ("deped_enrollment_psgc", "PASS", "succeeded"),
+        ("deped_facilities", "PASS", "succeeded"), ("deped_personnel", "PASS", "succeeded"),
+        ("hdx_boundaries", "PASS", "succeeded"), ("psa_poverty_stat", "PASS", "succeeded"),
+        ("psa_psgc", "PASS", "succeeded")]
     store.close()
 
 
