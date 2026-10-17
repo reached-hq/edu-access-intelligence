@@ -55,6 +55,7 @@ The Gold build uses the reviewed tables and fields below. Brace notation is shor
 | Enrollment by level | `deped_enrollment_clean.school_id`, `school_year`, `sector`, `annex_status`, `offers_es`, `offers_jhs`, `offers_shs`, `is_overseas`; ES counts `kinder_{male,female}`, `g1_{male,female}` through `g6_{male,female}`, `esng_{male,female}`; JHS counts `g7_{male,female}` through `g10_{male,female}`, `jhsng_{male,female}`; SHS counts every `g11_*_{male,female}` and `g12_*_{male,female}` field present in the approved schema version | School x school year x education level. AP1 to AP3 require `sector = 'Public'` and `is_overseas = false`. AP4 accepts `Public`, `Private`, and `SUC/LUC` and excludes `PSO` or `is_overseas = true`. Geography and `psgc_match_status` come from the reviewed Integration result. |
 | Classroom capacity | `deped_facilities_clean.school_id`, `school_year`, `es_classrooms_instructional`, `jhs_classrooms_instructional`, `shs_classrooms_instructional` | School x school year. Require public scope. Sum the three room fields that are not NULL; return NULL when all three are NULL. Do not substitute makeshift rooms, temporary learning spaces, or non-instructional rooms into this denominator. |
 | Teacher capacity | The level-specific personnel fields listed immediately below | School x school year x education level. Require public scope. Principals, assistant principals, administrative, health, guidance, library, security, utility, and all other non-teaching roles are excluded. |
+| DepEd source availability | `fact_school_year_source_availability.school_year`, `source_id`, `has_data` | School year x source. Require one row for each school year and each of `deped_enrollment`, `deped_facilities`, and `deped_personnel`. Use this fact only to determine whether a source has data for the selected year. It does not establish school or education-level coverage. |
 | AP1 total population | `fact_city_population.city_mun_psgc_code`, `reference_year`, `population`, `estimate_status` | City or municipality x reference year. Use only `estimate_status = 'available'`; label the reference year and do not substitute school-age population. |
 | AP4 school-age population | `fact_city_school_age_population.city_mun_psgc_code`, `reference_year`, `age`, `sex`, `population`, `psgc_match_status`, `is_2020_2024_geography_comparable` | City or municipality x reference year. Sum `sex IN ('male', 'female')` and `age BETWEEN 5 AND 17`; use only reviewed PSGC matches. Never add a published both-sexes total to the male and female rows. |
 
@@ -69,6 +70,8 @@ The Gold build uses the reviewed tables and fields below. Brace notation is shor
 The four funding subtotals use only the corresponding `*_teachers_*` fields above. They are already included in `teacher_count` and must never be added to it again. For ES, each funding subtotal combines its Kindergarten and ES fields.
 
 For classroom and teacher totals, sum non-NULL included fields and return NULL only when every included field is NULL. A recorded zero remains zero. The Gold validation must report rows with a mixture of NULL and non-NULL included fields so partial reporting is visible. A ratio denominator is usable only when the resulting total is greater than zero.
+
+`dim_school_year` holds only `school_year`, `start_year`, and `end_year`. Source availability belongs in `fact_school_year_source_availability`, following the six-fact Gold model. When `has_data = false`, the dashboard shows the affected source measure as **not available** for that school year. When `has_data = true`, consumers must still calculate and display fact-level school and learner coverage because availability does not mean that every school or education level has a usable value.
 
 ## Analytical metric contracts
 
@@ -247,6 +250,7 @@ Every implementation of these contracts must satisfy all of the following:
 6. Reconcile enrollment, classroom, teacher, population, and geography totals independently before joining them. The classroom and teacher joins must not increase the enrollment row count at their declared grains.
 7. Keep calculations deterministic and safe to rerun. The same approved source versions and code revision must produce the same keyed rows and totals, and a rerun must replace or merge those rows without duplication.
 8. Record outlier checks as quality results. Do not delete, cap, winsorize, or silently correct an observed value in Gold or Analytics.
+9. Validate exactly one `fact_school_year_source_availability` row for every school year and approved DepEd `source_id`, reject duplicate or unknown source keys, and reconcile `has_data` to the reviewed Silver source periods. Do not infer fact-level coverage from this flag.
 
 ## Comparison and prioritization methods
 
@@ -291,7 +295,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 
 | View | Main fields | Coverage and drill-down fields | Current status |
 |---|---|---|---|
-| **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | geography-match version, unmatched/excluded school counts, source versions | Required |
+| **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | source availability by school year, geography-match version, unmatched/excluded school counts, source versions | Required |
 | **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, total population, schools per 10,000 residents, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Ready to implement and validate |
 | **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Ready to implement and validate for SY 2023-24 |
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Ready to implement and validate for SY 2023-24; project-defined |
