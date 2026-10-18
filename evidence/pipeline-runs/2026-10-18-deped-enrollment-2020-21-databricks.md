@@ -42,7 +42,7 @@ databricks jobs get-run 250134607484273
 | `90_validate_deped_enrollment_clean` (UTC) | `SUCCESS`, 03:56:15 → 03:58:53 | `SUCCESS`, 04:06:53 → 04:09:08 |
 | Ingestion `run_id` | `1c504726-f1d2-4b4c-a5bf-6fa41507c4a3` | `97c1baca-29c6-43e6-bda1-67cae03a040c` |
 
-The job-run and task rows come from `databricks jobs get-run`. The queries below ran on the job's SQL warehouse (`71d3ccb9cea611c0`) through the Statement Execution API (`databricks api post /api/2.0/sql/statements`) after run 2. Their results came back as text, so there are no screenshots; every number below is copied from those results.
+The job-run and task rows come from `databricks jobs get-run`, and the screenshots below show the two runs. The queries ran on the job's SQL warehouse (`71d3ccb9cea611c0`) after run 2, first through the Statement Execution API (`databricks api post /api/2.0/sql/statements`); the screenshot under each query shows its result.
 <img width="1154" height="322" alt="image" src="https://github.com/user-attachments/assets/f6930c73-dfb1-4258-b8f2-031b20c28c65" />
 <img width="1153" height="294" alt="image" src="https://github.com/user-attachments/assets/e89aa279-5b2f-499e-a766-2c33a0d1bdc6" />
 
@@ -52,7 +52,7 @@ The job-run and task rows come from `databricks jobs get-run`. The queries below
 
 ### Bronze
 
-The loader's output for `bronze_deped_enrollment`:
+Bronze rows per school year:
 
 ```sql
 SELECT school_year, delivery_version, COUNT(*) AS rows
