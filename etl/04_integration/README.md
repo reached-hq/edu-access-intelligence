@@ -10,7 +10,7 @@ if an annex is dropped, duplicated, or represented inconsistently. No totals are
 consolidated until a reliable crosswalk is reviewed (D-044).
 
 The second is the HDX ADM3 to PSGC map: `03_map_hdx_adm3_psgc.sql` and
-`90_validate_hdx_adm3_psgc_map.sql` (#93, D-050), generated from
+`90_validate_hdx_adm3_psgc_map.sql` (#93, D-052), generated from
 `config/integration/hdx_adm3_psgc.json` by `python -m src.integration.hdx_adm3_psgc sql|gate`;
 `tests/test_integration_hdx.py` fails if they differ.
 
