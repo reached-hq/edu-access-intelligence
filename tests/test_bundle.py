@@ -237,6 +237,37 @@ def test_downstream_tasks_start_from_the_gates_they_read(jobs):
         assert tasks[key].get("run_if") == "ALL_SUCCESS", key
 
 
+# Which APs each Silver lane's failure stops, as D-051's consequence table states.
+APS_STOPPED_BY = {
+    "90_validate_deped_enrollment_clean": {"ap1", "ap2", "ap3", "ap4"},
+    "90_validate_psa_psgc_clean": {"ap1", "ap2", "ap3", "ap4"},
+    "90_validate_hdx_adm3_clean": {"ap1", "ap2", "ap3", "ap4"},
+    "90_validate_deped_enrollment_psgc_clean": {"ap1", "ap2", "ap3", "ap4"},
+    "90_validate_deped_facilities_clean": {"ap2"},
+    "90_validate_deped_personnel_clean": {"ap3"},
+    "90_validate_psa_school_age_population_clean": {"ap4"},
+    "90_validate_psa_poverty_stat_clean": set(),
+}
+
+
+def test_each_lane_failure_stops_the_aps_d051_says(jobs):
+    """Follows ALL_SUCCESS edges down from each Silver gate, so the D-051 table cannot drift from the job."""
+    tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
+    children = {}
+    for key, task in tasks.items():
+        for dep in task.get("depends_on", []):
+            children.setdefault(dep["task_key"], []).append(key)
+    assert set(APS_STOPPED_BY) == SILVER_GATES
+    for gate, aps in APS_STOPPED_BY.items():
+        stopped, todo = set(), [gate]
+        while todo:
+            for child in children.get(todo.pop(), []):
+                if child not in stopped and tasks[child].get("run_if", "ALL_SUCCESS") == "ALL_SUCCESS":
+                    stopped.add(child)
+                    todo.append(child)
+        assert {k.split("_answer_")[1] for k in stopped if "_answer_ap" in k} == aps, gate
+
+
 def test_every_downstream_build_has_its_own_gate_after_it(jobs):
     """A build or answer task is followed by its 90_validate_ gate; nothing downstream reads an unchecked build."""
     tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
