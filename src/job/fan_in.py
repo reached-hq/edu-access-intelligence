@@ -4,7 +4,7 @@
 passed or not (`run_if: ALL_DONE`), so it always records the whole job run. It
 checks the Silver lanes that are switched on: for each, the lane passes when its
 `silver_build` run in this job run succeeded. On any FAIL the task stops, so the
-job run shows as failed. It is an audit: no task waits for it, and each
+job run shows as failed. It is an audit: only freshness follows it, and each
 Integration, Gold, and Analytics task starts from the gates it reads (D-051).
 
 Which lanes it checks comes from two reviewed files, never typed by hand:
@@ -76,9 +76,9 @@ def control_sql(lanes):
         "-- always records the whole job run: one result per Silver lane in data_quality_results",
         "-- (layer 'control'). A lane passes when its silver_build run in this job run succeeded. A failed or",
         "-- unfinished run fails, and so does a missing one: when a lane's Bronze gate failed, its Silver never",
-        "-- ran. On any FAIL the task stops, so the job run fails. No task waits for this one: each downstream",
-        "-- task starts from the gates it reads (D-051). Lanes checked, the Silver gates this task waits for",
-        "-- that are switched on:",
+        "-- ran. On any FAIL the task stops, so the job run fails. Only freshness follows this task; each",
+        "-- Integration, Gold, and Analytics task starts from the gates it reads (D-051). Lanes checked, the",
+        "-- Silver gates this task waits for that are switched on:",
         *listed,
         "--",
         "-- Parameters, supplied by the job (or src/job/local_run.py):",

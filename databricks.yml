@@ -685,7 +685,8 @@ resources:
 
         # Source-lane fan-in, an audit (D-051): after every Silver gate has finished, passed or not, it
         # records each Silver lane that is switched on and fails if any did not succeed, so the job run
-        # shows as failed. No task waits for it. Generated: python -m src.job.fan_in.
+        # shows as failed. Only freshness follows it; no Integration, Gold, or Analytics task waits for it.
+        # Generated: python -m src.job.fan_in.
         - task_key: 90_validate_control
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
