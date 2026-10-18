@@ -1,6 +1,6 @@
 {
   "map_table": "psa_school_age_population_psgc_map",
-  "owner": "@saraevcldn",
+  "owner": "@maeveylain",
   "how_to_change": "Change a rule, a region, an alias or an override by a reviewed pull request that edits this file, then regenerate etl/04_integration (python -m src.integration.psa_school_age_population_psgc sql|gate). tests/test_integration_school_age.py fails until the files match.",
   "source": {
     "source_id": "psa_school_age_population",
