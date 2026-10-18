@@ -21,6 +21,11 @@ databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/_holding/deped/2026-10-1
 databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/_holding/deped/2026-10-16/RETRIEVED.txt dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16/
 databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16/Enrollment-in-SY-2020-2021.zip <scratch>/check/
 shasum -a 256 <scratch>/check/Enrollment-in-SY-2020-2021.zip    # 65c400aa31ba63730b8f9a7b4d60ade91c6a29cdb34a3c6bf255e5fc9e91a241
+databricks fs cat dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16/SHA256SUMS.txt
+#   65c400aa31ba63730b8f9a7b4d60ade91c6a29cdb34a3c6bf255e5fc9e91a241  Enrollment-in-SY-2020-2021.zip
+#   420943248755bdd22e94e9c81cd5a16d007f8e64f102d39c09119a7e479a4ee7  RETRIEVED.txt
+databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16/RETRIEVED.txt <scratch>/check/
+shasum -a 256 <scratch>/check/RETRIEVED.txt                      # 420943248755bdd22e94e9c81cd5a16d007f8e64f102d39c09119a7e479a4ee7
 databricks fs rm -r dbfs:/Volumes/edu_access/00-source/raw/_holding/deped/2026-10-16
 databricks bundle validate --target dev
 databricks bundle deploy --target dev
