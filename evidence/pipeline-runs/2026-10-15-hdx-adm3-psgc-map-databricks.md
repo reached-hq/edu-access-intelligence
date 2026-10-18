@@ -1,10 +1,12 @@
 # Evidence: the HDX ADM3 to PSGC map builds and passes its gate on Databricks, after the source-lane fan-in, with the same result as locally
 
-Issue #93 · Databricks `dev` · 2026-10-15 · checked by @saraevcldn
+Issue #93 · Databricks `dev` · 2026-10-15, rerun 2026-10-18 · checked by @saraevcldn
 
 ## The claim
 
 The two Integration tasks of `edu_access_pipeline` for the map, `03_map_hdx_adm3_psgc` and `90_validate_hdx_adm3_psgc_map`, run by Spark on the SQL warehouse after the source-lane fan-in `90_validate_control` (D-039), build `hdx_adm3_psgc_map` from the published `hdx_adm3_clean` and `psa_psgc_clean`: 1,642 rows, the same count per match method as the local run ([2026-10-15 local record](../reconciliation/2026-10-15-hdx-adm3-psgc-map.md)), 29 PASS, 1 WARN (the 8 Special Geographic Area units, reviewed unmatched) and 0 FAIL. The 12 reviewed overrides apply on Spark as on DuckDB. A second run on the same Silver tables and the same commit gives the same counts and results.
+
+After the review changes of `3c32944` and the merge of `main` (`882873e`), two more runs give the same count per method, 29 PASS, 2 WARN (the 8 unmatched features, and the new `psgc_units_without_feature`: the 8 PSGC Special Geographic Area municipalities no feature matches) and 0 FAIL. See [Rerun at `882873e`](#rerun-at-882873e-2026-10-18).
 
 ## What was run
 
@@ -48,6 +50,36 @@ Content of the published map after run 2, without the run stamp:
 
 The next run on the same Silver tables should give the same MD5.
 
+## Rerun at `882873e` (2026-10-18)
+
+`3c32944` changed the build and the gate after review: a code that agrees with a different name is `ambiguous` and `pending` instead of `matched`; no name search across the country when the province is not found; every step keyed by (`adm3_pcode`, `source_reference_date`); `source_row_ref` added; `geographic_level` = `city_mun` on every row; `one_psgc_version` counts master periods in `psa_psgc_clean`; and a new WARN, `psgc_units_without_feature`. `882873e` merges `main` into that commit (only `evidence/README.md` conflicted). The full local suite passed at `882873e` (784 passed, 1 skipped, Windows).
+
+Deployed from the pushed branch at `882873e72e2e56dd4646b7a3ea2e5a0e8b01e8ea` with the same two commands, after telling the team. Times are Manila (UTC+8).
+
+| | Run 3 | Run 4 |
+|---|---|---|
+| Job run (`job_run_id`) | `616457249833823` | `219943628912238` |
+| Whole job | 08:13:05 queued, 08:13:19 to 08:25:49, `TERMINATED SUCCESS` | 08:26:27 to 08:35:03, `TERMINATED SUCCESS` |
+| Bronze | every load skipped (already loaded; same SHA-256), including `hdx_boundaries__2025-02-13__f682747fbb26` (1,642) and `psa_psgc__2026-Q2__31892bc2bdde` (43,768) | same |
+| `90_validate_control`, `03_map_hdx_adm3_psgc`, `90_validate_hdx_adm3_psgc_map` | succeeded | succeeded |
+
+Gate results, from the first query below (all four runs):
+
+| `job_run_id` | status | `code_revision` | PASS | WARN | FAIL |
+|---|---|---|---:|---:|---:|
+| `311552286952841` | succeeded | `99b0387…` | 29 | 1 | 0 |
+| `1092224191077542` | succeeded | `99b0387…` | 29 | 1 | 0 |
+| `616457249833823` | succeeded | `882873e…` | 29 | 2 | 0 |
+| `219943628912238` | succeeded | `882873e…` | 29 | 2 | 0 |
+
+The extra WARN is the new check, not a change in the map: the published map after run 4 has the same count per method as after run 2 and as the local rerun ([local record](../reconciliation/2026-10-15-hdx-adm3-psgc-map.md#rerun-at-882873e-2026-10-18)): 1,480 `code`, 96 `correspondence_code`, 29 `name_exact`, 19 `code_region_moved`, 8 unmatched (reviewed), 6 `name_normalized`, 4 `code_renamed` (reviewed); 1,642 in all.
+
+| rows | content MD5 | `run_id` |
+|---:|---|---|
+| 1642 | `7f93831043a34f93abb061e1844f9325` | `219943628912238` |
+
+The MD5 differs from run 2's on purpose: the rows now carry `source_row_ref`, `geographic_level` on the 8 unmatched rows, and new `reason` texts.
+
 ## Queries
 
 ```sql
@@ -76,6 +108,6 @@ FROM edu_access.`04-integration`.hdx_adm3_psgc_map;
 
 ## What this does not show
 
-- The content MD5 was taken once, after run 2, so it shows run 2's content, not a comparison with run 1. Both runs read the same Silver tables at the same commit and gave the same counts and check results.
-- The map did not fail on the real data, so a failing gate (a PSGC code taken twice, a bad override) and an override for a P-code missing from the release are shown by the local tests on made-up rows (`tests/test_integration_hdx.py`; full suite 710 passed, 1 skipped), not on Databricks.
+- The content MD5 was taken once per pair, after runs 2 and 4, so it does not compare runs 1 and 3 with them. Each pair read the same Silver tables at the same commit and gave the same counts and check results.
+- The map did not fail on the real data, so a failing gate (a PSGC code taken twice, a bad override) and an override for a P-code missing from the release are shown by the local tests on made-up rows (`tests/test_integration_hdx.py`; full suite 710 passed, 1 skipped at `99b0387`, 784 passed, 1 skipped at `882873e`), not on Databricks.
 - Per-task timings were not recorded.

@@ -1,12 +1,14 @@
 # Evidence: HDX ADM3 features map to PSGC one-to-one except the 8 Special Geographic Area units, with every exception reviewed
 
-Issue #93 · local DuckDB (D-017) · 2026-10-15, Manila time (UTC+8) · run by @saraevcldn
+Issue #93 · local DuckDB (D-017) · 2026-10-15, rerun 2026-10-18, Manila time (UTC+8) · run by @saraevcldn
 
 ## The claim
 
 With the rules and overrides in `config/integration/hdx_adm3_psgc.json` at commit `adcbf0c`, the generated map build and gate (`etl/04_integration/03_map_hdx_adm3_psgc.sql`, `90_validate_hdx_adm3_psgc_map.sql`) turn the real `hdx_adm3_clean` (1,642 COD-AB ADM3 features, valid on 2025-02-13) and `psa_psgc_clean` (2Q 2026) into `hdx_adm3_psgc_map` with one row per feature, none dropped. 1,634 features match one PSGC city or municipality each, no PSGC code is taken twice, the 8 Special Geographic Area units stay unmatched by review (D-031), no feature is left pending, and every FAIL check passes.
 
 Databricks `dev` was confirmed afterwards, the same day, in two runs at `99b0387` with the same count per method: [2026-10-15 Databricks record](../pipeline-runs/2026-10-15-hdx-adm3-psgc-map-databricks.md).
+
+After the review changes of `3c32944` and the merge of `main`, the map was run again at `882873e` with the same count per method and no FAIL: [Rerun at `882873e`](#rerun-at-882873e-2026-10-18).
 
 ## What was run
 
@@ -79,6 +81,23 @@ The other FAIL checks (`matched_has_psgc_unit`, `unmatched_has_no_psgc`, `status
 
 Each override's reason and evidence is in the config. The script writes the same list, with every column, to `local_state/hdx_adm3_psgc_review.md` (git-ignored).
 
+## Rerun at `882873e` (2026-10-18)
+
+`3c32944` changed the build and the gate after review (a code with a different name is `ambiguous` and `pending`, never `matched`; no name search across the country; keyed by release; `source_row_ref`; `geographic_level` on every row; master periods counted in `psa_psgc_clean`; new WARN `psgc_units_without_feature`), and `882873e` merges `main` into it. Same commands, at `882873e`, with `RAW_DATA_DIR` set to the raw-data root:
+
+- `python -m src.job.local_run` (job run `05ff3809-5a04-48f6-8d60-ab0795dbcc06`): PSGC Bronze skipped (already loaded; same SHA-256), HDX Bronze loaded nothing new (`phl_admin3.geojson` not in the landing folder, so the loaded batch `hdx_boundaries__2025-02-13__f682747fbb26` stays current), and both Silver tables rebuilt and passed their gates. The PSA Poverty Stat Silver gate failed (one workbook is not on this computer), so the fan-in stopped the map tasks, as in the first run.
+- `python analysis\verification\hdx_adm3_psgc_map.py`: gate passed, map published, exit code 0.
+
+| | 2026-10-15, `adcbf0c` | 2026-10-18, `882873e` |
+|---|---|---|
+| Map rows / matched / distinct PSGC codes | 1,642 / 1,634 / 1,634 | 1,642 / 1,634 / 1,634 |
+| Match rate | 99.51% | 99.51% |
+| Overrides applied / pending | 12 / 0 | 12 / 0 |
+| FAIL | 0 | 0 |
+| WARN | `unmatched` 8 | `unmatched` 8, `psgc_units_without_feature` 8 |
+
+The count per method is unchanged (1,480 / 96 / 29 / 19 / 6 / 4 matched, 8 unmatched), and `ambiguous` is 0, so on this data the stricter rules change no match. The new WARN counts the PSGC side: the 8 PSGC Special Geographic Area municipalities that no HDX feature matches, and which therefore have no HDX land area. The full suite passed at `882873e` (784 passed, 1 skipped). Databricks: two runs at `882873e`, 29 PASS, 2 WARN, 0 FAIL, the same count per method ([Databricks record](../pipeline-runs/2026-10-15-hdx-adm3-psgc-map-databricks.md#rerun-at-882873e-2026-10-18)).
+
 ## Limitations
 
 - Local DuckDB stands in for Spark and Delta (D-017). The Databricks runs are in their own record, linked above.
@@ -88,4 +107,4 @@ Each override's reason and evidence is in the config. The script writes the same
 
 ## How to reproduce
 
-From a checkout of `adcbf0c` (or later), with `RAW_DATA_DIR` holding at least `admin_boundaries/` and `psa/`: `python -m src.job.local_run`, then `python analysis/verification/hdx_adm3_psgc_map.py`. Expected: gate passed, 1,642 rows, 1,634 matched, 12 reviewed, 0 pending, `unmatched` WARN 8, no FAIL.
+From a checkout of `adcbf0c` (or later), with `RAW_DATA_DIR` holding at least `admin_boundaries/` and `psa/`: `python -m src.job.local_run`, then `python analysis/verification/hdx_adm3_psgc_map.py`. Expected: gate passed, 1,642 rows, 1,634 matched, 12 reviewed, 0 pending, no FAIL; WARN `unmatched` 8, and from `3c32944` on also `psgc_units_without_feature` 8; exit code 0.
