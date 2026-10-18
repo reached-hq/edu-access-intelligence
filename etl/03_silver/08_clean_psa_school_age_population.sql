@@ -49,7 +49,7 @@ ALTER SCHEMA edu_access.`03-silver` OWNER TO `reached-hq`;
 -- Every count cell of the current batches once, with its place, the published text, and the count
 -- typed. A reason is decided with explicit NULL handling, and concat_ws never returns NULL, so
 -- quarantine_reasons = '' and <> '' split the cells without losing any.
-CREATE OR REPLACE TEMPORARY VIEW psa_school_age_population_cells AS
+CREATE OR REPLACE TABLE edu_access.`03-silver`.psa_school_age_population_work_cells USING DELTA AS
 WITH bronze AS (
   SELECT r.*
   FROM edu_access.`02-bronze`.psa_school_age_population_raw AS r
@@ -120,21 +120,23 @@ SELECT
 FROM cells AS c
 LEFT JOIN places AS p ON p.batch_id = c.batch_id AND p.source_sheet = c.source_sheet AND p.place_pos = c.place_pos;
 
--- Each place's level, parents and parsed label. The levels come from the sums (D-053): an aggregate's
--- level is its depth, a place with no children is a city or municipality at a depth the rules allow.
--- A place the sums do not explain gets no level, and the gate fails.
-CREATE OR REPLACE TEMPORARY VIEW psa_school_age_population_tree AS
-WITH cells AS (
-  SELECT batch_id, source_sheet, place_pos, sex, age, population FROM psa_school_age_population_cells
-),
-places AS (
-  SELECT DISTINCT batch_id, source_sheet, place_pos, place_label FROM psa_school_age_population_cells
-),
+ALTER TABLE edu_access.`03-silver`.psa_school_age_population_work_cells OWNER TO `reached-hq`;
+
+-- Each place once, in workbook order within its batch and sheet.
+CREATE OR REPLACE TABLE edu_access.`03-silver`.psa_school_age_population_work_places USING DELTA AS
+SELECT DISTINCT batch_id, source_sheet, place_pos, place_label FROM edu_access.`03-silver`.psa_school_age_population_work_cells;
+
+ALTER TABLE edu_access.`03-silver`.psa_school_age_population_work_places OWNER TO `reached-hq`;
+
+-- The aggregates, from the sums: one pass per level that has children, from the bottom.
+-- Pass 1: every place counts.
+CREATE OR REPLACE TABLE edu_access.`03-silver`.psa_school_age_population_work_spans USING DELTA AS
+WITH
 c1 AS (
   SELECT c.batch_id, c.source_sheet, c.sex, c.age, c.place_pos, c.population, FALSE AS covered,
          SUM(c.population) OVER (PARTITION BY c.batch_id, c.source_sheet, c.sex, c.age ORDER BY c.place_pos
          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running
-  FROM cells AS c
+  FROM edu_access.`03-silver`.psa_school_age_population_work_cells AS c
 ),
 m1 AS (
   SELECT i.batch_id, i.source_sheet, i.place_pos AS start_pos, j.place_pos AS end_pos
@@ -143,22 +145,25 @@ m1 AS (
    AND j.place_pos > i.place_pos AND j.running = i.running + i.population
   GROUP BY i.batch_id, i.source_sheet, i.place_pos, j.place_pos
   HAVING COUNT(*) = 60
-),
-s1 AS (
-  SELECT batch_id, source_sheet, start_pos, MAX(end_pos) AS end_pos, 1 AS found_in_pass
-  FROM m1 GROUP BY batch_id, source_sheet, start_pos
-),
+)
+SELECT batch_id, source_sheet, start_pos, MAX(end_pos) AS end_pos, 1 AS found_in_pass
+FROM m1 GROUP BY batch_id, source_sheet, start_pos;
+
+ALTER TABLE edu_access.`03-silver`.psa_school_age_population_work_spans OWNER TO `reached-hq`;
+
 -- Pass 2: places inside an aggregate already found count once, as that aggregate.
+INSERT INTO edu_access.`03-silver`.psa_school_age_population_work_spans (batch_id, source_sheet, start_pos, end_pos, found_in_pass)
+WITH
 in2 AS (
   SELECT DISTINCT p.batch_id, p.source_sheet, p.place_pos
-  FROM places AS p JOIN s1 AS s ON s.batch_id = p.batch_id AND s.source_sheet = p.source_sheet
+  FROM edu_access.`03-silver`.psa_school_age_population_work_places AS p JOIN edu_access.`03-silver`.psa_school_age_population_work_spans AS s ON s.batch_id = p.batch_id AND s.source_sheet = p.source_sheet
    AND p.place_pos > s.start_pos AND p.place_pos <= s.end_pos
 ),
 c2 AS (
   SELECT c.batch_id, c.source_sheet, c.sex, c.age, c.place_pos, c.population, n.place_pos IS NOT NULL AS covered,
          SUM(CASE WHEN n.place_pos IS NULL THEN c.population ELSE 0 END) OVER (PARTITION BY c.batch_id, c.source_sheet, c.sex, c.age ORDER BY c.place_pos
          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running
-  FROM cells AS c
+  FROM edu_access.`03-silver`.psa_school_age_population_work_cells AS c
   LEFT JOIN in2 AS n ON n.batch_id = c.batch_id AND n.source_sheet = c.source_sheet AND n.place_pos = c.place_pos
 ),
 m2 AS (
@@ -166,27 +171,27 @@ m2 AS (
   FROM c2 AS i
   JOIN c2 AS j ON j.batch_id = i.batch_id AND j.source_sheet = i.source_sheet AND j.sex = i.sex AND j.age = i.age
    AND j.place_pos > i.place_pos AND j.running = i.running + i.population
-  LEFT JOIN s1 AS done ON done.batch_id = i.batch_id AND done.source_sheet = i.source_sheet AND done.start_pos = i.place_pos
+  LEFT JOIN edu_access.`03-silver`.psa_school_age_population_work_spans AS done ON done.batch_id = i.batch_id AND done.source_sheet = i.source_sheet AND done.start_pos = i.place_pos
   WHERE NOT i.covered AND done.start_pos IS NULL
   GROUP BY i.batch_id, i.source_sheet, i.place_pos, j.place_pos
   HAVING COUNT(*) = 60
-),
-s2 AS (
-  SELECT batch_id, source_sheet, start_pos, MAX(end_pos) AS end_pos, 2 AS found_in_pass
-  FROM m2 GROUP BY batch_id, source_sheet, start_pos
-),
-f2 AS (SELECT * FROM s1 UNION ALL SELECT * FROM s2),
+)
+SELECT batch_id, source_sheet, start_pos, MAX(end_pos) AS end_pos, 2 AS found_in_pass
+FROM m2 GROUP BY batch_id, source_sheet, start_pos;
+
 -- Pass 3: places inside an aggregate already found count once, as that aggregate.
+INSERT INTO edu_access.`03-silver`.psa_school_age_population_work_spans (batch_id, source_sheet, start_pos, end_pos, found_in_pass)
+WITH
 in3 AS (
   SELECT DISTINCT p.batch_id, p.source_sheet, p.place_pos
-  FROM places AS p JOIN f2 AS s ON s.batch_id = p.batch_id AND s.source_sheet = p.source_sheet
+  FROM edu_access.`03-silver`.psa_school_age_population_work_places AS p JOIN edu_access.`03-silver`.psa_school_age_population_work_spans AS s ON s.batch_id = p.batch_id AND s.source_sheet = p.source_sheet
    AND p.place_pos > s.start_pos AND p.place_pos <= s.end_pos
 ),
 c3 AS (
   SELECT c.batch_id, c.source_sheet, c.sex, c.age, c.place_pos, c.population, n.place_pos IS NOT NULL AS covered,
          SUM(CASE WHEN n.place_pos IS NULL THEN c.population ELSE 0 END) OVER (PARTITION BY c.batch_id, c.source_sheet, c.sex, c.age ORDER BY c.place_pos
          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running
-  FROM cells AS c
+  FROM edu_access.`03-silver`.psa_school_age_population_work_cells AS c
   LEFT JOIN in3 AS n ON n.batch_id = c.batch_id AND n.source_sheet = c.source_sheet AND n.place_pos = c.place_pos
 ),
 m3 AS (
@@ -194,22 +199,28 @@ m3 AS (
   FROM c3 AS i
   JOIN c3 AS j ON j.batch_id = i.batch_id AND j.source_sheet = i.source_sheet AND j.sex = i.sex AND j.age = i.age
    AND j.place_pos > i.place_pos AND j.running = i.running + i.population
-  LEFT JOIN f2 AS done ON done.batch_id = i.batch_id AND done.source_sheet = i.source_sheet AND done.start_pos = i.place_pos
+  LEFT JOIN edu_access.`03-silver`.psa_school_age_population_work_spans AS done ON done.batch_id = i.batch_id AND done.source_sheet = i.source_sheet AND done.start_pos = i.place_pos
   WHERE NOT i.covered AND done.start_pos IS NULL
   GROUP BY i.batch_id, i.source_sheet, i.place_pos, j.place_pos
   HAVING COUNT(*) = 60
+)
+SELECT batch_id, source_sheet, start_pos, MAX(end_pos) AS end_pos, 3 AS found_in_pass
+FROM m3 GROUP BY batch_id, source_sheet, start_pos;
+
+-- Each place's level, parents and parsed label. The levels come from the sums (D-053): an aggregate's
+-- level is its depth, a place with no children is a city or municipality at a depth the rules allow.
+-- A place the sums do not explain gets no level, and the gate fails.
+CREATE OR REPLACE TABLE edu_access.`03-silver`.psa_school_age_population_work_tree USING DELTA AS
+WITH places AS (
+  SELECT * FROM edu_access.`03-silver`.psa_school_age_population_work_places
 ),
-s3 AS (
-  SELECT batch_id, source_sheet, start_pos, MAX(end_pos) AS end_pos, 3 AS found_in_pass
-  FROM m3 GROUP BY batch_id, source_sheet, start_pos
-),
-f3 AS (SELECT * FROM f2 UNION ALL SELECT * FROM s3),
 -- An aggregate with a single child ends where that child's span ends.
+e0 AS (SELECT * FROM edu_access.`03-silver`.psa_school_age_population_work_spans),
 e1 AS (
   SELECT s.batch_id, s.source_sheet, s.start_pos,
          CASE WHEN t.end_pos > s.end_pos THEN t.end_pos ELSE s.end_pos END AS end_pos, s.found_in_pass
-  FROM f3 AS s
-  LEFT JOIN f3 AS t ON t.batch_id = s.batch_id AND t.source_sheet = s.source_sheet AND t.start_pos = s.end_pos
+  FROM e0 AS s
+  LEFT JOIN e0 AS t ON t.batch_id = s.batch_id AND t.source_sheet = s.source_sheet AND t.start_pos = s.end_pos
 ),
 e2 AS (
   SELECT s.batch_id, s.source_sheet, s.start_pos,
@@ -286,6 +297,8 @@ FROM leveled AS l
 LEFT JOIN leveled AS par ON par.batch_id = l.batch_id AND par.source_sheet = l.source_sheet AND par.place_pos = l.parent_pos
 LEFT JOIN named AS n ON n.batch_id = l.batch_id AND n.source_sheet = l.source_sheet AND n.place_pos = l.place_pos;
 
+ALTER TABLE edu_access.`03-silver`.psa_school_age_population_work_tree OWNER TO `reached-hq`;
+
 -- Every cell with its place.
 CREATE OR REPLACE TEMPORARY VIEW psa_school_age_population_classified AS
 SELECT
@@ -315,8 +328,8 @@ SELECT
   session.silver_run_id AS run_id,
   session.silver_cleaned_at_utc AS cleaned_at_utc,
   session.silver_code_revision AS code_revision
-FROM psa_school_age_population_cells AS c
-LEFT JOIN psa_school_age_population_tree AS t ON t.batch_id = c.batch_id AND t.source_sheet = c.source_sheet AND t.place_pos = c.place_pos;
+FROM edu_access.`03-silver`.psa_school_age_population_work_cells AS c
+LEFT JOIN edu_access.`03-silver`.psa_school_age_population_work_tree AS t ON t.batch_id = c.batch_id AND t.source_sheet = c.source_sheet AND t.place_pos = c.place_pos;
 
 -- One row per cell, with the Bronze row it came from.
 CREATE OR REPLACE TABLE edu_access.`03-silver`.psa_school_age_population_clean_candidate USING DELTA AS
@@ -377,3 +390,9 @@ WHERE quarantine_reasons <> '';
 
 COMMENT ON TABLE edu_access.`03-silver`.psa_school_age_population_quarantine_candidate IS 'Unpublished build for the Silver gate, which may have failed. Do not read: use psa_school_age_population_quarantine, trusted by the run its rows carry (D-025).';
 ALTER TABLE edu_access.`03-silver`.psa_school_age_population_quarantine_candidate OWNER TO `reached-hq`;
+
+-- The work tables are not needed after the build.
+DROP TABLE IF EXISTS edu_access.`03-silver`.psa_school_age_population_work_cells;
+DROP TABLE IF EXISTS edu_access.`03-silver`.psa_school_age_population_work_places;
+DROP TABLE IF EXISTS edu_access.`03-silver`.psa_school_age_population_work_spans;
+DROP TABLE IF EXISTS edu_access.`03-silver`.psa_school_age_population_work_tree;

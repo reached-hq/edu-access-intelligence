@@ -331,40 +331,44 @@ def _same_sheet(a, b):
     return f"{a}.batch_id = {b}.batch_id AND {a}.source_sheet = {b}.source_sheet"
 
 
-def _tree_passes(spec):
-    """CTEs that find every aggregate: pass k finds the aggregates whose children were all found by earlier
-    passes (or are leaves). Places inside an aggregate already found count as 0, so its own value counts
-    once. A candidate's span ends at the last place where the running sums, in all of its cells, have grown
-    by exactly its own value since it."""
+def _tree_passes(spec, cells, places, spans):
+    """Statements that find every aggregate into the work table `spans`: pass k finds the aggregates whose
+    children were all found by earlier passes (or are leaves). Places inside an aggregate already found
+    count as 0, so its own value counts once. A candidate's span ends at the last place where the running
+    sums, in all of its cells, have grown by exactly its own value since it. Each pass reads the work
+    tables, never a view of an earlier pass: Spark would compute an earlier pass again for every place
+    it is used (#158, a 40-minute build on Databricks)."""
     window = ("OVER (PARTITION BY c.batch_id, c.source_sheet, c.sex, c.age ORDER BY c.place_pos\n"
               "         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)")
-    ctes, found = [], None
+    statements = []
     for k in range(1, spec.passes + 1):
-        if found is None:
-            ctes.append("\n".join([
+        if k == 1:
+            head = [f"-- Pass 1: every place counts.", f"CREATE OR REPLACE TABLE {spans} USING DELTA AS", "WITH"]
+            ctes = ["\n".join([
                 f"c{k} AS (",
                 f"  SELECT c.batch_id, c.source_sheet, c.sex, c.age, c.place_pos, c.population, FALSE AS covered,",
                 f"         SUM(c.population) {window} AS running",
-                "  FROM cells AS c",
+                f"  FROM {cells} AS c",
                 "),",
-            ]))
+            ])]
             done_join, done_where = "", ""
         else:
-            ctes.append("\n".join([
-                f"-- Pass {k}: places inside an aggregate already found count once, as that aggregate.",
+            head = [f"-- Pass {k}: places inside an aggregate already found count once, as that aggregate.",
+                    f"INSERT INTO {spans} (batch_id, source_sheet, start_pos, end_pos, found_in_pass)", "WITH"]
+            ctes = ["\n".join([
                 f"in{k} AS (",
                 "  SELECT DISTINCT p.batch_id, p.source_sheet, p.place_pos",
-                f"  FROM places AS p JOIN {found} AS s ON {_same_sheet('s', 'p')}",
+                f"  FROM {places} AS p JOIN {spans} AS s ON {_same_sheet('s', 'p')}",
                 "   AND p.place_pos > s.start_pos AND p.place_pos <= s.end_pos",
                 "),",
                 f"c{k} AS (",
                 f"  SELECT c.batch_id, c.source_sheet, c.sex, c.age, c.place_pos, c.population, n.place_pos IS NOT NULL AS covered,",
                 f"         SUM(CASE WHEN n.place_pos IS NULL THEN c.population ELSE 0 END) {window} AS running",
-                "  FROM cells AS c",
+                f"  FROM {cells} AS c",
                 f"  LEFT JOIN in{k} AS n ON {_same_sheet('n', 'c')} AND n.place_pos = c.place_pos",
                 "),",
-            ]))
-            done_join = (f"\n  LEFT JOIN {found} AS done ON {_same_sheet('done', 'i')} AND done.start_pos = i.place_pos")
+            ])]
+            done_join = f"\n  LEFT JOIN {spans} AS done ON {_same_sheet('done', 'i')} AND done.start_pos = i.place_pos"
             done_where = "\n  WHERE NOT i.covered AND done.start_pos IS NULL"
         ctes.append("\n".join([
             f"m{k} AS (",
@@ -374,38 +378,43 @@ def _tree_passes(spec):
             "   AND j.place_pos > i.place_pos AND j.running = i.running + i.population" + done_join + done_where,
             "  GROUP BY i.batch_id, i.source_sheet, i.place_pos, j.place_pos",
             f"  HAVING COUNT(*) = {spec.cells_per_place}",
-            "),",
-            f"s{k} AS (",
-            f"  SELECT batch_id, source_sheet, start_pos, MAX(end_pos) AS end_pos, {k} AS found_in_pass",
-            f"  FROM m{k} GROUP BY batch_id, source_sheet, start_pos",
-            "),",
+            ")",
+            f"SELECT batch_id, source_sheet, start_pos, MAX(end_pos) AS end_pos, {k} AS found_in_pass",
+            f"FROM m{k} GROUP BY batch_id, source_sheet, start_pos;",
+            "",
         ]))
-        if found is None:
-            found = f"s{k}"
-        else:
-            ctes.append(f"f{k} AS (SELECT * FROM {found} UNION ALL SELECT * FROM s{k}),")
-            found = f"f{k}"
-    # An aggregate with a single child equals it, so its running sums are matched at the child's own row:
-    # its span then reaches to the end of the child's span (repeated for a chain of single children).
-    ctes.append("-- An aggregate with a single child ends where that child's span ends.")
+        if k == 1:
+            ctes.append(f"ALTER TABLE {spans} OWNER TO `{OWNER_GROUP}`;\n")
+        statements += head + ctes
+    return statements
+
+
+def _extended_spans(spec, spans):
+    """CTEs over the found spans: an aggregate with a single child equals it, so its running sums are
+    matched at the child's own row; its span then reaches to the end of the child's span (repeated for a
+    chain of single children)."""
+    ctes = ["-- An aggregate with a single child ends where that child's span ends.",
+            f"e0 AS (SELECT * FROM {spans}),"]
     for k in range(1, spec.passes + 1):
         ctes.append("\n".join([
             f"e{k} AS (",
             "  SELECT s.batch_id, s.source_sheet, s.start_pos,",
             "         CASE WHEN t.end_pos > s.end_pos THEN t.end_pos ELSE s.end_pos END AS end_pos, s.found_in_pass",
-            f"  FROM {found} AS s",
-            f"  LEFT JOIN {found} AS t ON {_same_sheet('t', 's')} AND t.start_pos = s.end_pos",
+            f"  FROM e{k - 1} AS s",
+            f"  LEFT JOIN e{k - 1} AS t ON {_same_sheet('t', 's')} AND t.start_pos = s.end_pos",
             "),",
         ]))
-        found = f"e{k}"
-    return ctes, found
+    return ctes, f"e{spec.passes}"
 
 
 # --- Build ---------------------------------------------------------------------------------
 
 def build_sql(spec):
     source = spec.source_id
-    cells_view, tree_view, classified = f"{source}_cells", f"{source}_tree", f"{source}_classified"
+    # Work tables: each step of the tree reads the one before as a table, so Spark computes it once (#158).
+    # They are rebuilt by every run and dropped once the candidates are written.
+    work = {name: silver_ref(f"{source}_work_{name}") for name in ("cells", "places", "spans", "tree")}
+    cells_table, tree_table, classified = work["cells"], work["tree"], f"{source}_classified"
     lineage = [name for name, _ in LINEAGE]
     stamp = [name for name, _ in RUN_STAMP]
     grid = ", ".join(f"({lit(s)}, {a})" for s in spec.sexes for a in spec.ages)
@@ -417,7 +426,8 @@ def build_sql(spec):
         f"      CASE WHEN {published} <> '' AND NOT regexp_like({published}, {lit(spec.count_pattern)})\n"
         f"                AND NOT regexp_like({published}, {lit(spec.negative_pattern)}) THEN 'population_not_whole_number' END\n"
         "    ) AS quarantine_reasons")
-    passes, spans = _tree_passes(spec)
+    passes = _tree_passes(spec, cells_table, work["places"], work["spans"])
+    extended, spans = _extended_spans(spec, work["spans"])
     parts = _label_parts(spec, "p.label_text")
     clean_columns = [name for name, _ in spec.clean_columns()]
     quarantine_select = ["census_year", "population_concept", "place_label", "sex", "age",
@@ -473,7 +483,7 @@ def build_sql(spec):
         "-- Every count cell of the current batches once, with its place, the published text, and the count",
         "-- typed. A reason is decided with explicit NULL handling, and concat_ws never returns NULL, so",
         "-- quarantine_reasons = '' and <> '' split the cells without losing any.",
-        f"CREATE OR REPLACE TEMPORARY VIEW {cells_view} AS",
+        f"CREATE OR REPLACE TABLE {cells_table} USING DELTA AS",
         "WITH bronze AS (",
         "  SELECT r.*",
         f"  FROM {_bronze_ref(spec)} AS r",
@@ -519,17 +529,24 @@ def build_sql(spec):
         "FROM cells AS c",
         "LEFT JOIN places AS p ON p.batch_id = c.batch_id AND p.source_sheet = c.source_sheet AND p.place_pos = c.place_pos;",
         "",
+        f"ALTER TABLE {cells_table} OWNER TO `{OWNER_GROUP}`;",
+        "",
+        "-- Each place once, in workbook order within its batch and sheet.",
+        f"CREATE OR REPLACE TABLE {work['places']} USING DELTA AS",
+        f"SELECT DISTINCT batch_id, source_sheet, place_pos, place_label FROM {cells_table};",
+        "",
+        f"ALTER TABLE {work['places']} OWNER TO `{OWNER_GROUP}`;",
+        "",
+        "-- The aggregates, from the sums: one pass per level that has children, from the bottom.",
+        *passes,
         "-- Each place's level, parents and parsed label. The levels come from the sums (D-053): an aggregate's",
         "-- level is its depth, a place with no children is a city or municipality at a depth the rules allow.",
         "-- A place the sums do not explain gets no level, and the gate fails.",
-        f"CREATE OR REPLACE TEMPORARY VIEW {tree_view} AS",
-        "WITH cells AS (",
-        f"  SELECT batch_id, source_sheet, place_pos, sex, age, population FROM {cells_view}",
+        f"CREATE OR REPLACE TABLE {tree_table} USING DELTA AS",
+        "WITH places AS (",
+        f"  SELECT * FROM {work['places']}",
         "),",
-        "places AS (",
-        f"  SELECT DISTINCT batch_id, source_sheet, place_pos, place_label FROM {cells_view}",
-        "),",
-        *passes,
+        *extended,
         f"spans AS (SELECT * FROM {spans}),",
         "-- The aggregates around each place; the innermost (the last to start) is its parent.",
         "enclosing AS (",
@@ -579,6 +596,8 @@ def build_sql(spec):
         f"LEFT JOIN leveled AS par ON {_same_sheet('par', 'l')} AND par.place_pos = l.parent_pos",
         f"LEFT JOIN named AS n ON {_same_sheet('n', 'l')} AND n.place_pos = l.place_pos;",
         "",
+        f"ALTER TABLE {tree_table} OWNER TO `{OWNER_GROUP}`;",
+        "",
         "-- Every cell with its place.",
         f"CREATE OR REPLACE TEMPORARY VIEW {classified} AS",
         "SELECT",
@@ -588,8 +607,8 @@ def build_sql(spec):
                 "t.province_name", "t.parent_name", "c.sex", "c.age", "c.population", "c.quarantine_reasons",
                 *[f"c.{name}" for name in lineage],
                 *[f"session.silver_{name} AS {name}" for name in stamp]], 2),
-        f"FROM {cells_view} AS c",
-        f"LEFT JOIN {tree_view} AS t ON {_same_sheet('t', 'c')} AND t.place_pos = c.place_pos;",
+        f"FROM {cells_table} AS c",
+        f"LEFT JOIN {tree_table} AS t ON {_same_sheet('t', 'c')} AND t.place_pos = c.place_pos;",
         "",
         "-- One row per cell, with the Bronze row it came from.",
         f"CREATE OR REPLACE TABLE {clean} USING DELTA AS",
@@ -610,6 +629,9 @@ def build_sql(spec):
         "",
         candidate_comment(quarantine, spec.quarantine_table),
         f"ALTER TABLE {quarantine} OWNER TO `{OWNER_GROUP}`;",
+        "",
+        "-- The work tables are not needed after the build.",
+        *[f"DROP TABLE IF EXISTS {ref};" for ref in work.values()],
         "",
     ]
     return "\n".join(lines)

@@ -413,6 +413,19 @@ def test_repeated_full_rebuilds_give_identical_business_content(env):
     assert env.q(f"SELECT DISTINCT run_id FROM {CLEAN}") == [(again.run_id,)]
 
 
+def test_each_tree_step_reads_a_work_table_and_the_build_drops_them(env):
+    """Spark recomputes a view every time it is used, so a chain of views recomputed every earlier pass
+    for each later one (a 40-minute build on Databricks). Each step is a table instead (#158)."""
+    build = sap.build_sql(sap.load_spec(REPO_ROOT))
+    assert "TEMPORARY VIEW psa_school_age_population_tree" not in build
+    assert build.count("TEMPORARY VIEW") == 1                              # the last join only, used twice
+    env.deliver()
+    env.bronze()
+    assert env.silver(gate=False).status == "built"
+    assert env.q("SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%_work_%'") == []
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN_CANDIDATE}") == 4 * CELLS
+
+
 def test_a_failed_build_never_replaces_the_last_good_one(env):
     env.deliver()
     env.bronze()
