@@ -134,6 +134,7 @@ SY 2020-21 `school_management` in Silver: DepEd 47,252; Non-Sectarian 9,496; Sec
 ## What this does not prove
 
 - Byte-level equality with the local Silver content. The local record compares MD5 hashes; this record compares counts, learners, labels, and flags, as the earlier Databricks records do.
+- The job wiring of #166, which merged at 04:07 UTC during run 2. Both runs used the job as deployed at `df63d63`. #166 changed which downstream tasks wait for which gates, not the enrollment Bronze or Silver files, and its new Integration and Gold tasks are disabled.
 - Quarantine on real data: no real row is quarantined.
 - That `Local Government` schools were managed differently from `DepEd` schools (see the local record).
 
