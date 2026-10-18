@@ -726,13 +726,13 @@ bronze_deped_enrollment_psgc               Python: check and load the workbook (
    │                                            deped_enrollment_psgc_quarantine_candidate  rows not carried, with reasons
    │  only if it succeeded
    ▼
-90_validate_deped_enrollment_psgc_clean    SQL: 28 checks; any FAIL: 'failed', stop, nothing published;
+90_validate_deped_enrollment_psgc_clean    SQL: 32 checks; any FAIL: 'failed', stop, nothing published;
                                                 else publish quarantine, then clean, then 'succeeded'
 ```
 
 ### Grain and shape (crosswalk)
 
-One row per `school_id` and `school_year` (`2023-24`): the four PSGC codes, `psgc_recoded`, two null reasons, `barangay_outside_city`, the typed coordinates and `coordinate_flag`, the published DepEd and PSGC names, `sector` and `urp` as published, the Bronze lineage, and the run stamp.
+One row per `school_id` and `school_year` (`2023-24`): the four PSGC codes, `psgc_recoded`, two null reasons, `barangay_outside_city`, the coordinates typed and as published, and `coordinate_flag`, the published DepEd and PSGC names, `sector` and `urp` as published, the Bronze lineage, and the run stamp.
 
 ### Cleaning rules (crosswalk)
 
@@ -744,16 +744,18 @@ One row per `school_id` and `school_year` (`2023-24`): the four PSGC codes, `psg
 | Repeated `school_id`, rows differ | quarantine every copy as `school_id_duplicated` | Which row is right is unknown | 0 |
 | PSGC codes stored as 9 or 10 digits | left-pad to 10 | Profile O-5 | 36,010 barangay codes had 9 digits |
 | `#N/A` or blank code | NULL with `source_na` or `not_in_workbook`; any other value **fails** | Profile O-6, O-2; D-023 | city 663 / 106; barangay 667 / 106 |
-| Province code `19066…` (Sulu, Q4 2024) | province, city, barangay to `09066…`, region to `0900000000`; `psgc_recoded` | D-049, profile X-2 | 467 schools |
+| Province code `19066…` (Sulu, Q4 2024) | each code that itself starts with `19066` to `09066…`, region `1900000000` to `0900000000`; `psgc_recoded`. A code pointing elsewhere is kept | D-049, profile X-2 | 467 schools |
 | Barangay code outside its city or municipality code | flag `barangay_outside_city` | Profile O-7; kept as published | 3 |
-| Longitude, latitude | DOUBLE as published; unreadable text **fails** | D-023 | 46,374 numeric |
+| Longitude, latitude | DOUBLE, plus `longitude_published` / `latitude_published` keeping the exact Bronze text; unreadable text **fails**; the gate fails unless both reconcile to Bronze | D-023; Excel stored float noise (`120.79600000000001`), which the DOUBLE reads as `120.796` and the text keeps | 46,374 numeric |
 | Coordinates missing, (0, 0), or outside the Philippines box | flag `coordinate_flag` | Profile O-10; S-1 is open | 13,899 / 6 / 54 |
+
+How these counts relate to the profile: Bronze has 13,901 school rows with a missing coordinate (13,793 `#N/A` and 108 blank, O-10); 2 of them are the quarantined rows (Excel rows 60181 and 60267), so 13,899 clean rows are `missing`. The profile's 60 points outside the Philippines box include the 6 at (0, 0); Silver flags those 6 as `zero` and the other 54 as `outside_philippines`. No coordinate is dropped.
 
 After padding and the recode, every one of the 59,500 barangay codes and 59,504 city codes exists in PSGC 2Q 2026 (checked outside the gate; the match itself is Integration's).
 
 ### The gate (crosswalk)
 
-FAIL: `current_batch_present`, `rows_reconcile` (clean + quarantine = Bronze unit rows), `school_id_unique`, `school_id_format`, `codes_ten_digits`, `code_values_recognized`, `null_reason_matches_code`, `levels_null_together` (region and province NULL exactly when the city is), `coordinates_in_pairs`, `coordinate_values_recognized`, `lineage_complete`, `rows_built_by_this_run`. `quarantine_rate`: WARN above 0, FAIL above 1%. Fifteen `profiled_*` records: PASS at the count in the rules file, WARN when it changes, never FAIL. `deped_enrollment_psgc.gate_checks()` lists them.
+FAIL: `current_batch_present` (with no current batch the gate fails and publishes nothing), `rows_reconcile` (clean + quarantine = Bronze unit rows), `rows_resolve_to_current_bronze` (each row points at exactly one current Bronze `unit` row through its lineage), `values_reconcile` (every value recomputed from its Bronze row with the build's own expressions equals the candidate's), `coordinates_reconcile` (the published text equals Bronze and the DOUBLE equals its cast), `school_id_unique`, `school_id_format`, `codes_ten_digits`, `code_values_recognized`, `region_province_values_recognized`, `null_reason_matches_code`, `levels_null_together` (region and province NULL exactly when the city is), `coordinates_in_pairs`, `coordinate_values_recognized`, `lineage_complete`, `rows_built_by_this_run`. `quarantine_rate`: WARN above 0, FAIL above 1%. Fifteen `profiled_*` records: PASS at the count in the rules file, WARN when it changes, never FAIL. `deped_enrollment_psgc.gate_checks()` lists them.
 
 ### Running locally (crosswalk)
 
@@ -765,4 +767,4 @@ FAIL: `current_batch_present`, `rows_reconcile` (clean + quarantine = Bronze uni
 - Manila's schools carry district codes (`1380601000` to `1380614000`); Integration rolls them up to the City of Manila (D-049).
 - The workbook's PSGC names are as published: Sulu's still say BARMM after the recode. Take names and urban/rural or income class from psa_psgc through the code.
 - Coordinates feed no Gold measure until the boundary test (S-1). Licensing is unverified: published outputs use the codes only to place schools in their city or municipality (D-049).
-- Still to confirm with @hyenalouise (#163): the identical-copy collapse, quarantining the 7-digit ID, and keeping the 106 appended schools with NULL codes.
+- Confirmed by @hyenalouise for the DepEd lane (PR #169, 2026-10-18): the identical-copy collapse, quarantining the 7-digit ID, and keeping the 106 appended schools with NULL codes.

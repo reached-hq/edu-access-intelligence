@@ -25,6 +25,8 @@ QUARANTINE = "edu_access.`03-silver`.deped_enrollment_psgc_quarantine"
 ORDINARY = 500   # enough ordinary schools that the 4 quarantined rows stay under the 1% FAIL line
 
 SULU = (1900000000, 1906600000, 1906601000, 1906601018)
+SULU_BARANGAY_ELSEWHERE = (1900000000, 1906600000, 1906601000, 1907001001)   # a Sulu school whose barangay is in another province
+CANDIDATE = "edu_access.`03-silver`.deped_enrollment_psgc_clean_candidate"
 CODED = (100000000, 102800000, 102802000, 102802013)
 
 
@@ -34,6 +36,8 @@ def rows():
     r = 9 + ORDINARY
     special = [
         school(300101, codes=SULU),                                       # Sulu, recoded
+        school(300107, codes=SULU_BARANGAY_ELSEWHERE),                    # Sulu, but the barangay code is not Sulu's
+        school(300108, lon="120.79600000000001", lat=16.25),              # Excel's float noise, as stored in the real file
         school(300102, codes=(NA, NA, NA, NA), lon=NA, lat=NA),          # #N/A at every level
         school(300103, codes=(CODED[0], CODED[1], CODED[2], NA)),        # city known, barangay #N/A
         school(300104, lon=0, lat=0),                                    # (0, 0)
@@ -100,6 +104,9 @@ def test_crosswalk_rules_reconcile_and_pass_the_gate(lane):
     assert row(store, "300101", "psgc_region, psgc_province, psgc_city_municipality, psgc_barangay, psgc_recoded") == [
         ("0900000000", "0906600000", "0906601000", "0906601018", True)]
     assert row(store, "200000", "psgc_recoded") == [(False,)]
+    # Only a code that itself starts with 19066 is recoded; a barangay pointing elsewhere is kept, and flagged.
+    assert row(store, "300107", "psgc_region, psgc_city_municipality, psgc_barangay, psgc_recoded, barangay_outside_city") == [
+        ("0900000000", "0906601000", "1907001001", True, True)]
     # Null reasons: #N/A everywhere; a known city with a #N/A barangay; no codes at all.
     assert row(store, "300102", "psgc_region, psgc_city_municipality, psgc_city_municipality_null_reason, psgc_barangay_null_reason") == [
         (None, None, "source_na", "source_na")]
@@ -108,6 +115,9 @@ def test_crosswalk_rules_reconcile_and_pass_the_gate(lane):
     assert row(store, "300106", "barangay_outside_city") == [(True,)]
     # Coordinates kept as published and flagged.
     assert row(store, "200000", "longitude, latitude, coordinate_flag") == [(120.5, 16.25, None)]
+    # The published text is kept exactly beside the number.
+    assert row(store, "300108", "longitude, longitude_published") == [(120.796, "120.79600000000001")]
+    assert row(store, "300102", "longitude_published, latitude_published") == [("#N/A", "#N/A")]
     assert row(store, "300102", "longitude, coordinate_flag") == [(None, "missing")]
     assert row(store, "300104", "longitude, latitude, coordinate_flag") == [(0.0, 0.0, "zero")]
     assert row(store, "300105", "coordinate_flag") == [("outside_philippines",)]
@@ -135,12 +145,14 @@ def test_profiled_counts_warn_when_they_change_and_never_fail(lane):
     found = checks(store, params["run_id"])
     profiled = {name: status for name, (status, _) in found.items() if name.startswith("profiled_")}
     assert profiled and set(profiled.values()) <= {"PASS", "WARN"}
-    assert found["profiled_recoded"] == ("WARN", "1")       # the made-up workbook has 1 Sulu school, not 467
+    assert found["profiled_recoded"] == ("WARN", "2")       # the made-up workbook has 2 Sulu schools, not 467
 
 
 @pytest.mark.parametrize("update, check", [
     ("psgc_barangay = 'unknown'", "code_values_recognized"),
     ("longitude = 'n/a'", "coordinate_values_recognized"),
+    ("psgc_region = '-'", "region_province_values_recognized"),
+    ("psgc_province = 'N/A'", "region_province_values_recognized"),
 ])
 def test_an_unexpected_value_fails_the_gate_and_publishes_nothing(lane, update, check):
     store, repo, _ = lane
@@ -170,3 +182,34 @@ def test_a_rerun_rebuilds_the_same_rows(lane):
     gate(store, silver, second)
     assert store.query(f"SELECT * EXCLUDE (run_id, cleaned_at_utc) FROM {CLEAN} ORDER BY school_id") == before
     assert store.query(f"SELECT DISTINCT run_id FROM {CLEAN}") == [(second["run_id"],)]
+
+
+@pytest.mark.parametrize("tamper, check", [
+    ("psgc_barangay = '0102802099'", "values_reconcile"),                 # a valid-looking code that is not the published one
+    ("school_name = 'Ibang Paaralan'", "values_reconcile"),               # published text changed
+    ("longitude = longitude + 0.000001", "coordinates_reconcile"),        # a coordinate nudged
+    ("longitude_published = '120.50'", "coordinates_reconcile"),          # the published text reformatted
+    ("source_row_number = 999999", "rows_resolve_to_current_bronze"),     # a row that points at no Bronze row
+])
+def test_a_candidate_value_that_differs_from_bronze_fails_the_gate(lane, tamper, check):
+    """The row count, formats, and run stamp stay right; only the row-level reconciliation can catch these."""
+    store, repo, _ = lane
+    params, silver = build(store, repo)
+    store.sql(f"UPDATE {CANDIDATE} SET {tamper} WHERE school_id = '200001'")
+    with pytest.raises(Exception, match="FAIL result"):
+        gate(store, silver, params)
+    found = checks(store, params["run_id"])
+    assert found[check][0] == "FAIL"
+    assert found["rows_reconcile"][0] == "PASS"
+
+
+def test_no_current_batch_fails_the_gate_and_publishes_nothing(tmp_path):
+    repo = fake_repo(tmp_path / "repo", empty_config())
+    (tmp_path / "landing" / "deped").mkdir(parents=True)              # an empty landing folder: nothing delivered
+    store = DuckDBStore()
+    assert IngestionRun(store, repo, SOURCE, tmp_path / "landing", "local", REVISION).execute().status == "succeeded"
+    params, silver = build(store, repo)
+    with pytest.raises(Exception, match="FAIL result"):
+        gate(store, silver, params)
+    assert checks(store, params["run_id"])["current_batch_present"] == ("FAIL", "0")
+    assert store.query("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'deped_enrollment_psgc_clean'") == [(0,)]

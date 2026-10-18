@@ -11,11 +11,12 @@
     "stored_pattern": "^[0-9]{9,10}$",
     "length": 10,
     "null_markers": {"#N/A": "source_na", "": "not_in_workbook"},
-    "evidence": "Profile O-5 (36,014 codes stored as numbers lost their leading zero), O-6 (#N/A), O-2 (the 108 appended rows have no codes)"
+    "evidence": "Profile O-5 (stored as numbers, regions I to IX lost their leading zero: 36,014 region, province, and city codes, and 36,010 barangay codes), O-6 (#N/A), O-2 (the 108 appended rows have no codes)"
   },
   "recode": {
     "province_prefix": "19066",
     "to_prefix": "09066",
+    "from_region": "1900000000",
     "region": "0900000000",
     "evidence": "Profile X-2: the 467 Sulu schools carry Q4 2024 codes under BARMM (province 1906600000). In PSGC 2Q 2026 Sulu is 0906600000 under Region IX (0900000000); all 19 city codes and 310 of 310 barangay codes exist there after the prefix change, with the same barangay names. D-049."
   },
@@ -33,7 +34,7 @@
   "profiled": {
     "bronze_unit_rows": 60275,
     "bronze_other_rows": 10,
-    "codes_padded": 36010,
+    "barangay_codes_padded": 36010,
     "city_source_na": 663,
     "city_not_in_workbook": 106,
     "barangay_source_na": 667,
@@ -52,11 +53,11 @@
     "grain": "One row per school_id and school_year. Rows that repeat a school_id and are identical in every published column are one school: the first (lowest Excel row) is kept and each other copy is quarantined as school_id_identical_copy. Rows that repeat a school_id and differ are all quarantined as school_id_duplicated.",
     "identifier": "A school_id that is not 6 digits is quarantined as school_id_malformed (as in DepEd enrollment Silver, #85).",
     "codes": "A code stored as 9 or 10 digits is left-padded to 10. #N/A and blank become NULL with their reason; any other value fails the gate. Region and province are NULL exactly when the city or municipality is, so they share its reason.",
-    "recode": "When the province code starts with 19066, province, city and barangay codes take the prefix 09066 and the region becomes 0900000000; psgc_recoded is TRUE. The workbook's PSGC names are kept as published.",
-    "coordinates": "Longitude and latitude are typed as DOUBLE and kept as published. coordinate_flag is missing, zero, outside_philippines, or NULL. Distances and the boundary test (S-1) are not Silver's.",
+    "recode": "When the province code starts with 19066, psgc_recoded is TRUE; then each of province, city and barangay that itself starts with 19066 takes the prefix 09066, and a region of 1900000000 becomes 0900000000. A code that points elsewhere is kept as published. The workbook's PSGC names are kept as published.",
+    "coordinates": "Longitude and latitude are typed as DOUBLE, and longitude_published and latitude_published keep the exact Bronze text; the gate fails unless both reconcile to Bronze. coordinate_flag is missing, zero, outside_philippines, or NULL. Distances and the boundary test (S-1) are not Silver's.",
     "not_in_silver": "The 58 enrollment counts (D-049), the workbook's urban/rural and income class (taken from psa_psgc through the code), and any check against psa_psgc (Integration, #44)."
   },
-  "open_questions": [
-    "Confirm with @hyenalouise (DepEd lane): collapsing the identical repeated school_id, quarantining the 7-digit school_id, and keeping the 108 appended schools with NULL codes (#163, Rules to confirm)."
+  "confirmed": [
+    "Collapsing the identical repeated school_id (404520), quarantining the 7-digit school_id (1406363), and keeping the appended schools with NULL codes and not_in_workbook: confirmed by @hyenalouise for the DepEd lane on PR #169, 2026-10-18."
   ]
 }

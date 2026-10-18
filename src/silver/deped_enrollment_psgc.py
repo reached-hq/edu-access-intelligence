@@ -26,7 +26,7 @@ REASONS = ("school_id_malformed", "school_id_duplicated", "school_id_identical_c
 LEVELS = ("region", "province", "city_municipality", "barangay")
 FLAGS = ("missing", "zero", "outside_philippines")
 # Profiled counts recorded by the gate: PASS at the count, WARN when it changes, never FAIL.
-PROFILED = ("bronze_unit_rows", "bronze_other_rows", "codes_padded", "city_source_na", "city_not_in_workbook",
+PROFILED = ("bronze_unit_rows", "bronze_other_rows", "barangay_codes_padded", "city_source_na", "city_not_in_workbook",
             "barangay_source_na", "barangay_not_in_workbook", "recoded", "barangay_outside_city",
             "coordinate_missing", "coordinate_zero", "coordinate_outside_philippines",
             *[f"quarantine_{r}" for r in REASONS])
@@ -95,43 +95,58 @@ def _header(spec, name, command, path):
             "-- Do not edit by hand; tests/test_silver.py fails if it differs."]
 
 
-def _null_reason(spec, column):
+def _null_reason(spec, column, alias="r"):
     """The reason a code is NULL: a listed marker's reason, or 'unrecognized' (which fails the gate)."""
-    cases = " ".join(f"WHEN r.{column} = {lit(marker)} THEN {lit(reason)}" for marker, reason in spec.codes["null_markers"].items())
-    return f"CASE WHEN r.{column} IS NULL THEN 'not_in_workbook' {cases} ELSE 'unrecognized' END"
+    cases = " ".join(f"WHEN {alias}.{column} = {lit(marker)} THEN {lit(reason)}" for marker, reason in spec.codes["null_markers"].items())
+    return f"CASE WHEN {alias}.{column} IS NULL THEN 'not_in_workbook' {cases} ELSE 'unrecognized' END"
 
 
-def _padded(spec, column):
-    return f"CASE WHEN regexp_like(r.{column}, {lit(spec.codes['stored_pattern'])}) THEN lpad(r.{column}, {spec.codes['length']}, '0') END"
+def _padded(spec, column, alias="r"):
+    return (f"CASE WHEN regexp_like({alias}.{column}, {lit(spec.codes['stored_pattern'])}) "
+            f"THEN lpad({alias}.{column}, {spec.codes['length']}, '0') END")
 
 
-def _number(spec, column):
-    return f"CASE WHEN regexp_like(r.{column}, {lit(spec.coordinates['number_pattern'])}) THEN TRY_CAST(r.{column} AS DOUBLE) END"
+def _number(spec, column, alias="r"):
+    return f"CASE WHEN regexp_like({alias}.{column}, {lit(spec.coordinates['number_pattern'])}) THEN TRY_CAST({alias}.{column} AS DOUBLE) END"
 
 
-def build_sql(spec):
-    source = spec.source_id
-    clean, quarantine = silver_ref(spec.clean_candidate), silver_ref(spec.quarantine_candidate)
-    recode, box = spec.recode, spec.coordinates["box"]
+# Value columns of a clean row, in table order. The build writes them; the gate recomputes each from its
+# Bronze row with the same expressions and fails on any difference (values_reconcile).
+VALUE_COLUMNS = ("school_year", "school_id", *[f"psgc_{level}" for level in LEVELS], "psgc_recoded",
+                 "psgc_city_municipality_null_reason", "psgc_barangay_null_reason", "barangay_outside_city",
+                 "longitude", "latitude", "longitude_published", "latitude_published", "coordinate_flag")
+
+
+def _stage_padded(spec):
+    """From a Bronze row (alias r): the codes padded, the null reasons, the coordinates typed and as published."""
     lon, lat = spec.coordinates["longitude"], spec.coordinates["latitude"]
-    content = "md5(concat_ws('|', " + ", ".join(f"COALESCE(r.{c}, '')" for c in spec.content_columns) + "))"
-    recoded = f"substr(c.province_padded, 1, {len(recode['province_prefix'])}) = {lit(recode['province_prefix'])}"
-    swap = lambda ref: (f"CASE WHEN c.psgc_recoded THEN concat({lit(recode['to_prefix'])}, substr({ref}, {len(recode['province_prefix']) + 1})) "
-                        f"ELSE {ref} END")
-    coded = [
-        "r.school_year", f"r.{spec.identifier} AS school_id",
-        *[f"{_padded(spec, 'psgc_' + level)} AS {level}_padded" for level in LEVELS],
-        f"{_null_reason(spec, 'psgc_city_municipality')} AS city_reason_if_null",
-        f"{_null_reason(spec, 'psgc_barangay')} AS barangay_reason_if_null",
-        f"{_number(spec, lon)} AS longitude", f"{_number(spec, lat)} AS latitude",
-        *[f"r.{c}" for c in spec.published_text],
-        f"g.id_rows", "g.id_versions",
-        f"ROW_NUMBER() OVER (PARTITION BY r.school_year, r.{spec.identifier} ORDER BY r.source_row_number) AS id_copy",
-        *[f"r.{c}" for c in LINEAGE],
-    ]
-    typed = [
+    return ["r.school_year", f"r.{spec.identifier} AS school_id",
+            *[f"{_padded(spec, 'psgc_' + level)} AS {level}_padded" for level in LEVELS],
+            f"{_null_reason(spec, 'psgc_city_municipality')} AS city_reason_if_null",
+            f"{_null_reason(spec, 'psgc_barangay')} AS barangay_reason_if_null",
+            f"{_number(spec, lon)} AS longitude", f"{_number(spec, lat)} AS latitude",
+            f"r.{lon} AS longitude_published", f"r.{lat} AS latitude_published",
+            *[f"r.{c}" for c in spec.published_text]]
+
+
+def _stage_recoded(spec):
+    """The Sulu flag, from the padded province code (alias c)."""
+    recode = spec.recode
+    return f"COALESCE(substr(c.province_padded, 1, {len(recode['province_prefix'])}) = {lit(recode['province_prefix'])}, FALSE) AS psgc_recoded"
+
+
+def _stage_final(spec):
+    """The clean row's value columns (alias c), in VALUE_COLUMNS order, then the published text."""
+    recode, box = spec.recode, spec.coordinates["box"]
+    prefix, n = recode["province_prefix"], len(recode["province_prefix"])
+
+    def swap(ref):
+        # Only a code that itself starts with the Sulu prefix is recoded, so a code pointing elsewhere is kept.
+        return (f"CASE WHEN c.psgc_recoded AND substr({ref}, 1, {n}) = {lit(prefix)} "
+                f"THEN concat({lit(recode['to_prefix'])}, substr({ref}, {n + 1})) ELSE {ref} END")
+    return [
         "c.school_year", "c.school_id",
-        f"CASE WHEN c.psgc_recoded THEN {lit(recode['region'])} ELSE c.region_padded END AS psgc_region",
+        f"CASE WHEN c.psgc_recoded AND c.region_padded = {lit(recode['from_region'])} THEN {lit(recode['region'])} ELSE c.region_padded END AS psgc_region",
         f"{swap('c.province_padded')} AS psgc_province",
         f"{swap('c.city_municipality_padded')} AS psgc_city_municipality",
         f"{swap('c.barangay_padded')} AS psgc_barangay",
@@ -139,11 +154,26 @@ def build_sql(spec):
         "CASE WHEN c.city_municipality_padded IS NULL THEN c.city_reason_if_null END AS psgc_city_municipality_null_reason",
         "CASE WHEN c.barangay_padded IS NULL THEN c.barangay_reason_if_null END AS psgc_barangay_null_reason",
         "COALESCE(substr(c.barangay_padded, 1, 7) <> substr(c.city_municipality_padded, 1, 7), FALSE) AS barangay_outside_city",
-        "c.longitude", "c.latitude",
+        "c.longitude", "c.latitude", "c.longitude_published", "c.latitude_published",
         "CASE WHEN c.longitude IS NULL OR c.latitude IS NULL THEN 'missing' WHEN c.longitude = 0 AND c.latitude = 0 THEN 'zero' "
         f"WHEN NOT (c.longitude BETWEEN {box['longitude_min']} AND {box['longitude_max']} AND c.latitude BETWEEN {box['latitude_min']} AND {box['latitude_max']}) "
         "THEN 'outside_philippines' END AS coordinate_flag",
         *[f"c.{p}" for p in spec.published_text],
+    ]
+
+
+def build_sql(spec):
+    source = spec.source_id
+    clean, quarantine = silver_ref(spec.clean_candidate), silver_ref(spec.quarantine_candidate)
+    content = "md5(concat_ws('|', " + ", ".join(f"COALESCE(r.{c}, '')" for c in spec.content_columns) + "))"
+    coded = [
+        *_stage_padded(spec),
+        "g.id_rows", "g.id_versions",
+        f"ROW_NUMBER() OVER (PARTITION BY r.school_year, r.{spec.identifier} ORDER BY r.source_row_number) AS id_copy",
+        *[f"r.{c}" for c in LINEAGE],
+    ]
+    typed = [
+        *_stage_final(spec),
         "concat_ws(',',\n" + joined([
             f"CASE WHEN NOT regexp_like(c.school_id, {lit(spec.identifier_pattern)}) THEN 'school_id_malformed' END",
             "CASE WHEN c.id_rows > 1 AND c.id_versions > 1 THEN 'school_id_duplicated' END",
@@ -151,9 +181,8 @@ def build_sql(spec):
         ], 6) + "\n    ) AS quarantine_reasons",
         *[f"c.{x}" for x in LINEAGE],
     ]
-    clean_columns = ["school_year", "school_id", *[f"psgc_{level}" for level in LEVELS], "psgc_recoded",
-                     "psgc_city_municipality_null_reason", "psgc_barangay_null_reason", "barangay_outside_city",
-                     "longitude", "latitude", "coordinate_flag", *spec.published_text, *LINEAGE,
+    recoded = _stage_recoded(spec)
+    clean_columns = [*VALUE_COLUMNS, *spec.published_text, *LINEAGE,
                      *[f"session.silver_{c} AS {c}" for c in STAMP]]
     quarantine_columns = ["school_year", "school_id", "split(quarantine_reasons, ',') AS quarantine_reasons",
                           *LINEAGE, *[f"session.silver_{c} AS {c}" for c in STAMP]]
@@ -180,7 +209,7 @@ def build_sql(spec):
         "), coded AS (", "  SELECT", joined(coded, 4),
         f"  FROM bronze AS r JOIN ids AS g ON g.school_year = r.school_year AND g.{spec.identifier} = r.{spec.identifier}",
         "), recoded AS (",
-        f"  SELECT c.*, COALESCE({recoded}, FALSE) AS psgc_recoded FROM coded AS c",
+        f"  SELECT c.*, {recoded} FROM coded AS c",
         ")", "SELECT", joined(typed, 2), "FROM recoded AS c;", "",
         f"CREATE OR REPLACE TABLE {clean} USING DELTA AS", "SELECT", joined(clean_columns, 2),
         f"FROM {source}_classified WHERE quarantine_reasons = '';", "",
@@ -197,10 +226,14 @@ def _checks(spec):
     fail = [
         ("current_batch_present", "FAIL", "current_batches", "> 0"),
         ("rows_reconcile", "FAIL", "clean_rows + quarantine_rows", "= bronze_unit_rows"),
+        ("rows_resolve_to_current_bronze", "FAIL", "unresolved_rows", "= 0"),
+        ("values_reconcile", "FAIL", "value_mismatches", "= 0"),
+        ("coordinates_reconcile", "FAIL", "coordinate_mismatches", "= 0"),
         ("school_id_unique", "FAIL", "duplicate_clean_ids", "= 0"),
         ("school_id_format", "FAIL", "malformed_clean_ids", "= 0"),
         ("codes_ten_digits", "FAIL", "codes_not_ten_digits", "= 0"),
         ("code_values_recognized", "FAIL", "unrecognized_code_values", "= 0"),
+        ("region_province_values_recognized", "FAIL", "unrecognized_region_province", "= 0"),
         ("null_reason_matches_code", "FAIL", "null_reason_mismatches", "= 0"),
         ("levels_null_together", "FAIL", "levels_not_null_together", "= 0"),
         ("coordinates_in_pairs", "FAIL", "coordinates_not_in_pairs", "= 0"),
@@ -210,6 +243,16 @@ def _checks(spec):
     ]
     profiled = [(f"profiled_{name}", "WARN", name, f"= {p[name]}") for name in PROFILED]
     return fail + profiled
+
+
+def _null_safe(item):
+    """COUNT_IF over rows whose condition is NULL in every row gives NULL in DuckDB, so a check comparing it
+    with 0 would fail on a clean build; every single-subquery count reads 0 instead."""
+    start = "(SELECT COUNT_IF("
+    if not item.startswith(start):
+        return item
+    head, _, tail = item.rpartition(") FROM ")
+    return "(SELECT COALESCE(COUNT_IF(" + head[len(start):] + "), 0) FROM " + tail
 
 
 def gate_sql(spec):
@@ -223,6 +266,12 @@ def gate_sql(spec):
     stored = lit(spec.codes["stored_pattern"])
     codes = [f"psgc_{level}" for level in LEVELS]
     every_lineage = " OR ".join(f"x.{v} IS NULL" for v in [*LINEAGE, *STAMP])
+    code_markers = ", ".join(lit(m) for m in spec.codes["null_markers"])
+    keys = ("batch_id", "source_sha256", "source_row_number")
+
+    def unrecognized(column):
+        return f"(u.{column} IS NOT NULL AND u.{column} NOT IN ({code_markers}) AND NOT regexp_like(u.{column}, {stored}))"
+    value_differs = " OR ".join(f"c.{x} IS DISTINCT FROM e.{x}" for x in [*VALUE_COLUMNS, *spec.published_text])
     unions = []
     for name, failure, actual, condition in _checks(spec):
         table = quarantine_name if name.startswith("profiled_quarantine_") else clean_name
@@ -235,6 +284,15 @@ def gate_sql(spec):
     union_sql = ("\n  UNION ALL ").join(unions)
     counts = [
         "(SELECT COUNT(*) FROM cur) AS current_batches",
+        "(SELECT COUNT(*) FROM s LEFT JOIN unit AS u ON u.batch_id = s.batch_id AND u.source_sha256 = s.source_sha256 "
+        "AND u.source_row_number = s.source_row_number WHERE u.source_row_number IS NULL) "
+        "+ (SELECT COUNT(*) - COUNT(DISTINCT (source_sha256, source_row_number)) FROM s) AS unresolved_rows",
+        f"(SELECT COUNT(*) FROM c JOIN expected AS e ON e.source_sha256 = c.source_sha256 AND e.source_row_number = c.source_row_number "
+        f"WHERE {value_differs}) AS value_mismatches",
+        f"(SELECT COUNT(*) FROM c JOIN unit AS b ON b.source_sha256 = c.source_sha256 AND b.source_row_number = c.source_row_number "
+        f"WHERE c.longitude_published IS DISTINCT FROM b.{lon} OR c.latitude_published IS DISTINCT FROM b.{lat} "
+        f"OR c.longitude IS DISTINCT FROM {_number(spec, lon, 'b')} OR c.latitude IS DISTINCT FROM {_number(spec, lat, 'b')}) AS coordinate_mismatches",
+        f"(SELECT COUNT_IF({unrecognized('psgc_region')} OR {unrecognized('psgc_province')}) FROM unit AS u) AS unrecognized_region_province",
         f"(SELECT COUNT_IF(source_row_kind = {lit(spec.row_kind)}) FROM bronze) AS bronze_unit_rows",
         f"(SELECT COUNT_IF(source_row_kind <> {lit(spec.row_kind)}) FROM bronze) AS bronze_other_rows",
         "(SELECT COUNT(*) FROM c) AS clean_rows",
@@ -251,7 +309,7 @@ def gate_sql(spec):
         f"(b.{lon} NOT IN ({markers}) AND NOT regexp_like(b.{lon}, {number})) OR (b.{lat} NOT IN ({markers}) AND NOT regexp_like(b.{lat}, {number})))) FROM bronze AS b) AS unrecognized_coordinates",
         f"(SELECT COALESCE(COUNT_IF({every_lineage}), 0) FROM c AS x) + (SELECT COALESCE(COUNT_IF({every_lineage}), 0) FROM q AS x) AS missing_lineage",
         "(SELECT COALESCE(COUNT_IF(run_id <> :run_id), 0) FROM c) + (SELECT COALESCE(COUNT_IF(run_id <> :run_id), 0) FROM q) AS other_run_rows",
-        f"(SELECT COUNT_IF(source_row_kind = {lit(spec.row_kind)} AND regexp_like(b.psgc_barangay, {stored}) AND length(b.psgc_barangay) < {spec.codes['length']}) FROM bronze AS b) AS codes_padded",
+        f"(SELECT COUNT_IF(source_row_kind = {lit(spec.row_kind)} AND regexp_like(b.psgc_barangay, {stored}) AND length(b.psgc_barangay) < {spec.codes['length']}) FROM bronze AS b) AS barangay_codes_padded",
         "(SELECT COUNT_IF(psgc_city_municipality_null_reason = 'source_na') FROM c) AS city_source_na",
         "(SELECT COUNT_IF(psgc_city_municipality_null_reason = 'not_in_workbook') FROM c) AS city_not_in_workbook",
         "(SELECT COUNT_IF(psgc_barangay_null_reason = 'source_na') FROM c) AS barangay_source_na",
@@ -261,6 +319,7 @@ def gate_sql(spec):
         *[f"(SELECT COUNT_IF(coordinate_flag = {lit(f)}) FROM c) AS coordinate_{f}" for f in FLAGS],
         *[f"(SELECT COUNT_IF(array_contains(quarantine_reasons, {lit(r)})) FROM q) AS quarantine_{r}" for r in REASONS],
     ]
+    counts = [_null_safe(item) for item in counts]
     lines = _header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [
         "-- Records every rule count, stops before publishing on FAIL, then publishes quarantine before clean.", "",
         "DECLARE OR REPLACE VARIABLE silver_gate_started_at_utc TIMESTAMP;", "SET VARIABLE silver_gate_started_at_utc = current_timestamp();", "",
@@ -268,8 +327,17 @@ def gate_sql(spec):
         f"CREATE OR REPLACE TABLE {summary} USING DELTA AS", "WITH cur AS (",
         f"  SELECT batch_id FROM {CONTROL}.current_batches WHERE source_id = {lit(source)}", "), bronze AS (",
         f"  SELECT b.* FROM edu_access.`02-bronze`.{spec.bronze_table} AS b JOIN cur ON b.batch_id = cur.batch_id",
-        "), c AS (", f"  SELECT * FROM {clean}", "), q AS (", f"  SELECT * FROM {quarantine}", "), counts AS (", "  SELECT",
-        joined(counts, 4), ")", "SELECT cur.batch_id, counts.* FROM cur CROSS JOIN counts;", "",
+        f"), unit AS (", f"  SELECT * FROM bronze WHERE source_row_kind = {lit(spec.row_kind)}",
+        "), expected_padded AS (",
+        "  -- Every value recomputed from its Bronze row with the build's own expressions.",
+        "  SELECT", joined([*_stage_padded(spec), *[f"r.{k}" for k in keys]], 4), "  FROM unit AS r",
+        f"), expected_recoded AS (", f"  SELECT c.*, {_stage_recoded(spec)} FROM expected_padded AS c",
+        "), expected AS (", "  SELECT", joined([*_stage_final(spec), *[f"c.{k}" for k in keys]], 4), "  FROM expected_recoded AS c",
+        "), c AS (", f"  SELECT * FROM {clean}", "), q AS (", f"  SELECT * FROM {quarantine}",
+        "), s AS (", f"  SELECT {', '.join(keys)} FROM c UNION ALL SELECT {', '.join(keys)} FROM q",
+        "), counts AS (", "  SELECT", joined(counts, 4), ")",
+        "-- One row even when no batch is current, so current_batch_present can FAIL and nothing is published.",
+        "SELECT (SELECT MIN(batch_id) FROM cur) AS batch_id, counts.* FROM counts;", "",
         f"ALTER TABLE {summary} OWNER TO `{OWNER_GROUP}`;", "",
         f"INSERT INTO {CONTROL}.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)",
         f"SELECT :run_id, batch_id, {lit(source)}, 'silver', table_name, check_name, status, expected, actual, current_timestamp(), :code_revision FROM (",
@@ -298,13 +366,15 @@ def dictionary_markdown(spec):
             "| `school_id` | `STRING` | Six-digit DepEd school ID; one row per school and school year |"]
     rows += [f"| `psgc_{level}` | `STRING` | DepEd's {level.replace('_', ' or ')} PSGC code for the school, left-padded to 10 digits; Sulu recoded to 2Q 2026 (see `psgc_recoded`). `NULL` when the workbook has none |"
              for level in LEVELS]
-    rows += ["| `psgc_recoded` | `BOOLEAN` | `TRUE` when the Q4 2024 Sulu codes (`19066…`) were recoded to `09066…` and the region to `0900000000` |",
+    rows += ["| `psgc_recoded` | `BOOLEAN` | `TRUE` when the province is Sulu's Q4 2024 code (`19066…`): each code that starts with `19066` became `09066…`, and region `1900000000` became `0900000000` |",
              "| `psgc_city_municipality_null_reason` | `STRING` | Why region, province, and city/municipality are `NULL`: `source_na` (`#N/A` in the workbook) or `not_in_workbook` (no value). `NULL` when the code is present |",
              "| `psgc_barangay_null_reason` | `STRING` | Why the barangay code is `NULL`, as above |",
              "| `barangay_outside_city` | `BOOLEAN` | The barangay code's first 7 digits differ from the city or municipality code (profile O-7). Kept as published |",
-             "| `longitude`, `latitude` | `DOUBLE` | As published (NSBI, 2025-07-07). `NULL` for `#N/A` or blank. Not corrected |",
+             "| `longitude`, `latitude` | `DOUBLE` | The published value as a number (NSBI, 2025-07-07), for maps and distances. `NULL` for `#N/A` or blank. Not corrected; Excel's float noise (e.g. `120.79600000000001`) reads as `120.796` |",
+             "| `longitude_published`, `latitude_published` | `STRING` | The exact Bronze text, including `#N/A` and blank. The gate fails unless it equals Bronze and the `DOUBLE` equals its cast |",
              "| `coordinate_flag` | `STRING` | `missing`, `zero` (0, 0), `outside_philippines`, or `NULL`. Coordinates feed no Gold measure until the boundary test (S-1) |"]
-    rows += [f"| `{c}` | `STRING` | Published `{c}`, unchanged |" for c in spec.published_text]
+    rows += [f"| `{c}` | `STRING` | Published `{c}` (Q4 2024 PSGC names; Sulu's still say BARMM after the code recode), unchanged. For PSGC names, use psa_psgc through the code |"
+             if c.startswith("psgc_") else f"| `{c}` | `STRING` | Published `{c}`, unchanged |" for c in spec.published_text]
     rows += [f"| `{c}` | `{'INT' if c == 'delivery_version' else 'BIGINT' if c == 'source_row_number' else 'STRING'}` | Bronze lineage |" for c in LINEAGE]
     rows += ["| `run_id`, `cleaned_at_utc`, `code_revision` | `STRING`, `TIMESTAMP`, `STRING` | The Silver run that built the row |"]
     profiled = [f"| `{name}` | {p[name]:,} |" for name in PROFILED]

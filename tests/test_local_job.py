@@ -11,7 +11,7 @@ import shutil
 import pytest
 
 from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
-from factories import hdx_geojson, psa_workbooks, psgc_workbooks
+from factories import hdx_geojson, psa_workbooks, psgc_workbooks, report_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
@@ -47,8 +47,13 @@ def repo(tmp_path):
     features = [hdx_geojson.silver_feature(i) for i in range(1, 4)]
     hdx_geojson.approve(hdx, hdx_geojson.write_features(tmp_path / "landing" / "admin_boundaries", features), 3)
     write_config(root, hdx)
-    # The EMISD crosswalk lane (Bronze #152, Silver #163) runs with nothing approved, as personnel's does.
-    write_config(root, empty_config("deped_enrollment_psgc"))
+    # The EMISD crosswalk runs through Silver too (#163), and its gate fails a build with no current batch,
+    # so the job always has one made-up workbook approved for it: two ordinary schools, nothing quarantined.
+    emisd = report_workbooks.empty_config()
+    workbook = report_workbooks.make_workbook(tmp_path / "landing" / "deped" / "original",
+                                              rows={9: report_workbooks.school(100001), 10: report_workbooks.school(100002)})
+    report_workbooks.approve(emisd, workbook, row_count=2, unit_rows=2, blank_rows=0, no_identifier_rows=0, last_row=10)
+    write_config(root, emisd)
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
@@ -95,13 +100,12 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     fresh = store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                         "WHERE run_id = 'job-run-1' AND check_name = 'source_fresh' ORDER BY 1")
     # One per loaded source, after the fan-in. Every batch was just loaded, so each source with one is fresh;
-    # the fake repository approves no personnel or EMISD delivery, so those two have none.
+    # the fake repository approves no personnel delivery, so personnel has none.
     assert [(source, status) for source, status, _ in fresh] == [
-        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "WARN"), ("deped_facilities", "PASS"),
+        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
         ("deped_personnel", "WARN"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS")]
     assert all(actual.startswith("last succeeded ") for _, status, actual in fresh if status == "PASS")
     assert dict((s, a) for s, _, a in fresh)["deped_personnel"] == "no succeeded batch"
-    assert dict((s, a) for s, _, a in fresh)["deped_enrollment_psgc"] == "no succeeded batch"
     linked = store.query(f"""
         SELECT r.source_id, COUNT(q.check_name) FROM {CONTROL}.pipeline_runs AS r
         JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
@@ -122,7 +126,7 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
-        == [("load", 5), ("skip", 5)]                       # DepEd enrollment and facilities, PSA Poverty Stat, PSGC, HDX
+        == [("load", 6), ("skip", 6)]                       # DepEd enrollment and facilities, PSA Poverty Stat, PSGC, HDX, EMISD
     store.close()
 
 

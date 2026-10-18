@@ -2,6 +2,8 @@
 
 Issue #163 · Databricks `dev` (D-017) · 2026-10-16, Manila time (UTC+8) · run by @maeveylain
 
+These runs are of commit `2bcd685`, before the review changes of 2026-10-18 (row-level reconciliation, published coordinate text, the empty-batch FAIL, and the guarded Sulu recode). The gate then had 28 checks; the runs of the reviewed code are recorded separately.
+
 ## The claim
 
 On Databricks `dev`, the job `edu_access_pipeline`, deployed from `feat/163-silver-deped-enrollment-psgc`, runs the crosswalk lane end to end in two separate job runs: Bronze load (skipped, already loaded), Bronze gate, Silver build `07_clean_deped_enrollment_psgc`, and Silver gate `90_validate_deped_enrollment_psgc_clean`. Both gates passed, so both runs published the tables. The source-lane fan-in `90_validate_control` passed in both runs, with the new lane included. The published tables reconcile to Bronze (60,275 = 60,273 + 2), and every run of the lane recorded the same 27 PASS and 1 WARN, with each profiled count equal to the rules file.
@@ -35,7 +37,7 @@ In run 3, every other source's load also skipped its already-loaded files (enrol
 Run 2 failed in two other lanes:
 
 - `01_clean_deped_enrollment` failed with `DELTA_METADATA_CHANGED` on `deped_enrollment_clean_candidate`. The conflicting commit came from another user's `dev` job (job `651937364323543`, task run `801385116721503`, 13:40:34 → 13:41:36), which rebuilt the same table while this run's build (13:40:26 → 13:41:12) was writing it. Every `dev` job writes the same `edu_access` tables.
-- `90_validate_deped_personnel_clean` failed with "1 FAIL result(s)" (13:41:35 → 13:45:26), in the same window. Which check failed was not queried; the same collision is the likely cause.
+- `90_validate_deped_personnel_clean` failed with "1 FAIL result(s)" (13:41:35 → 13:45:26). **Observed:** the failure, and that it ran in the same window as the other job. **Suspected:** the concurrent shared-table rebuild caused it. The specific failed check was not queried, so the cause is unverified.
 - The fan-in then failed because those two lanes did not succeed. In the same run, the crosswalk lane's four tasks all succeeded.
 
 Run 3 was started after the other job had finished, and succeeded throughout. Runs 1 and 3 are the two clean runs.
