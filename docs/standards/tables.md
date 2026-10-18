@@ -92,3 +92,4 @@ contract is approved.
 | `fact_school_teacher_capacity` | School x school year x education level |
 | `fact_city_population` | City or municipality x reference year |
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
+| `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |
