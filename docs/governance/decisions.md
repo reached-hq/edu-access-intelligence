@@ -280,7 +280,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
     | `code` | The source's code is the PSGC code, and the names agree | Age-group population, HDX, DepEd (EMISD codes) |
     | `code_name_differs` | The source's code is the PSGC code, but the source's name does not find that unit: the name match finds nothing, or another unit and a lower-level name supports the code | DepEd (EMISD codes, #91) |
     | `code_renamed` | The code agrees, and the unit was renamed since the source's version | HDX (4 renamed LGUs) |
-    | `code_region_moved` | The code agrees once Sulu's region `19` is read as `09` | HDX |
+    | `code_region_moved` | The code agrees once Sulu's region `19` is read as `09` | HDX, DepEd |
     | `correspondence_code` | The source's old 9-digit code equals PSGC's `Correspondence Code` (D-030) | Poverty, HDX |
     | `name_exact` | The name equals the PSGC name inside the matched parent | DepEd, barangay population, CMCI |
     | `name_old` | The name equals a PSGC `Old names` entry inside the parent | DepEd |

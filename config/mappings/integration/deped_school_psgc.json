@@ -9,9 +9,9 @@
   "rule_order": {
     "city_mun": [
       "A reviewed override for the school's DepEd place, if one is listed below",
-      "Special Geographic Area school (BARMM / NORTH COTABATO, D-031): matched by code when the DepEd barangay name matches the barangay of the EMISD code, so the school is in one of the eight Special Geographic Area municipalities (D-031's condition, D-049); otherwise excluded, with psgc_code NULL",
+      "Special Geographic Area school (BARMM / NORTH COTABATO, D-031): matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's municipality, so the school is in one of the eight Special Geographic Area municipalities (D-031's condition, D-049); otherwise excluded, with psgc_code NULL",
       "EMISD code and name match give the same unit: matched, method code",
-      "They give different units: matched by code when the DepEd barangay name matches the barangay of the EMISD code (the place moved, e.g. a newer municipality or Embo), method code_name_differs; otherwise ambiguous",
+      "They give different units: matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's city or municipality (the place moved, e.g. a newer municipality or Embo), method code_name_differs; otherwise ambiguous",
       "Only one of them is found: matched by it (code_name_differs for the code, or the name tier's method)",
       "Neither: unmatched",
       "A Manila sub-municipality matched by code or name rolls up to the City of Manila, method rollup; a Sulu code read under region 09 is code_region_moved"
@@ -49,7 +49,7 @@
       "match_method": "code",
       "reason": "DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there; the EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in; the name match cannot.",
       "evidence": "21 SY 2023-24 schools carry this DepEd barangay; for 14 of them the EMISD code and the name match disagree. Rerun cross_source_deped_enrollment_psgc.py: EP-18 counts both, the 14 are the SIGNAL VILLAGE rows of work/deped_enrollment_psgc_vs_name_match.csv (EP-11), and EP-16 counts the override as applied.",
-      "reviewer": null
+      "reviewer": "@catweyine"
     }
   ]
 }

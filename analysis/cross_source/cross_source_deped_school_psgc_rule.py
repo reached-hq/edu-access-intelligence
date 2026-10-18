@@ -18,6 +18,9 @@ class Rule:
         up to the City of Manila; barangay_candidates: the barangays inside a city or municipality;
         same_barangay_name: True when a DepEd barangay name matches a PSGC barangay by the name tiers."""
         self.tier_method = rules["match_method_from_name_tier"]
+        unreviewed = [o["deped_barangay"] for o in rules["overrides"] if not o.get("reviewer")]
+        if unreviewed:
+            raise ValueError(f"override without a reviewer in deped_school_psgc.json: {unreviewed}")
         self.overrides = {(o["level"], o["deped_province"], o["deped_municipality"], o["deped_barangay"]): o
                           for o in rules["overrides"]}
         self.sga = sga
@@ -62,7 +65,10 @@ class Rule:
                 return "unmatched", None, None, "reviewed override: no unit"
             return "matched", unit, o["match_method"], "reviewed override"
         agree = c_unit is not None and n_unit is not None and c_unit.id == n_unit.id
-        bgy_supports_code = c_unit is not None and self.same_barangay_name(barangay, c_bgy)
+        # The code's barangay supports the code's city only when it lies inside that city (profile O-7).
+        bgy_supports_code = (c_unit is not None and c_bgy is not None
+                             and c_bgy.id in {u.id for u in self.barangay_candidates(c_unit)}
+                             and self.same_barangay_name(barangay, c_bgy))
         if school_id in self.sga:
             # D-031 excludes these schools until their barangays are matched to the Special Geographic
             # Area municipalities; the EMISD code does that when DepEd's barangay name agrees with it.

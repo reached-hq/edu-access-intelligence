@@ -20,21 +20,23 @@ SAMPALOC = Unit("1380608000", "Sampaloc", "SubMun")
 BAY = Unit("0403402000", "Bay", "Mun")
 LOS_BANOS = Unit("0403411000", "Los Baños", "Mun")
 SGA_MUN = Unit("1999901000", "Pahamuddin", "Mun")
+SGA_MUN_2 = Unit("1999904000", "Nabalawag", "Mun")
 PIKIT = Unit("1204714000", "Pikit", "Mun")
 SULU_MUN = Unit("0906601000", "Jolo", "Mun")
 TAGUIG = Unit("1381500000", "City of Taguig", "City")
-UNITS = [MANILA, SAMPALOC, BAY, LOS_BANOS, SGA_MUN, PIKIT, SULU_MUN, TAGUIG]
+UNITS = [MANILA, SAMPALOC, BAY, LOS_BANOS, SGA_MUN, SGA_MUN_2, PIKIT, SULU_MUN, TAGUIG]
 
 BGY_SAMPALOC = Unit("1380608001", "Barangay 395", "Bgy")
 BGY_BAY = Unit("0403402001", "Bitin", "Bgy")
 BGY_BAY_2 = Unit("0403402002", "Calo", "Bgy")
 BGY_LOS_BANOS = Unit("0403411001", "Anos", "Bgy")
 BGY_SGA = Unit("1999901001", "Buliok", "Bgy")
+BGY_SGA_2 = Unit("1999904001", "Damatulan", "Bgy")
 BGY_PIKIT = Unit("1204714001", "Ginatilan", "Bgy")
 BGY_JOLO = Unit("0906601001", "Asturias", "Bgy")
 BGY_NORTH_SIGNAL = Unit("1381500001", "North Signal Village", "Bgy")
 BGY_CENTRAL_SIGNAL = Unit("1381500002", "Central Signal Village", "Bgy")
-BARANGAYS = [BGY_SAMPALOC, BGY_BAY, BGY_BAY_2, BGY_LOS_BANOS, BGY_SGA, BGY_PIKIT, BGY_JOLO,
+BARANGAYS = [BGY_SAMPALOC, BGY_BAY, BGY_BAY_2, BGY_LOS_BANOS, BGY_SGA, BGY_SGA_2, BGY_PIKIT, BGY_JOLO,
              BGY_NORTH_SIGNAL, BGY_CENTRAL_SIGNAL]
 
 SGA_SCHOOL = "100001"
@@ -128,6 +130,16 @@ def test_special_geographic_area_otherwise_excluded_with_no_code(rule):
     assert bgy == ("excluded", None, None, "city or municipality excluded")
 
 
+def test_code_barangay_in_another_municipality_does_not_support_the_code(rule):
+    # School 207519: the city code is one SGA municipality, the barangay code is in another.
+    s = school("Damatulan", school_id=SGA_SCHOOL, province="NORTH COTABATO", municipality="PIKIT")
+    city, bgy = decide(rule, s, SGA_MUN, PIKIT, BGY_SGA_2, None)
+    assert city == ("excluded", None, None, "Special Geographic Area (D-031)")
+    assert bgy == ("excluded", None, None, "city or municipality excluded")
+    city, _ = decide(rule, school("Calo"), LOS_BANOS, BAY, BGY_BAY_2, None)
+    assert city == ("ambiguous", None, None, "code and name differ")
+
+
 def test_barangay_outside_the_accepted_city_is_ambiguous(rule):
     _, bgy = decide(rule, school("Anos"), BAY, BAY, BGY_LOS_BANOS, None)
     assert bgy == ("ambiguous", None, None, "barangay outside the accepted city or municipality")
@@ -144,6 +156,12 @@ def test_override_still_needs_a_barangay_inside_the_city(rule):
     s = school("SIGNAL VILLAGE", province="NCR FOURTH DISTRICT", municipality="TAGUIG CITY")
     _, bgy = decide(rule, s, TAGUIG, TAGUIG, BGY_BAY, BGY_CENTRAL_SIGNAL, n_tier="old name")
     assert bgy == ("ambiguous", None, None, "barangay outside the accepted city or municipality")
+
+
+def test_override_without_a_reviewer_fails(rules):
+    rules["overrides"][0]["reviewer"] = None
+    with pytest.raises(ValueError, match="without a reviewer"):
+        Rule(rules, {SGA_SCHOOL}, city_of, barangay_candidates, same_barangay_name)
 
 
 def test_unknown_name_tier_fails(rule):
