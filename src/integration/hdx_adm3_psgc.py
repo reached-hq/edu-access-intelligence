@@ -44,6 +44,7 @@ LAYER = "integration"
 SAFE_LITERAL = re.compile(r"^[^'\\;]*$")
 PCODE = re.compile(r"^PH[0-9]{7}$")
 PSGC_CODE = re.compile(r"^[0-9]{10}$")
+ISO_DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
 # D-029's values, as this map uses them.
 MATCH_STATUSES = ("matched", "unmatched", "ambiguous")
@@ -75,6 +76,7 @@ def _error(message):
 @dataclass
 class Override:
     adm3_pcode: str
+    source_reference_date: str  # the HDX release it was reviewed for: it applies to that release only
     psgc_code: str          # None: reviewed as unmatched
     match_method: str
     reason: str
@@ -115,11 +117,14 @@ def build_spec(rules):
     overrides, seen = [], set()
     for entry in rules.get("overrides", []):
         pcode, code, method = entry.get("adm3_pcode"), entry.get("psgc_code"), entry.get("match_method")
+        released = entry.get("source_reference_date")
         if not pcode or not PCODE.match(pcode):
             raise _error(f"override {entry!r}: adm3_pcode must match {PCODE.pattern}.")
-        if pcode in seen:
-            raise _error(f"override for {pcode} is listed twice.")
-        seen.add(pcode)
+        if not released or not ISO_DATE.match(released):
+            raise _error(f"override for {pcode}: source_reference_date must be the HDX release date, YYYY-MM-DD.")
+        if (pcode, released) in seen:
+            raise _error(f"override for {pcode} on {released} is listed twice.")
+        seen.add((pcode, released))
         if code is not None and not PSGC_CODE.match(code):
             raise _error(f"override for {pcode}: psgc_code must be ten digits or null.")
         if code is None and method is not None:
@@ -128,8 +133,9 @@ def build_spec(rules):
             raise _error(f"override for {pcode}: match_method {method!r} is not one of D-029's {MATCH_METHODS}.")
         if not entry.get("reason") or not entry.get("evidence"):
             raise _error(f"override for {pcode} needs a reason and evidence.")
-        overrides.append(Override(pcode, code, method, entry["reason"]))
-    literals = [*levels, *[v for o in overrides for v in (o.adm3_pcode, o.psgc_code or "", o.match_method or "", o.reason)]]
+        overrides.append(Override(pcode, released, code, method, entry["reason"]))
+    literals = [*levels, *[v for o in overrides for v in (o.adm3_pcode, o.source_reference_date, o.psgc_code or "",
+                                                          o.match_method or "", o.reason)]]
     unsafe = [v for v in literals if not SAFE_LITERAL.match(v) or "--" in v]
     if unsafe:
         raise _error(f"rules may not contain quotes, backslashes, ';' or '--': {unsafe}.")
@@ -215,12 +221,13 @@ def _tier_name(expr):
 
 def _overrides_values(spec):
     if not spec.overrides:
-        return ("SELECT CAST(NULL AS STRING) AS adm3_pcode, CAST(NULL AS STRING) AS psgc_code, "
-                "CAST(NULL AS STRING) AS match_method, CAST(NULL AS STRING) AS reason WHERE 1 = 0")
+        return ("SELECT CAST(NULL AS STRING) AS adm3_pcode, CAST(NULL AS DATE) AS source_reference_date, "
+                "CAST(NULL AS STRING) AS psgc_code, CAST(NULL AS STRING) AS match_method, CAST(NULL AS STRING) AS reason "
+                "WHERE 1 = 0")
     null = "CAST(NULL AS STRING)"
-    rows = ", ".join(f"({lit(o.adm3_pcode)}, {lit(o.psgc_code) if o.psgc_code else null}, "
+    rows = ", ".join(f"({lit(o.adm3_pcode)}, DATE {lit(o.source_reference_date)}, {lit(o.psgc_code) if o.psgc_code else null}, "
                      f"{lit(o.match_method) if o.match_method else null}, {lit(o.reason)})" for o in spec.overrides)
-    return f"SELECT * FROM (VALUES {rows}) AS v(adm3_pcode, psgc_code, match_method, reason)"
+    return f"SELECT * FROM (VALUES {rows}) AS v(adm3_pcode, source_reference_date, psgc_code, match_method, reason)"
 
 
 # --- Build ---------------------------------------------------------------------------------
@@ -304,9 +311,15 @@ def build_sql(spec):
         f"  UNION ALL SELECT s.adm3_pcode, s.valid_on, 3, u.psgc_code, {_pair_tier('s', 'u')}",
         "  FROM s JOIN units AS u ON s.code10 LIKE '19%' AND u.psgc_code = '09' || substr(s.code10, 3)",
         "),",
+        "-- The first code rule whose names agree, and how many units it names: more than one (two units",
+        "-- sharing a Correspondence Code) is not one-to-one (D-030), so the feature stays ambiguous.",
+        "code_hits AS (",
+        "  SELECT adm3_pcode, valid_on, rule, COUNT(DISTINCT psgc_code) AS hits, MIN(psgc_code) AS psgc_code",
+        "  FROM by_code WHERE tier IS NOT NULL GROUP BY adm3_pcode, valid_on, rule",
+        "),",
         "code_agreed AS (",
-        "  SELECT adm3_pcode, valid_on, MIN_BY(psgc_code, rule) AS psgc_code, MIN(rule) AS rule",
-        "  FROM by_code WHERE tier IS NOT NULL GROUP BY adm3_pcode, valid_on",
+        "  SELECT adm3_pcode, valid_on, MIN_BY(psgc_code, rule) AS psgc_code, MIN(rule) AS rule, MIN_BY(hits, rule) AS hits",
+        "  FROM code_hits GROUP BY adm3_pcode, valid_on",
         "),",
         "code_any AS (",
         "  SELECT adm3_pcode, valid_on, MIN_BY(psgc_code, rule) AS psgc_code FROM by_code GROUP BY adm3_pcode, valid_on",
@@ -346,22 +359,29 @@ def build_sql(spec):
         "decided AS (",
         "  SELECT s.*,",
         "    CASE WHEN o.adm3_pcode IS NOT NULL THEN o.psgc_code",
-        "         WHEN ca.psgc_code IS NOT NULL THEN ca.psgc_code",
+        "         WHEN ca.hits = 1 THEN ca.psgc_code",
+        "         WHEN ca.hits > 1 THEN NULL",
         "         WHEN nh.hits = 1 THEN nh.psgc_code",
         "         ELSE NULL END AS psgc_code,",
         "    CASE WHEN o.adm3_pcode IS NOT NULL THEN CASE WHEN o.psgc_code IS NULL THEN 'unmatched' ELSE 'matched' END",
-        "         WHEN ca.psgc_code IS NOT NULL OR nh.hits = 1 THEN 'matched'",
+        "         WHEN ca.hits = 1 THEN 'matched'",
+        "         WHEN ca.hits > 1 THEN 'ambiguous'",
+        "         WHEN nh.hits = 1 THEN 'matched'",
         "         WHEN nh.hits > 1 OR cy.psgc_code IS NOT NULL THEN 'ambiguous'",
         "         ELSE 'unmatched' END AS match_status,",
         "    CASE WHEN o.adm3_pcode IS NOT NULL THEN o.match_method",
+        "         WHEN ca.hits > 1 THEN NULL",
         "         WHEN ca.rule = 1 THEN 'code' WHEN ca.rule = 2 THEN 'correspondence_code' WHEN ca.rule = 3 THEN 'code_region_moved'",
         f"         WHEN nh.hits = 1 THEN {_tier_method('nh.tier')}",
         "         END AS match_method,",
         "    CASE WHEN o.adm3_pcode IS NOT NULL THEN 'reviewed'",
-        "         WHEN ca.psgc_code IS NOT NULL OR nh.hits = 1 THEN 'rule'",
+        "         WHEN ca.hits = 1 OR (ca.hits IS NULL AND nh.hits = 1) THEN 'rule'",
         "         ELSE 'pending' END AS review_status,",
         "    CASE WHEN o.adm3_pcode IS NOT NULL THEN o.reason",
-        "         WHEN ca.psgc_code IS NOT NULL THEN NULL",
+        "         WHEN ca.hits = 1 THEN NULL",
+        ("         WHEN ca.hits > 1 THEN CAST(ca.hits AS STRING) || ' units share this code under the ' || "
+         "CASE ca.rule WHEN 1 THEN 'code' WHEN 2 THEN 'Correspondence Code' ELSE 'Sulu' END || "
+         "' rule: not one-to-one (D-030), review'"),
         f"         WHEN nh.hits = 1 THEN 'name in province, ' || {_tier_name('nh.tier')}",
         "              || CASE WHEN cy.psgc_code IS NOT NULL THEN ', the code names another unit' ELSE '' END",
         f"         WHEN nh.hits > 1 THEN CAST(nh.hits AS STRING) || ' units match at tier ' || {_tier_name('nh.tier')}",
@@ -369,7 +389,7 @@ def build_sql(spec):
         "         WHEN NOT COALESCE(sc.has_units, FALSE) THEN 'no PSGC province found for adm2_pcode, so no name match was tried'",
         "         ELSE 'no code or name match' END AS reason",
         "  FROM s",
-        "  LEFT JOIN overrides AS o ON o.adm3_pcode = s.adm3_pcode",
+        "  LEFT JOIN overrides AS o ON o.adm3_pcode = s.adm3_pcode AND o.source_reference_date = s.valid_on",
         "  LEFT JOIN code_agreed AS ca ON ca.adm3_pcode = s.adm3_pcode AND ca.valid_on = s.valid_on",
         "  LEFT JOIN code_any AS cy ON cy.adm3_pcode = s.adm3_pcode AND cy.valid_on = s.valid_on",
         "  LEFT JOIN name_hit AS nh ON nh.adm3_pcode = s.adm3_pcode AND nh.valid_on = s.valid_on",
@@ -502,7 +522,7 @@ def gate_sql(spec):
         "-- data_quality_results (layer 'integration'). On any FAIL it records the run 'failed' and stops",
         f"-- before publishing, so {spec.map_table} keeps the last map that passed. Otherwise it copies",
         "-- the candidate to the map table and records the run 'succeeded'. WARN (pending reviews, unmatched,",
-        "-- ambiguous, an override whose P-code is not in this HDX release, PSGC cities and municipalities",
+        "-- ambiguous, an override whose P-code is not in the HDX release it was reviewed for, PSGC cities and municipalities",
         "-- no feature matched) is recorded and the map is",
         "-- published. Results hold counts, never row values.",
         "",
@@ -514,13 +534,15 @@ def gate_sql(spec):
         f"SELECT :run_id, CAST(NULL AS STRING), 'hdx_boundaries', {lit(LAYER)}, {lit(table)}, check_name, status, expected, actual,",
         "       current_timestamp(), :code_revision",
         "FROM (",
-        f"WITH hdx AS (SELECT adm3_pcode FROM {hdx}),",
+        f"WITH hdx AS (SELECT adm3_pcode, valid_on FROM {hdx}),",
         f"units AS (SELECT psgc_code, correspondence_code FROM {psgc} WHERE is_master_reference AND geographic_level IN ({levels})),",
         f"overrides AS ({overrides}),",
         "totals AS (",
         "  SELECT (SELECT COUNT(*) FROM hdx) AS hdx_rows, (SELECT COUNT(*) FROM units) AS psgc_units,",
-        "         (SELECT COUNT(*) FROM overrides AS o JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode) AS overrides_present,",
-        "         (SELECT COUNT(*) FROM overrides AS o LEFT JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode",
+        ("         (SELECT COUNT(*) FROM overrides AS o JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode "
+         "AND h.valid_on = o.source_reference_date) AS overrides_present,"),
+        ("         (SELECT COUNT(*) FROM overrides AS o LEFT JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode "
+         "AND h.valid_on = o.source_reference_date"),
         "          WHERE h.adm3_pcode IS NULL) AS overrides_missing,",
         f"         (SELECT COUNT(DISTINCT publication_period) FROM {psgc} WHERE is_master_reference) AS master_periods,",
         "         (SELECT COUNT(*) FROM units AS u LEFT JOIN (SELECT DISTINCT psgc_code FROM "

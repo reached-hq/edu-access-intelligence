@@ -7,7 +7,9 @@ No real COD-AB or PSGC row is used.
 """
 
 import copy
+import importlib.util
 import json
+import shutil
 import uuid
 
 import pytest
@@ -20,6 +22,7 @@ from src.integration import hdx_adm3_psgc as hdx
 CONTROL = "edu_access.`01-control`"
 MAP = "edu_access.`04-integration`.hdx_adm3_psgc_map"
 CANDIDATE = "edu_access.`04-integration`.hdx_adm3_psgc_map_candidate"
+RELEASE = "2025-02-13"  # the made-up HDX rows' valid_on
 # The committed rules without its reviewed overrides, which name real COD-AB features: each test adds its own.
 RULES = {**json.loads((REPO_ROOT / "config" / "integration" / "hdx_adm3_psgc.json").read_text(encoding="utf-8")),
          "overrides": []}
@@ -57,9 +60,9 @@ HDX = {
 
 
 class Env:
-    def __init__(self, tmp_path, rules=None, hdx_rows=None, psgc_rows=None):
+    def __init__(self, tmp_path, rules=None, hdx_rows=None, psgc_rows=None, db=None):
         self.tmp = tmp_path
-        self.store = DuckDBStore()
+        self.store = DuckDBStore(db)
         for path in sorted((REPO_ROOT / "etl" / "01_control").glob("0[1-4]_*.sql")):
             self.store.run_file(path)
         self.store.sql("CREATE SCHEMA IF NOT EXISTS edu_access.`03-silver`")
@@ -159,9 +162,9 @@ def test_the_gate_passes_and_warns_on_what_needs_review(tmp_path):
 
 def test_overrides_are_applied_and_marked_reviewed(tmp_path):
     env = Env(tmp_path, rules=with_overrides(
-        {"adm3_pcode": "PH1909901", "psgc_code": None, "match_method": None,
+        {"adm3_pcode": "PH1909901", "source_reference_date": RELEASE, "psgc_code": None, "match_method": None,
          "reason": "Special Geographic Area unit, no PSGC equivalent until a spatial check (D-031)", "evidence": "#74 HB-2"},
-        {"adm3_pcode": "PH0102802", "psgc_code": "0102802000", "match_method": "code_renamed",
+        {"adm3_pcode": "PH0102802", "source_reference_date": RELEASE, "psgc_code": "0102802000", "match_method": "code_renamed",
          "reason": "Renamed since COD-AB v03", "evidence": "made up"}))
     run_id, error = env.run()
     assert error is None
@@ -172,7 +175,7 @@ def test_overrides_are_applied_and_marked_reviewed(tmp_path):
 
 
 @pytest.mark.parametrize("override, failed", [
-    ({"adm3_pcode": "PH0102898", "psgc_code": "0102801000", "match_method": "reviewed_alias",
+    ({"adm3_pcode": "PH0102898", "source_reference_date": RELEASE, "psgc_code": "0102801000", "match_method": "reviewed_alias",
       "reason": "takes Adams a second time", "evidence": "made up"}, "psgc_code_taken_once"),
 ])
 def test_a_bad_override_fails_the_gate_and_nothing_is_published(tmp_path, override, failed):
@@ -187,7 +190,7 @@ def test_a_bad_override_fails_the_gate_and_nothing_is_published(tmp_path, overri
 def test_an_override_for_a_feature_not_in_this_release_warns_and_publishes(tmp_path):
     """A later COD-AB release may drop a reviewed feature: the gate warns so the override is reviewed again."""
     env = Env(tmp_path, rules=with_overrides(
-        {"adm3_pcode": "PH0109999", "psgc_code": None, "match_method": None, "reason": "not an HDX feature", "evidence": "made up"}))
+        {"adm3_pcode": "PH0109999", "source_reference_date": RELEASE, "psgc_code": None, "match_method": None, "reason": "not an HDX feature", "evidence": "made up"}))
     run_id, error = env.run()
     assert error is None
     checks = env.checks(run_id)
@@ -199,6 +202,48 @@ def test_an_override_for_a_feature_not_in_this_release_warns_and_publishes(tmp_p
 def test_the_committed_overrides_are_valid():
     spec = hdx.load_spec(REPO_ROOT)
     assert len(spec.overrides) == len({o.adm3_pcode for o in spec.overrides}) > 0
+    assert {o.source_reference_date for o in spec.overrides} == {"2025-02-13"}
+
+
+def test_an_override_applies_only_to_the_release_it_was_reviewed_for(tmp_path):
+    """Review on #139: a later HDX release does not inherit a reviewed decision; its feature goes back to review."""
+    env = Env(tmp_path, rules=with_overrides(
+        {"adm3_pcode": "PH0102802", "source_reference_date": RELEASE, "psgc_code": "0102802000",
+         "match_method": "code_renamed", "reason": "Renamed since COD-AB v03", "evidence": "made up"}))
+    env.store.sql("INSERT INTO edu_access.`03-silver`.hdx_adm3_clean VALUES "
+                  "('PH0102802', 'Bacarra New Name', 'PH01028', NULL, 'PH01', DATE '2026-01-01', 'B2', 'sha2', 1)")
+    run_id, error = env.run()
+    assert error is None
+    got = {str(r["source_reference_date"]): (r["match_status"], r["psgc_code"], r["review_status"]) for r in env.rows(
+        f"SELECT * FROM {MAP} WHERE adm3_pcode = 'PH0102802'")}
+    assert got == {RELEASE: ("matched", "0102802000", "reviewed"), "2026-01-01": ("ambiguous", None, "pending")}
+    assert env.checks(run_id)["overrides_applied"]["status"] == "PASS"
+
+
+def test_an_override_for_a_release_without_its_feature_warns(tmp_path):
+    """Review on #139: the feature is in an older release but not the one the override names."""
+    env = Env(tmp_path, rules=with_overrides(
+        {"adm3_pcode": "PH1909901", "source_reference_date": "2026-01-01", "psgc_code": None, "match_method": None,
+         "reason": "Special Geographic Area unit (D-031)", "evidence": "made up"}))
+    run_id, error = env.run()
+    assert error is None
+    checks = env.checks(run_id)
+    assert (checks["override_feature_missing"]["status"], checks["override_feature_missing"]["actual"]) == ("WARN", "1")
+    row = env.rows(f"SELECT * FROM {MAP} WHERE adm3_pcode = 'PH1909901'")[0]
+    assert (row["match_status"], row["review_status"]) == ("unmatched", "pending")
+
+
+def test_a_code_that_names_two_units_stays_ambiguous(tmp_path):
+    """Review on #139: two PSGC units share one Correspondence Code and the name; D-030 needs one-to-one."""
+    psgc = PSGC + [("1804502000", "Talisay", None, "064502000", "City"),
+                   ("1804503000", "Talisay", None, "064502000", "Mun")]
+    env = Env(tmp_path, psgc_rows=psgc, hdx_rows={"PH0604502": ("Talisay", "PH06045", None)})
+    run_id, error = env.run()
+    assert error is None
+    row = env.rows(f"SELECT * FROM {MAP}")[0]
+    assert (row["match_status"], row["psgc_code"], row["match_method"], row["review_status"]) == ("ambiguous", None, None, "pending")
+    assert row["reason"].startswith("2 units share this code under the Correspondence Code rule")
+    assert env.checks(run_id)["ambiguous"]["actual"] == "1"
 
 
 def test_a_feature_is_never_dropped(tmp_path):
@@ -265,12 +310,15 @@ def test_two_master_psgc_periods_fail_the_gate(tmp_path):
 # --- The rules file and the committed files ------------------------------------------------
 
 @pytest.mark.parametrize("override, message", [
-    ({"adm3_pcode": "PH12", "psgc_code": None, "match_method": None, "reason": "r", "evidence": "e"}, "must match"),
-    ({"adm3_pcode": "PH0102801", "psgc_code": "12", "match_method": "code", "reason": "r", "evidence": "e"}, "ten digits"),
-    ({"adm3_pcode": "PH0102801", "psgc_code": "0102801000", "match_method": "guess", "reason": "r", "evidence": "e"}, "D-029"),
-    ({"adm3_pcode": "PH0102801", "psgc_code": None, "match_method": "spatial", "reason": "r", "evidence": "e"}, "no match_method"),
-    ({"adm3_pcode": "PH0102801", "psgc_code": "0102801000", "match_method": "code", "reason": "", "evidence": "e"}, "reason and evidence"),
-    ({"adm3_pcode": "PH0102801", "psgc_code": "0102801000", "match_method": "code", "reason": "it's", "evidence": "e"}, "quotes"),
+    ({"adm3_pcode": "PH12", "source_reference_date": RELEASE, "psgc_code": None, "match_method": None, "reason": "r", "evidence": "e"}, "must match"),
+    ({"adm3_pcode": "PH0102801", "psgc_code": None, "match_method": None, "reason": "r", "evidence": "e"}, "release date"),
+    ({"adm3_pcode": "PH0102801", "source_reference_date": "13/02/2025", "psgc_code": None, "match_method": None,
+      "reason": "r", "evidence": "e"}, "release date"),
+    ({"adm3_pcode": "PH0102801", "source_reference_date": RELEASE, "psgc_code": "12", "match_method": "code", "reason": "r", "evidence": "e"}, "ten digits"),
+    ({"adm3_pcode": "PH0102801", "source_reference_date": RELEASE, "psgc_code": "0102801000", "match_method": "guess", "reason": "r", "evidence": "e"}, "D-029"),
+    ({"adm3_pcode": "PH0102801", "source_reference_date": RELEASE, "psgc_code": None, "match_method": "spatial", "reason": "r", "evidence": "e"}, "no match_method"),
+    ({"adm3_pcode": "PH0102801", "source_reference_date": RELEASE, "psgc_code": "0102801000", "match_method": "code", "reason": "", "evidence": "e"}, "reason and evidence"),
+    ({"adm3_pcode": "PH0102801", "source_reference_date": RELEASE, "psgc_code": "0102801000", "match_method": "code", "reason": "it's", "evidence": "e"}, "quotes"),
 ])
 def test_a_bad_override_is_refused_before_any_sql(override, message):
     with pytest.raises(IngestionError, match=message):
@@ -284,3 +332,29 @@ def test_a_bad_override_is_refused_before_any_sql(override, message):
 def test_committed_files_match_the_generator(command, path, function):
     assert (REPO_ROOT / path).read_text(encoding="utf-8") == function(hdx.load_spec(REPO_ROOT)), (
         f"Regenerate: python -m src.integration.hdx_adm3_psgc {command} > {path}")
+
+
+# --- The verification script --------------------------------------------------------------
+
+def test_the_verification_script_reports_the_failed_candidate_not_the_last_published_map(tmp_path, monkeypatch, capsys):
+    """Review on #139: after a failed gate the published map is the previous build, so the report reads the candidate."""
+    db = tmp_path / "map.duckdb"
+    env = Env(tmp_path, db=db)
+    assert env.run()[1] is None                      # a first map is published
+    env.store.sql("INSERT INTO edu_access.`03-silver`.hdx_adm3_clean VALUES "
+                  "('PH0102896', 'Nowhere', 'PH01028', NULL, 'PH01', DATE '2025-02-13', 'B1', 'sha', 99)")
+    env.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES "
+                  "('0102807000', 'Burgos', NULL, '012807000', 'Mun', '2026-Q1', TRUE, 'P0', 99)")   # two periods: FAIL
+    env.store.close()
+    repo = tmp_path / "repo"
+    shutil.copytree(REPO_ROOT / "etl" / "04_integration", repo / "etl" / "04_integration")
+    path = REPO_ROOT / "analysis" / "verification" / "hdx_adm3_psgc_map.py"
+    module_spec = importlib.util.spec_from_file_location("hdx_adm3_psgc_map_script", path)
+    script = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(script)
+    monkeypatch.setattr(script, "REPO_ROOT", repo)
+    assert script.main(["--db", str(db)]) == 1
+    out = capsys.readouterr().out
+    counted = out.split("by status and method:")[1].splitlines()[1:]
+    assert sum(int(line.split()[-1]) for line in counted if line.startswith("  ")) == len(HDX) + 1   # the candidate
+    assert "PH0102896" in (repo / "local_state" / "hdx_adm3_psgc_review.md").read_text(encoding="utf-8")

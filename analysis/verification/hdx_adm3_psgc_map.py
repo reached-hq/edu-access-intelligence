@@ -48,8 +48,8 @@ def main(argv=None):
     for r in store.records(f"SELECT check_name, status, expected, actual FROM {CONTROL}.data_quality_results "
                            f"WHERE run_id = '{run_id}' ORDER BY check_name"):
         print(f"  {r['status']:<4} {r['check_name']:<32} expected {r['expected']}, actual {r['actual']}")
-    table = MAP if store.query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '04-integration' "
-                               "AND table_name = 'hdx_adm3_psgc_map'")[0][0] else MAP + "_candidate"
+    # After a failed gate the published map is the last one that passed, not this build: report the candidate.
+    table = MAP + "_candidate" if gate_failed else MAP
     print("by status and method:")
     for r in store.records(f"SELECT match_status, match_method, review_status, COUNT(*) AS n FROM {table} "
                            "GROUP BY ALL ORDER BY n DESC"):

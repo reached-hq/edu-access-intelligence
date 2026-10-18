@@ -75,9 +75,15 @@ by_code AS (
   UNION ALL SELECT s.adm3_pcode, s.valid_on, 3, u.psgc_code, CASE WHEN s.k_exact = u.k_exact THEN 1 WHEN s.k_exact = u.ok_exact THEN 2 WHEN s.k_fold = u.k_fold THEN 3 WHEN s.k_fold = u.ok_fold THEN 4 WHEN s.k_brackets = u.k_brackets THEN 5 WHEN s.k_city = u.k_city THEN 6 END
   FROM s JOIN units AS u ON s.code10 LIKE '19%' AND u.psgc_code = '09' || substr(s.code10, 3)
 ),
+-- The first code rule whose names agree, and how many units it names: more than one (two units
+-- sharing a Correspondence Code) is not one-to-one (D-030), so the feature stays ambiguous.
+code_hits AS (
+  SELECT adm3_pcode, valid_on, rule, COUNT(DISTINCT psgc_code) AS hits, MIN(psgc_code) AS psgc_code
+  FROM by_code WHERE tier IS NOT NULL GROUP BY adm3_pcode, valid_on, rule
+),
 code_agreed AS (
-  SELECT adm3_pcode, valid_on, MIN_BY(psgc_code, rule) AS psgc_code, MIN(rule) AS rule
-  FROM by_code WHERE tier IS NOT NULL GROUP BY adm3_pcode, valid_on
+  SELECT adm3_pcode, valid_on, MIN_BY(psgc_code, rule) AS psgc_code, MIN(rule) AS rule, MIN_BY(hits, rule) AS hits
+  FROM code_hits GROUP BY adm3_pcode, valid_on
 ),
 code_any AS (
   SELECT adm3_pcode, valid_on, MIN_BY(psgc_code, rule) AS psgc_code FROM by_code GROUP BY adm3_pcode, valid_on
@@ -112,27 +118,32 @@ name_hit AS (
   FROM best AS b JOIN by_name AS n ON n.adm3_pcode = b.adm3_pcode AND n.valid_on = b.valid_on AND n.tier = b.tier
   GROUP BY b.adm3_pcode, b.valid_on, b.tier
 ),
-overrides AS (SELECT * FROM (VALUES ('PH0907226', '0907226000', 'code_renamed', 'renamed LGU: COD-AB Bacungan (Leon T. Postigo) is PSGC Leon T. Postigo, Zamboanga del Norte'), ('PH1004217', '1004217000', 'code_renamed', 'renamed LGU: COD-AB Don Victoriano Chiongbian (Don Mariano Marcos) is PSGC Don Victoriano, Misamis Occidental'), ('PH1102324', '1102324000', 'code_renamed', 'renamed LGU: COD-AB San Isidro is PSGC Sawata, Davao del Norte'), ('PH1705323', '1705323000', 'code_renamed', 'renamed LGU: COD-AB Rizal (Marcos) is PSGC Dr. Jose P. Rizal, Palawan'), ('PH1909901', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Carmen): no PSGC equivalent until a spatial check (D-031)'), ('PH1909902', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Kabacan): no PSGC equivalent until a spatial check (D-031)'), ('PH1909903', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Midsayap I): no PSGC equivalent until a spatial check (D-031)'), ('PH1909904', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Midsayap II): no PSGC equivalent until a spatial check (D-031)'), ('PH1909905', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pigkawayan): no PSGC equivalent until a spatial check (D-031)'), ('PH1909906', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit I): no PSGC equivalent until a spatial check (D-031)'), ('PH1909907', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit II): no PSGC equivalent until a spatial check (D-031)'), ('PH1909908', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit III): no PSGC equivalent until a spatial check (D-031)')) AS v(adm3_pcode, psgc_code, match_method, reason)),
+overrides AS (SELECT * FROM (VALUES ('PH0907226', DATE '2025-02-13', '0907226000', 'code_renamed', 'renamed LGU: COD-AB Bacungan (Leon T. Postigo) is PSGC Leon T. Postigo, Zamboanga del Norte'), ('PH1004217', DATE '2025-02-13', '1004217000', 'code_renamed', 'renamed LGU: COD-AB Don Victoriano Chiongbian (Don Mariano Marcos) is PSGC Don Victoriano, Misamis Occidental'), ('PH1102324', DATE '2025-02-13', '1102324000', 'code_renamed', 'renamed LGU: COD-AB San Isidro is PSGC Sawata, Davao del Norte'), ('PH1705323', DATE '2025-02-13', '1705323000', 'code_renamed', 'renamed LGU: COD-AB Rizal (Marcos) is PSGC Dr. Jose P. Rizal, Palawan'), ('PH1909901', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Carmen): no PSGC equivalent until a spatial check (D-031)'), ('PH1909902', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Kabacan): no PSGC equivalent until a spatial check (D-031)'), ('PH1909903', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Midsayap I): no PSGC equivalent until a spatial check (D-031)'), ('PH1909904', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Midsayap II): no PSGC equivalent until a spatial check (D-031)'), ('PH1909905', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pigkawayan): no PSGC equivalent until a spatial check (D-031)'), ('PH1909906', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit I): no PSGC equivalent until a spatial check (D-031)'), ('PH1909907', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit II): no PSGC equivalent until a spatial check (D-031)'), ('PH1909908', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit III): no PSGC equivalent until a spatial check (D-031)')) AS v(adm3_pcode, source_reference_date, psgc_code, match_method, reason)),
 -- One decision per feature, in the rules' order.
 decided AS (
   SELECT s.*,
     CASE WHEN o.adm3_pcode IS NOT NULL THEN o.psgc_code
-         WHEN ca.psgc_code IS NOT NULL THEN ca.psgc_code
+         WHEN ca.hits = 1 THEN ca.psgc_code
+         WHEN ca.hits > 1 THEN NULL
          WHEN nh.hits = 1 THEN nh.psgc_code
          ELSE NULL END AS psgc_code,
     CASE WHEN o.adm3_pcode IS NOT NULL THEN CASE WHEN o.psgc_code IS NULL THEN 'unmatched' ELSE 'matched' END
-         WHEN ca.psgc_code IS NOT NULL OR nh.hits = 1 THEN 'matched'
+         WHEN ca.hits = 1 THEN 'matched'
+         WHEN ca.hits > 1 THEN 'ambiguous'
+         WHEN nh.hits = 1 THEN 'matched'
          WHEN nh.hits > 1 OR cy.psgc_code IS NOT NULL THEN 'ambiguous'
          ELSE 'unmatched' END AS match_status,
     CASE WHEN o.adm3_pcode IS NOT NULL THEN o.match_method
+         WHEN ca.hits > 1 THEN NULL
          WHEN ca.rule = 1 THEN 'code' WHEN ca.rule = 2 THEN 'correspondence_code' WHEN ca.rule = 3 THEN 'code_region_moved'
          WHEN nh.hits = 1 THEN CASE WHEN nh.tier = 1 THEN 'name_exact' WHEN nh.tier = 2 THEN 'name_old' WHEN nh.tier = 3 THEN 'name_normalized' WHEN nh.tier = 4 THEN 'name_old' WHEN nh.tier = 5 THEN 'name_normalized' WHEN nh.tier = 6 THEN 'name_normalized' END
          END AS match_method,
     CASE WHEN o.adm3_pcode IS NOT NULL THEN 'reviewed'
-         WHEN ca.psgc_code IS NOT NULL OR nh.hits = 1 THEN 'rule'
+         WHEN ca.hits = 1 OR (ca.hits IS NULL AND nh.hits = 1) THEN 'rule'
          ELSE 'pending' END AS review_status,
     CASE WHEN o.adm3_pcode IS NOT NULL THEN o.reason
-         WHEN ca.psgc_code IS NOT NULL THEN NULL
+         WHEN ca.hits = 1 THEN NULL
+         WHEN ca.hits > 1 THEN CAST(ca.hits AS STRING) || ' units share this code under the ' || CASE ca.rule WHEN 1 THEN 'code' WHEN 2 THEN 'Correspondence Code' ELSE 'Sulu' END || ' rule: not one-to-one (D-030), review'
          WHEN nh.hits = 1 THEN 'name in province, ' || CASE WHEN nh.tier = 1 THEN 'exact' WHEN nh.tier = 2 THEN 'old name' WHEN nh.tier = 3 THEN 'folded' WHEN nh.tier = 4 THEN 'folded old name' WHEN nh.tier = 5 THEN 'brackets dropped' WHEN nh.tier = 6 THEN 'word City ignored' END
               || CASE WHEN cy.psgc_code IS NOT NULL THEN ', the code names another unit' ELSE '' END
          WHEN nh.hits > 1 THEN CAST(nh.hits AS STRING) || ' units match at tier ' || CASE WHEN nh.tier = 1 THEN 'exact' WHEN nh.tier = 2 THEN 'old name' WHEN nh.tier = 3 THEN 'folded' WHEN nh.tier = 4 THEN 'folded old name' WHEN nh.tier = 5 THEN 'brackets dropped' WHEN nh.tier = 6 THEN 'word City ignored' END
@@ -140,7 +151,7 @@ decided AS (
          WHEN NOT COALESCE(sc.has_units, FALSE) THEN 'no PSGC province found for adm2_pcode, so no name match was tried'
          ELSE 'no code or name match' END AS reason
   FROM s
-  LEFT JOIN overrides AS o ON o.adm3_pcode = s.adm3_pcode
+  LEFT JOIN overrides AS o ON o.adm3_pcode = s.adm3_pcode AND o.source_reference_date = s.valid_on
   LEFT JOIN code_agreed AS ca ON ca.adm3_pcode = s.adm3_pcode AND ca.valid_on = s.valid_on
   LEFT JOIN code_any AS cy ON cy.adm3_pcode = s.adm3_pcode AND cy.valid_on = s.valid_on
   LEFT JOIN name_hit AS nh ON nh.adm3_pcode = s.adm3_pcode AND nh.valid_on = s.valid_on
