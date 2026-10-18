@@ -25,8 +25,7 @@ Later commits on the branch change only comments and documentation, including on
 ## Results
 
 ### Run graph: the annex map hangs off the enrollment gate, and only freshness follows the fan-in
-
-**Screenshot to add:** the **Graph** tab of run `18257140364359`, zoomed so `90_validate_deped_enrollment_clean` → `04_map_deped_annex_mother` → `90_validate_deped_annex_mother_map` is visible, and `90_validate_control` → `90_validate_freshness` with no other arrow out of the fan-in.
+<img width="1080" height="367" alt="image" src="https://github.com/user-attachments/assets/11430719-e976-45ab-b8c5-22e83522c9a6" />
 
 ### 1. The annex map does not wait for other lanes
 
@@ -42,8 +41,7 @@ Later commits on the branch change only comments and documentation, including on
 The annex map started the moment the enrollment Silver gate passed. The personnel gate was still running, and HDX had not started cleaning. The annex map and its gate had finished before HDX began. Under D-039 the map would have waited for `90_validate_control` to finish at 11:16:32, about two and a half minutes later.
 
 ### Run timeline: the annex map finishes while personnel and HDX are still running
-
-**Screenshot to add:** the **Timeline** tab of run `18257140364359`, covering 11:12 to 11:17, with the annex map and its gate in view beside the personnel and HDX tasks.
+<img width="1307" height="455" alt="image" src="https://github.com/user-attachments/assets/e11b97c7-3e03-4da7-9647-51d1dade777a" />
 
 ### 2. Freshness follows the fan-in, after every Bronze load
 
@@ -58,8 +56,7 @@ The annex map started the moment the enrollment Silver gate passed. The personne
 The disabled EMISD Silver tasks resolved at 11:15:19, the second the EMISD Bronze gate finished, not at the start of the run. So the fan-in, which waits for every Silver gate including placeholders, waited for the EMISD load, and freshness, which waits only for the fan-in, checked EMISD's latest batch after that load had finished.
 
 ### Timeline: the fan-in, then freshness, after the last Silver gate
-
-**Screenshot to add:** the **Timeline** tab, 11:15 to 11:17, showing the EMISD Bronze gate ending, `90_validate_hdx_adm3_clean` ending, then `90_validate_control` and `90_validate_freshness` one after the other.
+<img width="710" height="250" alt="image" src="https://github.com/user-attachments/assets/3c0fdaf0-14d9-44ea-8aeb-9dd8704a4768" />
 
 ### 3. Control results for this run
 
@@ -75,8 +72,7 @@ On the SQL warehouse after the run (`run_id = '18257140364359'`):
 | FAIL results in this run, any layer | 0 | 0 | OK |
 
 ### Control results: 6 lane PASS and 7 freshness PASS, all at `135c1ac`
-
-**Screenshot to add:** the result of query 1 below in the SQL editor, all 13 rows visible.
+<img width="1018" height="366" alt="image" src="https://github.com/user-attachments/assets/6c037e2b-52f9-49b3-af19-c712d54ef762" />
 
 The run wrote 424 results: 21 Bronze, 382 Silver, 8 Integration, and 13 control, of which 414 PASS and 10 WARN. The WARNs are expected and unchanged by this PR: 2,331 annexes without a mother school (D-044), and nine PSA poverty flags (coefficient of variation over 20%, a non-positive lower limit, and SE/CV inconsistencies) for 2018, 2021, and 2023.
 
