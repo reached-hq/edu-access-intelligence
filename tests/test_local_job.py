@@ -112,6 +112,13 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".hdx_adm3_psgc_map") == [(3, "job-run-1")]
     assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
                        "AND source_id = 'hdx_boundaries'") == [("succeeded",)]
+    # The school-age map runs after the school-age and PSGC Silver gates (D-051): one row per made-up census place (#159).
+    places = store.query("SELECT COUNT(*) FROM (SELECT DISTINCT census_year, place_name, parent_name FROM "
+                         "edu_access.\"03-silver\".psa_school_age_population_clean WHERE level = 'city_municipality')")
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".psa_school_age_population_psgc_map") == [
+        (places[0][0], "job-run-1")]
+    assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
+                       "AND source_id = 'psa_school_age_population'") == [("succeeded",)]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-1' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
         ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
@@ -171,7 +178,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 1), ("silver_build", 8)]   # one filter, both layers; the HDX map writes its own run
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 2), ("silver_build", 8)]   # one filter, both layers; the HDX and school-age maps write their own runs
     store.close()
 
 

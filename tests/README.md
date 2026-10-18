@@ -20,6 +20,7 @@ python -m pytest tests -q
 | `test_silver_personnel.py` | Personnel Silver typing, blank-versus-zero retention, standardized labels, principal-total flag, quarantine, reconciliation, and every gate check |
 | `test_fan_in.py` | The source-lane fan-in: the committed `90_validate_control.sql` equals what `src/job/fan_in.py` generates, it checks exactly the Silver lanes switched on, and the generator refuses a fan-in that misses or adds a lane |
 | `test_integration_hdx.py` | HDX ADM3 → PSGC crosswalk: every rule of #74, overrides, the gate, and the generated files |
+| `test_integration_school_age.py` | PSA school-age population → PSGC map: parents, name tiers, overrides per census year, the gate (population adds up), and the generated files |
 | `test_silver_hdx.py` | HDX ADM3 Silver: exact typing, geometry checks (DuckDB spatial), quarantine, flags, the gate, and the generated files |
 | `test_bundle.py`, `test_databricks_runtime.py` | The job's commit tracking and task order, and the Databricks runtime differences imitated locally |
 
