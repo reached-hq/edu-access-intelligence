@@ -200,15 +200,15 @@ DOWNSTREAM = {
 
 def test_the_fan_in_is_an_audit_no_task_waits_for(jobs):
     """Every Silver gate fans in to 90_validate_control, which runs even when a lane failed (ALL_DONE)
-    and fails itself if one did, so the job run fails; freshness runs beside it (D-051)."""
+    and fails itself if one did, so the job run fails; only freshness follows it (D-051)."""
     tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
     for key in ("90_validate_control", "90_validate_freshness"):
         assert tasks[key].get("run_if") == "ALL_DONE" and not tasks[key].get("disabled")
     assert {d["task_key"] for d in tasks["90_validate_control"]["depends_on"]} == SILVER_GATES
-    assert {d["task_key"] for d in tasks["90_validate_freshness"]["depends_on"]} == SILVER_GATES | {
-        "90_validate_deped_enrollment_psgc_raw", "90_validate_psa_school_age_population_raw"}
+    assert {d["task_key"] for d in tasks["90_validate_freshness"]["depends_on"]} == {
+        "90_validate_control", "90_validate_deped_enrollment_psgc_raw", "90_validate_psa_school_age_population_raw"}
     waiting = [k for k, t in tasks.items() if {"task_key": "90_validate_control"} in t.get("depends_on", [])]
-    assert not waiting, f"{waiting} wait for the fan-in, which is an audit (D-051)"
+    assert waiting == ["90_validate_freshness"], f"{waiting} wait for the fan-in, which is an audit (D-051)"
 
 
 def test_freshness_waits_for_every_bronze_gate_through_an_enabled_path(jobs):

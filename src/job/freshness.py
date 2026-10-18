@@ -1,10 +1,9 @@
 """The source freshness check, `90_validate_freshness`, generated from the job (D-043).
 
-`90_validate_freshness` runs beside the source-lane fan-in, once every Silver
-gate, and the Bronze gate of each lane whose Silver is not switched on yet, has
-finished, passed or not (`run_if: ALL_DONE`, D-051), so every run records, for
-each source the job loads, whether its latest succeeded batch is older than that
-source's limit.
+`90_validate_freshness` runs after the source-lane fan-in and the Bronze gate of
+each lane whose Silver is not switched on yet have finished, passed or not
+(`run_if: ALL_DONE`), so every run records, for each source the job loads,
+whether its latest succeeded batch is older than that source's limit.
 A stale source is a WARN, never a FAIL: the run goes on, and the stale-source
 alert in `databricks.yml` reports it.
 
@@ -84,7 +83,7 @@ def freshness_sql(rows):
         f"--   python -m src.job.freshness > {PATH}",
         "-- Do not edit by hand; tests/test_freshness.py fails if it differs.",
         "--",
-        "-- Runs once every Silver gate and every Bronze-only lane has finished, passed or not (run_if: ALL_DONE), so every run",
+        "-- Runs once the fan-in and every Bronze-only lane have finished, passed or not (run_if: ALL_DONE), so every run",
         "-- records one result per loaded source in data_quality_results (layer 'control'): PASS when the",
         "-- source's latest succeeded batch in current_batches succeeded within its limit, WARN when it is older",
         "-- or the source has none. It never fails the task: stale data is still correct, only possibly out of",
