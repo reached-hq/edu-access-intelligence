@@ -98,6 +98,24 @@ Each override's reason and evidence is in the config. The script writes the same
 
 The count per method is unchanged (1,480 / 96 / 29 / 19 / 6 / 4 matched, 8 unmatched), and `ambiguous` is 0, so on this data the stricter rules change no match. The new WARN counts the PSGC side: the 8 PSGC Special Geographic Area municipalities that no HDX feature matches, and which therefore have no HDX land area. The full suite passed at `882873e` (784 passed, 1 skipped). Databricks: two runs at `882873e`, 29 PASS, 2 WARN, 0 FAIL, the same count per method ([Databricks record](../pipeline-runs/2026-10-15-hdx-adm3-psgc-map-databricks.md#rerun-at-882873e-2026-10-18)).
 
+## Rerun at `63f6318` (2026-10-18)
+
+`63f6318` adds the FAIL check `status_combination_valid` and counts `psgc_units_without_feature` per HDX release (D-052); `c40194d` merged `main` and renumbered the decision to D-052. Run on the same working tree before it was committed (`code_revision` `69f3254…-dirty`, the parent plus these changes), with `RAW_DATA_DIR` holding every source, including `admin_boundaries/phl_admin3.geojson` (SHA-256 `f682747f…eec41`):
+
+- `python -m src.job.local_run` (job run `2d2a9d87-28e8-42f7-b542-bf60f70066ac`) on a fresh DuckDB file: the whole job succeeded, HDX Bronze included (`hdx_boundaries__2025-02-13__f682747fbb26`, 1,642 rows), and both map tasks succeeded.
+- `python analysis\verification\hdx_adm3_psgc_map.py`: gate passed, map published, exit code 0.
+
+| | 2026-10-18, `882873e` | 2026-10-18, `63f6318` |
+|---|---|---|
+| Map rows / matched / distinct PSGC codes | 1,642 / 1,634 / 1,634 | 1,642 / 1,634 / 1,634 |
+| Match rate | 99.51% | 99.51% |
+| Overrides applied / pending | 12 / 0 | 12 / 0 |
+| `status_combination_valid` | (not yet a check) | PASS, 0 |
+| FAIL | 0 | 0 |
+| WARN | `unmatched` 8, `psgc_units_without_feature` 8 | `unmatched` 8, `psgc_units_without_feature` 8 (per release; one release) |
+
+The count per method is unchanged (1,480 / 96 / 29 / 19 / 6 / 4 matched, 8 unmatched). The new tests in `tests/test_integration_hdx.py` show what this data cannot: three status combinations D-052 forbids each fail the gate and leave the published map unchanged, and a second release that holds only one feature raises `psgc_units_without_feature` from 4 to 13. All four fail on the gate at `69f3254`. Full suite: 869 passed, 1 skipped.
+
 ## Limitations
 
 - Local DuckDB stands in for Spark and Delta (D-017). The Databricks runs are in their own record, linked above.

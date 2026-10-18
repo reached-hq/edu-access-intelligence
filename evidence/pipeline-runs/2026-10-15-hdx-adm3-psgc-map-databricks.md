@@ -80,6 +80,23 @@ The extra WARN is the new check, not a change in the map: the published map afte
 
 The MD5 differs from run 2's on purpose: the rows now carry `source_row_ref`, `geographic_level` on the 8 unmatched rows, and new `reason` texts.
 
+## Rerun at `63f6318` (2026-10-18)
+
+`63f6318` adds the FAIL check `status_combination_valid` (a `matched` row is `rule` or `reviewed` with a method and a code; `ambiguous` is `pending` and `unmatched` is `pending` or `reviewed`, neither with a method or a code) and counts `psgc_units_without_feature` per HDX release. `c40194d` before it merged `main` and renumbered the decision to D-052. Both runs deployed the bundle at `63f6318` to `dev` and ran the whole job (`databricks bundle run edu_access_pipeline -t dev`).
+
+| Run | Job run | Result | Map tasks | Gate | `code_revision` |
+|---|---|---|---|---|---|
+| 5 | `1021051251022782` | succeeded, 553 s | both succeeded | 30 PASS, 2 WARN, 0 FAIL | `63f6318` |
+| 6 | `628254422157103` | succeeded, 404 s | both succeeded | 30 PASS, 2 WARN, 0 FAIL | `63f6318` |
+
+In both runs `status_combination_valid` is PASS (0), the WARNs are `unmatched` 8 and `psgc_units_without_feature` 8 (one HDX release, so per release is still the 8 Special Geographic Area municipalities), and the count per method is unchanged: 1,480 `code`, 96 `correspondence_code`, 29 `name_exact`, 19 `code_region_moved`, 6 `name_normalized`, 4 `code_renamed` (reviewed), 8 unmatched (reviewed). No task failed; the tasks that did not run are the ones still `disabled` in `databricks.yml`.
+
+| rows | content MD5 | `run_id` |
+|---:|---|---|
+| 1642 | `7f93831043a34f93abb061e1844f9325` | `628254422157103` |
+
+The MD5 equals run 4's at `882873e`: the new check and the per-release count change the gate, not a single map row.
+
 ## Queries
 
 ```sql
