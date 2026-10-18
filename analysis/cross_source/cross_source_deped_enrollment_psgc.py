@@ -7,17 +7,20 @@
 #
 # RAW_DATA_DIR needs the files of cross_source_deped.py plus, in deped/original/, the EMISD
 # workbook (FILE below). Raw files are read, never modified (D-007). Runs locally; no Databricks.
-# Writes one CSV with a row per school that does not agree at both levels, to work/ (git-ignored)
-# or OUT_DIR: it holds school-level rows, so it is not committed.
+# Writes two CSVs to work/ (git-ignored) or OUT_DIR; they hold school-level rows, so they are not
+# committed: one row per school that does not agree at both levels (EP-11), and the map preview (EP-16).
 #
-# Part 2 (EP-12 to EP-16) applies the proposed #91 match rule in config/mappings/integration/deped_school_psgc.json
-# and writes a preview of the map, one row per school and level, with the D-029 columns.
+# Part 2 (EP-12 to EP-18) applies the proposed #91 match rule (cross_source_deped_school_psgc_rule.py,
+# described in config/mappings/integration/deped_school_psgc.json) and writes a preview of the map,
+# one row per school and level, with the D-029 columns.
 #
-# Rules applied to the EMISD codes before comparing (all counted):
+# Rules applied to the EMISD codes before comparing (EP-2 and EP-3 count the tiers):
 #   - padded to 10 digits: Excel stored them as numbers and dropped the leading zero (profile O-5);
 #   - `#N/A` and blank mean no code (O-6);
-#   - "Sulu region": a code missing from PSGC 2Q 2026 whose region `19` read as `09` is in it
-#     (Q4 2024 still had Sulu under BARMM; D-029 `code_region_moved`, as for HDX);
+#   - a school ID on more than one row keeps its first row; the duplicates are counted, and the run
+#     stops if one is a school compared here (profile O-3);
+#   - "Sulu region": a Sulu code (`19066…`) missing from PSGC 2Q 2026 whose `09066…` form is in it
+#     (Q4 2024 still had Sulu under BARMM; D-029 `code_region_moved`, as for HDX, D-049);
 #   - a code still missing from PSGC 2Q 2026 is "code not in 2Q 2026" and not used;
 #   - a Manila sub-municipality rolls up to the City of Manila, as the name match does.
 
@@ -38,6 +41,9 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO))
 from src.profiling.xlsx import read_sheet
+
+sys.path.insert(0, str(HERE))
+from cross_source_deped_school_psgc_rule import Rule
 
 # Name match of every SY 2023-24 school: the rules, tiers and aliases of cross_source_deped.py.
 with contextlib.redirect_stdout(io.StringIO()):
@@ -79,8 +85,6 @@ for key, (col, name) in COLUMNS.items():
     if re.sub(r"\s+", " ", header.get(col, "")).strip() != name:
         sys.exit(f"{FILE}: column {col} is {header.get(col)!r}, expected {name!r}. The header changed; stop.")
 
-rule_counts = collections.Counter()
-
 
 def psgc(raw, levels):
     """(tier, unit) for an EMISD code cell, on PSGC 2Q 2026."""
@@ -92,7 +96,7 @@ def psgc(raw, levels):
     code = text.zfill(10)
     unit = units_by_id.get(code)
     tier = "code"
-    if unit is None and code.startswith("19") and units_by_id.get("09" + code[2:]):
+    if unit is None and code.startswith("19066") and units_by_id.get("09" + code[2:]):
         unit, tier = units_by_id["09" + code[2:]], "code, Sulu region"
     if unit is None:
         return "code not in 2Q 2026", None
@@ -102,14 +106,21 @@ def psgc(raw, levels):
 
 
 emisd = {}
+duplicates = collections.Counter()
 for _, cells in rows[HEADER_ROW:]:
     school_id = cells.get(COLUMNS["school_id"][0], "").strip()
-    if school_id:
+    if school_id in emisd:
+        duplicates[school_id] += 1
+    elif school_id:
         emisd[school_id] = (
             psgc(cells.get(COLUMNS["mun"][0]), ("City", "Mun", "SubMun")),
             psgc(cells.get(COLUMNS["bgy"][0]), ("Bgy",)),
         )
-show("run", f"{FILE}: {len(emisd):,} school IDs, checksum OK")
+show("run", f"{FILE}: {len(emisd):,} school IDs, checksum OK; "
+     f"{sum(duplicates.values()):,} duplicate rows of {len(duplicates):,} school IDs, first row kept: {sorted(duplicates)}")
+compared_duplicates = sorted(set(duplicates) & {s[0] for s in schools})
+if compared_duplicates:
+    sys.exit(f"{FILE}: school IDs compared here appear on more than one row: {compared_duplicates}. Stop and review.")
 
 # %% Compare, level by level
 sga = {s[0] for s in schools if s[1] == "BARMM" and s[2] == "NORTH COTABATO"}  # D-031
@@ -121,12 +132,18 @@ def in_taguig(unit):
     return any(u is not None and "Taguig" in u.name for u in parents)
 
 
+def same_barangay_name(deped_barangay, unit):
+    """True when DepEd's barangay name matches this PSGC barangay by the DepEd tiers (as HDX does)."""
+    return bool(deped_barangay) and unit is not None and name_match(deped_barangay, [unit])[1] is not None
+
+
 LEVELS = ("city or municipality", "barangay")
 outcome = {lvl: collections.Counter() for lvl in LEVELS}
 tiers = {lvl: collections.Counter() for lvl in LEVELS}
 b_matched = {lvl: 0 for lvl in LEVELS}
 b_method = {lvl: collections.Counter() for lvl in LEVELS}
 disagree_by_province = {lvl: collections.Counter() for lvl in LEVELS}
+unexplained = {}  # school_id -> True when DepEd's barangay name matches the code's barangay
 out_rows = []
 
 for school_id, region, province, municipality, barangay in schools:
@@ -144,6 +161,7 @@ for school_id, region, province, municipality, barangay in schools:
     row = {"school_id": school_id, "deped_region": region, "deped_province": province,
            "deped_municipality": municipality, "deped_barangay": barangay}
     keep = False
+    bgy_supports_code = same_barangay_name(barangay, bgy_unit)
     for lvl in LEVELS:
         (c_tier, c_unit), (n_tier, n_unit) = codes[lvl], names[lvl]
         tiers[lvl][c_tier] += 1
@@ -158,10 +176,11 @@ for school_id, region, province, municipality, barangay in schools:
         if result == "disagree":
             if school_id in sga:
                 result = "disagree: Special Geographic Area"
-            elif "MAKATI" in (municipality or "").upper() and in_taguig(c_unit):
+            elif "MAKATI" in (municipality or "").upper() and in_taguig(c_unit) and bgy_supports_code:
                 result = "disagree: Embo (Makati to Taguig)"
             else:
                 disagree_by_province[lvl][province] += 1
+                unexplained[school_id] = bgy_supports_code
         outcome[lvl][result] += 1
         # Option B: the EMISD code first, the name match as fallback.
         if c_unit:
@@ -203,76 +222,10 @@ with OUT.open("w", newline="", encoding="utf-8") as f:
 show("EP-11", f"wrote {OUT}: {len(out_rows):,} schools that do not agree at both levels")
 
 
-# %% Part 2: the proposed #91 match rule (config/mappings/integration/deped_school_psgc.json)
-TIER_METHOD = RULES["match_method_from_name_tier"]
-OVERRIDES = {(o["level"], o["deped_province"], o["deped_municipality"], o["deped_barangay"]): o for o in RULES["overrides"]}
-override_hits = collections.Counter()
-
-
-def method_of(tier):
-    return TIER_METHOD.get(tier, "name_normalized")
-
-
-def same_barangay_name(deped_barangay, unit):
-    """True when DepEd's barangay name matches this PSGC barangay by the DepEd tiers (as HDX does)."""
-    return bool(deped_barangay) and unit is not None and name_match(deped_barangay, [unit])[1] is not None
-
-
-def decide_city(school, c_unit, c_tier, n_unit, n_tier, c_bgy):
-    """(status, unit, method, detail) for the city or municipality."""
-    school_id, region, province, municipality, barangay = school
-    o = OVERRIDES.get(("city_mun", province, municipality, barangay))
-    if o:
-        override_hits["city_mun"] += 1
-        unit = c_unit if o["use"] == "code" else n_unit
-        return ("matched" if unit else "unmatched"), unit, o["match_method"], "reviewed override"
-    code_method = "code_region_moved" if c_tier == "code, Sulu region" else "code"
-    if school_id in sga:
-        unit = c_unit if c_unit and same_barangay_name(barangay, c_bgy) else n_unit
-        return "excluded", unit, code_method if unit is c_unit and unit else method_of(n_tier), "Special Geographic Area (D-031)"
-    if c_unit and n_unit and c_unit.id == n_unit.id:
-        return "matched", c_unit, code_method, "code and name agree"
-    if c_unit and n_unit:
-        if same_barangay_name(barangay, c_bgy):
-            return "matched", c_unit, code_method, "code; DepEd barangay name matches the code's barangay"
-        return "ambiguous", None, None, "code and name differ"
-    if c_unit:
-        return "matched", c_unit, code_method, "code only"
-    if n_unit:
-        return "matched", n_unit, method_of(n_tier), f"name only ({n_tier})"
-    return "unmatched", None, None, "no code, no name match"
-
-
-def decide_barangay(school, city, c_unit, c_tier, n_unit, n_tier):
-    school_id, region, province, municipality, barangay = school
-    o = OVERRIDES.get(("bgy", province, municipality, barangay))
-    if o:
-        override_hits["bgy"] += 1
-        unit = c_unit if o["use"] == "code" else n_unit
-        return ("matched" if unit else "unmatched"), unit, o["match_method"], "reviewed override"
-    city_status, city_unit = city[0], city[1]
-    if city_status in ("ambiguous", "unmatched"):
-        return city_status, None, None, f"city or municipality {city_status}"
-    inside = set(u.id for u in barangay_candidates(city_unit)) if city_unit else set()
-    code_method = "code_region_moved" if c_tier == "code, Sulu region" else "code"
-    candidates = []
-    if c_unit and n_unit and c_unit.id == n_unit.id:
-        candidates = [(c_unit, code_method, "code and name agree")]
-    elif c_unit and same_barangay_name(barangay, c_unit):
-        candidates = [(c_unit, code_method, "code; DepEd barangay name matches")]
-    elif c_unit and n_unit:
-        return "ambiguous", None, None, "code and name differ"
-    elif c_unit:
-        candidates = [(c_unit, code_method, "code only")]
-    elif n_unit:
-        candidates = [(n_unit, method_of(n_tier), f"name only ({n_tier})")]
-    else:
-        return "unmatched", None, None, "no code, no name match"
-    unit, method, detail = candidates[0]
-    if unit.id not in inside:
-        return "ambiguous", None, None, "barangay outside the accepted city or municipality"
-    return ("excluded" if city_status == "excluded" else "matched"), unit, method, detail
-
+# %% Part 2: the proposed #91 match rule (cross_source_deped_school_psgc_rule.py)
+rule = Rule(RULES, sga, city_or_municipality, barangay_candidates, same_barangay_name)
+override_places = collections.Counter()  # (level, province, municipality, barangay) -> schools
+override_differ = collections.Counter()  # of them, schools whose code and name match differ at that level
 
 status = {lvl: collections.Counter() for lvl in ("city_mun", "bgy")}
 method = {lvl: collections.Counter() for lvl in ("city_mun", "bgy")}
@@ -281,18 +234,22 @@ map_rows = []
 for school in schools:
     school_id, region, province, municipality, barangay = school
     (mun_tier, mun_unit), (bgy_tier, bgy_unit) = emisd.get(school_id, (("not in workbook", None), ("not in workbook", None)))
-    c_city = city_or_municipality(mun_unit) if mun_unit else None
     n_loc_tier, n_loc = loc_result[(province, municipality)]
-    n_city = city_or_municipality(n_loc) if n_loc else None
     n_bgy_tier, n_bgy = bgy_result[(province, municipality, barangay)]
-    city = decide_city(school, c_city, mun_tier, n_city, n_loc_tier, bgy_unit)
-    bgy = decide_barangay(school, city, bgy_unit, bgy_tier, n_bgy, n_bgy_tier)
+    city = rule.decide_city(school, mun_unit, mun_tier, n_loc, n_loc_tier, bgy_unit)
+    bgy = rule.decide_barangay(school, city, bgy_unit, bgy_tier, n_bgy, n_bgy_tier)
+    for key in rule.overrides:
+        if key[1:] == (province, municipality, barangay):
+            c, n = ((mun_unit and city_or_municipality(mun_unit)), (n_loc and city_or_municipality(n_loc))) \
+                if key[0] == "city_mun" else (bgy_unit, n_bgy)
+            override_places[key] += 1
+            override_differ[key] += bool(c and n and c.id != n.id)
     for lvl, (st, unit, meth, why) in (("city_mun", city), ("bgy", bgy)):
         status[lvl][st] += 1
         method[lvl][meth or "-"] += 1
         detail[lvl][(st, why)] += 1
         map_rows.append({
-            "source_id": "deped_enrollment", "source_row_ref": f"{school_id}|2023-2024", "school_id": school_id,
+            "source_id": "deped_enrollment", "source_row_ref": f"{school_id}|2023-24", "school_id": school_id,
             "deped_region": region, "deped_province": province, "deped_municipality": municipality, "deped_barangay": barangay,
             "source_reference_date": "SY 2023-24", "psgc_version": RULES["psgc_version"],
             "geographic_level": lvl, "psgc_code": unit.id if unit else "", "psgc_name": unit.name if unit else "",
@@ -305,8 +262,16 @@ for i, lvl in enumerate(("city_mun", "bgy")):
 for i, lvl in enumerate(("city_mun", "bgy")):
     show(f"EP-{14 + i}", f"{lvl}, not matched, by reason: "
          + str({f"{st}: {why}": n for (st, why), n in detail[lvl].most_common() if st != "matched"}))
-show("EP-16", f"reviewed overrides applied: {dict(override_hits)}; wrote {MAP_OUT}: {len(map_rows):,} rows (school x level)")
+MAP_OUT.parent.mkdir(parents=True, exist_ok=True)
 with MAP_OUT.open("w", newline="", encoding="utf-8") as f:
     writer = csv.DictWriter(f, fieldnames=list(map_rows[0]))
     writer.writeheader()
     writer.writerows(map_rows)
+show("EP-16", f"reviewed overrides applied: {dict(rule.override_hits)}; wrote {MAP_OUT}: {len(map_rows):,} rows (school x level)")
+supported = sum(unexplained.values())
+show("EP-17", f"schools with an unexplained code-vs-name disagreement at either level (EP-6, EP-7): {len(unexplained):,}; "
+     f"DepEd barangay name matches the code's barangay (the place changed, code right) {supported:,}; "
+     f"does not {len(unexplained) - supported:,}")
+for key, n in override_places.items():
+    show("EP-18", f"override {' / '.join(key)}: {n:,} schools; code and name match differ for {override_differ[key]:,} "
+         f"(listed in {OUT.name}, EP-11)")
