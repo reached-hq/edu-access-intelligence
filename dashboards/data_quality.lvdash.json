@@ -1,0 +1,2368 @@
+{
+  "datasets": [
+    {
+      "name": "ds_current",
+      "displayName": "Current check results",
+      "queryLines": [
+        "-- Current: the newest result of each check. A check is one (layer, source_id, table_name,\n",
+        "-- check_name, batch_id); RANK keeps every row one gate statement wrote together.\n",
+        "WITH\n",
+        "catalog AS (\n",
+        "  SELECT * FROM (VALUES\n",
+        "    ('name', 'row_count_nonzero', 'Completeness', 'test', NULL),\n    ('name', 'required_columns_present', 'Completeness', 'test', NULL),\n    ('name', 'approved_deliveries_present', 'Completeness', 'test', NULL),\n    ('name', 'current_batch_present', 'Completeness', 'test', NULL),\n    ('name', 'current_batches_present', 'Completeness', 'test', NULL),\n    ('name', 'inputs_present', 'Completeness', 'test', NULL),\n    ('name', 'estimate_year_covered', 'Completeness', 'test', NULL),\n    ('name', 'geometry_not_null', 'Completeness', 'test', NULL),\n    ('name', 'geometry_not_empty', 'Completeness', 'test', NULL),\n    ('name', 'population_not_null', 'Completeness', 'test', NULL),\n    ('name', 'school_id_not_blank', 'Completeness', 'test', NULL),\n    ('name', 'adm3_pcode_not_blank', 'Completeness', 'test', NULL),\n    ('name', 'psgc_code_not_blank', 'Completeness', 'test', NULL),\n    ('name', 'province_code_missing_only_where_listed', 'Completeness', 'test', NULL),\n    ('name', 'annexes_not_dropped', 'Completeness', 'test', NULL),\n    ('name', 'flag_partial_estimate', 'Completeness', 'test', NULL),\n    ('name', 'quarantine_reason_school_id_blank', 'Completeness', 'test', NULL),\n    ('name', 'quarantine_reason_adm3_pcode_blank', 'Completeness', 'test', NULL),\n    ('name', 'quarantine_reason_psgc_code_blank', 'Completeness', 'test', NULL),\n    ('name', 'quarantine_reason_psgc_id_blank', 'Completeness', 'test', NULL),\n    ('name', 'quarantine_reason_population_blank', 'Completeness', 'test', NULL),\n    ('name', 'quarantine_reason_geometry_empty', 'Completeness', 'test', NULL),\n    ('name', 'profiled_coordinate_missing', 'Completeness', 'test', NULL),\n    ('name', 'profiled_barangay_source_na', 'Completeness', 'test', NULL),\n    ('name', 'profiled_city_source_na', 'Completeness', 'test', NULL),\n    ('name', 'dq_barangay_blank', 'Completeness', 'test', NULL),\n    ('name', 'dq_blank_correspondence_code', 'Completeness', 'test', NULL),\n    ('name', 'dq_blank_geographic_level', 'Completeness', 'test', NULL),\n    ('name', 'dq_longitude_blank', 'Completeness', 'test', NULL),\n    ('name', 'dq_psgc_barangay_blank', 'Completeness', 'test', NULL),\n    ('name', 'dq_urp_blank', 'Completeness', 'test', NULL),\n    ('name', 'known_issue_unit_rows_without_estimates', 'Completeness', 'test', NULL),\n    ('name', 'school_id_unique', 'Uniqueness', 'test', NULL),\n    ('name', 'school_id_unique_in_file', 'Uniqueness', 'test', NULL),\n    ('name', 'school_id_duplicates', 'Uniqueness', 'test', NULL),\n    ('name', 'adm3_pcode_unique', 'Uniqueness', 'test', NULL),\n    ('name', 'adm3_pcode_unique_in_file', 'Uniqueness', 'test', NULL),\n    ('name', 'psgc_code_unique', 'Uniqueness', 'test', NULL),\n    ('name', 'psgc_code_unique_in_file', 'Uniqueness', 'test', NULL),\n    ('name', 'psgc_code_duplicates_absent', 'Uniqueness', 'test', NULL),\n    ('name', 'psgc_code_taken_once', 'Uniqueness', 'test', NULL),\n    ('name', 'psgc_id_unique', 'Uniqueness', 'test', NULL),\n    ('name', 'PSGC ID_unique_in_file', 'Uniqueness', 'test', NULL),\n    ('name', 'annex_key_unique', 'Uniqueness', 'test', NULL),\n    ('name', 'key_unique', 'Uniqueness', 'test', NULL),\n    ('name', 'duplicate_rows_in_file', 'Uniqueness', 'test', NULL),\n    ('name', 'no_pipeline_duplicates', 'Uniqueness', 'test', NULL),\n    ('name', 'one_row_per_feature', 'Uniqueness', 'test', NULL),\n    ('name', 'one_current_batch_per_census_year', 'Uniqueness', 'test', NULL),\n    ('name', 'one_country', 'Uniqueness', 'test', NULL),\n    ('name', 'place_rows_have_one_sex_block', 'Uniqueness', 'test', NULL),\n    ('name', 'quarantine_reason_school_id_duplicated', 'Uniqueness', 'test', NULL),\n    ('name', 'quarantine_reason_adm3_pcode_duplicated', 'Uniqueness', 'test', NULL),\n    ('name', 'quarantine_reason_psgc_code_duplicated', 'Uniqueness', 'test', NULL),\n    ('name', 'quarantine_reason_psgc_id_duplicated', 'Uniqueness', 'test', NULL),\n    ('name', 'profiled_quarantine_school_id_duplicated', 'Uniqueness', 'test', NULL),\n    ('name', 'profiled_quarantine_school_id_identical_copy', 'Uniqueness', 'test', NULL),\n    ('name', 'school_id_format', 'Validity', 'test', NULL),\n    ('name', 'school_id_valid', 'Validity', 'test', NULL),\n    ('name', 'adm3_pcode_format', 'Validity', 'test', NULL),\n    ('name', 'adm3_pcode_valid', 'Validity', 'test', NULL),\n    ('name', 'psgc_code_format', 'Validity', 'test', NULL),\n    ('name', 'psgc_code_valid', 'Validity', 'test', NULL),\n    ('name', 'psgc_code_number_cells_match_format', 'Validity', 'test', NULL),\n    ('name', 'psgc_code_stored_as_number', 'Validity', 'test', NULL),\n    ('name', 'psgc_id_valid', 'Validity', 'test', NULL),\n    ('name', 'PSGC ID_format_on_unit_rows', 'Validity', 'test', NULL),\n    ('name', 'codes_ten_digits', 'Validity', 'test', NULL),\n    ('name', 'code_values_recognized', 'Validity', 'test', NULL),\n    ('name', 'coordinate_values_recognized', 'Validity', 'test', NULL),\n    ('name', 'region_province_values_recognized', 'Validity', 'test', NULL),\n    ('name', 'enrollment_status_valid', 'Validity', 'test', NULL),\n    ('name', 'estimate_status_valid', 'Validity', 'test', NULL),\n    ('name', 'estimate_years_known', 'Validity', 'test', NULL),\n    ('name', 'status_valid', 'Validity', 'test', NULL),\n    ('name', 'method_valid', 'Validity', 'test', NULL),\n    ('name', 'review_status_valid', 'Validity', 'test', NULL),\n    ('name', 'area_positive', 'Validity', 'test', NULL),\n    ('name', 'counts_non_negative', 'Validity', 'test', NULL),\n    ('name', 'counts_within_plausible_max', 'Validity', 'test', NULL),\n    ('name', 'counts_are_whole_numbers', 'Validity', 'test', NULL),\n    ('name', 'cv_non_negative', 'Validity', 'test', NULL),\n    ('name', 'se_non_negative', 'Validity', 'test', NULL),\n    ('name', 'poverty_incidence_within_bounds', 'Validity', 'test', NULL),\n    ('name', 'no_all_zero_place', 'Validity', 'test', NULL),\n    ('name', 'zero_population_cells', 'Validity', 'test', NULL),\n    ('name', 'geometry_parsed', 'Validity', 'test', NULL),\n    ('name', 'geometry_type_allowed', 'Validity', 'test', NULL),\n    ('name', 'geometry_types_allowed', 'Validity', 'test', NULL),\n    ('name', 'geometry_valid', 'Validity', 'test', NULL),\n    ('name', 'crs_is_wgs84', 'Validity', 'test', NULL),\n    ('name', 'no_byte_order_mark', 'Validity', 'test', NULL),\n    ('name', 'text_mojibake', 'Validity', 'test', NULL),\n    ('name', 'error_cells', 'Validity', 'test', NULL),\n    ('name', 'formula_cells', 'Validity', 'test', NULL),\n    ('name', 'non_numeric_estimate_values', 'Validity', 'test', NULL),\n    ('name', 'valid_on_is_reference_date', 'Validity', 'test', NULL),\n    ('name', 'valid_on_is_the_approved_period', 'Validity', 'test', NULL),\n    ('name', 'place_label_parsed', 'Validity', 'test', NULL),\n    ('name', 'place_levels_assigned', 'Validity', 'test', NULL),\n    ('name', 'region_banner_assigned', 'Validity', 'test', NULL),\n    ('name', 'sheets_match_approved', 'Validity', 'test', NULL),\n    ('name', 'sheets_match_contract', 'Validity', 'test', NULL),\n    ('name', 'range_matches_approved', 'Validity', 'test', NULL),\n    ('name', 'used_range_matches_approved', 'Validity', 'test', NULL),\n    ('name', 'no_cells_outside_layout', 'Validity', 'test', NULL),\n    ('name', 'ignored_columns_empty', 'Validity', 'test', NULL),\n    ('name', 'unclassified_rows', 'Validity', 'test', NULL),\n    ('name', 'age_row_matches_layout', 'Validity', 'test', NULL),\n    ('name', 'band_row_matches_layout', 'Validity', 'test', NULL),\n    ('name', 'national_summary_readable', 'Validity', 'test', NULL),\n    ('name', 'flag_lower_limit_not_positive', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_school_id_malformed', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_adm3_pcode_malformed', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_psgc_code_malformed', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_psgc_id_malformed', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_correspondence_code_malformed', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_count_uncastable', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_count_negative', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_count_above_plausible_max', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_area_uncastable', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_area_not_positive', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_center_uncastable', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_geometry_unparseable', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_geometry_wrong_type', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_population_uncastable', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_population_negative', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_population_not_whole_number', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_measure_uncastable', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_cv_negative', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_se_negative', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_incidence_out_of_range', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_valid_on_uncastable', 'Validity', 'test', NULL),\n    ('name', 'quarantine_reason_valid_to_uncastable', 'Validity', 'test', NULL),\n    ('name', 'profiled_quarantine_school_id_malformed', 'Validity', 'test', NULL),\n    ('name', 'profiled_coordinate_zero', 'Validity', 'test', NULL),\n    ('name', 'profiled_coordinate_outside_philippines', 'Validity', 'test', NULL),\n    ('name', 'profiled_barangay_codes_padded', 'Validity', 'test', NULL),\n    ('name', 'dq_column_j_footnote_filled', 'Validity', 'test', NULL),\n    ('name', 'dq_income_class_capital_st', 'Validity', 'test', NULL),\n    ('name', 'dq_income_class_dash', 'Validity', 'test', NULL),\n    ('name', 'dq_income_class_starred', 'Validity', 'test', NULL),\n    ('name', 'dq_longitude_na', 'Validity', 'test', NULL),\n    ('name', 'dq_longitude_zero', 'Validity', 'test', NULL),\n    ('name', 'dq_name_trailing_space', 'Validity', 'test', NULL),\n    ('name', 'dq_population_not_whole_number', 'Validity', 'test', NULL),\n    ('name', 'dq_population_zero', 'Validity', 'test', NULL),\n    ('name', 'dq_psgc_barangay_9_digits', 'Validity', 'test', NULL),\n    ('name', 'dq_psgc_barangay_na', 'Validity', 'test', NULL),\n    ('name', 'dq_psgc_city_municipality_na', 'Validity', 'test', NULL),\n    ('name', 'dq_psgc_region_9_digits', 'Validity', 'test', NULL),\n    ('name', 'dq_urban_rural_dash', 'Validity', 'test', NULL),\n    ('name', 'known_issue_lower_limit_zero_or_negative', 'Validity', 'test', NULL),\n    ('name', 'known_issue_place_label_footnote_marker', 'Validity', 'test', NULL),\n    ('name', 'known_issue_province_label_continued', 'Validity', 'test', NULL),\n    ('name', 'known_issue_psgc_id_leading_zero_lost', 'Validity', 'test', NULL),\n    ('name', 'known_issue_source_line_misspelled', 'Validity', 'test', NULL),\n    ('name', 'known_issue_title_names_only_city_municipality', 'Validity', 'test', NULL),\n    ('name', 'city_class_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'correspondence_code_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'geographic_level_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'income_class_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'income_class_null_reason_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'income_class_retained_after_downgrade_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'is_master_reference_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'name_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'old_names_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'population_footnote_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'population_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'population_null_reason_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'psgc_code_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'publication_date_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'publication_period_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'status_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'urban_rural_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'urban_rural_null_reason_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'ci90_lower_limit_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'ci90_upper_limit_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'coefficient_of_variation_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'standard_error_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'poverty_incidence_matches_bronze', 'Accuracy', 'test', NULL),\n    ('name', 'codes_as_published', 'Accuracy', 'test', NULL),\n    ('name', 'geometry_as_published', 'Accuracy', 'test', NULL),\n    ('name', 'values_kept', 'Accuracy', 'test', NULL),\n    ('name', 'recorded_zero_preserved', 'Accuracy', 'test', NULL),\n    ('name', 'code_is_the_pcode', 'Accuracy', 'test', NULL),\n    ('name', 'correspondence_is_the_old_code', 'Accuracy', 'test', NULL),\n    ('name', 'psgc_name_matches_unit', 'Accuracy', 'test', NULL),\n    ('name', 'name_match_inside_province', 'Accuracy', 'test', NULL),\n    ('name', 'region_moved_is_sulu', 'Accuracy', 'test', NULL),\n    ('name', 'levels_match_expected', 'Accuracy', 'test', NULL),\n    ('name', 'place_status_match_expected', 'Accuracy', 'test', NULL),\n    ('name', 'flag_cv_over_20', 'Accuracy', 'test', NULL),\n    ('name', 'known_issue_cv_over_20', 'Accuracy', 'test', NULL),\n    ('name', 'flags_consistent', 'Consistency', 'test', NULL),\n    ('name', 'hierarchy_consistent', 'Consistency', 'test', NULL),\n    ('name', 'levels_null_together', 'Consistency', 'test', NULL),\n    ('name', 'concepts_pair_up', 'Consistency', 'test', NULL),\n    ('name', 'household_not_above_total', 'Consistency', 'test', NULL),\n    ('name', 'null_reason_matches_code', 'Consistency', 'test', NULL),\n    ('name', 'facility_values_within_offered_levels', 'Consistency', 'test', NULL),\n    ('name', 'facility_data_public_only', 'Consistency', 'test', NULL),\n    ('name', 'sheets_are_concepts', 'Consistency', 'test', NULL),\n    ('name', 'status_combination_valid', 'Consistency', 'test', NULL),\n    ('name', 'one_psgc_version', 'Consistency', 'test', NULL),\n    ('name', 'master_reference_current', 'Consistency', 'test', NULL),\n    ('name', 'match_fields_consistent', 'Consistency', 'test', NULL),\n    ('name', 'center_inside_geometry', 'Consistency', 'test', NULL),\n    ('name', 'ci_contains_estimate', 'Consistency', 'test', NULL),\n    ('name', 'coordinates_in_pairs', 'Consistency', 'test', NULL),\n    ('name', 'only_annexes_listed', 'Consistency', 'test', NULL),\n    ('name', 'sexes_add_up', 'Consistency', 'test', NULL),\n    ('name', 'tree_closes', 'Consistency', 'test', NULL),\n    ('name', 'national_both_sexes_by_age', 'Consistency', 'test', NULL),\n    ('name', 'unmatched_has_no_psgc', 'Consistency', 'test', NULL),\n    ('name', 'overrides_applied', 'Consistency', 'test', NULL),\n    ('name', 'missing_counts_stay_null', 'Consistency', 'test', NULL),\n    ('name', 'missing_booleans_stay_null', 'Consistency', 'test', NULL),\n    ('name', 'missing_measures_stay_null', 'Consistency', 'test', NULL),\n    ('name', 'blank_measures_stay_null', 'Consistency', 'test', NULL),\n    ('name', 'absent_columns_stay_null', 'Consistency', 'test', NULL),\n    ('name', 'all_blank_measure_flagged', 'Consistency', 'test', NULL),\n    ('name', 'all_blank_measure_retained', 'Consistency', 'test', NULL),\n    ('name', 'flag_se_cv_inconsistent', 'Consistency', 'test', NULL),\n    ('name', 'known_issue_se_disagrees_with_cv', 'Consistency', 'test', NULL),\n    ('name', 'quarantine_reason_ci_inconsistent', 'Consistency', 'test', NULL),\n    ('name', 'profiled_bronze_unit_rows', 'Consistency', 'test', NULL),\n    ('name', 'profiled_bronze_other_rows', 'Consistency', 'test', NULL),\n    ('name', 'profiled_recoded', 'Consistency', 'test', NULL),\n    ('name', 'source_fresh', 'Timeliness', 'test', NULL),\n    ('name', 'rows_have_a_known_batch', 'Referential integrity', 'test', NULL),\n    ('name', 'rows_resolve_to_current_bronze', 'Referential integrity', 'test', NULL),\n    ('name', 'rows_resolve_to_current_bronze_cells', 'Referential integrity', 'test', NULL),\n    ('name', 'rows_resolve_to_current_bronze_units', 'Referential integrity', 'test', NULL),\n    ('name', 'city_municipality_code_exists', 'Referential integrity', 'test', NULL),\n    ('name', 'province_code_exists', 'Referential integrity', 'test', NULL),\n    ('name', 'region_code_exists', 'Referential integrity', 'test', NULL),\n    ('name', 'parents_resolve', 'Referential integrity', 'test', NULL),\n    ('name', 'hierarchy_units_without_region', 'Referential integrity', 'test', NULL),\n    ('name', 'hierarchy_municipalities_without_province', 'Referential integrity', 'test', NULL),\n    ('name', 'hierarchy_barangays_without_city_or_municipality', 'Referential integrity', 'test', NULL),\n    ('name', 'hierarchy_no_province_region_has_no_provinces', 'Referential integrity', 'test', NULL),\n    ('name', 'matched_has_psgc_unit', 'Referential integrity', 'test', NULL),\n    ('name', 'unmatched', 'Referential integrity', 'test', NULL),\n    ('name', 'ambiguous', 'Referential integrity', 'test', NULL),\n    ('name', 'review_pending', 'Referential integrity', 'test', NULL),\n    ('name', 'override_feature_missing', 'Referential integrity', 'test', NULL),\n    ('name', 'psgc_units_without_feature', 'Referential integrity', 'test', NULL),\n    ('name', 'annexes_without_mother_school', 'Referential integrity', 'test', NULL),\n    ('name', 'profiled_barangay_not_in_workbook', 'Referential integrity', 'test', NULL),\n    ('name', 'profiled_city_not_in_workbook', 'Referential integrity', 'test', NULL),\n    ('name', 'profiled_barangay_outside_city', 'Referential integrity', 'test', NULL),\n    ('name', 'rows_reconcile', 'Reconciliation', 'test', NULL),\n    ('name', 'counts_reconcile', 'Reconciliation', 'test', NULL),\n    ('name', 'learners_reconcile', 'Reconciliation', 'test', NULL),\n    ('name', 'coordinates_reconcile', 'Reconciliation', 'test', NULL),\n    ('name', 'true_values_reconcile', 'Reconciliation', 'test', NULL),\n    ('name', 'values_reconcile', 'Reconciliation', 'test', NULL),\n    ('name', 'bronze_rows_accounted', 'Reconciliation', 'test', NULL),\n    ('name', 'succeeded_batches_reconcile', 'Reconciliation', 'test', NULL),\n    ('name', 'bronze_rows_match_source', 'Reconciliation', 'test', NULL),\n    ('name', 'bronze_row_kinds_match_source', 'Reconciliation', 'test', NULL),\n    ('name', 'bronze_sheets_match_source', 'Reconciliation', 'test', NULL),\n    ('name', 'row_count_matches_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'row_numbers_complete', 'Reconciliation', 'test', NULL),\n    ('name', 'blank_rows_match_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'body_rows_match_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'footer_rows_match_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'unit_rows_match_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'region_banner_rows_match_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'no_identifier_rows_match_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'place_rows_match_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'sheet_rows_match_approved', 'Reconciliation', 'test', NULL),\n    ('name', 'sex_female_rows_match_place_rows', 'Reconciliation', 'test', NULL),\n    ('name', 'sex_male_rows_match_place_rows', 'Reconciliation', 'test', NULL),\n    ('name', 'sex_total_rows_match_place_rows', 'Reconciliation', 'test', NULL),\n    ('name', 'region_population_reconciles_to_national', 'Reconciliation', 'test', NULL),\n    ('name', 'quarantine_rate', 'Reconciliation', 'test', NULL),\n    ('name', 'quarantined_cells', 'Reconciliation', 'test', NULL),\n    ('name', 'lineage_complete', 'Lineage', 'test', NULL),\n    ('name', 'evidence_and_lineage_complete', 'Lineage', 'test', NULL),\n    ('name', 'provenance_complete', 'Lineage', 'test', NULL),\n    ('name', 'one_timestamp_per_run', 'Lineage', 'test', NULL),\n    ('name', 'rows_built_by_this_run', 'Lineage', 'test', NULL),\n    ('family', 'labels_mapped_', 'Validity', 'test', NULL),\n    ('family', 'level_count_', 'Reconciliation', 'test', NULL),\n    ('name', 'flag_barangay_blank', 'Recorded count', 'record', NULL),\n    ('name', 'flag_barangay_possibly_truncated', 'Recorded count', 'record', NULL),\n    ('name', 'flag_enrollment_all_zero', 'Recorded count', 'record', NULL),\n    ('name', 'flag_enrollment_no_counts', 'Recorded count', 'record', NULL),\n    ('name', 'flag_es_classrooms_missing', 'Recorded count', 'record', NULL),\n    ('name', 'flag_has_facility_data', 'Recorded count', 'record', NULL),\n    ('name', 'flag_has_population_footnote', 'Recorded count', 'record', NULL),\n    ('name', 'flag_is_overseas', 'Recorded count', 'record', NULL),\n    ('name', 'flag_level_blank', 'Recorded count', 'record', NULL),\n    ('name', 'flag_population_is_zero', 'Recorded count', 'record', NULL),\n    ('name', 'flag_public_without_facility_data', 'Recorded count', 'record', NULL),\n    ('name', 'match_rate_percent', 'Recorded count', 'record', NULL),\n    ('name', 'principal_total_discrepancies', 'Recorded count', 'record', NULL),\n    ('name', 'places_with_equal_concepts', 'Recorded count', 'record', NULL),\n    ('family', 'rule_', 'Recorded count', 'record', NULL),\n    ('family', 'method_', 'Recorded count', 'record', NULL),\n    ('family', 'rows_kind_', 'Recorded count', 'record', NULL),\n    ('name', 'silver_lane_succeeded', 'Unclassified', 'test', 'Whether a source lane''s Silver build succeeded in the job run; a pipeline outcome, shown with pipeline health')\n",
+        "  ) AS c(match_kind, check_key, quality_attribute, check_kind, note)\n",
+        "),\n",
+        "results AS (\n",
+        "  SELECT q.run_id, q.batch_id, q.source_id, q.layer, q.table_name, q.check_name, q.status,\n",
+        "         q.expected, q.actual, q.checked_at_utc, q.code_revision,\n",
+        "         regexp_replace(q.check_name, '^[^:]+: ', '') AS check_key\n",
+        "  FROM edu_access.`01-control`.data_quality_results AS q\n",
+        "),\n",
+        "classified AS (\n",
+        "  SELECT r.*,\n",
+        "         COALESCE(e.quality_attribute, b.quality_attribute, f.quality_attribute, 'Unclassified') AS quality_attribute,\n",
+        "         COALESCE(e.check_kind, b.check_kind, f.check_kind, 'test') AS check_kind,\n",
+        "         CASE WHEN e.check_key IS NOT NULL THEN COALESCE('deliberately unclassified: ' || e.note, 'listed')\n",
+        "              WHEN b.check_key IS NOT NULL THEN 'listed, with a year or concept qualifier'\n",
+        "              WHEN f.check_key IS NOT NULL THEN 'name family ' || f.check_key\n",
+        "              ELSE 'not in config/quality_attributes.yml' END AS classification_basis\n",
+        "  FROM results AS r\n",
+        "  LEFT JOIN catalog AS e ON e.match_kind = 'name' AND e.check_key = r.check_key\n",
+        "  LEFT JOIN catalog AS b ON b.match_kind = 'name' AND e.check_key IS NULL\n",
+        "    AND b.check_key = regexp_replace(r.check_key, '_([0-9]{4}|household|total)$', '') AND b.check_key <> r.check_key\n",
+        "  LEFT JOIN catalog AS f ON f.match_kind = 'family' AND e.check_key IS NULL AND b.check_key IS NULL\n",
+        "    AND LEFT(r.check_key, LENGTH(f.check_key)) = f.check_key\n",
+        "),\n",
+        "newest AS (\n",
+        "  SELECT c.*, RANK() OVER (PARTITION BY c.layer, c.source_id, c.table_name, c.check_name, c.batch_id\n",
+        "                           ORDER BY c.checked_at_utc DESC) AS result_rank\n",
+        "  FROM classified AS c\n",
+        "),\n",
+        "batches AS (\n",
+        "  SELECT b.batch_id, b.status AS batch_status, COALESCE(b.school_year, b.logical_dataset) AS batch_period,\n",
+        "         cb.batch_id IS NOT NULL AS is_current_batch\n",
+        "  FROM edu_access.`01-control`.ingestion_batches AS b\n",
+        "  LEFT JOIN edu_access.`01-control`.current_batches AS cb ON cb.batch_id = b.batch_id\n",
+        "),\n",
+        "snapshot AS (\n",
+        "  SELECT n.*, bt.batch_period,\n",
+        "         CASE WHEN n.batch_id IS NULL THEN 'not batch-scoped'\n",
+        "              WHEN bt.batch_id IS NULL THEN 'not in ingestion_batches'\n",
+        "              WHEN bt.is_current_batch THEN 'current delivery'\n",
+        "              ELSE 'batch ' || bt.batch_status END AS batch_state\n",
+        "  FROM newest AS n\n",
+        "  LEFT JOIN batches AS bt ON bt.batch_id = n.batch_id\n",
+        "  WHERE n.result_rank = 1\n",
+        "    -- A delivery replaced by a newer version is no longer read downstream.\n",
+        "    AND NOT COALESCE(bt.batch_status = 'succeeded' AND NOT bt.is_current_batch, FALSE)\n",
+        ")\n",
+        "SELECT layer, source_id, table_name, check_name, status, expected, actual,\n",
+        "       quality_attribute, check_kind, classification_basis,\n",
+        "       run_id, batch_id, batch_period, batch_state, checked_at_utc AS last_checked_at_utc, code_revision,\n",
+        "       CASE WHEN status = 'PASS' THEN 1 ELSE 0 END AS is_pass,\n",
+        "       CASE WHEN status = 'WARN' THEN 1 ELSE 0 END AS is_warn,\n",
+        "       CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END AS is_fail,\n",
+        "       1 AS is_result,\n",
+        "       CASE WHEN check_kind = 'test' THEN 1 ELSE 0 END AS is_test,\n",
+        "       CASE WHEN check_kind = 'test' AND status = 'PASS' THEN 1 ELSE 0 END AS is_test_pass\n",
+        "FROM snapshot\n"
+      ],
+      "columns": [
+        {
+          "displayName": "Pass rate (tests)",
+          "description": "PASS / (PASS + WARN + FAIL) over current results of tests; recorded counts are left out. Empty when there is no test result.",
+          "expression": "SUM(`is_test_pass`) * 1.0 / NULLIF(SUM(`is_test`), 0)"
+        }
+      ]
+    },
+    {
+      "name": "ds_history",
+      "displayName": "Check result events",
+      "queryLines": [
+        "-- History: every recorded result in the date range. Counts result events, not checks.\n",
+        "SELECT q.layer, q.source_id, q.table_name, q.check_name, q.status, q.expected, q.actual,\n",
+        "       q.run_id, q.batch_id, q.checked_at_utc, q.code_revision\n",
+        "FROM edu_access.`01-control`.data_quality_results AS q\n",
+        "WHERE CAST(q.checked_at_utc AS DATE) BETWEEN :history_range.min AND :history_range.max\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date range (UTC)",
+          "keyword": "history_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-90d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ds_runs",
+      "displayName": "Job runs",
+      "queryLines": [
+        "-- One row per job run. A Bronze load records its own run_id and the job run in job_run_id;\n",
+        "-- its gate, and every other gate, write results under the job run. So both sides are\n",
+        "-- aggregated to that id before the join, and nothing is counted twice.\n",
+        "WITH runs AS (\n",
+        "  SELECT COALESCE(job_run_id, run_id) AS run_id,\n",
+        "         MAX(environment) AS environment,\n",
+        "         MIN(started_at_utc) AS started_at_utc,\n",
+        "         CASE WHEN COUNT_IF(finished_at_utc IS NULL) = 0 THEN MAX(finished_at_utc) END AS finished_at_utc,\n",
+        "         COUNT(*) AS steps,\n",
+        "         COUNT_IF(status = 'failed') AS failed_steps,\n",
+        "         COUNT_IF(status = 'running') AS unfinished_steps,\n",
+        "         string_agg(CASE WHEN status <> 'succeeded' THEN pipeline_name || ' ' || source_id END, ', ') AS steps_not_succeeded,\n",
+        "         string_agg(DISTINCT failure_stage, ', ') AS failure_stages,\n",
+        "         max_by(error_message, COALESCE(finished_at_utc, started_at_utc)) AS last_error_message,\n",
+        "         string_agg(DISTINCT code_revision, ', ') AS code_revisions\n",
+        "  FROM edu_access.`01-control`.pipeline_runs\n",
+        "  GROUP BY COALESCE(job_run_id, run_id)\n",
+        "),\n",
+        "checks AS (\n",
+        "  SELECT run_id, COUNT_IF(status = 'PASS') AS pass_results, COUNT_IF(status = 'WARN') AS warn_results,\n",
+        "         COUNT_IF(status = 'FAIL') AS fail_results, MIN(checked_at_utc) AS first_checked_at_utc\n",
+        "  FROM edu_access.`01-control`.data_quality_results\n",
+        "  GROUP BY run_id\n",
+        "),\n",
+        "joined AS (\n",
+        "  SELECT COALESCE(r.run_id, c.run_id) AS run_id, r.environment,\n",
+        "         CASE WHEN r.run_id IS NULL THEN 'no pipeline_runs row'\n",
+        "              WHEN r.failed_steps > 0 THEN 'failed'\n",
+        "              WHEN r.unfinished_steps > 0 THEN 'running or interrupted'\n",
+        "              ELSE 'succeeded' END AS run_status,\n",
+        "         COALESCE(r.started_at_utc, c.first_checked_at_utc) AS run_started_at_utc,\n",
+        "         r.finished_at_utc AS run_finished_at_utc,\n",
+        "         timestampdiff(SECOND, r.started_at_utc, r.finished_at_utc) / 60.0 AS duration_minutes,\n",
+        "         r.steps, r.failed_steps, r.steps_not_succeeded, r.failure_stages,\n",
+        "         LEFT(r.last_error_message, 300) AS last_error_message, r.code_revisions,\n",
+        "         COALESCE(c.pass_results, 0) AS pass_results, COALESCE(c.warn_results, 0) AS warn_results,\n",
+        "         COALESCE(c.fail_results, 0) AS fail_results\n",
+        "  FROM runs AS r\n",
+        "  FULL OUTER JOIN checks AS c ON c.run_id = r.run_id\n",
+        ")\n",
+        "SELECT *, RANK() OVER (ORDER BY run_started_at_utc DESC) AS run_recency\n",
+        "FROM joined\n"
+      ]
+    },
+    {
+      "name": "ds_freshness",
+      "displayName": "Source freshness",
+      "queryLines": [
+        "-- The rows the stale_sources alert reads: the latest run that checked freshness, newest\n",
+        "-- result per source, with the source's latest succeeded delivery beside it.\n",
+        "WITH latest_run AS (\n",
+        "  SELECT run_id FROM edu_access.`01-control`.data_quality_results\n",
+        "  WHERE check_name = 'source_fresh'\n",
+        "  ORDER BY checked_at_utc DESC LIMIT 1\n",
+        "),\n",
+        "newest AS (\n",
+        "  SELECT q.*, RANK() OVER (PARTITION BY q.source_id ORDER BY q.checked_at_utc DESC) AS result_rank\n",
+        "  FROM edu_access.`01-control`.data_quality_results AS q\n",
+        "  JOIN latest_run AS r ON q.run_id = r.run_id\n",
+        "  WHERE q.check_name = 'source_fresh'\n",
+        "),\n",
+        "delivered AS (\n",
+        "  SELECT source_id, MAX(succeeded_at_utc) AS last_succeeded_at_utc, COUNT(*) AS current_batches\n",
+        "  FROM edu_access.`01-control`.current_batches\n",
+        "  GROUP BY source_id\n",
+        ")\n",
+        "SELECT n.source_id, n.status AS freshness_status, n.expected AS freshness_limit,\n",
+        "       n.actual AS freshness_observed, n.checked_at_utc AS freshness_checked_at_utc, n.run_id,\n",
+        "       d.last_succeeded_at_utc, d.current_batches,\n",
+        "       CASE WHEN n.status = 'WARN' THEN 1 ELSE 0 END AS is_stale\n",
+        "FROM newest AS n\n",
+        "LEFT JOIN delivered AS d ON d.source_id = n.source_id\n",
+        "WHERE n.result_rank = 1\n"
+      ]
+    },
+    {
+      "name": "ds_layers",
+      "displayName": "Layer coverage",
+      "queryLines": [
+        "-- Every pipeline layer, with or without results, and any other layer a gate recorded.\n",
+        "WITH recorded AS (\n",
+        "  SELECT layer, COUNT(*) AS result_events, COUNT(DISTINCT run_id) AS runs,\n",
+        "         COUNT(DISTINCT check_name) AS distinct_checks, MAX(checked_at_utc) AS last_checked_at_utc\n",
+        "  FROM edu_access.`01-control`.data_quality_results\n",
+        "  GROUP BY layer\n",
+        ")\n",
+        "SELECT COALESCE(l.layer, r.layer) AS layer, COALESCE(l.layer_order, 99) AS layer_order,\n",
+        "       CASE WHEN r.layer IS NULL THEN 'No checks recorded yet'\n",
+        "            WHEN l.layer IS NULL THEN 'Checks recorded (layer not in the pipeline list)'\n",
+        "            ELSE 'Checks recorded' END AS coverage_state,\n",
+        "       r.result_events, r.runs, r.distinct_checks, r.last_checked_at_utc\n",
+        "FROM (VALUES (1, 'control'), (2, 'bronze'), (3, 'silver'), (4, 'integration'), (5, 'gold'), (6, 'analytics')) AS l(layer_order, layer)\n",
+        "FULL OUTER JOIN recorded AS r ON r.layer = l.layer\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "overview",
+      "displayName": "Quality overview",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "overview_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Data quality: Education Access Intelligence pipeline\n",
+                "\n",
+                "What every gate recorded in `edu_access.01-control.data_quality_results`, with runs from `pipeline_runs` and deliveries from `ingestion_batches`. **Counts are check results, never data rows.** All times are UTC. **Current** widgets show the newest result of each check; **History** widgets count every recorded result in the date range. A layer with no results says so, it is not shown as passing. Definitions are at the bottom of this page."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_checks",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "sum(is_result)",
+                      "expression": "SUM(`is_result`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(is_result)",
+                  "displayName": "Current checks"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Current checks",
+                "showDescription": true,
+                "description": "Results in the current view (tests and recorded counts). Empty: nothing recorded yet."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_pass",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "sum(is_pass)",
+                      "expression": "SUM(`is_pass`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(is_pass)",
+                  "displayName": "PASS"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "PASS",
+                "showDescription": true,
+                "description": "Current results with status PASS"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 3,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_warn",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "sum(is_warn)",
+                      "expression": "SUM(`is_warn`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(is_warn)",
+                  "displayName": "WARN"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "WARN",
+                "showDescription": true,
+                "description": "Current results with status WARN"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 3,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_fail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "sum(is_fail)",
+                      "expression": "SUM(`is_fail`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(is_fail)",
+                  "displayName": "FAIL"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "FAIL",
+                "showDescription": true,
+                "description": "Current results with status FAIL"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 3,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_pass_rate",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "measure(Pass rate (tests))",
+                      "expression": "MEASURE(`Pass rate (tests)`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Pass rate (tests))",
+                  "displayName": "Pass rate (tests)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Pass rate (tests)",
+                "showDescription": true,
+                "description": "PASS / (PASS + WARN + FAIL) of current tests, recorded counts left out. Not a data-quality score."
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 3,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_stale",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_freshness",
+                  "fields": [
+                    {
+                      "name": "sum(is_stale)",
+                      "expression": "SUM(`is_stale`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(is_stale)",
+                  "displayName": "Stale-source WARNs"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Stale-source WARNs",
+                "showDescription": true,
+                "description": "source_fresh WARNs in the latest freshness check, the rows the stale_sources alert emails"
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 3,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "latest_run",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_runs",
+                  "fields": [
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    },
+                    {
+                      "name": "run_status",
+                      "expression": "`run_status`"
+                    },
+                    {
+                      "name": "environment",
+                      "expression": "`environment`"
+                    },
+                    {
+                      "name": "run_started_at_utc",
+                      "expression": "`run_started_at_utc`"
+                    },
+                    {
+                      "name": "run_finished_at_utc",
+                      "expression": "`run_finished_at_utc`"
+                    },
+                    {
+                      "name": "duration_minutes",
+                      "expression": "`duration_minutes`"
+                    },
+                    {
+                      "name": "steps_not_succeeded",
+                      "expression": "`steps_not_succeeded`"
+                    },
+                    {
+                      "name": "failure_stages",
+                      "expression": "`failure_stages`"
+                    },
+                    {
+                      "name": "last_error_message",
+                      "expression": "`last_error_message`"
+                    },
+                    {
+                      "name": "pass_results",
+                      "expression": "`pass_results`"
+                    },
+                    {
+                      "name": "warn_results",
+                      "expression": "`warn_results`"
+                    },
+                    {
+                      "name": "fail_results",
+                      "expression": "`fail_results`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "filters": [
+                    {
+                      "expression": "`run_recency` = 1"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Job run"
+                  },
+                  {
+                    "fieldName": "run_status",
+                    "displayName": "Run status"
+                  },
+                  {
+                    "fieldName": "environment",
+                    "displayName": "Environment"
+                  },
+                  {
+                    "fieldName": "run_started_at_utc",
+                    "displayName": "Started (UTC)"
+                  },
+                  {
+                    "fieldName": "run_finished_at_utc",
+                    "displayName": "Finished (UTC)"
+                  },
+                  {
+                    "fieldName": "duration_minutes",
+                    "displayName": "Minutes"
+                  },
+                  {
+                    "fieldName": "steps_not_succeeded",
+                    "displayName": "Steps not succeeded"
+                  },
+                  {
+                    "fieldName": "failure_stages",
+                    "displayName": "Failure stage"
+                  },
+                  {
+                    "fieldName": "last_error_message",
+                    "displayName": "Error (first 300 characters)"
+                  },
+                  {
+                    "fieldName": "pass_results",
+                    "displayName": "PASS results"
+                  },
+                  {
+                    "fieldName": "warn_results",
+                    "displayName": "WARN results"
+                  },
+                  {
+                    "fieldName": "fail_results",
+                    "displayName": "FAIL results"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Latest job run",
+                "showDescription": true,
+                "description": "The run that started last (pipeline_runs rolled up to the job run). Result counts are that run's events only."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "current_by_layer",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Results"
+                },
+                "y": {
+                  "fieldName": "layer",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Layer"
+                },
+                "color": {
+                  "fieldName": "status",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "PASS",
+                        "color": "#009E73"
+                      },
+                      {
+                        "value": "WARN",
+                        "color": "#E69F00"
+                      },
+                      {
+                        "value": "FAIL",
+                        "color": "#D55E00"
+                      }
+                    ]
+                  },
+                  "displayName": "Status"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Current results by layer",
+                "showDescription": true,
+                "description": "Current results: the newest result of each check, from whichever run checked it last. Counts are check results, not data rows. A layer with no results is absent here; see Layer coverage."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "layer_coverage",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_layers",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    },
+                    {
+                      "name": "coverage_state",
+                      "expression": "`coverage_state`"
+                    },
+                    {
+                      "name": "result_events",
+                      "expression": "`result_events`"
+                    },
+                    {
+                      "name": "runs",
+                      "expression": "`runs`"
+                    },
+                    {
+                      "name": "distinct_checks",
+                      "expression": "`distinct_checks`"
+                    },
+                    {
+                      "name": "last_checked_at_utc",
+                      "expression": "`last_checked_at_utc`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer"
+                  },
+                  {
+                    "fieldName": "coverage_state",
+                    "displayName": "Coverage"
+                  },
+                  {
+                    "fieldName": "result_events",
+                    "displayName": "Result events (all time)"
+                  },
+                  {
+                    "fieldName": "runs",
+                    "displayName": "Runs"
+                  },
+                  {
+                    "fieldName": "distinct_checks",
+                    "displayName": "Check names"
+                  },
+                  {
+                    "fieldName": "last_checked_at_utc",
+                    "displayName": "Last checked (UTC)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Layer coverage",
+                "showDescription": true,
+                "description": "Every pipeline layer. 'No checks recorded yet' means no gate of that layer has written a result: not built or not run, never a pass. Gold and Analytics gates are placeholders until they are implemented."
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 9,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "current_by_source",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Results"
+                },
+                "y": {
+                  "fieldName": "source_id",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Source id"
+                },
+                "color": {
+                  "fieldName": "status",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "PASS",
+                        "color": "#009E73"
+                      },
+                      {
+                        "value": "WARN",
+                        "color": "#E69F00"
+                      },
+                      {
+                        "value": "FAIL",
+                        "color": "#D55E00"
+                      }
+                    ]
+                  },
+                  "displayName": "Status"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Current results by source",
+                "showDescription": true,
+                "description": "Current results: the newest result of each check, from whichever run checked it last. Counts are check results, not data rows. An empty source is a layer-wide check with no source_id."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 15,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "current_by_attribute",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "quality_attribute",
+                      "expression": "`quality_attribute`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Results"
+                },
+                "y": {
+                  "fieldName": "quality_attribute",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Quality attribute"
+                },
+                "color": {
+                  "fieldName": "status",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "PASS",
+                        "color": "#009E73"
+                      },
+                      {
+                        "value": "WARN",
+                        "color": "#E69F00"
+                      },
+                      {
+                        "value": "FAIL",
+                        "color": "#D55E00"
+                      }
+                    ]
+                  },
+                  "displayName": "Status"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Current results by quality attribute",
+                "showDescription": true,
+                "description": "From config/quality_attributes.yml. An attribute missing here has no check, which is not a pass. Unclassified checks stay visible; Recorded count is evidence, always PASS."
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 15,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "history_by_day",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_history",
+                  "fields": [
+                    {
+                      "name": "daily(checked_at_utc)",
+                      "expression": "DATE_TRUNC(\"DAY\", `checked_at_utc`)"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(checked_at_utc)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Day (UTC)"
+                },
+                "y": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Result events"
+                },
+                "color": {
+                  "fieldName": "status",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "PASS",
+                        "color": "#009E73"
+                      },
+                      {
+                        "value": "WARN",
+                        "color": "#E69F00"
+                      },
+                      {
+                        "value": "FAIL",
+                        "color": "#D55E00"
+                      }
+                    ]
+                  },
+                  "displayName": "Status"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "History: check-result events per day (UTC)",
+                "showDescription": true,
+                "description": "Every recorded result in the date range. A check that ran in three runs is three events, so this is activity and direction, not the number of checks."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "freshness",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_freshness",
+                  "fields": [
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    },
+                    {
+                      "name": "freshness_status",
+                      "expression": "`freshness_status`"
+                    },
+                    {
+                      "name": "freshness_limit",
+                      "expression": "`freshness_limit`"
+                    },
+                    {
+                      "name": "freshness_observed",
+                      "expression": "`freshness_observed`"
+                    },
+                    {
+                      "name": "last_succeeded_at_utc",
+                      "expression": "`last_succeeded_at_utc`"
+                    },
+                    {
+                      "name": "current_batches",
+                      "expression": "`current_batches`"
+                    },
+                    {
+                      "name": "freshness_checked_at_utc",
+                      "expression": "`freshness_checked_at_utc`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source"
+                  },
+                  {
+                    "fieldName": "freshness_status",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "freshness_limit",
+                    "displayName": "Limit"
+                  },
+                  {
+                    "fieldName": "freshness_observed",
+                    "displayName": "Observed"
+                  },
+                  {
+                    "fieldName": "last_succeeded_at_utc",
+                    "displayName": "Last succeeded delivery (UTC)"
+                  },
+                  {
+                    "fieldName": "current_batches",
+                    "displayName": "Current batches"
+                  },
+                  {
+                    "fieldName": "freshness_checked_at_utc",
+                    "displayName": "Checked (UTC)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Source freshness (current)",
+                "showDescription": true,
+                "description": "Latest source_fresh check, as the stale_sources alert reads it. Limits come from config/freshness.yml; a WARN means check the publisher, not that data is wrong."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 28,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "recent_runs",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_runs",
+                  "fields": [
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    },
+                    {
+                      "name": "run_status",
+                      "expression": "`run_status`"
+                    },
+                    {
+                      "name": "environment",
+                      "expression": "`environment`"
+                    },
+                    {
+                      "name": "run_started_at_utc",
+                      "expression": "`run_started_at_utc`"
+                    },
+                    {
+                      "name": "run_finished_at_utc",
+                      "expression": "`run_finished_at_utc`"
+                    },
+                    {
+                      "name": "duration_minutes",
+                      "expression": "`duration_minutes`"
+                    },
+                    {
+                      "name": "steps_not_succeeded",
+                      "expression": "`steps_not_succeeded`"
+                    },
+                    {
+                      "name": "failure_stages",
+                      "expression": "`failure_stages`"
+                    },
+                    {
+                      "name": "last_error_message",
+                      "expression": "`last_error_message`"
+                    },
+                    {
+                      "name": "pass_results",
+                      "expression": "`pass_results`"
+                    },
+                    {
+                      "name": "warn_results",
+                      "expression": "`warn_results`"
+                    },
+                    {
+                      "name": "fail_results",
+                      "expression": "`fail_results`"
+                    },
+                    {
+                      "name": "code_revisions",
+                      "expression": "`code_revisions`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Job run"
+                  },
+                  {
+                    "fieldName": "run_status",
+                    "displayName": "Run status"
+                  },
+                  {
+                    "fieldName": "environment",
+                    "displayName": "Environment"
+                  },
+                  {
+                    "fieldName": "run_started_at_utc",
+                    "displayName": "Started (UTC)"
+                  },
+                  {
+                    "fieldName": "run_finished_at_utc",
+                    "displayName": "Finished (UTC)"
+                  },
+                  {
+                    "fieldName": "duration_minutes",
+                    "displayName": "Minutes"
+                  },
+                  {
+                    "fieldName": "steps_not_succeeded",
+                    "displayName": "Steps not succeeded"
+                  },
+                  {
+                    "fieldName": "failure_stages",
+                    "displayName": "Failure stage"
+                  },
+                  {
+                    "fieldName": "last_error_message",
+                    "displayName": "Error (first 300 characters)"
+                  },
+                  {
+                    "fieldName": "pass_results",
+                    "displayName": "PASS results"
+                  },
+                  {
+                    "fieldName": "warn_results",
+                    "displayName": "WARN results"
+                  },
+                  {
+                    "fieldName": "fail_results",
+                    "displayName": "FAIL results"
+                  },
+                  {
+                    "fieldName": "code_revisions",
+                    "displayName": "Code revision"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Job runs (history)",
+                "showDescription": true,
+                "description": "Runs that started in the date range. A Bronze load's own run is rolled up to its job run. 'no pipeline_runs row' means results exist under a run id with no run record."
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 28,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "quarantine",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    },
+                    {
+                      "name": "batch_period",
+                      "expression": "`batch_period`"
+                    },
+                    {
+                      "name": "table_name",
+                      "expression": "`table_name`"
+                    },
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "expected",
+                      "expression": "`expected`"
+                    },
+                    {
+                      "name": "actual",
+                      "expression": "`actual`"
+                    },
+                    {
+                      "name": "last_checked_at_utc",
+                      "expression": "`last_checked_at_utc`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "filters": [
+                    {
+                      "expression": "`check_name` LIKE 'quarantine_rate%'"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source"
+                  },
+                  {
+                    "fieldName": "batch_period",
+                    "displayName": "School year or dataset"
+                  },
+                  {
+                    "fieldName": "table_name",
+                    "displayName": "Table"
+                  },
+                  {
+                    "fieldName": "check_name",
+                    "displayName": "Check"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "expected",
+                    "displayName": "Expected"
+                  },
+                  {
+                    "fieldName": "actual",
+                    "displayName": "Quarantined rows"
+                  },
+                  {
+                    "fieldName": "last_checked_at_utc",
+                    "displayName": "Checked (UTC)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Quarantine against the 1% limit (current)",
+                "showDescription": true,
+                "description": "Silver quarantine_rate per delivery: WARN above 0, FAIL above 1% of that year's Bronze rows. Expected and actual are shown as recorded."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 35,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "integration_maps",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    },
+                    {
+                      "name": "table_name",
+                      "expression": "`table_name`"
+                    },
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "expected",
+                      "expression": "`expected`"
+                    },
+                    {
+                      "name": "actual",
+                      "expression": "`actual`"
+                    },
+                    {
+                      "name": "quality_attribute",
+                      "expression": "`quality_attribute`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "filters": [
+                    {
+                      "expression": "`layer` = 'integration'"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source"
+                  },
+                  {
+                    "fieldName": "table_name",
+                    "displayName": "Map"
+                  },
+                  {
+                    "fieldName": "check_name",
+                    "displayName": "Check"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "expected",
+                    "displayName": "Expected"
+                  },
+                  {
+                    "fieldName": "actual",
+                    "displayName": "Actual"
+                  },
+                  {
+                    "fieldName": "quality_attribute",
+                    "displayName": "Attribute"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Integration and PSGC map checks (current)",
+                "showDescription": true,
+                "description": "Match outcomes, review state, and match rate as each Integration gate records them. Only the HDX map records a match_rate_percent so far."
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 35,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "definitions",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Definitions\n",
+                "\n",
+                "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (for example rows quarantined within the limit, a stale source); the batch or build stands. **FAIL** the batch or build is not trusted: a Bronze batch is not marked succeeded, a Silver or Integration candidate is not published, and the gate task fails.\n",
+                "\n",
+                "**Current** is one row per (layer, source, table, check, batch): its newest result. Results of a delivery replaced by a newer version are left out; a failed or blocked delivery stays until it is retried. A check no gate runs any more keeps its last result, with its date.\n",
+                "\n",
+                "**Pass rate (tests)** = PASS / (PASS + WARN + FAIL) over current tests. *Recorded counts* (how many rows a cleaning rule changed, matches per method, row kinds) are always PASS and left out. It is empty, not 0% or 100%, when there is no test result.\n",
+                "\n",
+                "**Quality attributes**: Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness, Referential integrity, Reconciliation, Lineage. Assigned in config/quality_attributes.yml; a check it does not list is **Unclassified**, shown, and covers no attribute."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 41,
+            "width": 12,
+            "height": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "explorer",
+      "displayName": "Check explorer",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "explorer_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Check explorer\n",
+                "\n",
+                "Find a WARN or FAIL and trace it to its run, batch, and code revision. Status starts at WARN and FAIL; add PASS to compare. Results hold counts and rules, never row values. Times are UTC."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_status",
+            "queries": [
+              {
+                "name": "f_status_ds_history",
+                "query": {
+                  "datasetName": "ds_history",
+                  "fields": [
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "f_status_ds_current",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status",
+                    "queryName": "f_status_ds_history"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status",
+                    "queryName": "f_status_ds_current"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Status"
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "WARN"
+                      },
+                      {
+                        "value": "FAIL"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_attribute",
+            "queries": [
+              {
+                "name": "f_attribute_ds_current",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "quality_attribute",
+                      "expression": "`quality_attribute`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "quality_attribute",
+                    "displayName": "Quality attribute (current)",
+                    "queryName": "f_attribute_ds_current"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Quality attribute (current)"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_table",
+            "queries": [
+              {
+                "name": "f_table_ds_history",
+                "query": {
+                  "datasetName": "ds_history",
+                  "fields": [
+                    {
+                      "name": "table_name",
+                      "expression": "`table_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "f_table_ds_current",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "table_name",
+                      "expression": "`table_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "table_name",
+                    "displayName": "Table",
+                    "queryName": "f_table_ds_history"
+                  },
+                  {
+                    "fieldName": "table_name",
+                    "displayName": "Table",
+                    "queryName": "f_table_ds_current"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Table"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_check",
+            "queries": [
+              {
+                "name": "f_check_ds_history",
+                "query": {
+                  "datasetName": "ds_history",
+                  "fields": [
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "f_check_ds_current",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "check_name",
+                    "displayName": "Check",
+                    "queryName": "f_check_ds_history"
+                  },
+                  {
+                    "fieldName": "check_name",
+                    "displayName": "Check",
+                    "queryName": "f_check_ds_current"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Check"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "f_run",
+            "queries": [
+              {
+                "name": "f_run_ds_history",
+                "query": {
+                  "datasetName": "ds_history",
+                  "fields": [
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "f_run_ds_current",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Job run",
+                    "queryName": "f_run_ds_history"
+                  },
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Job run",
+                    "queryName": "f_run_ds_current"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Job run"
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "events",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_history",
+                  "fields": [
+                    {
+                      "name": "checked_at_utc",
+                      "expression": "`checked_at_utc`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    },
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    },
+                    {
+                      "name": "table_name",
+                      "expression": "`table_name`"
+                    },
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    },
+                    {
+                      "name": "expected",
+                      "expression": "`expected`"
+                    },
+                    {
+                      "name": "actual",
+                      "expression": "`actual`"
+                    },
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    },
+                    {
+                      "name": "batch_id",
+                      "expression": "`batch_id`"
+                    },
+                    {
+                      "name": "code_revision",
+                      "expression": "`code_revision`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "checked_at_utc",
+                    "displayName": "Checked (UTC)"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer"
+                  },
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source"
+                  },
+                  {
+                    "fieldName": "table_name",
+                    "displayName": "Table"
+                  },
+                  {
+                    "fieldName": "check_name",
+                    "displayName": "Check"
+                  },
+                  {
+                    "fieldName": "expected",
+                    "displayName": "Expected"
+                  },
+                  {
+                    "fieldName": "actual",
+                    "displayName": "Actual"
+                  },
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Job run"
+                  },
+                  {
+                    "fieldName": "batch_id",
+                    "displayName": "Batch"
+                  },
+                  {
+                    "fieldName": "code_revision",
+                    "displayName": "Code revision"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "History: every result event in the date range",
+                "showDescription": true,
+                "description": "Each row is one recorded result. The same check appears once per run (and batch) that ran it, so a check that keeps warning shows once per run."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "current_detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "last_checked_at_utc",
+                      "expression": "`last_checked_at_utc`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    },
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    },
+                    {
+                      "name": "table_name",
+                      "expression": "`table_name`"
+                    },
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    },
+                    {
+                      "name": "expected",
+                      "expression": "`expected`"
+                    },
+                    {
+                      "name": "actual",
+                      "expression": "`actual`"
+                    },
+                    {
+                      "name": "quality_attribute",
+                      "expression": "`quality_attribute`"
+                    },
+                    {
+                      "name": "classification_basis",
+                      "expression": "`classification_basis`"
+                    },
+                    {
+                      "name": "batch_period",
+                      "expression": "`batch_period`"
+                    },
+                    {
+                      "name": "batch_state",
+                      "expression": "`batch_state`"
+                    },
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    },
+                    {
+                      "name": "batch_id",
+                      "expression": "`batch_id`"
+                    },
+                    {
+                      "name": "code_revision",
+                      "expression": "`code_revision`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "last_checked_at_utc",
+                    "displayName": "Last checked (UTC)"
+                  },
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer"
+                  },
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source"
+                  },
+                  {
+                    "fieldName": "table_name",
+                    "displayName": "Table"
+                  },
+                  {
+                    "fieldName": "check_name",
+                    "displayName": "Check"
+                  },
+                  {
+                    "fieldName": "expected",
+                    "displayName": "Expected"
+                  },
+                  {
+                    "fieldName": "actual",
+                    "displayName": "Actual"
+                  },
+                  {
+                    "fieldName": "quality_attribute",
+                    "displayName": "Attribute"
+                  },
+                  {
+                    "fieldName": "classification_basis",
+                    "displayName": "Why this attribute"
+                  },
+                  {
+                    "fieldName": "batch_period",
+                    "displayName": "Period"
+                  },
+                  {
+                    "fieldName": "batch_state",
+                    "displayName": "Batch"
+                  },
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Job run"
+                  },
+                  {
+                    "fieldName": "batch_id",
+                    "displayName": "Batch id"
+                  },
+                  {
+                    "fieldName": "code_revision",
+                    "displayName": "Code revision"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Current: newest result of each check",
+                "showDescription": true,
+                "description": "Not date-filtered. One row per (layer, source, table, check, batch)."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 9
+          }
+        }
+      ]
+    },
+    {
+      "name": "filters",
+      "displayName": "Filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "g_dates",
+            "queries": [
+              {
+                "name": "g_dates_ds_history",
+                "query": {
+                  "datasetName": "ds_history",
+                  "parameters": [
+                    {
+                      "name": "history_range",
+                      "keyword": "history_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "g_dates_ds_runs",
+                "query": {
+                  "datasetName": "ds_runs",
+                  "fields": [
+                    {
+                      "name": "run_started_at_utc",
+                      "expression": "`run_started_at_utc`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "parameterName": "history_range",
+                    "queryName": "g_dates_ds_history"
+                  },
+                  {
+                    "fieldName": "run_started_at_utc",
+                    "queryName": "g_dates_ds_runs"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Date range (UTC)",
+                "showDescription": true,
+                "description": "History and runs; default the last 90 days. Current results are not date-filtered."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "g_layer",
+            "queries": [
+              {
+                "name": "g_layer_ds_current",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "g_layer_ds_history",
+                "query": {
+                  "datasetName": "ds_history",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "g_layer_ds_layers",
+                "query": {
+                  "datasetName": "ds_layers",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer",
+                    "queryName": "g_layer_ds_current"
+                  },
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer",
+                    "queryName": "g_layer_ds_history"
+                  },
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer",
+                    "queryName": "g_layer_ds_layers"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Layer"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "g_source",
+            "queries": [
+              {
+                "name": "g_source_ds_current",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "g_source_ds_history",
+                "query": {
+                  "datasetName": "ds_history",
+                  "fields": [
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "g_source_ds_freshness",
+                "query": {
+                  "datasetName": "ds_freshness",
+                  "fields": [
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source",
+                    "queryName": "g_source_ds_current"
+                  },
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source",
+                    "queryName": "g_source_ds_history"
+                  },
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source",
+                    "queryName": "g_source_ds_freshness"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Source"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 2
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#F7F8FA",
+        "dark": "#1F272D"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "widgetBorderColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "fontColor": {
+        "light": "#11171C",
+        "dark": "#E8ECF0"
+      },
+      "selectionColor": {
+        "light": "#2272B4",
+        "dark": "#8ACAFF"
+      },
+      "visualizationColors": [
+        "#0072B2",
+        "#E69F00",
+        "#009E73",
+        "#CC79A7",
+        "#D55E00",
+        "#56B4E9",
+        "#999999",
+        "#F0E442"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}
