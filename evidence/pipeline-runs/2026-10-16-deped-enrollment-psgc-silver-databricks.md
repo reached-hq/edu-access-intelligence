@@ -2,7 +2,7 @@
 
 Issue #163 · Databricks `dev` (D-017) · 2026-10-16, Manila time (UTC+8) · run by @maeveylain
 
-These runs are of commit `2bcd685`, before the review changes of 2026-10-18 (row-level reconciliation, published coordinate text, the empty-batch FAIL, and the guarded Sulu recode). The gate then had 28 checks; the runs of the reviewed code are recorded separately.
+Runs 1 to 3 are of commit `2bcd685`, before the review changes of 2026-10-18 (row-level reconciliation, published coordinate text, the empty-batch FAIL, and the guarded Sulu recode), when the gate had 28 checks. Runs 4 and 5, of the reviewed code (`773d9f7`, 32 checks), are under [After review](#after-review-runs-4-and-5).
 
 ## The claim
 
@@ -85,3 +85,39 @@ The WARN is `quarantine_rate` (2 rows; FAIL only above 1%). The 27 PASS include 
 - The individual quarantined rows and sample rows on `dev` (expected `1406363` and `404520`, as locally).
 - Table ownership by `reached-hq` on the new Silver tables.
 - The failed check in run 2's personnel gate.
+
+## After review: runs 4 and 5
+
+2026-10-18, Manila time (UTC+8) · run by @maeveylain
+
+The same job, redeployed from the branch at `773d9f7ad9aabbb5d632fbeaaacad4b80e6f1ab5` after the PR #169 review (the gate now has 32 checks: row-level reconciliation to Bronze, the published coordinate text, a FAIL with no current batch, and the guarded Sulu recode). `databricks bundle summary` showed `git_commit` and the `code_revision` parameter at that commit, and both runs carry it. Before running, `databricks jobs list-runs --active-only` showed no other job running in the workspace.
+
+| | Run 4 | Run 5 |
+|---|---|---|
+| Job run | `130776181164228` | `731522935129013` |
+| Start → end (UTC) | 05:48:50 → 05:59:48 | 06:01:56 → 06:26:43 |
+| Job result | **SUCCESS**: 45 tasks succeeded, 45 disabled | **SUCCESS**: 45 tasks succeeded, 45 disabled |
+| `bronze_deped_enrollment_psgc` and its Bronze gate | SUCCESS | SUCCESS |
+| `07_clean_deped_enrollment_psgc` (Silver build) | SUCCESS, 05:58:05 → 05:58:40 | SUCCESS, 06:24:53 → 06:25:51 |
+| `90_validate_deped_enrollment_psgc_clean` (Silver gate) | SUCCESS, 05:58:41 → 05:59:26 | SUCCESS, 06:25:52 → 06:26:32 |
+| `90_validate_control` (fan-in, an audit under D-051), `90_validate_freshness` | SUCCESS, SUCCESS | SUCCESS, SUCCESS |
+
+The disabled count is 45, not 26 as in runs 1 to 3, because #166 (D-051) added disabled placeholder tasks for Integration, Gold, and Analytics.
+
+### The published tables after run 5
+
+Queried in a notebook on 2026-10-18 at 14:32–14:36 Manila (06:32–06:36 UTC), the same two queries as above (screenshots kept by @maeveylain):
+
+| `bronze_unit_rows` | `clean_rows` | `quarantine_rows` |
+|---|---|---|
+| 60,275 | 60,273 | 2 |
+
+| `run_id` (the job run) | PASS | WARN | FAIL |
+|---|---|---|---|
+| `1094635918316055` (run 1, before review) | 27 | 1 | 0 |
+| `302526353474448` (run 2, before review) | 27 | 1 | 0 |
+| `737211160986857` (run 3, before review) | 27 | 1 | 0 |
+| `130776181164228` (run 4, after review) | 31 | 1 | 0 |
+| `731522935129013` (run 5, after review) | 31 | 1 | 0 |
+
+In runs 4 and 5 the 31 PASS include `rows_resolve_to_current_bronze`, `values_reconcile`, and `coordinates_reconcile`, so every published row was tied to its Bronze row and every value recomputed and matched, on Databricks as locally. The WARN is `quarantine_rate` (2 rows). The profiled counts PASS in both, so both runs produced the same counts on every rule; a row-by-row hash was taken locally only (identical, `225f506a…`).

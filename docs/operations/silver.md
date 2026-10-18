@@ -711,7 +711,7 @@ Besides the shared whole-build checks (`current_batches_present`, `lineage_compl
 
 It is a crosswalk, not an enrollment table: DepEd's own PSGC code per school, from the EMISD workbook, for Integration to match DepEd schools by code first (#44). None of the workbook's enrollment counts reach Silver.
 
-**Status:** implemented and tested locally on made-up workbooks (`tests/test_silver_deped_enrollment_psgc.py`), and run locally on the real SY 2023-24 batch at `6852fbe` after review: 60,273 clean rows, 2 quarantined, every row reconciled to its Bronze row, 31 of 32 checks PASS and `quarantine_rate` WARN (2 rows), identical on a rebuild ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-psgc-bronze-to-silver.md)). Run by the job on Databricks `dev` before review, at `2bcd685`, in two clean job runs ([evidence](../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-silver-databricks.md)); the reviewed code is still to be run on `dev`.
+**Status:** implemented and tested locally on made-up workbooks (`tests/test_silver_deped_enrollment_psgc.py`), and run locally on the real SY 2023-24 batch at `6852fbe` after review: 60,273 clean rows, 2 quarantined, every row reconciled to its Bronze row, 31 of 32 checks PASS and `quarantine_rate` WARN (2 rows), identical on a rebuild ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-psgc-bronze-to-silver.md)). Run by the job on Databricks `dev` after review, at `773d9f7`, in two job runs: both SUCCESS, 60,273 clean and 2 quarantined, 31 PASS and 1 WARN each, every row reconciled ([evidence](../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-silver-databricks.md)).
 
 ### The flow (crosswalk)
 
