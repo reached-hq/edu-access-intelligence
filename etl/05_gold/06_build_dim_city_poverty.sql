@@ -1,2 +1,3 @@
--- PLACEHOLDER: build dim_city_poverty (D-048). One city or municipality; reads the poverty map and poverty Silver. Context only, no Analytics task reads it.
+-- PLACEHOLDER: build dim_city_poverty (D-046, D-048). One row per regular member of dim_city_municipality; reads that
+-- dimension, the poverty map, and poverty Silver. Context only, no Analytics task reads it.
 -- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

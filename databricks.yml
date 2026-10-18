@@ -929,6 +929,7 @@ resources:
           depends_on:
             - task_key: 90_validate_psa_poverty_psgc_map
             - task_key: 90_validate_psa_poverty_stat_clean
+            - task_key: 90_validate_dim_city_municipality
           run_if: ALL_SUCCESS
           sql_task:
             file:
