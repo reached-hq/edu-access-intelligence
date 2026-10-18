@@ -274,10 +274,15 @@ def approve_tree(config, path, year, values=None, **overrides):
                    sheet_rows={c: max(grids[f"{year} {c}"]) for c in CONCEPTS}, **overrides)
 
 
-def pin_tree_levels(mapping, workbooks, levels=None):
-    """The Silver rules with the level counts of these approved tree workbooks pinned, and no others, as a
-    reviewer would pin them. workbooks: [(census year, path)]."""
+# The made-up tree has no Special Geographic Area: every place is standard.
+TREE_STATUSES = {"special_geographic_area": 0, "sga_cluster": 0}
+
+
+def pin_tree_levels(mapping, workbooks, levels=None, statuses=None):
+    """The Silver rules with the level and place_status counts of these approved tree workbooks pinned, and
+    no others, as a reviewer would pin them. workbooks: [(census year, path)]; statuses: {census year: counts}."""
     mapping = copy.deepcopy(mapping)
     mapping["expected_levels"] = [{"census_year": year, "workbook_sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
-                                   **(levels or TREE_LEVELS)} for year, path in workbooks]
+                                   **(levels or TREE_LEVELS), **{**TREE_STATUSES, **(statuses or {}).get(year, {})}}
+                                  for year, path in workbooks]
     return mapping

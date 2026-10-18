@@ -56,6 +56,8 @@ EXPECTED = {
     "cells": {"2020": 104520, "2024": 104640},
     "levels": {"2020": "country 1, region 17, province 82, city_municipality 1642",
                "2024": "country 1, region 18, province 83, city_municipality 1642"},
+    # Profile O-7: the SGA (2020 INTERIM PROVINCE, 2024 SPECIAL GEOGRAPHIC AREA) and the eight 2020 clusters under it.
+    "statuses": {"2020": "special_geographic_area 1, sga_cluster 8", "2024": "special_geographic_area 1, sga_cluster 0"},
     "zero_cells": {("2020", "total"): 21, ("2020", "household"): 24, ("2024", "total"): 7, ("2024", "household"): 7},
     "equal_places": {"2020": 366, "2024": 771},
     "national_5_24": {("2020", "total"): 42869567, ("2020", "household"): 42776570,
@@ -208,6 +210,14 @@ def report(db, run_id):
             row(f"{year} {concept}: quarantined", 0, quarantined)
             row(f"{year} {concept}: places per level", EXPECTED["levels"][year],
                 results.get((f"levels_match_expected_{concept}", year), {}).get("actual"))
+            row(f"{year} {concept}: places per place_status (O-7)", EXPECTED["statuses"][year],
+                results.get((f"place_status_match_expected_{concept}", year), {}).get("actual"))
+            row(f"{year} {concept}: places flagged special", None, ", ".join(
+                f"{name} ({status})" for name, status in q(
+                    f"SELECT DISTINCT place_name, place_status FROM {CLEAN} WHERE {where} "
+                    "AND place_status <> 'standard' ORDER BY place_status, place_name")))
+            row(f"{year} {concept}: places whose counts are all 0", 0,
+                results.get((f"no_all_zero_place_{concept}", year), {}).get("actual"))
             row(f"{year} {concept}: zero cells (Kalayaan, O-3)", EXPECTED["zero_cells"][(year, concept)],
                 q(f"SELECT COUNT(*) FROM {CLEAN} WHERE {where} AND population = 0")[0][0])
             row(f"{year} {concept}: zero cells outside Kalayaan", 0,

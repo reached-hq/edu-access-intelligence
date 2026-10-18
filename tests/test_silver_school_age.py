@@ -66,16 +66,16 @@ class Env:
         self.store = DuckDBStore()
         self.workbooks = []
 
-    def deliver(self, years=YEARS, values=None, pin=True, levels=None):
-        """Approve made-up tree workbooks, pin their level counts, and regenerate the Silver SQL.
-        values: {year: {sheet concept: per-place counts}}."""
+    def deliver(self, years=YEARS, values=None, pin=True, levels=None, statuses=None):
+        """Approve made-up tree workbooks, pin their level and place_status counts, and regenerate the Silver
+        SQL. values: {year: {sheet concept: per-place counts}}; statuses: {year: {place_status: count}}."""
         for year in years:
             path = write_tree_workbook(self.landing / "psa" / "original", year, (values or {}).get(year))
             approve_tree(self.config, path, year, (values or {}).get(year))
             self.workbooks.append((year, path))
         write_config(self.repo, self.config)
         mapping = json.loads(MAPPING.read_text(encoding="utf-8"))
-        mapping = pin_tree_levels(mapping, self.workbooks if pin else [], levels)
+        mapping = pin_tree_levels(mapping, self.workbooks if pin else [], levels, statuses)
         (self.repo / "config" / "mappings" / f"{SOURCE}.json").write_text(json.dumps(mapping, indent=2), encoding="utf-8")
         spec = sap.load_spec(self.repo)
         (self.repo / "etl" / "03_silver" / BUILD).write_text(sap.build_sql(spec), encoding="utf-8")
@@ -313,7 +313,8 @@ def test_a_workbook_whose_levels_are_not_pinned_fails(env):
     summary = env.silver()
     assert summary.status == "failed"
     failed = env.checks(summary.run_id, "FAIL")
-    assert {n for n, _ in failed} == {"levels_match_expected_total", "levels_match_expected_household"}
+    assert {n for n, _ in failed} == {"levels_match_expected_total", "levels_match_expected_household",
+                                      "place_status_match_expected_total", "place_status_match_expected_household"}
     assert all(r["expected"].startswith("not pinned") for r in failed.values())
 
 
@@ -321,6 +322,53 @@ def test_levels_pinned_differently_fail(env):
     env.deliver(levels={**TREE_LEVELS, "city_municipality": 9})
     env.bronze()
     assert "levels_match_expected_total" in env.check_names(env.silver().run_id, "FAIL")
+
+
+@pytest.fixture
+def special_tree():
+    """The tree with REGION II's single province as the Special Geographic Area (2020 INTERIM PROVINCE,
+    2024 SPECIAL GEOGRAPHIC AREA), and one of its towns a 2020 cluster, as in profile O-7."""
+    original = list(TREE)
+    TREE[11] = ("INTERIM PROVINCE", "SPECIAL GEOGRAPHIC AREA 3/", 10)
+    TREE[13] = ("PIKIT CLUSTER II", "PAHAMUDDIN", 11)
+    yield
+    TREE[:] = original
+
+
+def test_the_special_geographic_area_and_its_clusters_are_flagged_and_keep_their_level(env, special_tree):
+    env.deliver(statuses={"2020": {"special_geographic_area": 1, "sga_cluster": 1},
+                          "2024": {"special_geographic_area": 1}})
+    env.bronze()
+    assert env.silver().status == "succeeded"
+    flagged = env.q(f"SELECT DISTINCT census_year, place_name, level, place_status FROM {CLEAN} "
+                    "WHERE place_status <> 'standard' ORDER BY 1, 2")
+    assert flagged == [(2020, "INTERIM PROVINCE", "province", "special_geographic_area"),
+                       (2020, "PIKIT CLUSTER II", "city_municipality", "sga_cluster"),
+                       (2024, "SPECIAL GEOGRAPHIC AREA", "province", "special_geographic_area")]
+    # The 2024 SGA municipality and the other town under the SGA stay standard; so does everything else.
+    assert env.q(f"SELECT DISTINCT place_status FROM {CLEAN} WHERE place_name IN ('PAHAMUDDIN', 'SAN TEST')") == [("standard",)]
+
+
+def test_special_places_not_pinned_fail(env, special_tree):
+    env.deliver()                                                        # pins 0 for both statuses
+    env.bronze()
+    failed = env.checks(env.silver().run_id, "FAIL")
+    assert {n for n, _ in failed} == {"place_status_match_expected_total", "place_status_match_expected_household"}
+    by_year = {r["actual"] for (n, _), r in failed.items() if n == "place_status_match_expected_total"}
+    assert any("special_geographic_area 1" in a for a in by_year)
+
+
+def test_a_place_of_zeros_fails_because_the_sums_cannot_place_it(env):
+    """CITY OF HUC follows PROVINCE ONE's span: with every cell 0 it adds nothing, so the span can swallow it
+    and every sum still closes. The gate fails it rather than guess its parent (#176 review)."""
+    zero = {6: [0] * 60}
+    env.deliver(years=("2020",), values={"2020": {c: tree_values(c, leaves=zero) for c in ("Total Pop", "Household Pop")}})
+    env.bronze()
+    summary = env.silver()
+    assert summary.status == "failed"
+    failed = {n: r for (n, _), r in env.checks(summary.run_id, "FAIL").items()}
+    assert failed["no_all_zero_place_total"]["actual"] == "1"
+    assert "no_all_zero_place_household" in failed
 
 
 @pytest.mark.parametrize("value, reason", [("", "population_blank"), ("-3", "population_negative"),
@@ -343,6 +391,7 @@ BROKEN_BUILDS = [
     ("place_label_parsed_total", "old_name = NULL", "place_label = 'BRAVO (OLD BRAVO)'"),
     ("place_label_parsed_total", "is_capital = FALSE", "place_label = 'ALPHA (Capital)'"),
     ("place_levels_assigned_total", "level = NULL", "place_label = 'PROVINCE ONE'"),
+    ("place_status_match_expected_total", "place_status = 'sga_cluster'", "place_label = 'CHARLIE'"),
     ("parents_resolve_total", "parent_name = 'NOWHERE'", "place_label = 'CHARLIE'"),
     ("tree_closes_total", "population = population + 1", "place_label = 'PROVINCE TWO' AND sex = 'both' AND age = 6"),
     ("one_country_total", "level = 'region'", "place_label = 'PHILIPPINES'"),
@@ -534,6 +583,8 @@ def test_a_new_count_column_needs_a_reviewed_rule():
     (lambda m: m["expected_levels"][0].update(workbook_sha256="0" * 64), "not an approved delivery"),
     (lambda m: m["expected_levels"][1].update(census_year="2020"), "not an approved delivery"),
     (lambda m: m["expected_levels"][0].pop("province"), "count for every level"),
+    (lambda m: m["expected_levels"][1].pop("sga_cluster"), "every place_status"),
+    (lambda m: m["place_status"]["sga_cluster"].update(level="barangay"), "is not a level"),
     (lambda m: m["label"].update(footnote_pattern="x';"), "quotes, backslashes"),
     (lambda m: m["levels"].update(leaf_depths=[0]), "leaf_depths"),
     (lambda m: m["levels"].update(by_depth=["country", "region", "country"]), "each level once"),

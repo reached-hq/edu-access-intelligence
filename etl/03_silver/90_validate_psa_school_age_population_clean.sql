@@ -14,8 +14,9 @@
 --
 -- The tree is checked here independently of how the build found it: every place except the country
 -- resolves to exactly one parent by name (the region qualifying a province), every aggregate equals
--- the sum of its children in every cell, and the places per level are the counts pinned for the
--- workbook in the Silver rules (D-053).
+-- the sum of its children in every cell, no place is 0 in every cell (the sums cannot place it), and
+-- the places per level and per place_status are the counts pinned for the workbook in the Silver
+-- rules (D-053).
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id         the job run that built the tables
@@ -40,7 +41,7 @@ bronze AS (
 clean AS (SELECT * FROM edu_access.`03-silver`.psa_school_age_population_clean_candidate),
 quarantined AS (SELECT * FROM edu_access.`03-silver`.psa_school_age_population_quarantine_candidate),
 concepts AS (SELECT * FROM (VALUES ('total', 'Total Pop'), ('household', 'Household Pop')) AS v(population_concept, sheet_suffix)),
-pins AS (SELECT * FROM (VALUES ('e40d71839b951926cd3c9515c1edafbb6a2121f734670716e3b21bd3f9dcd35f', 1, 17, 82, 1642), ('49d15bb0cdd191cd6aef4a14f4b063da247ba791b32caa653c37c464dff15954', 1, 18, 83, 1642)) AS v(workbook_sha256, country, region, province, city_municipality)),
+pins AS (SELECT * FROM (VALUES ('e40d71839b951926cd3c9515c1edafbb6a2121f734670716e3b21bd3f9dcd35f', 1, 17, 82, 1642, 1, 8), ('49d15bb0cdd191cd6aef4a14f4b063da247ba791b32caa653c37c464dff15954', 1, 18, 83, 1642, 1, 0)) AS v(workbook_sha256, country, region, province, city_municipality, special_geographic_area, sga_cluster)),
 -- Every current batch and population concept: the grid every sheet check is written for.
 grid AS (SELECT cur.batch_id, k.population_concept FROM cur CROSS JOIN concepts AS k),
 -- Each current batch: its census year and workbook, and its Bronze rows by kind and sheet.
@@ -108,6 +109,9 @@ clean_sheets AS (
     COUNT(DISTINCT CASE WHEN c.level = 'region' THEN c.place_row_number END) AS places_region,
     COUNT(DISTINCT CASE WHEN c.level = 'province' THEN c.place_row_number END) AS places_province,
     COUNT(DISTINCT CASE WHEN c.level = 'city_municipality' THEN c.place_row_number END) AS places_city_municipality,
+    COUNT(DISTINCT CASE WHEN c.place_status = 'special_geographic_area' THEN c.place_row_number END) AS status_special_geographic_area,
+    COUNT(DISTINCT CASE WHEN c.place_status = 'sga_cluster' THEN c.place_row_number END) AS status_sga_cluster,
+    COUNT(DISTINCT CASE WHEN c.place_status IS DISTINCT FROM CASE WHEN c.level = 'province' AND c.place_name IN ('INTERIM PROVINCE', 'SPECIAL GEOGRAPHIC AREA') THEN 'special_geographic_area' WHEN c.level = 'city_municipality' AND c.parent_name IN ('INTERIM PROVINCE', 'SPECIAL GEOGRAPHIC AREA') AND regexp_like(c.place_name, ' CLUSTER( [IVX]+)?$') THEN 'sga_cluster' ELSE 'standard' END THEN c.place_row_number END) AS misflagged_places,
     COUNT(DISTINCT CASE WHEN c.footnote IS NOT NULL THEN c.place_row_number END) AS footnote_places,
     COUNT(DISTINCT CASE WHEN c.old_name IS NOT NULL THEN c.place_row_number END) AS old_name_places,
     COUNT(DISTINCT CASE WHEN c.is_capital THEN c.place_row_number END) AS capital_places
@@ -117,6 +121,14 @@ clean_sheets AS (
   LEFT JOIN bronze AS pb ON pb.source_sha256 = c.source_sha256 AND pb.source_sheet = c.source_sheet
    AND pb.source_row_number = c.place_row_number AND pb.source_row_kind = 'place'
   GROUP BY c.batch_id, c.population_concept
+),
+-- Places whose every cell is 0: the sums cannot say where such a place belongs.
+zero_places AS (
+  SELECT batch_id, population_concept, COUNT(*) AS all_zero_places FROM (
+    SELECT batch_id, population_concept, place_row_number
+    FROM clean GROUP BY batch_id, population_concept, place_row_number
+    HAVING COUNT_IF(population <> 0) = 0
+  ) AS z GROUP BY batch_id, population_concept
 ),
 -- The key: one row per census year, concept, place name, parent, sex and age.
 repeated AS (
@@ -211,6 +223,8 @@ sheets AS (
     COALESCE(r.repeated_keys, 0) AS repeated_keys,
     t.unresolved_parents,
     t.unclosed,
+    COALESCE(z.all_zero_places, 0) AS all_zero_places,
+    COALESCE(cs.misflagged_places, 0) AS misflagged_places,
     COALESCE(x.sex_problems, 0) AS sex_problems,
     COALESCE(n.national_by_age, '') AS national_by_age,
     COALESCE(q.quarantined_cells, 0) AS quarantined_cells,
@@ -218,13 +232,16 @@ sheets AS (
     COALESCE(q.reason_population_negative, 0) AS reason_population_negative,
     COALESCE(q.reason_population_not_whole_number, 0) AS reason_population_not_whole_number,
     'country ' || CAST(p.country AS STRING) || ', ' || 'region ' || CAST(p.region AS STRING) || ', ' || 'province ' || CAST(p.province AS STRING) || ', ' || 'city_municipality ' || CAST(p.city_municipality AS STRING) AS expected_levels,
-    'country ' || CAST(COALESCE(cs.places_country, 0) AS STRING) || ', ' || 'region ' || CAST(COALESCE(cs.places_region, 0) AS STRING) || ', ' || 'province ' || CAST(COALESCE(cs.places_province, 0) AS STRING) || ', ' || 'city_municipality ' || CAST(COALESCE(cs.places_city_municipality, 0) AS STRING) AS actual_levels
+    'country ' || CAST(COALESCE(cs.places_country, 0) AS STRING) || ', ' || 'region ' || CAST(COALESCE(cs.places_region, 0) AS STRING) || ', ' || 'province ' || CAST(COALESCE(cs.places_province, 0) AS STRING) || ', ' || 'city_municipality ' || CAST(COALESCE(cs.places_city_municipality, 0) AS STRING) AS actual_levels,
+    'special_geographic_area ' || CAST(p.special_geographic_area AS STRING) || ', ' || 'sga_cluster ' || CAST(p.sga_cluster AS STRING) AS expected_statuses,
+    'special_geographic_area ' || CAST(COALESCE(cs.status_special_geographic_area, 0) AS STRING) || ', ' || 'sga_cluster ' || CAST(COALESCE(cs.status_sga_cluster, 0) AS STRING) AS actual_statuses
   FROM grid AS g
   JOIN batches AS bt ON bt.batch_id = g.batch_id
   LEFT JOIN pins AS p ON p.workbook_sha256 = bt.source_sha256
   LEFT JOIN bronze_sheets AS bs ON bs.batch_id = g.batch_id AND bs.population_concept = g.population_concept
   LEFT JOIN clean_sheets AS cs ON cs.batch_id = g.batch_id AND cs.population_concept = g.population_concept
   LEFT JOIN repeated AS r ON r.batch_id = g.batch_id AND r.population_concept = g.population_concept
+  LEFT JOIN zero_places AS z ON z.batch_id = g.batch_id AND z.population_concept = g.population_concept
   LEFT JOIN tree AS t ON t.batch_id = g.batch_id AND t.population_concept = g.population_concept
   LEFT JOIN sex_sums AS x ON x.batch_id = g.batch_id AND x.population_concept = g.population_concept
   LEFT JOIN national AS n ON n.batch_id = g.batch_id AND n.population_concept = g.population_concept
@@ -366,9 +383,15 @@ checks AS (
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_school_age_population_clean_candidate' AS table_name, 'tree_closes_' || population_concept AS check_name,
          CASE WHEN unclosed = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          '0' AS expected, CAST(unclosed AS STRING) AS actual FROM sheets
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_school_age_population_clean_candidate' AS table_name, 'no_all_zero_place_' || population_concept AS check_name,
+         CASE WHEN all_zero_places = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
+         '0' AS expected, CAST(all_zero_places AS STRING) AS actual FROM sheets
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_school_age_population_clean_candidate' AS table_name, 'levels_match_expected_' || population_concept AS check_name,
          CASE WHEN expected_levels IS NOT NULL AND expected_levels = actual_levels THEN 'PASS' ELSE 'FAIL' END AS status,
          COALESCE(expected_levels, 'not pinned: add this workbook to expected_levels in config/mappings/psa_school_age_population.json') AS expected, actual_levels AS actual FROM sheets
+  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_school_age_population_clean_candidate' AS table_name, 'place_status_match_expected_' || population_concept AS check_name,
+         CASE WHEN expected_statuses IS NOT NULL AND expected_statuses = actual_statuses AND misflagged_places = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
+         COALESCE(expected_statuses, 'not pinned: add this workbook to expected_levels in config/mappings/psa_school_age_population.json') AS expected, actual_statuses || CASE WHEN misflagged_places > 0 THEN ', misflagged ' || CAST(misflagged_places AS STRING) ELSE '' END AS actual FROM sheets
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.psa_school_age_population_clean_candidate' AS table_name, 'sexes_add_up_' || population_concept AS check_name,
          CASE WHEN sex_problems = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          '0' AS expected, CAST(sex_problems AS STRING) AS actual FROM sheets

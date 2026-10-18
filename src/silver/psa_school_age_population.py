@@ -60,10 +60,14 @@ LINEAGE = (
     ("source_row_number", "bigint"),
     ("place_row_number", "bigint"),
 )
+# place_status values besides 'standard' (D-053, #176 review): places at a province or city position that
+# are not a PSGC province or LGU.
+SPECIAL_STATUSES = ("special_geographic_area", "sga_cluster")
 RUN_STAMP = (("run_id", "string"), ("cleaned_at_utc", "timestamp"), ("code_revision", "string"))
 PLACE_COLUMNS = (
     ("place_label", "string"), ("place_name", "string"), ("footnote", "string"), ("old_name", "string"),
-    ("is_capital", "boolean"), ("level", "string"), ("region_name", "string"), ("province_name", "string"),
+    ("is_capital", "boolean"), ("level", "string"), ("place_status", "string"), ("region_name", "string"),
+    ("province_name", "string"),
     ("parent_name", "string"),
 )
 
@@ -95,7 +99,11 @@ class SchoolAgeSpec:
     aggregate_levels: list      # level of an aggregate at depth 0, 1, 2, ...
     leaf_level: str
     leaf_depths: list
-    expected_levels: list       # [{census_year, workbook_sha256, <level>: count}]
+    expected_levels: list       # [{census_year, workbook_sha256, <level>: count, <status>: count}]
+    sga_level: str              # place_status: the level and names of the Special Geographic Area,
+    sga_names: list             # and the level and name pattern of its 2020 clusters
+    cluster_level: str
+    cluster_pattern: str
     count_pattern: str
     negative_pattern: str
     mapping: dict = field(repr=False)
@@ -112,6 +120,11 @@ class SchoolAgeSpec:
     def passes(self):
         """One pass per level that has children: aggregates are found from the bottom up."""
         return len(self.aggregate_levels)
+
+    @property
+    def statuses(self):
+        """place_status values other than standard, each with a count pinned per workbook."""
+        return list(SPECIAL_STATUSES)
 
     @property
     def data_kinds(self):
@@ -209,14 +222,23 @@ def build_spec(mapping, contract, registry_entry):
         if approved.get(pin["workbook_sha256"]) != pin["census_year"]:
             raise _error(f"expected_levels pins {pin['census_year']} workbook {pin['workbook_sha256'][:12]}, "
                          "which is not an approved delivery of that census year in the Bronze contract.")
-        counts = [pin.get(level) for level in [*aggregate_levels, leaf]]
+        counts = [pin.get(level) for level in [*aggregate_levels, leaf, *SPECIAL_STATUSES]]
         if not all(isinstance(n, int) and n >= 0 for n in counts):
-            raise _error(f"expected_levels for {pin['workbook_sha256'][:12]} needs a count for every level.")
+            raise _error(f"expected_levels for {pin['workbook_sha256'][:12]} needs a count for every level "
+                         f"and every place_status ({', '.join(SPECIAL_STATUSES)}).")
     if len({p["workbook_sha256"] for p in pins}) != len(pins):
         raise _error("expected_levels pins a workbook twice.")
 
+    status = mapping["place_status"]
+    sga, cluster = status["special_geographic_area"], status["sga_cluster"]
+    for entry in (sga, cluster):
+        if entry["level"] not in [*aggregate_levels, leaf]:
+            raise _error(f"place_status level {entry['level']!r} is not a level.")
+    if not sga["names"] or any(name != name.upper() for name in sga["names"]):
+        raise _error("place_status.special_geographic_area.names must be upper-case place names.")
+
     label = mapping["label"]
-    literals = [label["footnote_pattern"], label["bracket_pattern"], label["capital"], mapping["count"]["pattern"],
+    literals = [*sga["names"], cluster["pattern"], label["footnote_pattern"], label["bracket_pattern"], label["capital"], mapping["count"]["pattern"],
                 mapping["count"]["negative_pattern"], mapping["place_row_kind"], *mapping["structural_row_kinds"],
                 *kind_to_sex, *contract["sheet_suffixes"].values(), *approved]
     unsafe = [v for v in literals if not SAFE_LITERAL.match(v)]
@@ -234,6 +256,8 @@ def build_spec(mapping, contract, registry_entry):
         structural_kinds=mapping["structural_row_kinds"], footnote_pattern=label["footnote_pattern"],
         bracket_pattern=label["bracket_pattern"], capital=label["capital"], aggregate_levels=aggregate_levels,
         leaf_level=leaf, leaf_depths=levels["leaf_depths"], expected_levels=pins,
+        sga_level=sga["level"], sga_names=sga["names"], cluster_level=cluster["level"],
+        cluster_pattern=cluster["pattern"],
         count_pattern=mapping["count"]["pattern"], negative_pattern=mapping["count"]["negative_pattern"],
         mapping=mapping,
     )
@@ -325,6 +349,14 @@ def _level(spec, ref):
                           for d, level in enumerate(spec.aggregate_levels))
     depths = ", ".join(str(d) for d in spec.leaf_depths)
     return f"CASE {aggregates} WHEN NOT {ref}.is_aggregate AND {ref}.depth IN ({depths}) THEN {lit(spec.leaf_level)} END"
+
+
+def _place_status(spec, level, name, parent):
+    """standard, or one of SPECIAL_STATUSES, from a place's level, name and parent's name."""
+    names = _in(spec.sga_names)
+    return (f"CASE WHEN {level} = {lit(spec.sga_level)} AND {name} IN {names} THEN 'special_geographic_area' "
+            f"WHEN {level} = {lit(spec.cluster_level)} AND {parent} IN {names} "
+            f"AND regexp_like({name}, {lit(spec.cluster_pattern)}) THEN 'sga_cluster' ELSE 'standard' END")
 
 
 def _same_sheet(a, b):
@@ -590,8 +622,9 @@ def build_sql(spec):
         ")",
         "SELECT",
         joined(["l.batch_id", "l.source_sheet", "l.place_pos", "l.place_name", "l.footnote", "l.old_name",
-                "l.is_capital", "l.level", "l.depth", "n.region_name", "n.province_name",
-                "par.place_name AS parent_name"], 2),
+                "l.is_capital", "l.level",
+                _place_status(spec, "l.level", "l.place_name", "par.place_name") + " AS place_status",
+                "l.depth", "n.region_name", "n.province_name", "par.place_name AS parent_name"], 2),
         "FROM leveled AS l",
         f"LEFT JOIN leveled AS par ON {_same_sheet('par', 'l')} AND par.place_pos = l.parent_pos",
         f"LEFT JOIN named AS n ON {_same_sheet('n', 'l')} AND n.place_pos = l.place_pos;",
@@ -603,7 +636,7 @@ def build_sql(spec):
         "SELECT",
         joined(["c.census_year", "c.population_concept",
                 f"NULLIF({whitespace('c.place_label')}, '') AS place_label",
-                "t.place_name", "t.footnote", "t.old_name", "t.is_capital", "t.level", "t.region_name",
+                "t.place_name", "t.footnote", "t.old_name", "t.is_capital", "t.level", "t.place_status", "t.region_name",
                 "t.province_name", "t.parent_name", "c.sex", "c.age", "c.population", "c.quarantine_reasons",
                 *[f"c.{name}" for name in lineage],
                 *[f"session.silver_{name} AS {name}" for name in stamp]], 2),
@@ -652,7 +685,8 @@ def gate_checks(spec):
     sheet = [("rows_reconcile", "FAIL"), ("population_matches_bronze", "FAIL"), ("population_not_null", "FAIL"),
              ("place_label_parsed", "FAIL"), ("key_unique", "FAIL"), ("place_levels_assigned", "FAIL"),
              ("one_country", "FAIL"), ("parents_resolve", "FAIL"), ("tree_closes", "FAIL"),
-             ("levels_match_expected", "FAIL"), ("sexes_add_up", "FAIL"), ("quarantined_cells", "FAIL")]
+             ("no_all_zero_place", "FAIL"), ("levels_match_expected", "FAIL"),
+             ("place_status_match_expected", "FAIL"), ("sexes_add_up", "FAIL"), ("quarantined_cells", "FAIL")]
     sheet += [(f"quarantine_reason_{r}", "record") for r in QUARANTINE_REASONS]
     sheet += [("zero_population_cells", "WARN"), ("national_both_sexes_by_age", "record"),
               ("rule_footnote_split", "record"), ("rule_old_name_split", "record"), ("rule_capital_flagged", "record")]
@@ -688,9 +722,11 @@ def gate_sql(spec):
     table = dq_table_name(spec.clean_candidate)
     concepts = ", ".join(f"({lit(c)}, {lit(s)})" for c, s in spec.concepts.items())
     levels = spec.levels
-    pins = ", ".join("(" + ", ".join([lit(p["workbook_sha256"]), *[str(p[level]) for level in levels]]) + ")"
-                     for p in spec.expected_levels) or "(" + ", ".join(["CAST(NULL AS STRING)"] + ["0"] * len(levels)) + ")"
-    pin_columns = ", ".join(["workbook_sha256", *levels])
+    statuses = spec.statuses
+    pins = ", ".join("(" + ", ".join([lit(p["workbook_sha256"]), *[str(p[k]) for k in [*levels, *statuses]]]) + ")"
+                     for p in spec.expected_levels) or "(" + ", ".join(["CAST(NULL AS STRING)"] + ["0"] * (len(levels) + len(statuses))) + ")"
+    pin_columns = ", ".join(["workbook_sha256", *levels, *statuses])
+    recomputed_status = _place_status(spec, "c.level", "c.place_name", "c.parent_name")
     parts = _label_parts(spec, "c.place_label")
     reparsed = " OR ".join(f"NOT (c.{name} IS NOT DISTINCT FROM {expr})" for name, expr in parts.items())
     parent_level = ["CASE"]
@@ -750,9 +786,16 @@ def gate_sql(spec):
     add("sheet", "one_country", _pass(f"places_{country} = 1"), "'1'", _count(f"places_{country}"), "sheets", True)
     add("sheet", "parents_resolve", _pass("unresolved_parents = 0"), "'0'", _count("unresolved_parents"), "sheets", True)
     add("sheet", "tree_closes", _pass("unclosed = 0"), "'0'", _count("unclosed"), "sheets", True)
+    # A place of zeros adds nothing to any sum, so the sums cannot place it: it could sit in the span before it.
+    add("sheet", "no_all_zero_place", _pass("all_zero_places = 0"), "'0'", _count("all_zero_places"), "sheets", True)
     add("sheet", "levels_match_expected", _pass("expected_levels IS NOT NULL AND expected_levels = actual_levels"),
         f"COALESCE(expected_levels, 'not pinned: add this workbook to expected_levels in config/mappings/{source}.json')",
         "actual_levels", "sheets", True)
+    add("sheet", "place_status_match_expected",
+        _pass("expected_statuses IS NOT NULL AND expected_statuses = actual_statuses AND misflagged_places = 0"),
+        f"COALESCE(expected_statuses, 'not pinned: add this workbook to expected_levels in config/mappings/{source}.json')",
+        "actual_statuses || CASE WHEN misflagged_places > 0 THEN ', misflagged ' || CAST(misflagged_places AS STRING) "
+        "ELSE '' END", "sheets", True)
     add("sheet", "sexes_add_up", _pass("sex_problems = 0"), "'0'", _count("sex_problems"), "sheets", True)
     add("sheet", "quarantined_cells", _pass("quarantined_cells = 0"), "'0'", _count("quarantined_cells"), "sheets", True)
     for r in QUARANTINE_REASONS:
@@ -768,6 +811,10 @@ def gate_sql(spec):
 
     level_counts = [f"COUNT(DISTINCT CASE WHEN c.level = {lit(level)} THEN c.place_row_number END) AS places_{level}"
                     for level in levels]
+    level_counts += [f"COUNT(DISTINCT CASE WHEN c.place_status = {lit(st)} THEN c.place_row_number END) AS status_{st}"
+                     for st in statuses]
+    level_counts.append(f"COUNT(DISTINCT CASE WHEN c.place_status IS DISTINCT FROM {recomputed_status} "
+                        "THEN c.place_row_number END) AS misflagged_places")
     lines = _header(spec, "Silver gate", "gate", f"etl/03_silver/90_validate_{spec.clean_table}.sql") + [
         "--",
         "-- The job task after the Silver build. It checks the candidate tables the build wrote, one row",
@@ -781,8 +828,9 @@ def gate_sql(spec):
         "--",
         "-- The tree is checked here independently of how the build found it: every place except the country",
         "-- resolves to exactly one parent by name (the region qualifying a province), every aggregate equals",
-        "-- the sum of its children in every cell, and the places per level are the counts pinned for the",
-        "-- workbook in the Silver rules (D-053).",
+        "-- the sum of its children in every cell, no place is 0 in every cell (the sums cannot place it), and",
+        "-- the places per level and per place_status are the counts pinned for the workbook in the Silver",
+        "-- rules (D-053).",
         "--",
         "-- Parameters, supplied by the job (or src/job/local_run.py):",
         "--   :run_id         the job run that built the tables",
@@ -860,6 +908,14 @@ def gate_sql(spec):
         "  LEFT JOIN bronze AS pb ON pb.source_sha256 = c.source_sha256 AND pb.source_sheet = c.source_sheet",
         f"   AND pb.source_row_number = c.place_row_number AND pb.source_row_kind = {lit(spec.place_kind)}",
         "  GROUP BY c.batch_id, c.population_concept",
+        "),",
+        "-- Places whose every cell is 0: the sums cannot say where such a place belongs.",
+        "zero_places AS (",
+        "  SELECT batch_id, population_concept, COUNT(*) AS all_zero_places FROM (",
+        "    SELECT batch_id, population_concept, place_row_number",
+        "    FROM clean GROUP BY batch_id, population_concept, place_row_number",
+        "    HAVING COUNT_IF(population <> 0) = 0",
+        "  ) AS z GROUP BY batch_id, population_concept",
         "),",
         "-- The key: one row per census year, concept, place name, parent, sex and age.",
         "repeated AS (",
@@ -947,18 +1003,23 @@ def gate_sql(spec):
                 "COALESCE(cs.capital_places, 0) AS capital_places",
                 "COALESCE(r.repeated_keys, 0) AS repeated_keys",
                 "t.unresolved_parents", "t.unclosed",
+                "COALESCE(z.all_zero_places, 0) AS all_zero_places",
+                "COALESCE(cs.misflagged_places, 0) AS misflagged_places",
                 "COALESCE(x.sex_problems, 0) AS sex_problems",
                 "COALESCE(n.national_by_age, '') AS national_by_age",
                 "COALESCE(q.quarantined_cells, 0) AS quarantined_cells",
                 *[f"COALESCE(q.reason_{r}, 0) AS reason_{r}" for r in QUARANTINE_REASONS],
                 _levels_text(levels, lambda level: f"p.{level}") + " AS expected_levels",
-                _levels_text(levels, lambda level: f"COALESCE(cs.places_{level}, 0)") + " AS actual_levels"], 4),
+                _levels_text(levels, lambda level: f"COALESCE(cs.places_{level}, 0)") + " AS actual_levels",
+                _levels_text(statuses, lambda st: f"p.{st}") + " AS expected_statuses",
+                _levels_text(statuses, lambda st: f"COALESCE(cs.status_{st}, 0)") + " AS actual_statuses"], 4),
         "  FROM grid AS g",
         "  JOIN batches AS bt ON bt.batch_id = g.batch_id",
         "  LEFT JOIN pins AS p ON p.workbook_sha256 = bt.source_sha256",
         "  LEFT JOIN bronze_sheets AS bs ON bs.batch_id = g.batch_id AND bs.population_concept = g.population_concept",
         "  LEFT JOIN clean_sheets AS cs ON cs.batch_id = g.batch_id AND cs.population_concept = g.population_concept",
         "  LEFT JOIN repeated AS r ON r.batch_id = g.batch_id AND r.population_concept = g.population_concept",
+        "  LEFT JOIN zero_places AS z ON z.batch_id = g.batch_id AND z.population_concept = g.population_concept",
         "  LEFT JOIN tree AS t ON t.batch_id = g.batch_id AND t.population_concept = g.population_concept",
         "  LEFT JOIN sex_sums AS x ON x.batch_id = g.batch_id AND x.population_concept = g.population_concept",
         "  LEFT JOIN national AS n ON n.batch_id = g.batch_id AND n.population_concept = g.population_concept",
@@ -1092,6 +1153,9 @@ def dictionary_markdown(spec):
     concepts = ", ".join(f"`{c}` (sheet `<year> {s}`)" for c, s in spec.concepts.items())
     pins = "; ".join(f"{p['census_year']}: " + ", ".join(f"{level.replace('_', ' ')} {p[level]:,}" for level in spec.levels)
                      for p in spec.expected_levels)
+    status_pins = "; ".join(f"{p['census_year']}: " + ", ".join(f"`{st}` {p[st]:,}" for st in spec.statuses)
+                            for p in spec.expected_levels)
+    status_rule = m["place_status"]
     rows = [
         ("census_year", "INT", "`census_year` of the delivery", "The census year (2020 CPH, 2024 POPCEN). Key", "Never", "O-1"),
         ("population_concept", "STRING", "`source_sheet`", f"{concepts}. {m['population_concept']['rule']} Key",
@@ -1106,10 +1170,15 @@ def dictionary_markdown(spec):
          "Bronze's `note` rows", "No marker", "O-6"),
         ("old_name", "STRING", "`label`", "The text of every bracket other than `(Capital)`, `, `-separated: mostly an old "
          "name (`POTIA`); for a region, its abbreviation (`CALABARZON`). Not a PSGC name", "No such bracket", "O-6"),
-        ("is_capital", "BOOLEAN", "`label`", "TRUE when a bracket holds Capital in any case (`(Capital)`, `(CAPITAL)`)",
-         "Never", "O-6"),
+        ("is_capital", "BOOLEAN", "`label`", "TRUE when a bracket holds Capital in any case (`(Capital)`, `(CAPITAL)`). "
+         "It follows the label only, and the workbooks mark capitals unevenly (2020 marks 81 places, 2024 marks 46; "
+         "Tacloban is TRUE in 2020 and FALSE in 2024), so it is not a capital designation and a change between years "
+         "is not a change of capital. Take capital status from PSGC", "Never", "O-6"),
         ("level", "STRING", "the counts", f"One of {levels}, from the sums (D-053): {m['levels']['rule']}",
          "Never (the gate fails otherwise)", m["levels"]["finding"]),
+        ("place_status", "STRING", "the counts and `label`",
+         f"`standard`, {', '.join(f'`{st}`' for st in spec.statuses)}. {status_rule['rule']} Pinned per workbook: "
+         f"{status_pins}", "Never", status_rule["finding"]),
         ("region_name", "STRING", "the counts", "`place_name` of the region the place is in (itself for a region)",
          "The country", "O-2"),
         ("province_name", "STRING", "the counts", "`place_name` of the province the place is in (itself for a province)",
@@ -1150,7 +1219,10 @@ def dictionary_markdown(spec):
         "institutional living quarters (D-029). AP4 uses `total`, both sexes, ages 5-17 (D-042). Every level is in the "
         "table, so filter `level` before summing: the country, regions and provinces are sums of the places below them.",
         "",
-        f"**Levels per workbook**, pinned in the Silver rules and checked by the gate: {pins}.",
+        f"**Levels per workbook**, pinned in the Silver rules and checked by the gate: {pins}. `level` is the "
+        "place's position in the tree, not a verified PSGC level: `place_status` marks the places at a province or "
+        "city position that are not a PSGC province or LGU (the Special Geographic Area and its 2020 clusters), "
+        "for the Integration map (#159) to set aside.",
         "",
         "## Columns",
         "",
