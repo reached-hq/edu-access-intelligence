@@ -14,7 +14,8 @@ without pretending that the business problem or analytical questions are final.
 | PSA PSGC workbook, `PSGC` sheet | `psa_psgc_raw` | `psa_psgc_clean` | `psa_psgc_quarantine` |
 | PSA poverty statistics | `psa_poverty_stat_raw` | `psa_poverty_stat_clean` | `psa_poverty_stat_quarantine` |
 | HDX ADM3 boundaries | `hdx_adm3_raw` | `hdx_adm3_clean` | `hdx_adm3_quarantine` |
-| DepEd EMISD enrollment with PSGC and coordinates | `deped_enrollment_psgc_raw` | not named yet (its Silver issue, #137) | not named yet |
+| DepEd EMISD enrollment with PSGC and coordinates (the school-to-PSGC crosswalk) | `deped_enrollment_psgc_raw` | `deped_enrollment_psgc_clean` | `deped_enrollment_psgc_quarantine` |
+| PSA school-age population, 2020 and 2024 census workbooks | `psa_school_age_population_raw` | not named yet (its Silver issue) | not named yet |
 
 Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
 the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
@@ -60,6 +61,8 @@ implemented.
 Implemented: `deped_annex_mother_map`, one row per annex school and school year.
 It keeps the mother ID and match method NULL while the approved DepEd releases
 provide no reliable link, and lists every unmatched annex with evidence (D-044).
+Implemented: `hdx_adm3_psgc_map` (`03_map_hdx_adm3_psgc.sql`), one row per HDX ADM3
+feature with its reviewed PSGC match, review status, and reason (D-052).
 
 These are working names only:
 
@@ -67,10 +70,11 @@ These are working names only:
 |---|---|---|
 | `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
 | `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | One reviewed poverty-statistic geography mapping to PSGC |
-| `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
+| `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | One reviewed PSA school-age population place mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
-and PSGC-version behavior are agreed. Gold names proposed in #45 are documented
+and PSGC-version behavior are agreed; they follow the shape of `hdx_adm3_psgc_map`
+(D-052) unless their own decision says otherwise. Gold names proposed in #45 are documented
 in [`docs/architecture/data-model.md`](../architecture/data-model.md). They
 remain design-only until the team and mentor approve the ERD and Integration
 prerequisite #44 is ready. Analytics names remain deferred until the metric
@@ -91,3 +95,4 @@ contract is approved.
 | `fact_school_teacher_capacity` | School x school year x education level |
 | `fact_city_population` | City or municipality x reference year |
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
+| `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |
