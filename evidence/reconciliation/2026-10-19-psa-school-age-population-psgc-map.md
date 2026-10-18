@@ -85,6 +85,24 @@ The issue asks that profile X-2's counts (cleaned name inside the province, no a
 
 Every census place with the same name and parent in both years (1,549) gets the same PSGC code in both, and every PSGC code matched in 2020 is matched in 2024.
 
+## Rerun after review (#187)
+
+The reviews by @catweyine and @hyenalouise asked for four gate changes:
+- #181's two FAIL checks (D-052): `psgc_name_matches_unit`, and `name_match_inside_province`, which recomputes each name-rule match's parent in the gate, independently of the build;
+- `rule_codes_in_psgc` as a FAIL instead of a WARN (a region or alias code missing from the master quarter);
+- `psgc_source_row_number` in `lineage_complete`.
+
+`main` was merged first (#181, #153). The build SQL did not change; the gate now writes 38 results. Two runs of the verification script on the same database, with the final gate:
+
+| | Run 6 | Run 7 |
+|---|---|---|
+| Gate | passed, map published | passed, map published |
+| PASS / WARN / FAIL | 35 / 3 / 0 | 35 / 3 / 0 |
+| `psgc_name_matches_unit` / `name_match_inside_province` / `rule_codes_in_psgc` / `lineage_complete` | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| Map content MD5 | `1157c23f90f04f348467024b43ccf2ae` | `1157c23f90f04f348467024b43ccf2ae` |
+
+The same three WARNs, the same count per method, and the same map as runs 2 and 3: on the real data, every name match is inside its parent and carries the master name. New tests tamper with a candidate (a wrong name; a unit in another province, another region, and outside an aliased province's codes; a missing PSGC row or batch), or give the rules a region or alias code the master quarter lacks or has at another level. Each fails its check and keeps the published map.
+
 ## What this does not show
 
 - Whether a rule match is right beyond the names: no codes exist to check against. The cross-year agreement above and the zero ambiguous rows are the checks available.

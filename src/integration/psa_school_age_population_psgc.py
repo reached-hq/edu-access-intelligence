@@ -257,6 +257,19 @@ def _tier_case(expr, index):
     return "CASE " + " ".join(f"WHEN {expr} = {i} THEN {lit(t[index])}" for i, t in enumerate(TIERS, 1)) + " END"
 
 
+def _parents_ctes():
+    """The PSGC parents a place can be searched in, with the keys of their name and old name: provinces, and the
+    blank-level containers that stand for one (the Special Geographic Area, City of Isabela). Reads a CTE psgc."""
+    return [
+        "p0 AS (",
+        "  SELECT p.psgc_code, p.level_blank,",
+        joined([_keys("p", "name", ""), _keys("p", "old_names", "o")], 9),
+        "  FROM psgc AS p WHERE p.geographic_level = 'Prov' OR (p.level_blank AND p.province_code = p.psgc_code)",
+        "),",
+        f"parents AS (SELECT p0.*, {_fold('p0.k_exact')} AS k_fold, {_fold('p0.ok_exact')} AS ok_fold FROM p0),",
+    ]
+
+
 def _source_row_ref(alias):
     return f"CAST({alias}.census_year AS STRING) || '/' || {alias}.parent_name || '/' || {alias}.place_name"
 
@@ -312,12 +325,7 @@ def build_sql(spec):
         "),",
         "-- Parents: provinces, and the blank-level containers that stand for one (the Special Geographic Area,",
         "-- City of Isabela), each with the keys of its name and old name.",
-        "p0 AS (",
-        "  SELECT p.psgc_code, p.level_blank,",
-        joined([_keys("p", "name", ""), _keys("p", "old_names", "o")], 9),
-        "  FROM psgc AS p WHERE p.geographic_level = 'Prov' OR (p.level_blank AND p.province_code = p.psgc_code)",
-        "),",
-        f"parents AS (SELECT p0.*, {_fold('p0.k_exact')} AS k_fold, {_fold('p0.ok_exact')} AS ok_fold FROM p0),",
+        *_parents_ctes(),
         "-- The cities and municipalities, with the keys of their name and old name. no_province: not inside a",
         "-- PSGC province (the highly urbanized cities, Pateros, and the units of a blank-level container).",
         "u0 AS (",
@@ -477,10 +485,10 @@ def build_sql(spec):
 
 FAILS = ("inputs_present", "rows_reconcile", "one_row_per_place", "psgc_code_taken_once", "matched_has_psgc_unit",
          "unmatched_has_no_psgc", "status_valid", "method_valid", "review_status_valid", "status_combination_valid",
-         "parent_match_valid", "overrides_applied", "one_psgc_version", "lineage_complete",
-         "rows_built_by_this_run", "population_reconciles")
+         "psgc_name_matches_unit", "name_match_inside_province", "parent_match_valid", "overrides_applied",
+         "rule_codes_in_psgc", "one_psgc_version", "lineage_complete", "rows_built_by_this_run", "population_reconciles")
 WARNS = ("review_pending", "unmatched", "ambiguous", "override_place_missing", "region_not_listed",
-         "rule_code_not_in_psgc", "province_without_psgc_parent", "psgc_units_without_place")
+         "province_without_psgc_parent", "psgc_units_without_place")
 
 
 def gate_checks(spec):
@@ -535,13 +543,16 @@ def gate_sql(spec):
          "(m.match_status = 'ambiguous' AND m.review_status = 'pending' AND m.match_method IS NULL AND m.psgc_code IS NULL) OR "
          "(m.match_status = 'unmatched' AND m.review_status IN ('pending', 'reviewed') AND m.match_method IS NULL "
          "AND m.psgc_code IS NULL), FALSE)) AS bad_combination"),
+        # #181 (D-052): the stored name is the master name of the code.
+        ("COUNT_IF(m.match_status = 'matched' AND (m.psgc_name IS NULL OR u.name IS NULL OR "
+         "m.psgc_name <> u.name)) AS psgc_name_mismatch"),
         # A rule match was searched in a parent; the parent's code prefix holds the unit.
         (f"COUNT_IF((m.parent_match IS NOT NULL AND m.parent_match NOT IN ({', '.join(lit(x) for x in PARENT_MATCHES)})) "
          "OR (m.review_status = 'rule' AND m.parent_match IS NULL)) AS bad_parent_match"),
         "COUNT_IF(m.review_status = 'reviewed') AS overrides_used",
         ("COUNT_IF(m.source_row_ref IS NULL OR m.batch_id IS NULL OR m.source_sha256 IS NULL OR m.source_sheet IS NULL "
          "OR m.place_row_number IS NULL OR m.run_id IS NULL OR m.built_at_utc IS NULL OR m.code_revision IS NULL "
-         "OR (m.psgc_code IS NOT NULL AND m.psgc_batch_id IS NULL)) AS missing_lineage"),
+         "OR (m.psgc_code IS NOT NULL AND (m.psgc_batch_id IS NULL OR m.psgc_source_row_number IS NULL))) AS missing_lineage"),
         "COUNT_IF(m.run_id IS NULL OR m.run_id <> :run_id) AS other_run_rows",
         "COUNT_IF(m.review_status = 'pending') AS pending_rows",
         "COUNT_IF(m.match_status = 'unmatched') AS unmatched_rows",
@@ -565,8 +576,13 @@ def gate_sql(spec):
         zero("method_valid", "bad_method"),
         zero("review_status_valid", "bad_review"),
         zero("status_combination_valid", "bad_combination"),
+        zero("psgc_name_matches_unit", "psgc_name_mismatch"),
+        zero("name_match_inside_province", "name_scope_mismatch"),
         zero("parent_match_valid", "bad_parent_match"),
         equal("overrides_applied", "overrides_present", "overrides_used"),
+        # Review on #187: a region or alias code is reviewed configuration, so one missing from the master
+        # quarter at its level is an error to fix, not a reason to publish a map with that geography unmatched.
+        zero("rule_codes_in_psgc", "bad_rule_codes"),
         equal("one_psgc_version", "1", "master_periods"),
         zero("lineage_complete", "missing_lineage"),
         zero("rows_built_by_this_run", "other_run_rows"),
@@ -576,7 +592,6 @@ def gate_sql(spec):
         warn("ambiguous", "ambiguous_rows"),
         warn("override_place_missing", "overrides_missing"),
         warn("region_not_listed", "regions_missing"),
-        warn("rule_code_not_in_psgc", "bad_rule_codes"),
         warn("province_without_psgc_parent", "provinces_unresolved"),
         warn("psgc_units_without_place", "units_without_place"),
         *[record(f"method_{x}_{y}", f"method_{x}_{y}") for y in spec.census_years for x in MATCH_METHODS],
@@ -625,11 +640,41 @@ def gate_sql(spec):
         "-- Every place of either concept: a place only one concept lists still needs its map row.",
         f"WITH places AS (SELECT DISTINCT census_year, place_name, parent_name, region_name, province_name FROM {source}",
         f"                WHERE level = {place}),",
-        f"units AS (SELECT psgc_code FROM {psgc} WHERE is_master_reference AND geographic_level IN ({levels})),",
+        f"psgc AS (SELECT * FROM {psgc} WHERE is_master_reference),",
+        *_parents_ctes(),
+        "units AS (",
+        "  SELECT u.psgc_code, u.name, u.province_code, substr(u.psgc_code, 1, 2) AS region2,",
+        "         u.province_code IS NULL OR bp.psgc_code IS NOT NULL AS no_province",
+        "  FROM psgc AS u LEFT JOIN parents AS bp ON bp.level_blank AND bp.psgc_code = u.province_code",
+        f"  WHERE u.geographic_level IN ({levels})",
+        "),",
         f"regions AS ({_regions_values(spec)}),",
         f"region_codes AS ({_region_codes_values(spec)}),",
         f"aliases AS ({_aliases_values(spec)}),",
         f"overrides AS ({_overrides_values(spec)}),",
+        "-- #181 (D-052): every name-rule match lies inside the parent the rules give, recomputed here from the",
+        "-- place's region and province, not read from the build: a listed region of its census year, then the",
+        "-- province's reviewed alias, else a PSGC parent in that region whose name or old name is the province's;",
+        "-- a place directly under its region only among the units with no PSGC province.",
+        "named AS (",
+        "  SELECT m.source_row_ref, m.census_year, m.region_name, m.province_name, m.psgc_code,",
+        joined([_keys("m", "province_name", "")], 9),
+        f"  FROM {candidate} AS m WHERE m.match_method IN ({', '.join(lit(m) for m in sorted({t[1] for t in TIERS}))})",
+        "),",
+        f"named_keys AS (SELECT named.*, {_fold('named.k_exact')} AS k_fold FROM named),",
+        "in_scope AS (",
+        "  SELECT DISTINCT n.source_row_ref",
+        "  FROM named_keys AS n JOIN units AS u ON u.psgc_code = n.psgc_code",
+        "  JOIN regions AS r ON r.census_year = n.census_year AND r.region_name = n.region_name AND r.region2 = u.region2",
+        "  LEFT JOIN (SELECT DISTINCT census_year, province_name FROM aliases) AS aa",
+        "    ON aa.census_year = n.census_year AND aa.province_name = n.province_name",
+        "  LEFT JOIN aliases AS a ON a.census_year = n.census_year AND a.province_name = n.province_name AND a.psgc_code = u.province_code",
+        "  LEFT JOIN parents AS pa ON pa.psgc_code = u.province_code",
+        "  WHERE (n.province_name IS NULL AND u.no_province)",
+        "     OR (n.province_name IS NOT NULL AND aa.province_name IS NOT NULL AND a.psgc_code IS NOT NULL)",
+        "     OR (n.province_name IS NOT NULL AND aa.province_name IS NULL AND substr(pa.psgc_code, 1, 2) = r.region2",
+        "         AND (n.k_exact = pa.k_exact OR n.k_exact = pa.ok_exact OR n.k_fold = pa.k_fold OR n.k_fold = pa.ok_fold))",
+        "),",
         "-- Each (census year, sex, age, concept) cell of the country against the sum over the mapped places.",
         "national AS (",
         f"  SELECT census_year, population_concept, sex, age, population FROM {source} WHERE level = 'country'",
@@ -662,7 +707,8 @@ def gate_sql(spec):
         f"         + (SELECT COUNT(*) FROM aliases AS a LEFT JOIN {psgc} AS p ON p.psgc_code = a.psgc_code",
         "            AND p.is_master_reference AND (p.geographic_level = 'Prov' OR (p.level_blank AND p.province_code = p.psgc_code))",
         "            WHERE p.psgc_code IS NULL) AS bad_rule_codes,",
-        f"         (SELECT COUNT(DISTINCT publication_period) FROM {psgc} WHERE is_master_reference) AS master_periods,",
+        "         (SELECT COUNT(DISTINCT publication_period) FROM psgc) AS master_periods,",
+        "         (SELECT COUNT(*) FROM named) - (SELECT COUNT(*) FROM in_scope) AS name_scope_mismatch,",
         "         -- Per census year: each (year, PSGC unit) pair with no matched place in that year.",
         "         (SELECT COUNT(*) FROM (SELECT DISTINCT census_year FROM places) AS y CROSS JOIN units AS u",
         f"          LEFT JOIN (SELECT DISTINCT census_year, psgc_code FROM {candidate} WHERE match_status = 'matched') AS mm",

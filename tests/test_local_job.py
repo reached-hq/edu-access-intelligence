@@ -16,6 +16,7 @@ from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
 from src.job.local_run import in_order, job_parameters, load_job, python_argv, run_job
+from src.integration import psa_school_age_population_psgc
 from src.silver import psa_school_age_population
 
 REVISION = "d" * 40
@@ -69,6 +70,22 @@ def repo(tmp_path):
                                                                  workbooks), indent=2), encoding="utf-8")
     (root / "etl" / "03_silver" / "90_validate_psa_school_age_population_clean.sql").write_text(
         psa_school_age_population.gate_sql(psa_school_age_population.load_spec(root)), encoding="utf-8")
+    # Its PSGC map (#159) gets rules for this made-up geography, its SQL regenerated: the committed rules name
+    # real PSGC codes, and a region or alias code missing from the master quarter fails the map's gate (#187).
+    map_rules = root / "config" / "integration" / "psa_school_age_population_psgc.json"
+    map_rules.parent.mkdir(parents=True, exist_ok=True)
+    rules = json.loads((REPO_ROOT / psa_school_age_population_psgc.CONFIG).read_text(encoding="utf-8"))
+    regions = {"2020": ("REGION I", "NATIONAL CAPITAL REGION", "REGION II"),
+               "2024": ("REGION I - TEST REGION", "NATIONAL CAPITAL REGION", "REGION II")}
+    rules.update(province_aliases=[], overrides=[], regions=[
+        {"census_year": int(year), "region_name": name, "psgc_region_codes": ["2000000000"], "reason": "made up"}
+        for year, names in regions.items() for name in names])
+    map_rules.write_text(json.dumps(rules, indent=2), encoding="utf-8")
+    spec = psa_school_age_population_psgc.load_spec(root)
+    folder = root / "etl" / "04_integration"
+    (folder / "05_map_psa_school_age_population_psgc.sql").write_text(psa_school_age_population_psgc.build_sql(spec), encoding="utf-8")
+    (folder / "90_validate_psa_school_age_population_psgc_map.sql").write_text(
+        psa_school_age_population_psgc.gate_sql(spec), encoding="utf-8")
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 

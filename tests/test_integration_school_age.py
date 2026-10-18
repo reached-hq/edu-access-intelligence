@@ -34,6 +34,7 @@ PSGC = [  # psgc_code, name, old_names, geographic_level, level_blank, province_
     ("0102807000", "Burgos", None, "Mun", False, "0102800000"),
     ("0102808000", "Burgos", None, "City", False, "0102800000"),
     ("0102809000", "City of Laoag", None, "City", False, "0102800000"),
+    ("0600000000", "Region VI (Western Visayas)", None, "Reg", False, None),
     ("0800000000", "Region VIII (Eastern Visayas)", None, "Reg", False, None),
     ("0806000000", "Samar", "Western Samar", "Prov", False, "0806000000"),
     ("0806001000", "Almagro", None, "Mun", False, "0806000000"),
@@ -273,11 +274,26 @@ def test_a_region_the_rules_do_not_list_warns_and_its_places_stay_unmatched(tmp_
     assert (row["match_status"], row["reason"]) == ("unmatched", "region not listed in the rules, so no name match was tried")
 
 
-def test_a_region_code_that_is_not_in_psgc_warns(tmp_path):
-    """REGION VI lists 0600000000, which the made-up PSGC does not have; a wrong alias code adds one more."""
-    env = Env(tmp_path, rules=with_rules(province_aliases=[{**ALIASES[0], "psgc_province_codes": ["1908700000", "1908900000"]}]))
-    run_id, _ = env.run()
-    assert env.checks(run_id)["rule_code_not_in_psgc"]["actual"] == "2"
+@pytest.mark.parametrize("change, bad", [
+    ({"regions": [*REGIONS, {"census_year": 2024, "region_name": NCR, "psgc_region_codes": ["1500000000"], "reason": "r"}]}, 1),
+    ({"province_aliases": [{**ALIASES[0], "psgc_province_codes": ["1908700000", "1908900000"]}]}, 1),
+    # A real code at the wrong level: a municipality named as a province alias.
+    ({"province_aliases": [{**ALIASES[0], "psgc_province_codes": ["1908700000", "1908801000"]}]}, 1),
+])
+def test_a_rule_code_missing_from_the_master_quarter_fails_the_gate_and_the_published_map_is_kept(tmp_path, change, bad):
+    """Review on #187: region and alias codes are reviewed configuration; a typo or a stale code must stop publication."""
+    env = Env(tmp_path)
+    assert env.run()[1] is None                      # a first map is published
+    before = env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY source_row_ref")
+    spec = sap.build_spec(with_rules(**change))
+    env.build.write_text(sap.build_sql(spec), encoding="utf-8")
+    env.gate.write_text(sap.gate_sql(spec), encoding="utf-8")
+    run_id, error = env.run()
+    assert error and "Integration gate failed" in error
+    check = env.checks(run_id)["rule_codes_in_psgc"]
+    assert (check["status"], check["actual"]) == ("FAIL", str(bad))
+    assert env.run_status(run_id) == "failed"
+    assert env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY source_row_ref") == before
 
 
 def test_a_place_only_one_concept_lists_fails_the_gate(tmp_path):
@@ -321,6 +337,47 @@ def test_a_status_combination_d052_forbids_fails_the_gate(tmp_path, name, change
         env.store.run_file(env.gate, params)
     assert env.checks(run_id)["status_combination_valid"]["status"] == "FAIL"
     assert env.run_status(run_id) == "failed"
+
+
+@pytest.mark.parametrize("name, change, failed", [
+    ("ADAMS", "psgc_name = 'Wrong name'", "psgc_name_matches_unit"),
+    # Almagro is a real unit with its own name, but in Samar, not in the place's Ilocos Norte.
+    ("ADAMS", "psgc_code = '0806001000', psgc_name = 'Almagro'", "name_match_inside_province"),
+    # Directly under NCR: Kapalawan has no PSGC province too, but it is in BARMM, not in the place's region.
+    ("CITY OF MANILA", "psgc_code = '1999901000', psgc_name = 'Kapalawan'", "name_match_inside_province"),
+    # Under an aliased province: San Nicolas is outside both Maguindanao provinces the alias names.
+    ("PARANG", "psgc_code = '0102805000', psgc_name = 'San Nicolas'", "name_match_inside_province"),
+    # Review on #187: a matched row must name its PSGC row, not only its PSGC batch.
+    ("ADAMS", "psgc_source_row_number = NULL", "lineage_complete"),
+    ("ADAMS", "psgc_batch_id = NULL", "lineage_complete"),
+])
+def test_a_tampered_match_fails_the_gate_and_the_published_map_is_kept(tmp_path, name, change, failed):
+    """Review on #187 (#181, D-052): the gate re-checks the PSGC name, recomputes the parent of every name-rule match,
+    and requires both halves of the PSGC lineage. Each tampering fails only its own check."""
+    env = Env(tmp_path)
+    assert env.run()[1] is None                      # a first map is published
+    before = env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY source_row_ref")
+    run_id = str(uuid.uuid4())
+    params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
+    env.store.run_file(env.build, params)
+    env.store.sql(f"UPDATE {CANDIDATE} SET {change} WHERE place_name = '{name}' AND census_year = 2020")
+    with pytest.raises(Exception, match="Integration gate failed"):
+        env.store.run_file(env.gate, params)
+    checks = env.checks(run_id)
+    assert checks[failed]["status"] == "FAIL"
+    assert [n for n, c in checks.items() if c["status"] == "FAIL"] == [failed]
+    assert env.run_status(run_id) == "failed"
+    assert env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY source_row_ref") == before
+
+
+def test_every_rule_match_passes_the_name_and_parent_checks(tmp_path):
+    """Each parent kind of the made-up places (province name, old name, alias, the SGA container, region) is accepted."""
+    env = Env(tmp_path)
+    run_id, error = env.run()
+    assert error is None
+    checks = env.checks(run_id)
+    assert {n: (checks[n]["status"], checks[n]["actual"]) for n in ("psgc_name_matches_unit", "name_match_inside_province")} == {
+        "psgc_name_matches_unit": ("PASS", "0"), "name_match_inside_province": ("PASS", "0")}
 
 
 def test_two_master_psgc_periods_fail_the_gate(tmp_path):
