@@ -11,7 +11,7 @@ import shutil
 import pytest
 
 from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
-from factories import hdx_geojson, psa_workbooks, psgc_workbooks
+from factories import census_workbooks, hdx_geojson, psa_workbooks, psgc_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
@@ -49,6 +49,8 @@ def repo(tmp_path):
     write_config(root, hdx)
     # The EMISD workbook is Bronze only so far (#152): its lane runs with nothing approved, as personnel's does.
     write_config(root, empty_config("deped_enrollment_psgc"))
+    # PSA school-age population is Bronze only so far too (#157).
+    write_config(root, census_workbooks.empty_config())
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
@@ -94,20 +96,22 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     fresh = store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                         "WHERE run_id = 'job-run-1' AND check_name = 'source_fresh' ORDER BY 1")
     # One per loaded source, after the fan-in. Every batch was just loaded, so each source with one is fresh;
-    # the fake repository approves no personnel or EMISD delivery, so those two have none.
+    # the fake repository approves no personnel, EMISD or school-age population delivery, so those three have none.
     assert [(source, status) for source, status, _ in fresh] == [
         ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "WARN"), ("deped_facilities", "PASS"),
-        ("deped_personnel", "WARN"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS")]
+        ("deped_personnel", "WARN"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS"),
+        ("psa_school_age_population", "WARN")]
     assert all(actual.startswith("last succeeded ") for _, status, actual in fresh if status == "PASS")
     assert dict((s, a) for s, _, a in fresh)["deped_personnel"] == "no succeeded batch"
     assert dict((s, a) for s, _, a in fresh)["deped_enrollment_psgc"] == "no succeeded batch"
+    assert dict((s, a) for s, _, a in fresh)["psa_school_age_population"] == "no succeeded batch"
     linked = store.query(f"""
         SELECT r.source_id, COUNT(q.check_name) FROM {CONTROL}.pipeline_runs AS r
         JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
         WHERE r.job_run_id = 'job-run-1' AND q.layer = 'bronze' GROUP BY 1 ORDER BY 1""")
     assert [source for source, checks in linked if checks > 0] == [
         "deped_enrollment", "deped_enrollment_psgc", "deped_facilities", "deped_personnel", "hdx_boundaries",
-        "psa_poverty_stat", "psa_psgc"]
+        "psa_poverty_stat", "psa_psgc", "psa_school_age_population"]
     store.close()
 
 
@@ -143,7 +147,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 7), ("silver_build", 6)]   # one filter, both layers; EMISD is Bronze only
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("silver_build", 6)]   # one filter, both layers; EMISD and school-age population are Bronze only
     store.close()
 
 
@@ -175,6 +179,7 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     assert results["05_clean_psa_poverty_stat"] == "succeeded"    # another lane still runs to the end
     assert results["90_validate_control"] == "failed"             # the fan-in runs anyway, records, and stops
     assert results["90_validate_freshness"] == "succeeded"        # and freshness is still checked after it
+    assert results["04_map_deped_annex_mother"] == "upstream_failed"   # the map reads enrollment (D-051)
     store = DuckDBStore(db)
     assert store.query(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
                        "AND status = 'FAIL' ORDER BY 1") == [
@@ -186,6 +191,25 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
         ("deped_personnel", "PASS", "succeeded"), ("hdx_boundaries", "PASS", "succeeded"),
         ("psa_poverty_stat", "PASS", "succeeded"), ("psa_psgc", "PASS", "succeeded")]
     store.close()
+
+
+def test_a_failed_lane_stops_only_the_tasks_that_read_it(repo, tmp_path):
+    """The annex map reads enrollment only, so a failed poverty lane does not stop it; the fan-in
+    still records the failed lane and fails the run (D-051)."""
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    run_job(repo, landing, db, REVISION, log=lambda *_: None)
+    poverty = "edu_access.`02-bronze`.psa_poverty_stat_raw"
+    store = DuckDBStore(db)
+    store.sql(f"INSERT INTO {poverty} SELECT * REPLACE ('ghost' AS batch_id) FROM {poverty} LIMIT 1")
+    store.close()
+    results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
+    assert results["90_validate_psa_poverty_stat_raw"] == "failed"
+    assert results["05_clean_psa_poverty_stat"] == "upstream_failed"
+    assert results["90_validate_control"] == "failed"              # the run still shows the failed lane
+    assert results["04_map_deped_annex_mother"] == "succeeded"       # but a map that does not read poverty runs
+    assert results["90_validate_deped_annex_mother_map"] == "succeeded"
 
 
 @pytest.mark.parametrize("error", [RuntimeError("made-up Python task crash"), RuntimeError()], ids=["message", "no-message"])
