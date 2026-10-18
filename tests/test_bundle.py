@@ -206,26 +206,24 @@ def test_the_fan_in_is_an_audit_no_task_waits_for(jobs):
     for key in ("90_validate_control", "90_validate_freshness"):
         assert tasks[key].get("run_if") == "ALL_DONE" and not tasks[key].get("disabled")
     assert {d["task_key"] for d in tasks["90_validate_control"]["depends_on"]} == SILVER_GATES
-    assert {d["task_key"] for d in tasks["90_validate_freshness"]["depends_on"]} == {
-        "90_validate_control", "90_validate_deped_enrollment_psgc_raw", "90_validate_psa_school_age_population_raw"}
+    assert {d["task_key"] for d in tasks["90_validate_freshness"]["depends_on"]} == {"90_validate_control"}
     waiting = [k for k, t in tasks.items() if {"task_key": "90_validate_control"} in t.get("depends_on", [])]
     assert waiting == ["90_validate_freshness"], f"{waiting} wait for the fan-in, which is an audit (D-051)"
 
 
-def test_freshness_waits_for_every_bronze_gate_through_an_enabled_path(jobs):
-    """A disabled task finishes at once, so waiting for a disabled Silver gate does not wait for the
-    Bronze load before it. Freshness must reach every Bronze gate through enabled tasks only, or it can
-    check a source before that source's load has finished."""
+def test_freshness_waits_for_every_bronze_gate(jobs):
+    """Freshness reads each source's latest Bronze batch, so every Bronze gate must come before it.
+    Databricks resolves a disabled task only after the tasks before it (job run 268106548429452:
+    the disabled 07_clean_deped_enrollment_psgc resolved when the EMISD Bronze gate finished), so a
+    path through a disabled Silver gate still waits for the load."""
     tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
     reached, todo = set(), ["90_validate_freshness"]
     while todo:
         for dep in tasks[todo.pop()].get("depends_on", []):
-            key = dep["task_key"]
-            if key not in reached and not tasks[key].get("disabled"):
-                reached.add(key)
-                todo.append(key)
-    bronze_gates = {k for k, t in tasks.items() if k.startswith("90_validate_") and k.endswith("_raw")
-                    and not t.get("disabled")}
+            if dep["task_key"] not in reached:
+                reached.add(dep["task_key"])
+                todo.append(dep["task_key"])
+    bronze_gates = {k for k in tasks if k.startswith("90_validate_") and k.endswith("_raw")}
     assert bronze_gates <= reached, f"freshness can run before {sorted(bronze_gates - reached)}"
 
 
