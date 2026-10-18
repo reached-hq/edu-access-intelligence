@@ -296,6 +296,40 @@ def test_a_feature_in_two_releases_gets_a_row_per_release(tmp_path):
         "one_row_per_feature": "PASS", "psgc_code_taken_once": "PASS"}
 
 
+def test_psgc_units_without_feature_are_counted_per_release(tmp_path):
+    """Review on #139: a PSGC unit matched only in an older release is still missing from the newer one."""
+    env = Env(tmp_path)
+    env.store.sql("INSERT INTO edu_access.`03-silver`.hdx_adm3_clean VALUES "
+                  "('PH0102801', 'Adams', 'PH01028', NULL, 'PH01', DATE '2026-01-01', 'B2', 'sha2', 1)")
+    run_id, error = env.run()
+    assert error is None
+    check = env.checks(run_id)["psgc_units_without_feature"]
+    # 10 PSGC cities and municipalities: 4 have no feature in 2025-02-13, 9 in 2026-01-01 (only Adams there).
+    assert (check["status"], check["actual"]) == ("WARN", "13")
+
+
+@pytest.mark.parametrize("pcode, change", [
+    ("PH0102801", "psgc_code = '1908711000', review_status = 'pending'"),   # matched, but nobody reviewed it
+    ("PH1909901", "review_status = 'rule'"),                                 # unmatched by a rule
+    ("PH0102898", "match_method = 'code', review_status = 'rule'"),          # ambiguous with a method
+])
+def test_a_status_combination_d052_forbids_fails_the_gate_and_the_published_map_is_kept(tmp_path, pcode, change):
+    """Review on #139: the gate, not only the build, enforces that a matched row is rule-based or reviewed and that
+    ambiguous and unmatched rows carry no method or code. A tampered candidate must never replace the published map."""
+    env = Env(tmp_path)
+    assert env.run()[1] is None                      # a first map is published
+    before = env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY adm3_pcode")
+    run_id = str(uuid.uuid4())
+    params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
+    env.store.run_file(env.build, params)
+    env.store.sql(f"UPDATE {CANDIDATE} SET {change} WHERE adm3_pcode = '{pcode}'")
+    with pytest.raises(Exception, match="Integration gate failed"):
+        env.store.run_file(env.gate, params)
+    assert env.checks(run_id)["status_combination_valid"]["status"] == "FAIL"
+    assert env.run_status(run_id) == "failed"
+    assert env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY adm3_pcode") == before
+
+
 def test_two_master_psgc_periods_fail_the_gate(tmp_path):
     """Review on #139: one_psgc_version counts the master periods in the PSGC input, not the map's own column."""
     env = Env(tmp_path)

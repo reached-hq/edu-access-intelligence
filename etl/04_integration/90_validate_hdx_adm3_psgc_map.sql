@@ -7,7 +7,7 @@
 -- before publishing, so hdx_adm3_psgc_map keeps the last map that passed. Otherwise it copies
 -- the candidate to the map table and records the run 'succeeded'. WARN (pending reviews, unmatched,
 -- ambiguous, an override whose P-code is not in the HDX release it was reviewed for, PSGC cities and municipalities
--- no feature matched) is recorded and the map is
+-- no feature matched, counted per HDX release) is recorded and the map is
 -- published. Results hold counts, never row values.
 
 DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;
@@ -27,7 +27,11 @@ totals AS (
          (SELECT COUNT(*) FROM overrides AS o LEFT JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode AND h.valid_on = o.source_reference_date
           WHERE h.adm3_pcode IS NULL) AS overrides_missing,
          (SELECT COUNT(DISTINCT publication_period) FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference) AS master_periods,
-         (SELECT COUNT(*) FROM units AS u LEFT JOIN (SELECT DISTINCT psgc_code FROM edu_access.`04-integration`.hdx_adm3_psgc_map_candidate WHERE match_status = 'matched') AS mm ON mm.psgc_code = u.psgc_code WHERE mm.psgc_code IS NULL) AS units_without_feature
+         -- Per HDX release: each (release, PSGC unit) pair with no matched feature in that release.
+         (SELECT COUNT(*) FROM (SELECT DISTINCT valid_on FROM hdx) AS r CROSS JOIN units AS u
+          LEFT JOIN (SELECT DISTINCT source_reference_date, psgc_code FROM edu_access.`04-integration`.hdx_adm3_psgc_map_candidate WHERE match_status = 'matched') AS mm
+            ON mm.psgc_code = u.psgc_code AND mm.source_reference_date = r.valid_on
+          WHERE mm.psgc_code IS NULL) AS units_without_feature
 ),
 agg AS (
   SELECT
@@ -40,6 +44,7 @@ agg AS (
     COUNT_IF(m.match_status IS NULL OR m.match_status NOT IN ('matched', 'unmatched', 'ambiguous')) AS bad_status,
     COUNT_IF((m.match_status = 'matched' AND (m.match_method IS NULL OR m.match_method NOT IN ('code', 'code_renamed', 'code_region_moved', 'correspondence_code', 'name_exact', 'name_old', 'name_normalized', 'reviewed_alias', 'spatial'))) OR (m.match_status = 'ambiguous' AND m.match_method IS NOT NULL)) AS bad_method,
     COUNT_IF(m.review_status IS NULL OR m.review_status NOT IN ('rule', 'reviewed', 'pending')) AS bad_review,
+    COUNT_IF(NOT COALESCE((m.match_status = 'matched' AND m.review_status IN ('rule', 'reviewed') AND m.match_method IS NOT NULL AND m.psgc_code IS NOT NULL) OR (m.match_status = 'ambiguous' AND m.review_status = 'pending' AND m.match_method IS NULL AND m.psgc_code IS NULL) OR (m.match_status = 'unmatched' AND m.review_status IN ('pending', 'reviewed') AND m.match_method IS NULL AND m.psgc_code IS NULL), FALSE)) AS bad_combination,
     COUNT_IF(m.match_method = 'code' AND m.review_status = 'rule' AND m.psgc_code <> m.code_candidate) AS code_mismatch,
     COUNT_IF(m.match_method = 'correspondence_code' AND m.review_status = 'rule' AND (u.correspondence_code IS NULL OR u.correspondence_code <> substr(m.code_candidate, 1, 2) || substr(m.code_candidate, 4, 2) || substr(m.code_candidate, 6, 2) || substr(m.code_candidate, 8, 3))) AS correspondence_mismatch,
     COUNT_IF(m.match_method = 'code_region_moved' AND m.review_status = 'rule' AND (m.code_candidate NOT LIKE '19%' OR m.psgc_code <> '09' || substr(m.code_candidate, 3))) AS region_mismatch,
@@ -72,6 +77,7 @@ checks AS (
   UNION ALL SELECT 'status_valid' AS check_name, CASE WHEN bad_status = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(bad_status AS STRING) AS actual FROM stats
   UNION ALL SELECT 'method_valid' AS check_name, CASE WHEN bad_method = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(bad_method AS STRING) AS actual FROM stats
   UNION ALL SELECT 'review_status_valid' AS check_name, CASE WHEN bad_review = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(bad_review AS STRING) AS actual FROM stats
+  UNION ALL SELECT 'status_combination_valid' AS check_name, CASE WHEN bad_combination = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(bad_combination AS STRING) AS actual FROM stats
   UNION ALL SELECT 'code_is_the_pcode' AS check_name, CASE WHEN code_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(code_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'correspondence_is_the_old_code' AS check_name, CASE WHEN correspondence_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(correspondence_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'region_moved_is_sulu' AS check_name, CASE WHEN region_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(region_mismatch AS STRING) AS actual FROM stats

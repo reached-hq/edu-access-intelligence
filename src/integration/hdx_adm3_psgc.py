@@ -428,7 +428,8 @@ def build_sql(spec):
 def gate_checks(spec):
     """[(check_name, status)] in the order the gate writes them."""
     fails = ["inputs_present", "rows_reconcile", "one_row_per_feature", "psgc_code_taken_once", "matched_has_psgc_unit",
-             "unmatched_has_no_psgc", "status_valid", "method_valid", "review_status_valid", "code_is_the_pcode",
+             "unmatched_has_no_psgc", "status_valid", "method_valid", "review_status_valid", "status_combination_valid",
+             "code_is_the_pcode",
              "correspondence_is_the_old_code", "region_moved_is_sulu", "overrides_applied", "one_psgc_version",
              "lineage_complete", "rows_built_by_this_run"]
     warns = ["review_pending", "unmatched", "ambiguous", "override_feature_missing", "psgc_units_without_feature"]
@@ -472,6 +473,13 @@ def gate_sql(spec):
         (f"COUNT_IF((m.match_status = 'matched' AND (m.match_method IS NULL OR m.match_method NOT IN "
          f"({', '.join(lit(x) for x in MATCH_METHODS)}))) OR (m.match_status = 'ambiguous' AND m.match_method IS NOT NULL)) AS bad_method"),
         f"COUNT_IF(m.review_status IS NULL OR m.review_status NOT IN ({', '.join(lit(x) for x in REVIEW_STATUSES)})) AS bad_review",
+        # D-052: only rule-based or reviewed rows are matched, and only matched rows carry a method and a code.
+        ("COUNT_IF(NOT COALESCE("
+         "(m.match_status = 'matched' AND m.review_status IN ('rule', 'reviewed') AND m.match_method IS NOT NULL "
+         "AND m.psgc_code IS NOT NULL) OR "
+         "(m.match_status = 'ambiguous' AND m.review_status = 'pending' AND m.match_method IS NULL AND m.psgc_code IS NULL) OR "
+         "(m.match_status = 'unmatched' AND m.review_status IN ('pending', 'reviewed') AND m.match_method IS NULL "
+         "AND m.psgc_code IS NULL), FALSE)) AS bad_combination"),
         "COUNT_IF(m.match_method = 'code' AND m.review_status = 'rule' AND m.psgc_code <> m.code_candidate) AS code_mismatch",
         ("COUNT_IF(m.match_method = 'correspondence_code' AND m.review_status = 'rule' AND (u.correspondence_code IS NULL OR "
          "u.correspondence_code <> substr(m.code_candidate, 1, 2) || substr(m.code_candidate, 4, 2) || "
@@ -498,6 +506,7 @@ def gate_sql(spec):
         zero("status_valid", "bad_status"),
         zero("method_valid", "bad_method"),
         zero("review_status_valid", "bad_review"),
+        zero("status_combination_valid", "bad_combination"),
         zero("code_is_the_pcode", "code_mismatch"),
         zero("correspondence_is_the_old_code", "correspondence_mismatch"),
         zero("region_moved_is_sulu", "region_mismatch"),
@@ -523,7 +532,7 @@ def gate_sql(spec):
         f"-- before publishing, so {spec.map_table} keeps the last map that passed. Otherwise it copies",
         "-- the candidate to the map table and records the run 'succeeded'. WARN (pending reviews, unmatched,",
         "-- ambiguous, an override whose P-code is not in the HDX release it was reviewed for, PSGC cities and municipalities",
-        "-- no feature matched) is recorded and the map is",
+        "-- no feature matched, counted per HDX release) is recorded and the map is",
         "-- published. Results hold counts, never row values.",
         "",
         "DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;",
@@ -545,8 +554,11 @@ def gate_sql(spec):
          "AND h.valid_on = o.source_reference_date"),
         "          WHERE h.adm3_pcode IS NULL) AS overrides_missing,",
         f"         (SELECT COUNT(DISTINCT publication_period) FROM {psgc} WHERE is_master_reference) AS master_periods,",
-        "         (SELECT COUNT(*) FROM units AS u LEFT JOIN (SELECT DISTINCT psgc_code FROM "
-        f"{candidate} WHERE match_status = 'matched') AS mm ON mm.psgc_code = u.psgc_code WHERE mm.psgc_code IS NULL) AS units_without_feature",
+        "         -- Per HDX release: each (release, PSGC unit) pair with no matched feature in that release.",
+        "         (SELECT COUNT(*) FROM (SELECT DISTINCT valid_on FROM hdx) AS r CROSS JOIN units AS u",
+        f"          LEFT JOIN (SELECT DISTINCT source_reference_date, psgc_code FROM {candidate} WHERE match_status = 'matched') AS mm",
+        "            ON mm.psgc_code = u.psgc_code AND mm.source_reference_date = r.valid_on",
+        "          WHERE mm.psgc_code IS NULL) AS units_without_feature",
         "),",
         "agg AS (",
         "  SELECT",
