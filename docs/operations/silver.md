@@ -757,6 +757,8 @@ After padding and the recode, every one of the 59,500 barangay codes and 59,504 
 
 FAIL: `current_batch_present` (with no current batch the gate fails and publishes nothing), `rows_reconcile` (clean + quarantine = Bronze unit rows), `rows_resolve_to_current_bronze` (each row points at exactly one current Bronze `unit` row through its lineage), `values_reconcile` (every value recomputed from its Bronze row with the build's own expressions equals the candidate's), `coordinates_reconcile` (the published text equals Bronze and the DOUBLE equals its cast), `school_id_unique`, `school_id_format`, `codes_ten_digits`, `code_values_recognized`, `region_province_values_recognized`, `null_reason_matches_code`, `levels_null_together` (region and province NULL exactly when the city is), `coordinates_in_pairs`, `coordinate_values_recognized`, `lineage_complete`, `rows_built_by_this_run`. `quarantine_rate`: WARN above 0, FAIL above 1%. Fifteen `profiled_*` records: PASS at the count in the rules file, WARN when it changes, never FAIL. `deped_enrollment_psgc.gate_checks()` lists them.
 
+What `values_reconcile` proves: the published table is today's build of the current Bronze rows, because the gate recomputes every value with the build's own expressions. It does not prove the rules are right: a mistake in a rule (for example a wrong Sulu prefix) would be in both and pass. The rules themselves are checked by `tests/test_silver_deped_enrollment_psgc.py`, which hard-codes the expected codes, reasons, and flags.
+
 ### Running locally (crosswalk)
 
 `python -m src.job.local_run` runs the lane with the rest of the job. It reads the 60,275 school rows in about 10 seconds.
