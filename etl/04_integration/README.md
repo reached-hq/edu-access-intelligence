@@ -14,6 +14,13 @@ The second is the HDX ADM3 to PSGC map: `03_map_hdx_adm3_psgc.sql` and
 `config/integration/hdx_adm3_psgc.json` by `python -m src.integration.hdx_adm3_psgc sql|gate`;
 `tests/test_integration_hdx.py` fails if they differ.
 
+Each map starts from the Silver gates of the sources it reads, not from the
+source-lane fan-in (D-051). The other maps are disabled placeholders:
+`01_map_deped_school_psgc` (enrollment, the EMISD crosswalk, PSGC),
+`02_map_psa_poverty_psgc` (poverty, PSGC), and
+`05_map_psa_school_age_population_psgc` (school-age population, PSGC). The HDX
+map waits for the HDX and PSGC Silver gates.
+
 The remaining candidate mapping names are documented as drafts in the
 [ETL table registry](../../docs/standards/tables.md); they are not reserved until
 keys, grains, and review rules are approved. Files follow
