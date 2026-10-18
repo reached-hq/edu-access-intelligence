@@ -72,7 +72,62 @@ ORDER BY r.started_at_utc;
 <img width="807" height="145" alt="image" src="https://github.com/user-attachments/assets/bb001198-d6f7-4341-9cef-ab2f19e0ee53" />
 
 
-The SY 2020-21 batch's attempts, in run order: `load` / `succeeded` / 60,957 rows (run 1), then `skip` / `skipped` / 0 (run 2). The three later years' counts equal the [2026-10-06 record](2026-10-06-deped-enrollment-idempotency.md), so the backfill inserted only SY 2020-21.
+The SY 2020-21 batch's attempts, in run order: `load` / `succeeded` / 60,957 rows (run 1), then `skip` / `skipped` / 0 (run 2).
+
+Every enrollment batch's attempt in the two recorded ingestion runs:
+
+```sql
+SELECT a.batch_id, a.run_id, a.action, a.outcome, a.rows_inserted
+FROM edu_access.`01-control`.ingestion_batch_attempts AS a
+JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
+WHERE a.run_id IN ('1c504726-f1d2-4b4c-a5bf-6fa41507c4a3', '97c1baca-29c6-43e6-bda1-67cae03a040c')
+  AND a.batch_id LIKE 'deped_enrollment\_\_%'
+ORDER BY r.started_at_utc, a.batch_id;
+```
+
+| `batch_id` | `run_id` | `action` | `outcome` | `rows_inserted` |
+|---|---|---|---|---:|
+| `deped_enrollment__2020-21__65c400aa31ba` | `1c504726…` (run 1) | `load` | `succeeded` | 60,957 |
+| `deped_enrollment__2023-24__a10f4d0f9082` | `1c504726…` (run 1) | `skip` | `skipped` | 0 |
+| `deped_enrollment__2024-25__fd5dd74a62b8` | `1c504726…` (run 1) | `skip` | `skipped` | 0 |
+| `deped_enrollment__2025-26__ab4d7e24b3a4` | `1c504726…` (run 1) | `skip` | `skipped` | 0 |
+| `deped_enrollment__2020-21__65c400aa31ba` | `97c1baca…` (run 2) | `skip` | `skipped` | 0 |
+| `deped_enrollment__2023-24__a10f4d0f9082` | `97c1baca…` (run 2) | `skip` | `skipped` | 0 |
+| `deped_enrollment__2024-25__fd5dd74a62b8` | `97c1baca…` (run 2) | `skip` | `skipped` | 0 |
+| `deped_enrollment__2025-26__ab4d7e24b3a4` | `97c1baca…` (run 2) | `skip` | `skipped` | 0 |
+
+One load and seven skips. The attempts are the loader's own record of what it decided. The rows themselves show that the three earlier years were not rewritten: every Bronze row still carries the run that wrote it.
+
+```sql
+SELECT b.school_year, b.run_id, MIN(r.started_at_utc) AS run_started_utc, COUNT(*) AS rows
+FROM edu_access.`02-bronze`.deped_enrollment_raw AS b
+LEFT JOIN edu_access.`01-control`.pipeline_runs AS r ON r.run_id = b.run_id AND r.source_id = 'deped_enrollment'
+GROUP BY ALL ORDER BY 1;
+```
+
+| `school_year` | `run_id` that wrote the rows | Run started (UTC) | rows |
+|---|---|---|---:|
+| 2020-21 | `1c504726-f1d2-4b4c-a5bf-6fa41507c4a3` (run 1) | 2026-10-18 03:52:08 | 60,957 |
+| 2023-24 | `67a608ec-7f00-4597-890c-962f638d372c` | 2026-10-05 17:57:46 | 60,167 |
+| 2024-25 | `67a608ec-7f00-4597-890c-962f638d372c` | 2026-10-05 17:57:46 | 60,129 |
+| 2025-26 | `67a608ec-7f00-4597-890c-962f638d372c` | 2026-10-05 17:57:46 | 60,204 |
+
+`67a608ec…` is the first load in the [2026-10-06 record](2026-10-06-deped-enrollment-idempotency.md). No row of SY 2023-24 to 2025-26 was written by either run here.
+
+```sql
+SELECT school_year, load_type, status, attempt_count, first_run_id, last_run_id
+FROM edu_access.`01-control`.ingestion_batches
+WHERE source_id = 'deped_enrollment' ORDER BY school_year;
+```
+
+| `school_year` | `load_type` | `status` | `attempt_count` | `first_run_id` = `last_run_id` |
+|---|---|---|---:|---|
+| 2020-21 | `backfill` | `succeeded` | 1 | `1c504726…` (run 1) |
+| 2023-24 | `initial` | `succeeded` | 1 | `67a608ec…` |
+| 2024-25 | `incremental` | `succeeded` | 1 | `67a608ec…` |
+| 2025-26 | `incremental` | `succeeded` | 1 | `67a608ec…` |
+
+So the backfill inserted only SY 2020-21, and the three earlier batches were neither reloaded nor re-attempted.
 
 ### Checks
 
