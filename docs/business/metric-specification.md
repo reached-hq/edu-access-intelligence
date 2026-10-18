@@ -4,7 +4,7 @@
 
 ## Purpose and document boundary
 
-This document translates the approved [business and analytical questions](business-analytics-problem.md) into candidate measures and dashboard fields. It owns formulas, grains, filters, comparison rules, display fields, and validation status. It does not redefine the approved questions, assign datasets to scope, describe stakeholder authority, or establish external standards; those belong to the business-question document, [dataset use map](dataset-use-map.md), [stakeholder document](stakeholders.md), and [national benchmark register](national-benchmarks-and-indicators.md).
+This document translates the approved [business and analytical questions](business-analytics-problem.md) into implementation-ready measures and dashboard fields. It owns formulas, grains, filters, comparison rules, display fields, and validation status. It does not redefine the approved questions, assign datasets to scope, describe stakeholder authority, or establish external standards; those belong to the business-question document, [dataset use map](dataset-use-map.md), [stakeholder document](stakeholders.md), and [national benchmark register](national-benchmarks-and-indicators.md).
 
 ## Current validation conclusion
 
@@ -15,7 +15,8 @@ The metric contracts are complete enough to build and test the Gold facts. Publi
 | **AP1 · Schools** | Public-school and enrollment counts can be aggregated by LGU and school year; multi-level, active-school, annex, and unmatched-barangay rules are set | Publication must show geography-match coverage and preserve the screen's distance, demand, and feasibility caveats |
 | **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio, and its extreme observations are still under review |
 | **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level and the teacher positions and null rules are set | The source cannot show whether one person is counted in two columns, outliers remain under review, and without a mother-school ID the ratio is project-defined, not DepEd's indicator |
-| **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found for 2020 and 2024; SY 2024-25 enrollment is acquired | The PSA workbooks are profiled (`psa_school_age_population`) but not yet ingested, and carry names only, with no PSGC codes; SY 2020-21 enrollment is not yet acquired |
+| **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found and profiled for 2020 and 2024; SY 2020-21 and SY 2024-25 enrollment are acquired, validated in Bronze, and published in Silver | The PSA population workbooks are not yet ingested and carry names only, with no PSGC codes; the population-to-PSGC Integration match is not yet built |
+| **Poverty 2023 · Context** | PSA's 2023 estimate, 90% interval, and CV for 1,597 of the 1,642 cities and municipalities; the status of the other 45 is defined (D-046) | `dim_city_poverty` is not built yet (#174), and the model stays provisional until the team mentor approves the ERD; it is context only and never an analytical result |
 | **Resource-gap estimates** | RA No. 7880 supplies a 45:1 statutory classroom-shortage reference; the arithmetic form can be documented as a candidate | The current NSBI room field includes spaces excluded by the law, no current general teacher threshold has been validated, and the operational assumptions behind converting a ratio into rooms or teachers have not been approved |
 
 The DepEd evidence for these limitations is recorded in the source cards for [enrollment](../data/source-inventory/deped_enrollment/README.md#limitations-for-analysis), [facilities](../data/source-inventory/deped_facilities/README.md#limitations-for-analysis), and [personnel](../data/source-inventory/deped_personnel/README.md#limitations-for-analysis), with observed tests in their linked profiles.
@@ -52,7 +53,7 @@ The Gold build uses the reviewed tables and fields below. Brace notation is shor
 
 | Output | Reviewed input fields | Grain and required filters |
 |---|---|---|
-| Enrollment by level | `deped_enrollment_clean.school_id`, `school_year`, `sector`, `annex_status`, `offers_es`, `offers_jhs`, `offers_shs`, `is_overseas`; ES counts `kinder_{male,female}`, `g1_{male,female}` through `g6_{male,female}`, `esng_{male,female}`; JHS counts `g7_{male,female}` through `g10_{male,female}`, `jhsng_{male,female}`; SHS counts every `g11_*_{male,female}` and `g12_*_{male,female}` field present in the approved schema version | School x school year x education level. AP1 to AP3 require `sector = 'Public'` and `is_overseas = false`. AP4 accepts `Public`, `Private`, and `SUC/LUC` and excludes `PSO` or `is_overseas = true`. Geography and `psgc_match_status` come from the reviewed Integration result. |
+| Enrollment by level | `deped_enrollment_clean.school_id`, `school_year`, `sector`, `annex_status`, `offers_es`, `offers_jhs`, `offers_shs`, `is_overseas`; ES counts `kinder_{male,female}`, `g1_{male,female}` through `g6_{male,female}`, `esng_{male,female}`; JHS counts `g7_{male,female}` through `g10_{male,female}`, `jhsng_{male,female}`; SHS counts `{g11,g12}_{abm,arts,gas,humss,maritime,sports,stem,tvl,unique}_{male,female}` plus `g11_sshs_{acad,techpro}_{male,female}` where those columns exist in the approved schema version. The exact expansions are listed in the [Silver enrollment dictionary](../data/silver/deped-enrollment-clean.md). | School x school year x education level. AP1 to AP3 require `sector = 'Public'` and `is_overseas = false`. AP4 accepts `Public`, `Private`, and `SUC/LUC` and excludes `PSO` or `is_overseas = true`. Geography and `psgc_match_status` come from the reviewed Integration result. |
 | Classroom capacity | `deped_facilities_clean.school_id`, `school_year`, `es_classrooms_instructional`, `jhs_classrooms_instructional`, `shs_classrooms_instructional` | School x school year. Require public scope. Sum the three room fields that are not NULL; return NULL when all three are NULL. Do not substitute makeshift rooms, temporary learning spaces, or non-instructional rooms into this denominator. |
 | Teacher capacity | The level-specific personnel fields listed immediately below | School x school year x education level. Require public scope. Principals, assistant principals, administrative, health, guidance, library, security, utility, and all other non-teaching roles are excluded. |
 | DepEd source availability | `fact_school_year_source_availability.school_year`, `source_id`, `has_data` | School year x source. Require one row for each school year and each of `deped_enrollment`, `deped_facilities`, and `deped_personnel`. Use this fact only to determine whether a source has data for the selected year. It does not establish school or education-level coverage. |
@@ -143,7 +144,7 @@ learner_coverage_pct =
     enrollment_included_in_ratio / public_school_enrollment_at_level * 100
 ```
 
-For AP3, `enrollment_included_in_ratio` includes learners at denominator-usable schools and the explicit zero-teacher annex exception. Report the zero-teacher annex school and learner counts beside coverage so the exception remains auditable.
+For AP3, a school is in scope at a level when it is active, public, not overseas, and `is_offered = true` for that level. `enrollment_included_in_ratio` includes learners at denominator-usable schools and the explicit zero-teacher annex exception. A zero-teacher annex contributes its learners to the ratio numerator and learner coverage, but it does not count as a school with a usable teacher denominator in school coverage. Report the zero-teacher annex school and learner counts beside both coverage measures so the exception remains auditable.
 
 The ratio is calculated by level because the Technical Notes define the teacher–learner ratio “at a specific level.” `teacher_count` at a level is the sum of these personnel columns at that level (D-047):
 
@@ -211,26 +212,11 @@ About 3.83 million of the public-only gap is private and SUC/LUC learners.
 - **Negros Island Region:** re-established under RA No. 12000, taking Negros Occidental, Negros Oriental, and Siquijor from Regions VI and VII;
 - **Sulu:** reassigned from BARMM to Region IX by Executive Order No. 91, s. 2025, following the Supreme Court ruling of September 9, 2024;
 - **Maguindanao:** split into Maguindanao del Norte and Maguindanao del Sur (RA No. 11550);
-- **Special Geographic Area:** eight new municipalities that did not exist in 2020, already excluded from city and municipality joins under D-031.
+- **Special Geographic Area:** eight new municipalities that did not exist in 2020. Under D-049, schools enter city and municipality results when the reviewed EMISD code resolves to an SGA municipality; the 2020-to-2024 change remains flagged because those municipalities did not exist in 2020.
 
 For Negros, Sulu, and Maguindanao the cities and municipalities themselves did not change; only their province or region did. The flag matters for name matching and for any province or region grouping.
 
-**Validation status:** method defined; calculation blocked pending ingestion of the profiled PSA 2020 and 2024 single-year-age workbooks, a reviewed name match of their cities and municipalities to PSGC, and acquisition of SY 2020-21 enrollment. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
-
-### Poverty incidence 2023 · context only
-
-Poverty is not AP1 to AP4 and never enters a ratio, rank, peer group, pressure flag, or priority calculation. Display the published 2023 city or municipality estimate from `dim_city_poverty` beside the education measures under its own **Poverty 2023** label.
-
-| Item | Contract |
-|---|---|
-| Grain | One city or municipality |
-| Value | `poverty_incidence`, the published share of persons below the poverty threshold |
-| Uncertainty | Always show `poverty_ci90_lower` and `poverty_ci90_upper`; show **Less precise** when `cv_over_20 = true` |
-| Availability | `estimated` shows the value and interval; `no_estimate` shows the publisher's reason; `not_in_source` shows that the area is outside this source |
-| Filters | Not affected by school year, sector, or education-level filters |
-| Aggregation | None. Do not average LGUs, create a province or region value, or combine Manila's sub-municipalities |
-
-A published negative confidence-interval bound is retained in the fact lineage and may be displayed as 0.0% only with a note that the published bound was below zero. Missing is never zero or blank, and nothing is imputed. Dashboard wording may describe the poverty estimate but must not say or imply that poverty caused or explains a classroom or teacher result.
+**Validation status:** method defined; calculation blocked pending ingestion of the profiled PSA 2020 and 2024 single-year-age workbooks and a reviewed match of their cities and municipalities to PSGC. SY 2020-21 and SY 2024-25 enrollment are already validated in Silver. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
 
 ## BARMM and geography scope
 
@@ -242,15 +228,33 @@ The BPDA BARMM datasets remain separately labelled historical or broader-grain c
 
 Every implementation of these contracts must satisfy all of the following:
 
-1. Read only reviewed current Silver or Integration rows and retain their `batch_id`, `source_sha256`, `delivery_version`, `schema_version`, pipeline `run_id`, and code revision through an auditable lineage path.
+1. Read only reviewed current Silver or Integration rows. Gold facts keep the business columns defined in the Gold data model rather than duplicating row-level Silver lineage columns. For every Gold build, its validation results must record the job `run_id` and `code_revision`, verify the distinct upstream Silver or Integration `run_id` values read, and preserve the query path from those upstream rows to `batch_id`, `source_sha256`, `delivery_version`, and `schema_version`.
 2. Build each Gold fact at the grain and key in the [Gold data model](../architecture/data-model.md). Fail on duplicate keys, unresolved foreign keys, or row-count reconciliation errors. Use the explicit unknown or excluded member where the model requires one; never create a silent NULL geography key.
 3. Derive every ratio from aggregated numerator and denominator sums over the same eligible school set. Never average school-level ratios or round inputs before division.
 4. Preserve NULL, recorded zero, and positive values as distinct states. Use `NULLIF(denominator, 0)` or an equivalent explicit guard. A missing or zero denominator produces a NULL ratio plus its reason and affected school and learner counts.
-5. Emit the numerator, denominator, ratio, school coverage, learner coverage, unmatched or excluded counts, source period, geography-match version, and metric-definition version together. A displayed ratio without these audit fields is incomplete.
+5. Emit the numerator, denominator, ratio, school coverage, learner coverage, unmatched or excluded counts, source period, geography-match version, and metric-contract version together. The metric-contract version is the implementation `code_revision` governed by D-050; no separate version column is added to the Gold facts. A displayed ratio without these audit fields is incomplete.
 6. Reconcile enrollment, classroom, teacher, population, and geography totals independently before joining them. The classroom and teacher joins must not increase the enrollment row count at their declared grains.
 7. Keep calculations deterministic and safe to rerun. The same approved source versions and code revision must produce the same keyed rows and totals, and a rerun must replace or merge those rows without duplication.
 8. Record outlier checks as quality results. Do not delete, cap, winsorize, or silently correct an observed value in Gold or Analytics.
 9. Validate exactly one `fact_school_year_source_availability` row for every school year and approved DepEd `source_id`, reject duplicate or unknown source keys, and reconcile `has_data` to the reviewed Silver source periods. Do not infer fact-level coverage from this flag.
+
+### Context · Poverty 2023
+
+Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, peer group, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)).
+
+| Item | Contract |
+|---|---|
+| Definition | Share of persons whose per capita income is below the poverty threshold: PSA's 2023 small-area estimate, not computed by us |
+| Unit | % of persons |
+| Grain | City or municipality, one value per regular PSGC 2Q 2026 member (1,642) |
+| Source | `dim_city_poverty` (`poverty_incidence`, `poverty_ci90_lower`, `poverty_ci90_upper`, `poverty_cv`, `cv_over_20`, `poverty_status`, `status_reason`), from `psa_poverty_stat` Silver (D-034) |
+| Period | 2023, labelled "Poverty 2023" next to "SY 2023-24" (D-027); the sector, education level, and school-year filters do not change it |
+| Aggregation | None: no region or province figure, no average of areas, and the 14 Manila district estimates are not combined into a City of Manila value |
+| Uncertainty | The published 90% interval is always shown. "Less precise" when the CV is above 20 (150 of 1,597 estimated areas), a team label, not a PSA rule. A published lower limit below 0 (Ivana, Batanes) is stored as published and shown as 0.0% with a note |
+| Missing | `estimated` 1,597; `no_estimate` 1 (Kalayaan); `not_in_source` 44 (D-028). A missing value is shown with its `status_reason`, never as 0, and is never imputed |
+| Wording | Descriptive only: "Poverty incidence 2023: 30% (90% interval 25 to 35%)". No sentence may say or imply that poverty causes or explains a classroom or teacher gap |
+
+**Validation status:** decided (D-046, provisional until the team mentor approves the ERD); built in #174. The counts are recounted in the [2023 recount evidence](../../evidence/reconciliation/2026-10-16-psa-poverty-2023-city-recount.md).
 
 ## Comparison and prioritization methods
 
@@ -299,7 +303,8 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, total population, schools per 10,000 residents, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Ready to implement and validate |
 | **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Ready to implement and validate for SY 2023-24 |
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Ready to implement and validate for SY 2023-24; project-defined |
-| **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending ingestion and profiling |
+| **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending population ingestion and PSGC integration |
+| **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | Decided (D-046); not built |
 | **Comparisons** | applicable benchmark and status, peer percentile, peer median, national same-type median | benchmark citation/version, peer ID/count/fallback, IQR, national distribution, comparison status | Blocked until method approval |
 | **Priority label** | relative-pressure band or benchmark status, affected enrollment | sort rule/version, missingness and quality warnings | Blocked until ranking rule approval |
 
@@ -311,6 +316,8 @@ The AP1 to AP4 fact and metric contracts above do not depend on the following wo
 2. Peer criteria, density bands, minimum group size, fallback, and percentile convention. HDX is the current land-area source.
 3. Relative-priority sorting or banding. A combined classroom-teacher score remains out of scope unless a later decision approves its weights and interpretation.
 4. Activation of the candidate classroom planning calculation or any teacher resource-gap calculation. These require compatible denominators and separate approval.
+
+Already set: poverty 2023 is context only, never a ranking, flag, peer criterion, or score input (D-046). The complete display, uncertainty, missingness, and recount contract is in [Context · Poverty 2023](#context--poverty-2023).
 
 ## Validation gate
 
