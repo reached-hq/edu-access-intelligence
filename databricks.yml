@@ -872,7 +872,7 @@ resources:
         - task_key: 03_build_dim_education_level
           disabled: true
           depends_on:
-            - task_key: 04_create_data_quality_results
+            - task_key: 05_create_current_batches
           run_if: ALL_SUCCESS
           sql_task:
             file:
