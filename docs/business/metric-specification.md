@@ -85,7 +85,7 @@ For each school, school year, and level:
 3. When `is_offered = true` and one or more applicable cells are NULL, set `learner_count = NULL`. Do not produce a partial sum by coalescing the missing cells to zero.
 4. When the offering flag is NULL, retain the row for reconciliation, set `learner_count = NULL`, and fail the Gold gate. Gold must not infer the offering from the counts.
 
-The Gold validation must report, by school year and education level, the numbers of offered rows with complete counts, offered rows with partially published counts, offered rows with every applicable count NULL, non-offered rows with positive counts, and rows with a NULL offering flag. It must also report the sum of the non-NULL published cells on partial rows as an audit value, never as `learner_count`. AP1 to AP4 exclude NULL `learner_count` values from their enrollment sums and publish the affected school count plus the observed non-NULL learner-cell sum as an enrollment-coverage warning. An all-level school total is the sum of ES, JHS, and SHS only when every offered level has a non-NULL `learner_count`; if any offered level is NULL, the all-level total is NULL. This total controls the active-school rule and the all-level AP1, AP2, and AP4 enrollment sums. A level-specific result may use a complete level even when another offered level is NULL, but it must still carry the school's partial-reporting warning. This keeps schema absence, published blanks, recorded zero, and complete enrollment distinct.
+The Gold validation must report, by school year and education level, the numbers of offered rows with complete counts, offered rows with partially published counts, offered rows with every applicable count NULL, non-offered rows with positive counts, and rows with a NULL offering flag. It must also report the sum of the non-NULL published cells on partial rows as an audit value, never as `learner_count`. AP1 to AP4 exclude NULL `learner_count` values from their enrollment sums and publish the affected school count plus the observed non-NULL learner-cell sum as an enrollment-coverage warning. An all-level school total is the sum of ES, JHS, and SHS only when every offered level has a non-NULL `learner_count`; if any offered level is NULL, the all-level total is NULL. This total controls the all-level AP1, AP2, and AP4 enrollment sums, but it does not control whether the school is active. A school is active when at least one offered level has a complete `learner_count` above 0. A level-specific result may use a complete level even when another offered level is NULL, but it must still carry the school's partial-reporting warning. This keeps schema absence, published blanks, recorded zero, and complete enrollment distinct.
 
 For classroom and teacher totals, sum non-NULL included fields and return NULL only when every included field is NULL. A recorded zero remains zero. The Gold validation must report rows with a mixture of NULL and non-NULL included fields so partial reporting is visible. A ratio denominator is usable only when the resulting total is greater than zero.
 
@@ -98,7 +98,7 @@ These formulas are the implementation baseline. They do not by themselves author
 ### AP1 · School-provision context
 
 ```text
-learners_per_public_school = public_school_enrollment / public_school_count
+learners_per_public_school = complete_public_school_enrollment / active_public_schools_with_complete_all_level_enrollment
 population_per_public_school = population_2024 / public_school_count
 
 barangays_without_public_es =
@@ -107,7 +107,7 @@ barangays_without_public_es_pct =
     barangays_without_public_es / PSGC barangays in the LGU * 100
 ```
 
-Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. For the all-level result, count an active multi-level school once. For a level-specific result, count it once in every level where `is_offered = true`; do not infer an offering from a positive learner count or from another source. The overall active-school rule still applies, so a school with total enrollment of zero or NULL is not counted at any level. `population_per_public_school` divides the LGU's 2024 total population by that school year's public-school count. It is labelled **Population 2024 per public school**, not schools per 10,000 residents. A NULL or zero school count produces a NULL ratio with its reason. This measure describes provision and school size; it does not measure travel access or prove that construction is required.
+Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. For the all-level school count, count an active multi-level school once. For a level-specific school count, count it once in every level where `is_offered = true`; do not infer an offering from a positive learner count or from another source. A school is active when at least one offered level has a complete `learner_count` above 0, even when another offered level is incomplete. For `learners_per_public_school`, use only active public schools whose all-level total is complete in both the numerator and denominator. Also publish the total active-public-school count, the number excluded from this ratio because their all-level total is incomplete, and the non-NULL learner-cell audit sum. `population_per_public_school` divides the LGU's 2024 total population by the full active-public-school count. It is labelled **Population 2024 per public school**, not schools per 10,000 residents. A NULL or zero school count produces a NULL ratio with its reason. These measures describe provision and school size; they do not measure travel access or prove that construction is required.
 
 The AP1 population join is fixed and must not select a population row by proximity, latest-year logic, or an unconstrained join:
 
@@ -122,7 +122,7 @@ A newly approved enrollment school year also maps to 2024 until a reviewed decis
 
 **Which schools count.** `public_school_count` counts active public schools, including annexes (D-047):
 
-- **Active school:** total enrollment above 0 in that school year. A school with zero or blank total enrollment stays in the record and is shown as a count, but it is not counted and does not serve a barangay. There are 4 such public schools in SY 2023-24, 1 in SY 2024-25, and 3 in SY 2025-26 (the SY 2025-26 schools have every enrollment field blank).
+- **Active school:** at least one offered level has a complete `learner_count` above 0 in that school year. A school with no complete positive offered level stays in the record and is shown in the coverage counts, but it is not counted and does not serve a barangay. There are 23 such public schools in SY 2020-21, 4 in SY 2023-24, 1 in SY 2024-25, and 3 in SY 2025-26. Separately, 21 public schools in SY 2025-26 offer SHS but have every applicable SHS count blank. They retain active status when another offered level has a complete positive count, while their all-level total remains NULL and is excluded from the all-level learner ratio.
 - **Annexes:** annex and extension schools count as schools. The label is **public schools (including annexes)**, with the annex count shown beside it. DepEd publishes no mother-school ID (#134), and 52 annexes are the only public elementary school in their barangay, so dropping them would mark served barangays as unserved. The Technical Notes rule that adds annexes to their mother school (p. 8) applies only to the teacher–learner ratio.
 
 The barangay measures follow DepEd Order No. 40, s. 2014, which expects at least one Kindergarten-to-Grade-6 school for every barangay (see the [national benchmark register](national-benchmarks-and-indicators.md#ap1--school-provision-references)). They are calculated per city or municipality and school year from `member_type = 'regular'` barangays in the PSGC 2Q 2026 master and are never ranked by barangay. A public school serves a barangay only when it is active, offers ES, and has a reviewed match to that regular barangay. A school assigned to the LGU's unknown-barangay member is retained in LGU totals but does not serve a specific barangay. If an LGU has one or more such schools, show `at most N barangays without a matched public elementary school`, the unmatched-school count, and geography-match coverage. A barangay without its own school may still be served by a nearby school, so the count is a screen for review, not evidence that a school is needed.
@@ -246,6 +246,24 @@ For Negros, Sulu, and Maguindanao the cities and municipalities themselves did n
 
 **Validation status:** method defined; calculation blocked pending ingestion of the profiled PSA 2020 and 2024 single-year-age workbooks and a reviewed match of their cities and municipalities to PSGC. SY 2020-21 and SY 2024-25 enrollment are already validated in Silver. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
 
+### Context · Poverty 2023
+
+Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, peer group, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)).
+
+| Item | Contract |
+|---|---|
+| Definition | Share of persons whose per capita income is below the poverty threshold: PSA's 2023 small-area estimate, not computed by us |
+| Unit | % of persons |
+| Grain | City or municipality, one value per regular PSGC 2Q 2026 member (1,642) |
+| Source | `dim_city_poverty` (`poverty_incidence`, `poverty_ci90_lower`, `poverty_ci90_upper`, `poverty_cv`, `cv_over_20`, `poverty_status`, `status_reason`), from `psa_poverty_stat` Silver (D-034) |
+| Period | 2023, labelled "Poverty 2023" next to "SY 2023-24" (D-027); the sector, education level, and school-year filters do not change it |
+| Aggregation | None: no region or province figure, no average of areas, and the 14 Manila district estimates are not combined into a City of Manila value |
+| Uncertainty | The published 90% interval is always shown. "Less precise" when the CV is above 20 (150 of 1,597 estimated areas), a team label, not a PSA rule. A published lower limit below 0 (Ivana, Batanes) is stored as published and shown as 0.0% with a note |
+| Missing | `estimated` 1,597; `no_estimate` 1 (Kalayaan); `not_in_source` 44 (D-028). A missing value is shown with its `status_reason`, never as 0, and is never imputed |
+| Wording | Descriptive only: "Poverty incidence 2023: 30% (90% interval 25 to 35%)". No sentence may say or imply that poverty causes or explains a classroom or teacher gap |
+
+**Validation status:** decided (D-046, provisional until the team mentor approves the ERD); built in #174. The counts are recounted in the [2023 recount evidence](../../evidence/reconciliation/2026-10-16-psa-poverty-2023-city-recount.md).
+
 ## BARMM and geography scope
 
 AP1 to AP4 apply the same metric rules to BARMM as to every other region. A school enters a city or municipality result only through the reviewed school-to-PSGC Integration result. Special Geographic Area schools enter city or municipality results when their published DepEd code resolves to one of the eight SGA municipalities under D-049. A school that remains `unmatched`, `ambiguous`, or `excluded` stays in the retained technical member, does not inherit a similarly named Region XII municipality, and is reported in geography coverage.
@@ -265,24 +283,6 @@ Every implementation of these contracts must satisfy all of the following:
 7. Keep calculations deterministic and safe to rerun. The same approved source versions and code revision must produce the same keyed rows and totals, and a rerun must replace or merge those rows without duplication.
 8. Record outlier checks as quality results. Do not delete, cap, winsorize, or silently correct an observed value in Gold or Analytics.
 9. Validate exactly one `fact_school_year_source_availability` row for every school year and approved DepEd `source_id`, reject duplicate or unknown source keys, and reconcile `has_data` to the reviewed Silver source periods. Do not infer fact-level coverage from this flag.
-
-### Context · Poverty 2023
-
-Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, peer group, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)).
-
-| Item | Contract |
-|---|---|
-| Definition | Share of persons whose per capita income is below the poverty threshold: PSA's 2023 small-area estimate, not computed by us |
-| Unit | % of persons |
-| Grain | City or municipality, one value per regular PSGC 2Q 2026 member (1,642) |
-| Source | `dim_city_poverty` (`poverty_incidence`, `poverty_ci90_lower`, `poverty_ci90_upper`, `poverty_cv`, `cv_over_20`, `poverty_status`, `status_reason`), from `psa_poverty_stat` Silver (D-034) |
-| Period | 2023, labelled "Poverty 2023" next to "SY 2023-24" (D-027); the sector, education level, and school-year filters do not change it |
-| Aggregation | None: no region or province figure, no average of areas, and the 14 Manila district estimates are not combined into a City of Manila value |
-| Uncertainty | The published 90% interval is always shown. "Less precise" when the CV is above 20 (150 of 1,597 estimated areas), a team label, not a PSA rule. A published lower limit below 0 (Ivana, Batanes) is stored as published and shown as 0.0% with a note |
-| Missing | `estimated` 1,597; `no_estimate` 1 (Kalayaan); `not_in_source` 44 (D-028). A missing value is shown with its `status_reason`, never as 0, and is never imputed |
-| Wording | Descriptive only: "Poverty incidence 2023: 30% (90% interval 25 to 35%)". No sentence may say or imply that poverty causes or explains a classroom or teacher gap |
-
-**Validation status:** decided (D-046, provisional until the team mentor approves the ERD); built in #174. The counts are recounted in the [2023 recount evidence](../../evidence/reconciliation/2026-10-16-psa-poverty-2023-city-recount.md).
 
 ## Comparison and prioritization methods
 
