@@ -148,8 +148,14 @@ def test_barangay_outside_the_accepted_city_is_ambiguous(rule):
 def test_signal_village_override_uses_the_code(rule):
     s = school("SIGNAL VILLAGE", province="NCR FOURTH DISTRICT", municipality="TAGUIG CITY")
     city, bgy = decide(rule, s, TAGUIG, TAGUIG, BGY_NORTH_SIGNAL, BGY_CENTRAL_SIGNAL, n_tier="old name")
-    assert bgy == ("matched", BGY_NORTH_SIGNAL, "code", "reviewed override")
+    assert bgy == ("matched", BGY_NORTH_SIGNAL, "code_name_differs", "reviewed override")
     assert rule.override_hits == {"bgy": 1}
+
+
+def test_signal_village_override_is_code_when_the_name_match_agrees(rule):
+    s = school("SIGNAL VILLAGE", province="NCR FOURTH DISTRICT", municipality="TAGUIG CITY")
+    _, bgy = decide(rule, s, TAGUIG, TAGUIG, BGY_CENTRAL_SIGNAL, BGY_CENTRAL_SIGNAL, n_tier="old name")
+    assert bgy == ("matched", BGY_CENTRAL_SIGNAL, "code", "reviewed override")
 
 
 def test_override_still_needs_a_barangay_inside_the_city(rule):
@@ -172,7 +178,7 @@ def test_unknown_name_tier_fails(rule):
 def test_every_rule_method_is_a_d029_value(rules, repo_root):
     decisions = (repo_root / "docs/governance/decisions.md").read_text(encoding="utf-8")
     d029 = decisions[decisions.index("## D-029"):decisions.index("## D-030")]
-    methods = set(rules["match_method_from_name_tier"].values()) | {o["match_method"] for o in rules["overrides"]}
+    methods = set(rules["match_method_from_name_tier"].values())
     methods |= {"code", "code_name_differs", "code_region_moved", "rollup"}
     missing = sorted(m for m in methods if f"| `{m}` |" not in d029)
     assert not missing, f"match_method values not in D-029: {missing}"

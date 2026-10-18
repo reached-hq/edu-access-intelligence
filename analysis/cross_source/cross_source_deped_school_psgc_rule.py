@@ -40,6 +40,13 @@ class Rule:
             return "code_region_moved"
         return "code" if names_agree else "code_name_differs"
 
+    def override_method(self, o, c_unit, n_unit, c_tier, n_tier):
+        """An override picks the unit, not the method: the method follows the side it uses, so `code`
+        still means the names agree (D-029) and the rest are `code_name_differs`."""
+        if o["use"] == "code":
+            return self.code_method(c_tier, n_unit is not None and c_unit.id == n_unit.id)
+        return self.name_method(n_tier)
+
     def decide_city(self, school, c_loc, c_tier, n_loc, n_tier, c_bgy):
         """The city or municipality. c_loc and n_loc are the localities the code and the name match
         found, before Manila's sub-municipalities roll up; c_bgy is the barangay the code gives."""
@@ -63,7 +70,7 @@ class Rule:
             unit = c_unit if o["use"] == "code" else n_unit
             if unit is None:
                 return "unmatched", None, None, "reviewed override: no unit"
-            return "matched", unit, o["match_method"], "reviewed override"
+            return "matched", unit, self.override_method(o, c_unit, n_unit, c_tier, n_tier), "reviewed override"
         agree = c_unit is not None and n_unit is not None and c_unit.id == n_unit.id
         # The code's barangay supports the code's city only when it lies inside that city (profile O-7).
         bgy_supports_code = (c_unit is not None and c_bgy is not None
@@ -100,7 +107,7 @@ class Rule:
             unit = c_unit if o["use"] == "code" else n_unit
             if unit is None:
                 return "unmatched", None, None, "reviewed override: no unit"
-            method, detail = o["match_method"], "reviewed override"
+            method, detail = self.override_method(o, c_unit, n_unit, c_tier, n_tier), "reviewed override"
         elif c_unit and n_unit and c_unit.id == n_unit.id:
             unit, method, detail = c_unit, self.code_method(c_tier, True), "code and name agree"
         elif c_unit and self.same_barangay_name(barangay, c_unit):
