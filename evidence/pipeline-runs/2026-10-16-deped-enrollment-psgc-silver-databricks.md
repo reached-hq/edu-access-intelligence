@@ -6,7 +6,10 @@ Runs 1 to 3 are of commit `2bcd685`, before the review changes of 2026-10-18 (ro
 
 ## The claim
 
-On Databricks `dev`, the job `edu_access_pipeline`, deployed from `feat/163-silver-deped-enrollment-psgc`, runs the crosswalk lane end to end in two separate job runs: Bronze load (skipped, already loaded), Bronze gate, Silver build `07_clean_deped_enrollment_psgc`, and Silver gate `90_validate_deped_enrollment_psgc_clean`. Both gates passed, so both runs published the tables. The source-lane fan-in `90_validate_control` passed in both runs, with the new lane included. The published tables reconcile to Bronze (60,275 = 60,273 + 2), and every run of the lane recorded the same 27 PASS and 1 WARN, with each profiled count equal to the rules file.
+On Databricks `dev`, the job `edu_access_pipeline`, deployed from `feat/163-silver-deped-enrollment-psgc`, runs the crosswalk lane end to end in two separate job runs: Bronze load (skipped, already loaded), Bronze gate, Silver build `07_clean_deped_enrollment_psgc`, and Silver gate `90_validate_deped_enrollment_psgc_clean`. Both gates passed, so both runs published the tables. The source-lane fan-in `90_validate_control` passed in both runs, with the new lane included. The published tables reconcile to Bronze (60,275 = 60,273 + 2), and every run of the lane recorded 0 FAIL and 1 WARN (`quarantine_rate`), with each profiled count equal to the rules file:
+
+- runs 1 to 3 (before review, 28-check gate): 27 PASS, 1 WARN, 0 FAIL;
+- runs 4 and 5 (after review, 32-check gate): 31 PASS, 1 WARN, 0 FAIL. The four extra PASS are the checks review added (row resolution, value and coordinate reconciliation, region and province text).
 
 **Not claimed:** row-by-row identity of the published content between runs on `dev`. It is shown by equal counts on every rule, and locally by identical content hashes ([local reconciliation](../reconciliation/2026-10-16-deped-enrollment-psgc-bronze-to-silver.md)).
 
