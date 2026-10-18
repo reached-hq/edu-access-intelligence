@@ -22,6 +22,10 @@ The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed 
 
 ## Results
 
+### Run graph: the annex map hangs off the enrollment gate, and nothing waits for the fan-in
+
+**Screenshot to add:** the **Graph** tab of run `268106548429452`, zoomed so `90_validate_deped_enrollment_clean` → `04_map_deped_annex_mother` → `90_validate_deped_annex_mother_map` and `90_validate_control` (no arrow out of it) are both visible.
+
 ### 1. The annex map does not wait for other lanes
 
 | Task | Start | End |
@@ -36,6 +40,11 @@ The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed 
 
 The annex map started one second after the enrollment Silver gate passed. The personnel and PSGC gates were still running, and HDX had not started cleaning. Under D-039 it would have waited for `90_validate_control` at 09:36:04, about two and a half minutes later.
 
+### Run timeline: the annex map finishes while personnel, PSGC, and HDX are still running
+
+**Screenshot to add:** the **Timeline** tab of run `268106548429452`, covering 09:32 to 09:36, with the annex map and its gate in view beside the personnel, PSGC, and HDX tasks.
+
+
 ### 2. The fan-in and freshness run side by side, after every lane
 
 | Task | `run_if` | Start | End | Result |
@@ -46,6 +55,11 @@ The annex map started one second after the enrollment Silver gate passed. The pe
 | `90_validate_freshness` | `ALL_DONE` | 09:36:04 | 09:36:09 | `SUCCESS` |
 
 Both started in the same second, after the last Silver gate. Freshness started after the EMISD Bronze gate, so it checked EMISD's latest batch only after that load had finished.
+
+### Timeline: the fan-in and freshness start in the same second
+
+**Screenshot to add:** the **Timeline** tab, 09:35 to 09:37, showing `90_validate_hdx_adm3_clean` ending and `90_validate_control` and `90_validate_freshness` starting together.
+
 
 ### 3. Control results for this run
 
@@ -60,6 +74,10 @@ On the SQL warehouse after the run (`run_id = '268106548429452'`):
 | `pipeline_runs` for this job run | 7 `bronze_ingest`, 6 `silver_build`, all succeeded | the same | OK |
 | FAIL results in this run, any layer | 0 | 0 | OK |
 
+### Control results: 6 lane PASS and 7 freshness PASS, all at `8d3f6e8`
+
+**Screenshot to add:** the result of query 1 below in the SQL editor, all 13 rows visible.
+
 The run wrote 424 results: 21 Bronze, 382 Silver, 8 Integration, and 13 control, of which 414 PASS and 10 WARN. The WARNs are expected and unchanged by this PR: 2,331 annexes without a mother school (D-044), and nine PSA poverty flags (coefficient of variation over 20%, a non-positive lower limit, and SE/CV inconsistencies) for 2018, 2021, and 2023.
 
 ## Earlier runs of this branch
@@ -69,11 +87,56 @@ The run wrote 424 results: 21 Bronze, 382 Silver, 8 Integration, and 13 control,
 
 ## How to reproduce
 
-```sql
-SELECT check_name, source_id, status, actual, code_revision
-FROM edu_access.`01-control`.data_quality_results
-WHERE run_id = '268106548429452' AND layer = 'control'
-ORDER BY check_name, source_id;
-```
+Run these on the SQL warehouse after the job run has finished, never while a run is going (D-017). For another run, replace the run id.
 
-Task start and end times come from `databricks jobs get-run 268106548429452 --profile reached-hq`.
+1. The fan-in and freshness results, expected 6 `silver_lane_succeeded` and 7 `source_fresh`, all PASS, all with `code_revision` `8d3f6e8…`:
+
+   ```sql
+   SELECT check_name, source_id, status, actual, code_revision
+   FROM edu_access.`01-control`.data_quality_results
+   WHERE run_id = '268106548429452' AND layer = 'control'
+   ORDER BY check_name, source_id;
+   ```
+
+2. Every result in the run by layer and status, expected 21 Bronze, 382 Silver, 8 Integration, 13 control; 414 PASS, 10 WARN, no FAIL:
+
+   ```sql
+   SELECT layer, status, COUNT(*) AS results
+   FROM edu_access.`01-control`.data_quality_results
+   WHERE run_id = '268106548429452'
+   GROUP BY layer, status
+   ORDER BY layer, status;
+   ```
+
+3. The WARN rows, expected the annex count (2,331) and nine PSA poverty flags:
+
+   ```sql
+   SELECT layer, source_id, check_name, actual
+   FROM edu_access.`01-control`.data_quality_results
+   WHERE run_id = '268106548429452' AND status = 'WARN'
+   ORDER BY layer, source_id, check_name;
+   ```
+
+4. The loads and Silver builds in the run, expected 7 `bronze_ingest` and 6 `silver_build`, all succeeded:
+
+   ```sql
+   SELECT pipeline_name, source_id, status
+   FROM edu_access.`01-control`.pipeline_runs
+   WHERE job_run_id = '268106548429452'
+   ORDER BY pipeline_name, source_id;
+   ```
+
+5. The annex map's gate, expected 7 PASS and `annexes_without_mother_school` WARN with 2,331:
+
+   ```sql
+   SELECT check_name, status, actual
+   FROM edu_access.`01-control`.data_quality_results
+   WHERE run_id = '268106548429452' AND layer = 'integration'
+   ORDER BY check_name;
+   ```
+
+6. Task start and end times, which the tables above come from:
+
+   ```bash
+   databricks jobs get-run 268106548429452 --profile reached-hq -o json
+   ```
