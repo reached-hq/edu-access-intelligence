@@ -12,6 +12,25 @@ On Databricks `dev`, the job `edu_access_pipeline` loads the SY 2020-21 enrollme
 2. **Deploy.** `databricks bundle validate` and `databricks bundle deploy --target dev` from a clean checkout of `main` at `df63d635c3cb73873d4ad70d195f9724ab83624a`. `databricks bundle summary` showed both `git_source.git_commit` and the `code_revision` parameter equal to that commit. No other job run was active.
 3. **Runs.** `databricks bundle run edu_access_pipeline --target dev`, twice.
 
+The commands, in order (`--profile reached-hq` on each):
+
+```bash
+databricks fs mkdir dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16
+databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/_holding/deped/2026-10-16/Enrollment-in-SY-2020-2021.zip dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16/
+databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/_holding/deped/2026-10-16/SHA256SUMS.txt dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16/
+databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/_holding/deped/2026-10-16/RETRIEVED.txt dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16/
+databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/deped/2026-10-16/Enrollment-in-SY-2020-2021.zip <scratch>/check/
+shasum -a 256 <scratch>/check/Enrollment-in-SY-2020-2021.zip    # 65c400aa31ba63730b8f9a7b4d60ade91c6a29cdb34a3c6bf255e5fc9e91a241
+databricks fs rm -r dbfs:/Volumes/edu_access/00-source/raw/_holding/deped/2026-10-16
+databricks bundle validate --target dev
+databricks bundle deploy --target dev
+databricks bundle summary --target dev
+databricks bundle run edu_access_pipeline --target dev
+databricks bundle run edu_access_pipeline --target dev
+databricks jobs get-run 146052617753176
+databricks jobs get-run 250134607484273
+```
+
 | | Run 1 | Run 2 |
 |---|---|---|
 | Job run | `146052617753176` | `250134607484273` |
@@ -23,7 +42,7 @@ On Databricks `dev`, the job `edu_access_pipeline` loads the SY 2020-21 enrollme
 | `90_validate_deped_enrollment_clean` (UTC) | `SUCCESS`, 03:56:15 → 03:58:53 | `SUCCESS`, 04:06:53 → 04:09:08 |
 | Ingestion `run_id` | `1c504726-f1d2-4b4c-a5bf-6fa41507c4a3` | `97c1baca-29c6-43e6-bda1-67cae03a040c` |
 
-The job-run and task rows come from `databricks jobs get-run`. The queries below ran on the job's SQL warehouse through the Statement Execution API after run 2.
+The job-run and task rows come from `databricks jobs get-run`. The queries below ran on the job's SQL warehouse (`71d3ccb9cea611c0`) through the Statement Execution API (`databricks api post /api/2.0/sql/statements`) after run 2. Their results came back as text, so there are no screenshots; every number below is copied from those results.
 
 ## Results
 
@@ -50,6 +69,14 @@ FROM edu_access.`02-bronze`.deped_enrollment_raw GROUP BY ALL ORDER BY 1, 2;
 | 2024-25 | 1 | 60,129 |
 | 2025-26 | 1 | 60,204 |
 
+```sql
+SELECT a.run_id, a.action, a.outcome, a.rows_inserted
+FROM edu_access.`01-control`.ingestion_batch_attempts AS a
+JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
+WHERE a.batch_id LIKE 'deped_enrollment__2020-21%'
+ORDER BY r.started_at_utc;
+```
+
 The SY 2020-21 batch's attempts, in run order: `load` / `succeeded` / 60,957 rows (run 1), then `skip` / `skipped` / 0 (run 2). The three later years' counts equal the [2026-10-06 record](2026-10-06-deped-enrollment-idempotency.md), so the backfill inserted only SY 2020-21.
 
 ### Checks
@@ -68,7 +95,14 @@ GROUP BY ALL ORDER BY 1, 2, 3;
 | Silver gate | 153 / 0 / 0 | 153 / 0 / 0 |
 | Control | 2 / 0 / 0 | 2 / 0 / 0 |
 
-Both runs' `bronze_ingest` and `silver_build` rows in `pipeline_runs` are `succeeded`.
+```sql
+SELECT job_run_id, pipeline_name, status, run_id
+FROM edu_access.`01-control`.pipeline_runs
+WHERE source_id = 'deped_enrollment' AND job_run_id IN ('146052617753176', '250134607484273')
+ORDER BY started_at_utc;
+```
+
+Both runs' `bronze_ingest` and `silver_build` rows are `succeeded`; the `bronze_ingest` run IDs are the ingestion `run_id`s in the table above.
 
 ### Silver
 
@@ -94,6 +128,12 @@ The verification query in [Silver, Running on Databricks](../../docs/operations/
 | silver runs succeeded at this commit | 2 | 2 |
 | published rows from a succeeded run | 241457 | 241457 |
 | candidate rows not published | 0 | 0 |
+
+```sql
+SELECT school_management, COUNT(*)
+FROM edu_access.`03-silver`.deped_enrollment_clean
+WHERE school_year = '2020-21' GROUP BY 1 ORDER BY 2 DESC;
+```
 
 SY 2020-21 `school_management` in Silver: DepEd 47,252; Non-Sectarian 9,496; Sectarian 3,758; SUC 210; Local Government 154; LUC 37; PSO 33; DOST 13; International School 2; Other GA 2. This is the same breakdown as the local run.
 
