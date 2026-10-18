@@ -43,6 +43,10 @@ databricks jobs get-run 250134607484273
 | Ingestion `run_id` | `1c504726-f1d2-4b4c-a5bf-6fa41507c4a3` | `97c1baca-29c6-43e6-bda1-67cae03a040c` |
 
 The job-run and task rows come from `databricks jobs get-run`. The queries below ran on the job's SQL warehouse (`71d3ccb9cea611c0`) through the Statement Execution API (`databricks api post /api/2.0/sql/statements`) after run 2. Their results came back as text, so there are no screenshots; every number below is copied from those results.
+<img width="1154" height="322" alt="image" src="https://github.com/user-attachments/assets/f6930c73-dfb1-4258-b8f2-031b20c28c65" />
+<img width="1153" height="294" alt="image" src="https://github.com/user-attachments/assets/e89aa279-5b2f-499e-a766-2c33a0d1bdc6" />
+
+
 
 ## Results
 
@@ -50,24 +54,13 @@ The job-run and task rows come from `databricks jobs get-run`. The queries below
 
 The loader's output for `bronze_deped_enrollment`:
 
-| Batch | Run 1 | Run 2 |
-|---|---|---|
-| `deped_enrollment__2020-21__65c400aa31ba` | `load`, `backfill`, inserted 60,957 | `skip`, inserted 0 |
-| `deped_enrollment__2023-24__a10f4d0f9082` | `skip`, inserted 0 | `skip`, inserted 0 |
-| `deped_enrollment__2024-25__fd5dd74a62b8` | `skip`, inserted 0 | `skip`, inserted 0 |
-| `deped_enrollment__2025-26__ab4d7e24b3a4` | `skip`, inserted 0 | `skip`, inserted 0 |
-
 ```sql
 SELECT school_year, delivery_version, COUNT(*) AS rows
 FROM edu_access.`02-bronze`.deped_enrollment_raw GROUP BY ALL ORDER BY 1, 2;
 ```
+<img width="806" height="153" alt="image" src="https://github.com/user-attachments/assets/9a0e1739-df3b-4f0c-9662-986bbd8d2edb" />
 
-| `school_year` | `delivery_version` | rows |
-|---|---:|---:|
-| 2020-21 | 1 | 60,957 |
-| 2023-24 | 1 | 60,167 |
-| 2024-25 | 1 | 60,129 |
-| 2025-26 | 1 | 60,204 |
+
 
 ```sql
 SELECT a.run_id, a.action, a.outcome, a.rows_inserted
@@ -76,6 +69,8 @@ JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
 WHERE a.batch_id LIKE 'deped_enrollment__2020-21%'
 ORDER BY r.started_at_utc;
 ```
+<img width="807" height="145" alt="image" src="https://github.com/user-attachments/assets/bb001198-d6f7-4341-9cef-ab2f19e0ee53" />
+
 
 The SY 2020-21 batch's attempts, in run order: `load` / `succeeded` / 60,957 rows (run 1), then `skip` / `skipped` / 0 (run 2). The three later years' counts equal the [2026-10-06 record](2026-10-06-deped-enrollment-idempotency.md), so the backfill inserted only SY 2020-21.
 
@@ -88,12 +83,8 @@ JOIN edu_access.`01-control`.pipeline_runs AS r ON r.run_id = d.run_id AND r.sou
 WHERE d.source_id = 'deped_enrollment' AND r.job_run_id IN ('146052617753176', '250134607484273')
 GROUP BY ALL ORDER BY 1, 2, 3;
 ```
+<img width="808" height="222" alt="image" src="https://github.com/user-attachments/assets/b4b4cb86-a453-4203-9068-2eb8ebad470f" />
 
-| Layer | Run 1 (PASS / WARN / FAIL) | Run 2 (PASS / WARN / FAIL) |
-|---|---|---|
-| Bronze (batch checks for the one load, `approved_deliveries_present`, and the gate's 3) | 15 / 0 / 0 | 4 / 0 / 0 (skips write no batch checks) |
-| Silver gate | 153 / 0 / 0 | 153 / 0 / 0 |
-| Control | 2 / 0 / 0 | 2 / 0 / 0 |
 
 ```sql
 SELECT job_run_id, pipeline_name, status, run_id
@@ -101,6 +92,7 @@ FROM edu_access.`01-control`.pipeline_runs
 WHERE source_id = 'deped_enrollment' AND job_run_id IN ('146052617753176', '250134607484273')
 ORDER BY started_at_utc;
 ```
+<img width="802" height="155" alt="image" src="https://github.com/user-attachments/assets/f4584910-3921-42af-83db-68963ac7d7ea" />
 
 Both runs' `bronze_ingest` and `silver_build` rows are `succeeded`; the `bronze_ingest` run IDs are the ingestion `run_id`s in the table above.
 
@@ -134,6 +126,8 @@ SELECT school_management, COUNT(*)
 FROM edu_access.`03-silver`.deped_enrollment_clean
 WHERE school_year = '2020-21' GROUP BY 1 ORDER BY 2 DESC;
 ```
+<img width="806" height="270" alt="image" src="https://github.com/user-attachments/assets/cef508a4-8be9-4b2b-a779-9c672ab4e92e" />
+
 
 SY 2020-21 `school_management` in Silver: DepEd 47,252; Non-Sectarian 9,496; Sectarian 3,758; SUC 210; Local Government 154; LUC 37; PSO 33; DOST 13; International School 2; Other GA 2. This is the same breakdown as the local run.
 
