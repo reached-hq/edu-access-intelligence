@@ -57,7 +57,7 @@ The Gold build uses the reviewed tables and fields below. Brace notation is shor
 | Classroom capacity | `deped_facilities_clean.school_id`, `school_year`, `es_classrooms_instructional`, `jhs_classrooms_instructional`, `shs_classrooms_instructional` | School x school year. Require public scope. Sum the three room fields that are not NULL; return NULL when all three are NULL. Do not substitute makeshift rooms, temporary learning spaces, or non-instructional rooms into this denominator. |
 | Teacher capacity | The level-specific personnel fields listed immediately below | School x school year x education level. Require public scope. Principals, assistant principals, administrative, health, guidance, library, security, utility, and all other non-teaching roles are excluded. |
 | DepEd source availability | `fact_school_year_source_availability.school_year`, `source_id`, `has_data` | School year x source. Require one row for each school year and each of `deped_enrollment`, `deped_facilities`, and `deped_personnel`. Use this fact only to determine whether a source has data for the selected year. It does not establish school or education-level coverage. |
-| AP1 total population | `fact_city_population.city_mun_psgc_code`, `reference_year`, `population`, `estimate_status` | City or municipality x reference year. Use only `estimate_status = 'available'`; label the reference year and do not substitute school-age population. |
+| AP1 total population | `fact_city_population.city_mun_psgc_code`, `reference_year`, `population`, `estimate_status` | City or municipality x reference year. Use only `reference_year = 2024` and `estimate_status = 'available'`; label the value **Population 2024** and do not substitute school-age population. |
 | AP4 school-age population | `fact_city_school_age_population.city_mun_psgc_code`, `reference_year`, `age`, `sex`, `population`, `psgc_match_status`, `is_2020_2024_geography_comparable` | City or municipality x reference year. Sum `sex IN ('male', 'female')` and `age BETWEEN 5 AND 17`; use only reviewed PSGC matches. Never add a published both-sexes total to the male and female rows. |
 
 ### AP3 included personnel fields
@@ -69,6 +69,23 @@ The Gold build uses the reviewed tables and fields below. Brace notation is shor
 - **SHS:** `shs_teacher_i` through `shs_teacher_iii`; `shs_master_teacher_i` through `shs_master_teacher_iv`; `shs_head_teacher_i` through `shs_head_teacher_vi`; `shs_special_science_teacher_i`; and `shs_teachers_{sef_province,sef_municipality_city,lgu_funding,other_funding}`.
 
 The four funding subtotals use only the corresponding `*_teachers_*` fields above. They are already included in `teacher_count` and must never be added to it again. For ES, each funding subtotal combines its Kindergarten and ES fields.
+
+### Enrollment aggregation and missingness
+
+Gold derives each level's `learner_count` from an explicit set of applicable source columns for that delivery. A column is not applicable only when the reviewed source metadata says that the delivery did not publish that measure. The current exceptions are:
+
+- `g11_unique_{male,female}` and `g12_unique_{male,female}` are not applicable before SY 2024-25 because DepEd states that these fields start in SY 2024-25;
+- `g11_sshs_{acad,techpro}_{male,female}` are not applicable before SY 2025-26 and do not exist in schema v1; and
+- a future delivery may change this set only through reviewed source metadata and a metric-contract change. Gold must not infer applicability merely because a column happens to be all NULL.
+
+For each school, school year, and level:
+
+1. When `is_offered = false`, set `learner_count = 0`. Source count cells remain unchanged upstream, and validation must fail if any applicable cell is positive because the offering flag and counts conflict.
+2. When `is_offered = true`, sum the applicable cells only when every applicable cell is non-NULL. A recorded zero participates in the sum as zero.
+3. When `is_offered = true` and one or more applicable cells are NULL, set `learner_count = NULL`. Do not produce a partial sum by coalescing the missing cells to zero.
+4. When the offering flag is NULL, retain the row for reconciliation, set `learner_count = NULL`, and fail the Gold gate. Gold must not infer the offering from the counts.
+
+The Gold validation must report, by school year and education level, the numbers of offered rows with complete counts, offered rows with partially published counts, offered rows with every applicable count NULL, non-offered rows with positive counts, and rows with a NULL offering flag. It must also report the sum of the non-NULL published cells on partial rows as an audit value, never as `learner_count`. AP1 to AP4 exclude NULL `learner_count` values from their enrollment sums and publish the affected school count plus the observed non-NULL learner-cell sum as an enrollment-coverage warning. An all-level school total is the sum of ES, JHS, and SHS only when every offered level has a non-NULL `learner_count`; if any offered level is NULL, the all-level total is NULL. This total controls the active-school rule and the all-level AP1, AP2, and AP4 enrollment sums. A level-specific result may use a complete level even when another offered level is NULL, but it must still carry the school's partial-reporting warning. This keeps schema absence, published blanks, recorded zero, and complete enrollment distinct.
 
 For classroom and teacher totals, sum non-NULL included fields and return NULL only when every included field is NULL. A recorded zero remains zero. The Gold validation must report rows with a mixture of NULL and non-NULL included fields so partial reporting is visible. A ratio denominator is usable only when the resulting total is greater than zero.
 
@@ -82,7 +99,7 @@ These formulas are the implementation baseline. They do not by themselves author
 
 ```text
 learners_per_public_school = public_school_enrollment / public_school_count
-public_schools_per_10k_residents = public_school_count / total_population * 10,000
+population_per_public_school = population_2024 / public_school_count
 
 barangays_without_public_es =
     PSGC barangays in the LGU with no matched public school offering elementary
@@ -90,7 +107,18 @@ barangays_without_public_es_pct =
     barangays_without_public_es / PSGC barangays in the LGU * 100
 ```
 
-Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. For the all-level result, count an active multi-level school once. For a level-specific result, count it once in every level where `is_offered = true`; do not infer an offering from a positive learner count or from another source. The overall active-school rule still applies, so a school with total enrollment of zero or NULL is not counted at any level. Total population must retain its own reference year. This measure describes provision and school size; it does not measure travel access or prove that construction is required.
+Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. For the all-level result, count an active multi-level school once. For a level-specific result, count it once in every level where `is_offered = true`; do not infer an offering from a positive learner count or from another source. The overall active-school rule still applies, so a school with total enrollment of zero or NULL is not counted at any level. `population_per_public_school` divides the LGU's 2024 total population by that school year's public-school count. It is labelled **Population 2024 per public school**, not schools per 10,000 residents. A NULL or zero school count produces a NULL ratio with its reason. This measure describes provision and school size; it does not measure travel access or prove that construction is required.
+
+The AP1 population join is fixed and must not select a population row by proximity, latest-year logic, or an unconstrained join:
+
+| Enrollment school year | Population reference year | Display label |
+|---|---:|---|
+| SY 2020-21 | 2024 | Population 2024 |
+| SY 2023-24 | 2024 | Population 2024 |
+| SY 2024-25 | 2024 | Population 2024 |
+| SY 2025-26 | 2024 | Population 2024 |
+
+A newly approved enrollment school year also maps to 2024 until a reviewed decision changes the AP1 reference population. The implementation must join on `city_mun_psgc_code` and `reference_year = 2024`, assert at most one available population row per LGU, and retain LGUs without an available population row with a NULL ratio and explicit reason.
 
 **Which schools count.** `public_school_count` counts active public schools, including annexes (D-047):
 
@@ -300,7 +328,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | View | Main fields | Coverage and drill-down fields | Current status |
 |---|---|---|---|
 | **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | source availability by school year, geography-match version, unmatched/excluded school counts, source versions | Required |
-| **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, total population, schools per 10,000 residents, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Ready to implement and validate |
+| **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, Population 2024, Population 2024 per public school, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Ready to implement and validate |
 | **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Ready to implement and validate for SY 2023-24 |
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Ready to implement and validate for SY 2023-24; project-defined |
 | **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending population ingestion and PSGC integration |
