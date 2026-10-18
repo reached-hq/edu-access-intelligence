@@ -6,7 +6,7 @@ Issue #159 · local DuckDB (D-017) · 2026-10-19, Manila time (UTC+8) · run by 
 
 With the rules, regions, province aliases and overrides in `config/integration/psa_school_age_population_psgc.json` at commit `796a5df`, the generated map build and gate (`etl/04_integration/05_map_psa_school_age_population_psgc.sql`, `90_validate_psa_school_age_population_psgc_map.sql`) turn the real `psa_school_age_population_clean` (2020 and 2024 census workbooks) and `psa_psgc_clean` (2Q 2026) into `psa_school_age_population_psgc_map` with one row per census year and city or municipality, none dropped. 2024: 1,642 of 1,642 match one PSGC city or municipality each. 2020: 1,634 match, and the 8 Interim Province clusters stay unmatched by review (profile O-7, S-1; D-031). No PSGC code is taken twice in a census year, no place is pending or ambiguous, the mapped places add up to the national total in every cell, and every FAIL check passes. A second run gives the same map.
 
-Databricks `dev` has **not** been run yet: the two runs the issue asks for go in `evidence/pipeline-runs/` before review.
+Databricks `dev` was confirmed afterwards, the same day, in two runs at `8c57f54` with the same count per method and an identical map in both runs: [2026-10-19 Databricks record](../pipeline-runs/2026-10-19-psa-school-age-population-psgc-map-databricks.md).
 
 ## What was run
 
@@ -87,6 +87,5 @@ Every census place with the same name and parent in both years (1,549) gets the 
 
 ## What this does not show
 
-- Databricks `dev`: not yet run (two runs to add in `evidence/pipeline-runs/`).
 - Whether a rule match is right beyond the names: no codes exist to check against. The cross-year agreement above and the zero ambiguous rows are the checks available.
 - The 8 Special Geographic Area municipalities cannot be compared between 2020 and 2024 city by city; their 2020 population sits in the 8 unmatched clusters (S-1 is still open).
