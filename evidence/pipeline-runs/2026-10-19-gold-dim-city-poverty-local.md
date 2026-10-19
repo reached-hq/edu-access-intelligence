@@ -41,8 +41,11 @@ Who is not `estimated` (joined back to `psa_psgc_clean` to read names):
 
 These are D-046's 44. The one published lower limit below 0 is Ivana, Batanes (`-0.02406…`), stored as published. `cv_over_20` is 150, D-046's count once Manila's 6 districts are left out.
 
+## Rerun on #193's real dim_city_municipality
+
+On 2026-10-19 the whole job ran locally (`python -m src.job.local_run`) on a throwaway branch that merges #168, #193 and the three Gold branches, with every approved raw file except `Enrollment-in-SY-2021-2022.zip`. `06_build_dim_city_poverty` built on #193's real `dim_city_municipality` (1,642 regular members, plus `UNKNOWN` and `EXCLUDED`) and its gate passed: 25 PASS, 0 WARN, 0 FAIL, statuses 1,597 / 1 / 44. The published table has the same MD5 as above, `6d33771bbe17b3e2556a21fe306cecf1`, so the stand-in matched.
+
 ## What this does not show
 
 - A Databricks `dev` run. The tasks are enabled, but they wait for `90_validate_dim_city_municipality` (#193).
-- #193's real `dim_city_municipality`. The stand-in has its regular members by its rule, not its build.
 - Made-up cases are in `tests/test_gold_dim_city_poverty.py`: a partial estimate, an unmatched 2023 row, two rows for one place, a missing PSA row and an extra member each fail and keep the last good build, and so does a map from a run that did not succeed.
