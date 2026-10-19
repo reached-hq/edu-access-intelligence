@@ -5,10 +5,13 @@
 --
 -- FAIL: a repeated or NULL key; a key that is not a regular member of dim_city_municipality, or a
 -- regular member with no row; a member that is not a City or Mun row of the master quarter; a reference
--- year other than 2024; a status outside the data model; a population that is negative, differs from
+-- year other than 2024; a status the build has no rule for ('provisional' and 'excluded' stay in the
+-- data model but fail until their rules are approved); a population that is negative, differs from
 -- Silver, or is present on a row that is not 'available' (or absent on one that is); a status reason on
--- an available row or a missing one on any other; a fact total that differs from Silver's city and
--- municipality total; more than one master PSGC period; and a PSGC Silver run that did not succeed.
+-- an available row or a missing one on any other; a status or reason other than the one Silver's
+-- population and population_null_reason give; a fact total that differs from the total of every City
+-- and Mun row of Silver's master quarter, member or not, so a city the dimension lacks fails here; more
+-- than one master PSGC period; and a PSGC Silver run that did not succeed.
 -- WARN: members without a population; the fact total differing from the region total (the two match
 -- when every city and municipality has a population, profile O-4).
 -- Counts only (PASS): members with a published 0, the fact total.
@@ -21,7 +24,7 @@ WITH psgc AS (
   SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
 ),
 units AS (
-  SELECT psgc_code, population FROM psgc WHERE geographic_level IN ('City', 'Mun')
+  SELECT psgc_code, population, population_null_reason FROM psgc WHERE geographic_level IN ('City', 'Mun')
 ),
 regular AS (
   SELECT city_mun_psgc_code FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'
@@ -42,15 +45,25 @@ SELECT
   (SELECT COUNT(*) FROM regular AS r LEFT JOIN units AS u ON u.psgc_code = r.city_mun_psgc_code
     WHERE u.psgc_code IS NULL) AS regular_not_in_psgc,
   (SELECT COUNT_IF(reference_year IS DISTINCT FROM 2024) FROM fact) AS wrong_reference_year,
-  (SELECT COUNT_IF(estimate_status IS NULL OR estimate_status NOT IN ('available', 'missing', 'provisional', 'excluded'))
+  (SELECT COUNT_IF(estimate_status IS NULL OR estimate_status NOT IN ('available', 'missing'))
     FROM fact) AS bad_status,
   (SELECT COUNT_IF((estimate_status = 'available') <> (population IS NOT NULL)) FROM fact) AS status_population_mismatch,
   (SELECT COUNT_IF((estimate_status = 'available') = (status_reason IS NOT NULL)) FROM fact) AS status_reason_mismatch,
+  -- The build's rules, restated from Silver, so a swapped or made-up status or reason fails.
+  (SELECT COUNT_IF(
+     f.estimate_status IS DISTINCT FROM CASE WHEN u.population IS NOT NULL THEN 'available' ELSE 'missing' END
+     OR f.status_reason IS DISTINCT FROM CASE
+       WHEN u.population IS NOT NULL THEN NULL
+       WHEN u.population_null_reason = 'publisher_na' THEN 'PSGC publishes #N/A as the 2024 population'
+       WHEN u.population_null_reason = 'blank' THEN 'PSGC publishes no 2024 population'
+       WHEN u.psgc_code IS NULL THEN 'Not a City or Mun row of the PSGC master quarter'
+     END)
+   FROM fact AS f LEFT JOIN units AS u ON u.psgc_code = f.city_mun_psgc_code) AS status_differs_from_psgc,
   (SELECT COUNT_IF(population < 0) FROM fact) AS negative_population,
   (SELECT COUNT(*) FROM fact AS f JOIN units AS u ON u.psgc_code = f.city_mun_psgc_code
     WHERE f.population IS DISTINCT FROM u.population) AS population_differs_from_psgc,
   (SELECT SUM(population) FROM fact) AS fact_total,
-  (SELECT SUM(u.population) FROM units AS u JOIN regular AS r ON r.city_mun_psgc_code = u.psgc_code) AS psgc_total,
+  (SELECT SUM(population) FROM units) AS psgc_total,
   (SELECT SUM(population) FROM psgc WHERE geographic_level = 'Reg') AS region_total,
   (SELECT COUNT(DISTINCT publication_period) FROM psgc) AS master_periods,
   (SELECT COUNT_IF(estimate_status <> 'available') FROM fact) AS not_available,
@@ -70,6 +83,7 @@ FROM (
   UNION ALL SELECT 'estimate_status_allowed', CASE WHEN bad_status = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_status AS STRING) FROM fact_city_population_gate_summary
   UNION ALL SELECT 'population_follows_status', CASE WHEN status_population_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(status_population_mismatch AS STRING) FROM fact_city_population_gate_summary
   UNION ALL SELECT 'status_reason_follows_status', CASE WHEN status_reason_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(status_reason_mismatch AS STRING) FROM fact_city_population_gate_summary
+  UNION ALL SELECT 'status_and_reason_equal_psgc', CASE WHEN status_differs_from_psgc = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(status_differs_from_psgc AS STRING) FROM fact_city_population_gate_summary
   UNION ALL SELECT 'population_not_negative', CASE WHEN negative_population = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(negative_population AS STRING) FROM fact_city_population_gate_summary
   UNION ALL SELECT 'population_equals_psgc', CASE WHEN population_differs_from_psgc = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(population_differs_from_psgc AS STRING) FROM fact_city_population_gate_summary
   UNION ALL SELECT 'total_equals_psgc', CASE WHEN fact_total IS NOT DISTINCT FROM psgc_total THEN 'PASS' ELSE 'FAIL' END, CAST(psgc_total AS STRING), CAST(fact_total AS STRING) FROM fact_city_population_gate_summary

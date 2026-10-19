@@ -4,7 +4,7 @@ Issue #46 · local DuckDB · 2026-10-19, Manila time (UTC+8) · run by @Catweyin
 
 ## The claim
 
-`13_build_fact_city_population.sql` and `90_validate_fact_city_population.sql`, run on the real published `psa_psgc_clean` (PSGC 2Q 2026) and the regular cities and municipalities, build 1,642 rows for 2024, every one `available`. They total 112,727,776, the same as Silver's cities and municipalities and as its 18 regions (profile O-4). The gate records 19 PASS, 0 WARN, 0 FAIL and publishes. A second run gives the same table. **Observed**, local only: not yet run on Databricks.
+`13_build_fact_city_population.sql` and `90_validate_fact_city_population.sql`, run on the real published `psa_psgc_clean` (PSGC 2Q 2026) and the regular cities and municipalities, build 1,642 rows for 2024, every one `available`. They total 112,727,776, the same as Silver's cities and municipalities and as its 18 regions (profile O-4). The gate records 19 PASS, 0 WARN, 0 FAIL and publishes (20 PASS after review, below). A second run gives the same table. **Observed**, local only: not yet run on Databricks.
 
 ## What was run
 
@@ -30,6 +30,10 @@ Spot checks: City of Isabela `0990101000` 151,297; City of Manila `1380600000` 1
 ## Rerun on #193's real dim_city_municipality
 
 On 2026-10-19 the whole job ran locally (`python -m src.job.local_run`) on a throwaway branch that merges #168, #193 and the three Gold branches, with every approved raw file except `Enrollment-in-SY-2021-2022.zip`. `13_build_fact_city_population` built on #193's real `dim_city_municipality` (1,642 regular members, plus `UNKNOWN` and `EXCLUDED`) and its gate passed: 19 PASS, 0 WARN, 0 FAIL, total 112,727,776. The published table has the same MD5 as above, `7a422d47bbc6458fae8abd4933d96ef8`, so the stand-in matched.
+
+## Rerun after review
+
+On 2026-10-19, after the review of #195, the gate gained `status_and_reason_equal_psgc`. It rebuilds each row's status and reason from Silver's population and `population_null_reason` and fails on any difference. `estimate_status_allowed` now accepts only `available` and `missing`. `total_equals_psgc` now compares against every master `City` and `Mun` row, not only the dimension's members. The same stand-in run, twice: 20 PASS, 0 WARN, 0 FAIL; 1,642 rows; total 112,727,776 against both checks; `status_and_reason_equal_psgc` 0. Both runs give the same MD5, `f1a66432c6cacef30c3ad14d42f27117`. This hash joins each row's values with `|`, ordered by key; it is a different method from the hash above, so the two are not comparable.
 
 ## Column types
 

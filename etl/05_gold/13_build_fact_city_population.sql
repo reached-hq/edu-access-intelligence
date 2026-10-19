@@ -14,8 +14,9 @@
 --     (D-012, D-033), so every row is 2024. A new census year is a new column, and a new rule here.
 --   - population is Silver's as published: a 0 stays 0 and NULL stays NULL (D-035).
 --   - estimate_status is 'available' with a population, or 'missing' without one, its reason from
---     Silver's population_null_reason. The model's other two values, 'provisional' and 'excluded', have
---     no rule yet, so no row takes them.
+--     Silver's population_null_reason, or 'Not a City or Mun row of the PSGC master quarter' for a member
+--     PSGC lacks (the gate fails it). The model's other two values, 'provisional' and 'excluded', have
+--     no rule yet, so no row takes them, and the gate fails one until a rule is approved.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`05-gold`;
 ALTER SCHEMA edu_access.`05-gold` OWNER TO `reached-hq`;
@@ -40,6 +41,7 @@ SELECT
     WHEN p.population IS NOT NULL THEN NULL
     WHEN p.population_null_reason = 'publisher_na' THEN 'PSGC publishes #N/A as the 2024 population'
     WHEN p.population_null_reason = 'blank' THEN 'PSGC publishes no 2024 population'
+    WHEN p.psgc_code IS NULL THEN 'Not a City or Mun row of the PSGC master quarter'
   END AS status_reason
 FROM regular AS r
 LEFT JOIN psgc AS p ON p.psgc_code = r.city_mun_psgc_code;

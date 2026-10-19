@@ -131,8 +131,10 @@ def test_rerun_gives_the_same_table():
 
 
 @pytest.mark.parametrize("members, units, failed", [
-    (MEMBERS + ["0102899000"], UNITS,
-     {"regular_in_psgc_master", "status_reason_follows_status"}),           # a member PSGC does not have
+    (MEMBERS + ["0102899000"], UNITS, {"regular_in_psgc_master"}),        # a member PSGC does not have
+    (MEMBERS[1:], UNITS, {"total_equals_psgc"}),                           # a PSGC city the dimension lacks
+    (MEMBERS, UNITS + [("0102801000", "Mun", 400, None)],
+     {"key_unique", "rows_reconcile"}),                                     # a repeated PSGC code
     (MEMBERS, [u if u[0] != "0102801000" else ("0102801000", "Mun", -5, None) for u in UNITS],
      {"population_not_negative"}),
     (MEMBERS, [u if u[0] != "0102801000" else ("0102801000", "Mun", None, "other") for u in UNITS],
@@ -160,3 +162,37 @@ def test_a_psgc_run_that_did_not_succeed_fails():
     run_id, error = env.run()
     assert error and "Gold gate failed for fact_city_population" in error
     assert env.failed(run_id) == {"upstream_run_psa_psgc_clean"}
+
+
+def test_a_member_psgc_does_not_have_gets_its_reason():
+    env = Env(members=MEMBERS + ["0102899000"])
+    env.run()
+    row = env.store.records(f"SELECT * FROM {FACT}_candidate WHERE city_mun_psgc_code = '0102899000'")[0]
+    assert (row["population"], row["estimate_status"], row["status_reason"]) == \
+        (None, "missing", "Not a City or Mun row of the PSGC master quarter")
+
+
+def test_two_master_psgc_periods_fail():
+    env = Env()
+    env.store.sql(f"INSERT INTO {PSGC} VALUES ('0110000002', 'Bgy', 5, NULL, '2026-Q1', TRUE, 'S1')")
+    run_id, error = env.run()
+    assert error and "Gold gate failed for fact_city_population" in error
+    assert env.failed(run_id) == {"one_psgc_version"}
+
+
+@pytest.mark.parametrize("tamper, failed", [
+    # A status the build has no rule for, with a reason so the presence check alone would pass.
+    ("estimate_status = 'provisional', population = NULL, status_reason = 'made up'",
+     {"estimate_status_allowed", "status_and_reason_equal_psgc"}),
+    # The other valid-looking reason text.
+    ("status_reason = 'PSGC publishes no 2024 population'", {"status_and_reason_equal_psgc"}),
+])
+def test_a_status_or_reason_silver_does_not_give_fails(tamper, failed):
+    units = [u if u[0] != "0102802000" else ("0102802000", "City", None, "publisher_na") for u in UNITS]
+    env = Env(units=units)
+    params = {"run_id": str(uuid.uuid4()), "code_revision": "c" * 40, "environment": "local"}
+    env.store.run_file(BUILD, params)
+    env.store.sql(f"UPDATE {FACT}_candidate SET {tamper} WHERE city_mun_psgc_code = '0102802000'")
+    with pytest.raises(Exception, match="Gold gate failed for fact_city_population"):
+        env.store.run_file(GATE, params)
+    assert env.failed(params["run_id"]) == failed

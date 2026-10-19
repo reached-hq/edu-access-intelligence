@@ -276,9 +276,11 @@ PSGC Silver's `2024 Population` column (D-033): one row per regular member, all
 with `reference_year = 2024`, and none for the technical members. Population is
 as published, 0 stays 0. A member with no population is `missing`, its reason
 from Silver's `population_null_reason`; `provisional` and `excluded` have no rule
-yet, so no row takes them. The gate fails a value that differs from Silver and a
-total that differs from Silver's city and municipality total, and warns when the
-total differs from the 18 regions' total.
+yet, so no row takes them, and the gate fails one until a rule is approved. The
+gate fails a value, status or reason that differs from Silver and a
+total that differs from the total of every City and Mun row of Silver's master
+quarter, so a city the dimension lacks fails too, and warns when the total
+differs from the 18 regions' total.
 
 ### `fact_city_school_age_population`
 
