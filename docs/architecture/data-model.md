@@ -195,11 +195,13 @@ Built by `06_build_dim_city_poverty.sql` from `dim_city_municipality` and
 regular member takes the 2023 map row matched to it at city or municipality
 level; with none it is `not_in_source`. The City of Manila reason goes to the
 member whose sub-municipality districts have 2023 map rows, so no code is
-written into the rule. `cv_over_20` is `poverty_cv > 20`, NULL without an
-estimate. A Silver `partial_estimate` row is carried as it is so the gate fails
-it. The gate `90_validate_dim_city_poverty.sql` also fails a 2023 map row at
-city or municipality level that is unmatched or ambiguous, or matched to no
-regular member, so no PSA estimate leaves Gold unseen.
+written into the rule; the gate fails unless that one member is the highly
+urbanized city named City of Manila with its 14 district rows. `cv_over_20` is
+`poverty_cv > 20`, NULL without an estimate. A Silver `partial_estimate` row is
+carried as it is so the gate fails it. The gate
+`90_validate_dim_city_poverty.sql` also fails a 2023 map row at city or
+municipality level that is unmatched or ambiguous, or matched to no regular
+member, so no PSA estimate leaves Gold unseen.
 
 ### `fact_school_enrollment`
 

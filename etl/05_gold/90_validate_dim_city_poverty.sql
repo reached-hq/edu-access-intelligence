@@ -6,7 +6,8 @@
 -- FAIL (D-046; every one, because both sources are pinned, PSGC 2Q 2026 and PSA 2023, so a changed
 -- count means the join drifted): a repeated or NULL key; a row that is not a regular member, or a
 -- regular member with no row; a row count or status count other than the pinned 1,642 and
--- 1,597 / 1 / 44; a status or reason outside D-046; a partial_estimate row; any value on a row that is
+-- 1,597 / 1 / 44; a status or reason outside D-046; a Manila reason on any member other than the City
+-- of Manila with its 14 district rows; a partial_estimate row; any value on a row that is
 -- not estimated, or a missing one on a row that is; cv_over_20 that does not follow poverty_cv; an
 -- estimate that differs from its map row; an estimate year other than 2023; a 2023 map row at city or
 -- municipality level that is not matched, or matched to no regular member, so its estimate would be
@@ -20,7 +21,8 @@ SET VARIABLE gold_gate_started_at_utc = current_timestamp();
 
 CREATE OR REPLACE TEMPORARY VIEW dim_city_poverty_gate_summary AS
 WITH regular AS (
-  SELECT city_mun_psgc_code FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'
+  SELECT city_mun_psgc_code, city_mun_name, city_class
+  FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'
 ),
 map_2023 AS (
   SELECT * FROM edu_access.`04-integration`.psa_poverty_psgc_map WHERE estimate_year = 2023
@@ -32,6 +34,14 @@ city_rows AS (
 ),
 dimension AS (
   SELECT * FROM edu_access.`05-gold`.dim_city_poverty_candidate
+),
+-- The build gives the Manila reason by a rule, not a code. This proves the one row that has it is the
+-- City of Manila: the PSGC highly urbanized city of that name, with D-046's 14 matched 2023 district rows.
+manila_districts AS (
+  SELECT substr(psgc_code, 1, 5) || '00000' AS city_mun_psgc_code, COUNT(*) AS district_rows
+  FROM map_2023
+  WHERE match_status = 'matched' AND geographic_level = 'sub_mun'
+  GROUP BY 1
 )
 SELECT
   (SELECT COUNT(*) FROM dimension) AS dimension_rows,
@@ -57,6 +67,11 @@ SELECT
       FALSE)) FROM dimension) AS bad_reason,
   (SELECT COUNT_IF(status_reason = 'City of Manila not in the PSA estimates' || chr(59) || ' its 14 district estimates are not combined')
     FROM dimension) AS manila_reason_rows,
+  (SELECT COUNT(*) FROM dimension AS d
+      JOIN regular AS r ON r.city_mun_psgc_code = d.city_mun_psgc_code
+      JOIN manila_districts AS m ON m.city_mun_psgc_code = d.city_mun_psgc_code
+    WHERE d.status_reason = 'City of Manila not in the PSA estimates' || chr(59) || ' its 14 district estimates are not combined'
+      AND r.city_mun_name = 'City of Manila' AND r.city_class = 'HUC' AND m.district_rows = 14) AS manila_reason_on_manila,
   (SELECT COUNT_IF(poverty_status <> 'estimated' AND (poverty_incidence IS NOT NULL OR poverty_ci90_lower IS NOT NULL
       OR poverty_ci90_upper IS NOT NULL OR poverty_cv IS NOT NULL OR cv_over_20 IS NOT NULL)) FROM dimension) AS values_without_estimate,
   (SELECT COUNT_IF(poverty_status = 'estimated' AND (poverty_incidence IS NULL OR poverty_ci90_lower IS NULL
@@ -90,6 +105,7 @@ FROM (
   UNION ALL SELECT 'no_estimate_match_pin', CASE WHEN no_estimate = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(no_estimate AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'not_in_source_match_pin', CASE WHEN not_in_source = 44 THEN 'PASS' ELSE 'FAIL' END, '44', CAST(not_in_source AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'manila_reason_match_pin', CASE WHEN manila_reason_rows = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(manila_reason_rows AS STRING) FROM dim_city_poverty_gate_summary
+  UNION ALL SELECT 'manila_reason_on_city_of_manila', CASE WHEN manila_reason_on_manila = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(manila_reason_on_manila AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'poverty_status_allowed', CASE WHEN bad_status = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_status AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'no_partial_estimate', CASE WHEN partial_estimate = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(partial_estimate AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'status_reason_allowed', CASE WHEN bad_reason = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_reason AS STRING) FROM dim_city_poverty_gate_summary

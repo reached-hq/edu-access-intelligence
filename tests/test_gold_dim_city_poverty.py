@@ -61,10 +61,12 @@ class Env:
             self.store.run_file(path)
         for schema in ("04-integration", "05-gold"):
             self.store.sql(f"CREATE SCHEMA IF NOT EXISTS edu_access.`{schema}`")
-        self.store.sql(f"CREATE TABLE {DIM_CITY} (city_mun_psgc_code STRING, member_type STRING)")
+        self.store.sql(f"CREATE TABLE {DIM_CITY} (city_mun_psgc_code STRING, city_mun_name STRING, city_class STRING, "
+                       "member_type STRING)")
         self.store.con.executemany(
-            "INSERT INTO edu_access.\"05-gold\".dim_city_municipality VALUES (?, ?)",
-            [(c, "regular") for c in PLACES + [MANILA]] + [("UNKNOWN", "unknown"), ("EXCLUDED", "excluded")])
+            "INSERT INTO edu_access.\"05-gold\".dim_city_municipality VALUES (?, ?, ?, ?)",
+            [(c, f"Place {c}", None, "regular") for c in PLACES] + [(MANILA, "City of Manila", "HUC", "regular")]
+            + [("UNKNOWN", "Unknown", None, "unknown"), ("EXCLUDED", "Excluded", None, "excluded")])
         self.store.sql(f"CREATE TABLE {MAP} (source_row_ref STRING, estimate_year INT, psgc_code STRING, "
                        "geographic_level STRING, match_status STRING, estimate_status STRING, poverty_incidence DOUBLE, "
                        "coefficient_of_variation DOUBLE, ci90_lower_limit DOUBLE, ci90_upper_limit DOUBLE, run_id STRING)")
@@ -108,6 +110,7 @@ def test_one_row_per_regular_member_with_the_d046_counts():
     statuses = [r["poverty_status"] for r in dim.values()]
     assert (statuses.count("estimated"), statuses.count("no_estimate"), statuses.count("not_in_source")) == (1597, 1, 44)
     assert checks["district_rows_kept_out"]["actual"] == "14"
+    assert checks["manila_reason_on_city_of_manila"]["actual"] == "1"
     assert checks["map_rows_carried"]["actual"] == "1598"
     assert checks["upstream_run_psa_poverty_psgc_map"]["status"] == "PASS"
 
@@ -169,12 +172,20 @@ def no_estimate_dropped(rows):
     return [r for r in rows if r[2] != NO_ESTIMATE]
 
 
+def districts_elsewhere(rows):
+    """Manila's 14 districts coded under another place not in the PSA file: the rule would give that place the
+    Manila reason, and the count of Manila reasons would still be 1."""
+    other = PLACES[1600][:5]
+    return [map_row(other + r[2][5:], "sub_mun", "estimated", 2000) if r[3] == "sub_mun" else r for r in rows]
+
+
 @pytest.mark.parametrize("change, failed", [
     (partial, {"no_partial_estimate", "poverty_status_allowed", "estimated_match_pin", "status_reason_allowed",
                "no_value_without_estimate"}),
     (unmatched, {"map_rows_matched", "map_rows_carried", "estimated_match_pin", "not_in_source_match_pin"}),
     (doubled, {"key_unique", "rows_match_pin", "estimated_match_pin", "values_equal_map"}),
     (no_estimate_dropped, {"no_estimate_match_pin", "not_in_source_match_pin"}),
+    (districts_elsewhere, {"manila_reason_on_city_of_manila"}),
 ])
 def test_a_failed_check_stops_and_keeps_the_last_good_build(change, failed):
     env = Env()
@@ -190,7 +201,7 @@ def test_a_failed_check_stops_and_keeps_the_last_good_build(change, failed):
 
 def test_a_member_outside_the_pin_fails():
     env = Env()
-    env.store.sql(f"INSERT INTO {DIM_CITY} VALUES ('0199999000', 'regular')")
+    env.store.sql(f"INSERT INTO {DIM_CITY} VALUES ('0199999000', 'Place 0199999000', NULL, 'regular')")
     run_id, error = env.run()
     assert error
     failed = {name for name, c in env.checks(run_id).items() if c["status"] == "FAIL"}

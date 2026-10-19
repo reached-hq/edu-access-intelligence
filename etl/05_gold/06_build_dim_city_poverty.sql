@@ -19,8 +19,9 @@
 --   - cv_over_20 is poverty_cv > 20 (D-034), so it is NULL, not FALSE, when there is no estimate.
 --   - status_reason is NULL when estimated, otherwise one of D-046's three reasons. The City of Manila
 --     reason goes to the member whose sub-municipality districts have 2023 rows in the map: Manila's
---     14 district estimates are kept in the map and never combined into a city value here. The
---     reason's semicolon is written chr(59): the local runner splits statements on ';'.
+--     14 district estimates are kept in the map and never combined into a city value here. The gate
+--     checks that this member is the City of Manila (HUC, 14 district rows). The reason's semicolon
+--     is written chr(59): the local runner splits statements on ';'.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`05-gold`;
 ALTER SCHEMA edu_access.`05-gold` OWNER TO `reached-hq`;
