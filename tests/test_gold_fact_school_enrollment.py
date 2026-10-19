@@ -115,11 +115,14 @@ class Env:
         self.store.sql(f"CREATE OR REPLACE TABLE {GOLD}.dim_school AS SELECT DISTINCT school_id FROM {SILVER}")
         self.store.sql(f"CREATE OR REPLACE TABLE {GOLD}.dim_school_year AS SELECT DISTINCT school_year FROM {SILVER}")
 
-    def run(self):
+    def run(self, tamper=None):
+        """Run the build and the gate; `tamper` is SQL run on the candidate between them, a stand-in for a build error."""
         run_id = str(uuid.uuid4())
         params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
         try:
             self.store.run_file(BUILD, params)
+            if tamper:
+                self.store.sql(tamper)
             self.store.run_file(GATE, params)
         except Exception as e:
             return run_id, str(e)
@@ -239,3 +242,32 @@ def test_a_map_from_a_run_that_did_not_succeed_fails():
     run_id, error = env.run()
     assert error and "Gold gate failed for fact_school_enrollment" in error
     assert env.failed(run_id) == {"upstream_run_deped_school_psgc_map"}
+
+
+CANDIDATE = f"{GOLD}.fact_school_enrollment_candidate"
+ROW = "school_id = '100001' AND school_year = '2023-24'"
+
+
+@pytest.mark.parametrize("tamper, failed", [
+    # learner_count and its audit sum changed together: only the recount from Silver sees it.
+    (f"UPDATE {CANDIDATE} SET learner_count = learner_count + 1, published_cell_sum = published_cell_sum + 1 "
+     f"WHERE {ROW} AND education_level_code = 'ES'", {"learner_count_matches_silver"}),
+    # Moved to another valid city and barangay.
+    (f"UPDATE {CANDIDATE} SET city_mun_psgc_code = '{OTHER_CITY}', barangay_psgc_code = '{OTHER_BARANGAY}' WHERE {ROW}",
+     {"city_matches_map", "barangay_matches_map"}),
+    # A reviewed match turned into a valid-looking unmatched row on the UNKNOWN members.
+    (f"UPDATE {CANDIDATE} SET psgc_match_status = 'unmatched', city_mun_psgc_code = 'UNKNOWN', "
+     f"barangay_psgc_code = 'UNKNOWN' WHERE {ROW}", {"match_status_matches_map", "city_matches_map", "barangay_matches_map"}),
+    (f"UPDATE {CANDIDATE} SET sector = 'Private' WHERE {ROW}", {"sector_matches_silver"}),
+    (f"UPDATE {CANDIDATE} SET annex_status = 'Annex' WHERE {ROW}", {"annex_status_matches_silver"}),
+    # SHS not offered and every cell blank: offered with a NULL count still follows the rule on its own.
+    (f"UPDATE {CANDIDATE} SET is_offered = TRUE, learner_count = NULL WHERE {ROW} AND education_level_code = 'SHS'",
+     {"is_offered_matches_silver", "learner_count_matches_silver"}),
+    (f"UPDATE {CANDIDATE} SET school_id = '100009' WHERE {ROW} AND education_level_code = 'ES'",
+     {"rows_match_silver", "school_in_dimension"}),
+])
+def test_a_build_error_that_still_looks_valid_fails_against_silver_and_the_map(tamper, failed):
+    env = Env()
+    run_id, error = env.run(tamper)
+    assert error and "Gold gate failed for fact_school_enrollment" in error
+    assert env.failed(run_id) == failed

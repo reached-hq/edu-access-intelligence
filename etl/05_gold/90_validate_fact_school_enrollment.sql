@@ -10,7 +10,9 @@
 -- flag, or a level not offered with a positive count (metric specification rules 1 and 4), in total and
 -- by school year and level; a published SHS cell before the school year DepEd started it (it would be left
 -- out of learner_count); a learner_count that does not follow the rule; a sector outside DepEd's list;
--- and an upstream run that did not succeed.
+-- a row that differs from the expected fact recomputed from Silver and the map (a key on one side only,
+-- or a different sector, annex_status, is_offered, learner_count, match status, city or barangay); and
+-- an upstream run that did not succeed.
 -- WARN: schools whose city or municipality is unmatched or ambiguous, matched schools with no single
 -- barangay, and, by school year and level, offered levels with some or all cells blank.
 -- Counts (PASS): excluded schools, and by school year and level the complete offered rows, the learners
@@ -19,6 +21,51 @@
 DECLARE OR REPLACE VARIABLE gold_gate_started_at_utc TIMESTAMP;
 SET VARIABLE gold_gate_started_at_utc = current_timestamp();
 
+-- The expected fact, recomputed from Silver and the map without the build's audit columns, so an error
+-- the build makes in both learner_count and its audit columns, or in a carried field, still fails. Plain
+-- addition is NULL when any cell is NULL, so an offered level with a blank applicable cell expects NULL.
+CREATE OR REPLACE TEMPORARY VIEW fact_school_enrollment_gate_expected AS
+WITH silver AS (
+  SELECT *, CAST(substr(school_year, 1, 4) AS INT) AS year_start
+  FROM edu_access.`03-silver`.deped_enrollment_clean
+),
+levels AS (
+  SELECT school_id, school_year, 'ES' AS education_level_code, sector, annex_status, offers_es AS is_offered,
+    kinder_male + kinder_female + g1_male + g1_female + g2_male + g2_female + g3_male + g3_female + g4_male +
+    g4_female + g5_male + g5_female + g6_male + g6_female + esng_male + esng_female AS cell_total
+  FROM silver
+  UNION ALL
+  SELECT school_id, school_year, 'JHS', sector, annex_status, offers_jhs,
+    g7_male + g7_female + g8_male + g8_female + g9_male + g9_female + g10_male + g10_female + jhsng_male +
+    jhsng_female
+  FROM silver
+  UNION ALL
+  SELECT school_id, school_year, 'SHS', sector, annex_status, offers_shs,
+    g11_abm_male + g11_abm_female + g11_arts_male + g11_arts_female + g11_gas_male + g11_gas_female +
+    g11_humss_male + g11_humss_female + g11_maritime_male + g11_maritime_female + g11_sports_male +
+    g11_sports_female + g11_stem_male + g11_stem_female + g11_tvl_male + g11_tvl_female + g12_abm_male +
+    g12_abm_female + g12_arts_male + g12_arts_female + g12_gas_male + g12_gas_female + g12_humss_male +
+    g12_humss_female + g12_maritime_male + g12_maritime_female + g12_sports_male + g12_sports_female +
+    g12_stem_male + g12_stem_female + g12_tvl_male + g12_tvl_female
+    + CASE WHEN year_start >= 2024
+      THEN g11_unique_male + g11_unique_female + g12_unique_male + g12_unique_female ELSE 0 END
+    + CASE WHEN year_start >= 2025
+      THEN g11_sshs_acad_male + g11_sshs_acad_female + g11_sshs_techpro_male + g11_sshs_techpro_female ELSE 0 END
+  FROM silver
+)
+SELECT
+  l.school_id, l.school_year, l.education_level_code, l.sector, l.annex_status, l.is_offered,
+  CASE WHEN l.is_offered IS NULL THEN NULL WHEN NOT l.is_offered THEN 0 ELSE l.cell_total END AS learner_count,
+  c.match_status AS map_city_status,
+  c.psgc_code AS map_city_code,
+  b.match_status AS map_barangay_status,
+  b.psgc_code AS map_barangay_code
+FROM levels AS l
+LEFT JOIN edu_access.`04-integration`.deped_school_psgc_map AS c
+  ON c.school_year = l.school_year AND c.school_id = l.school_id AND c.geographic_level = 'city_mun'
+LEFT JOIN edu_access.`04-integration`.deped_school_psgc_map AS b
+  ON b.school_year = l.school_year AND b.school_id = l.school_id AND b.geographic_level = 'bgy';
+
 CREATE OR REPLACE TEMPORARY VIEW fact_school_enrollment_gate_summary AS
 WITH fact AS (
   SELECT * FROM edu_access.`05-gold`.fact_school_enrollment_candidate
@@ -26,6 +73,15 @@ WITH fact AS (
 -- One row per school and school year: geography is the same on its three level rows.
 school_years AS (
   SELECT * FROM fact WHERE education_level_code = 'ES'
+),
+-- Each fact row beside its expected row, on the key.
+paired AS (
+  SELECT f.*, e.sector AS expected_sector, e.annex_status AS expected_annex_status,
+    e.is_offered AS expected_is_offered, e.learner_count AS expected_learner_count, e.map_city_status,
+    e.map_city_code, e.map_barangay_status, e.map_barangay_code
+  FROM fact AS f
+  JOIN fact_school_enrollment_gate_expected AS e
+    ON e.school_id = f.school_id AND e.school_year = f.school_year AND e.education_level_code = f.education_level_code
 )
 SELECT
   (SELECT COUNT(*) FROM edu_access.`03-silver`.deped_enrollment_clean) AS silver_rows,
@@ -74,6 +130,18 @@ SELECT
         AND COALESCE(g11_sshs_acad_male, g11_sshs_acad_female, g11_sshs_techpro_male, g11_sshs_techpro_female) IS NOT NULL))
     FROM edu_access.`03-silver`.deped_enrollment_clean) AS cells_before_start,
   (SELECT COUNT_IF(sector IS NULL OR sector NOT IN ('Public', 'Private', 'SUC/LUC', 'PSO')) FROM fact) AS bad_sector,
+  (SELECT COUNT(*) FROM fact AS f FULL OUTER JOIN fact_school_enrollment_gate_expected AS e
+      ON e.school_id = f.school_id AND e.school_year = f.school_year AND e.education_level_code = f.education_level_code
+    WHERE e.school_id IS NULL OR f.school_id IS NULL) AS rows_not_matching_silver,
+  (SELECT COUNT_IF(sector IS DISTINCT FROM expected_sector) FROM paired) AS sector_differs,
+  (SELECT COUNT_IF(annex_status IS DISTINCT FROM expected_annex_status) FROM paired) AS annex_status_differs,
+  (SELECT COUNT_IF(is_offered IS DISTINCT FROM expected_is_offered) FROM paired) AS is_offered_differs,
+  (SELECT COUNT_IF(learner_count IS DISTINCT FROM expected_learner_count) FROM paired) AS learner_count_differs,
+  (SELECT COUNT_IF(psgc_match_status IS DISTINCT FROM map_city_status) FROM paired) AS match_status_differs,
+  (SELECT COUNT_IF(map_city_status = 'matched' AND city_mun_psgc_code IS DISTINCT FROM map_city_code) FROM paired) AS city_differs,
+  (SELECT COUNT_IF(map_city_status = 'matched' AND barangay_psgc_code IS DISTINCT FROM
+      CASE WHEN map_barangay_status = 'matched' THEN map_barangay_code ELSE map_city_code || '-UNKNOWN' END)
+    FROM paired) AS barangay_differs,
   (SELECT COUNT_IF(psgc_match_status IN ('unmatched', 'ambiguous')) FROM school_years) AS schools_city_unknown,
   (SELECT COUNT_IF(psgc_match_status = 'matched' AND barangay_psgc_code LIKE '%-UNKNOWN') FROM school_years) AS schools_barangay_unknown,
   (SELECT COUNT_IF(psgc_match_status = 'excluded') FROM school_years) AS schools_excluded;
@@ -112,6 +180,14 @@ FROM (
   UNION ALL SELECT 'not_offered_without_learners', CASE WHEN not_offered_with_learners = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(not_offered_with_learners AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'learner_count_follows_rule', CASE WHEN learner_count_off_rule = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(learner_count_off_rule AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'cells_before_start_blank', CASE WHEN cells_before_start = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_before_start AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'rows_match_silver', CASE WHEN rows_not_matching_silver = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(rows_not_matching_silver AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'sector_matches_silver', CASE WHEN sector_differs = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(sector_differs AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'annex_status_matches_silver', CASE WHEN annex_status_differs = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(annex_status_differs AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'is_offered_matches_silver', CASE WHEN is_offered_differs = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(is_offered_differs AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'learner_count_matches_silver', CASE WHEN learner_count_differs = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(learner_count_differs AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'match_status_matches_map', CASE WHEN match_status_differs = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(match_status_differs AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'city_matches_map', CASE WHEN city_differs = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(city_differs AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'barangay_matches_map', CASE WHEN barangay_differs = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(barangay_differs AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'sector_allowed', CASE WHEN bad_sector = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_sector AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'schools_city_unknown', CASE WHEN schools_city_unknown = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(schools_city_unknown AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'schools_barangay_unknown', CASE WHEN schools_barangay_unknown = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(schools_barangay_unknown AS STRING) FROM fact_school_enrollment_gate_summary
