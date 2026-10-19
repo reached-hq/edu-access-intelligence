@@ -7,7 +7,7 @@ Issues #174 and #46 Â· Databricks `dev`, workspace `dbc-2b6bf1c5-7bc3` (D-056) Â
 At commit `7542cc0` (`main`, after #202), `edu_access_pipeline` ran twice on Databricks `dev` from start to Gold:
 - **Both runs succeeded.** 82 tasks succeeded in each and 8 were disabled: the AP1 to AP4 Analytics tasks, not yet merged.
 - **No gate failed.** Every Bronze, Silver, Integration and Gold gate wrote 0 FAIL.
-- **The two runs agree.** All 305 Gold check values (the run-specific `upstream_run_*` checks aside) are identical between the runs.
+- **The two runs agree.** 305 of the 315 Gold checks are identical between the runs, in status and value. The other 10 are the `upstream_run_*` checks, whose value is each run's own `run_id`.
 
 This is the Databricks evidence for the Gold pull requests that merged on local evidence only, under "run less, merge more" (D-056):
 
@@ -22,7 +22,7 @@ This is the Databricks evidence for the Gold pull requests that merged on local 
 
 ## What was run
 
-The bundle was deployed to `dev` from `main`; the job's parameters show `code_revision = 7542cc082c9e978f9cc01d32f72ef741d1732783` and `environment = dev`. Both runs were started manually (trigger `ONE_TIME`, creator `maeve.lumague@ftwfoundation.org`), one after the other, as the runbook describes:
+The bundle was deployed to `dev` from `main`; the job's parameters show `code_revision = 7542cc082c9e978f9cc01d32f72ef741d1732783` and `environment = dev`. Both runs were started manually (trigger `ONE_TIME`, creator @maeveylain), one after the other, as the runbook describes:
 
 ```bash
 databricks bundle deploy --target dev --profile reached-hq
@@ -98,7 +98,23 @@ WHERE run_id IN ('1085767927326340', '575313135268521')
 GROUP BY ALL;
 ```
 
-The runs were compared by joining the two runs' Gold checks on (`source_id`, `check_name`), leaving out `upstream_run_*`, whose `actual` is each run's own `run_id`: 305 checks compared, 0 differ in status or value.
+The runs were compared by joining the two runs' Gold checks on (`source_id`, `check_name`), leaving out the 10 `upstream_run_*` checks, whose `actual` is each run's own `run_id`. 305 checks were compared, and 0 differ in status or value:
+
+```sql
+WITH r AS (
+  SELECT run_id, source_id, check_name, status, actual
+  FROM edu_access.`01-control`.data_quality_results
+  WHERE run_id IN ('1085767927326340', '575313135268521')
+    AND layer = 'gold' AND check_name NOT LIKE 'upstream_run_%'
+)
+SELECT COUNT(*) AS checks_compared,
+       COUNT_IF(a.status IS DISTINCT FROM b.status OR a.actual IS DISTINCT FROM b.actual) AS checks_that_differ
+FROM (SELECT * FROM r WHERE run_id = '1085767927326340') AS a
+FULL OUTER JOIN (SELECT * FROM r WHERE run_id = '575313135268521') AS b
+  USING (source_id, check_name);
+```
+
+Result: `checks_compared` 305, `checks_that_differ` 0.
 
 ## Observed, not acted on
 
