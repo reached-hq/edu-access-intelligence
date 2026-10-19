@@ -2,42 +2,37 @@
 
 Facts and dimensions for the approved business question.
 
-The proposed model, grains, keys, analytical-question mapping, and ERD are in
+The provisional model, grains, keys, analytical-question mapping, and ERD are in
 [`docs/architecture/data-model.md`](../../docs/architecture/data-model.md).
-They remain design-only until the team and mentor approve them under #45 and
-Integration prerequisite #44 is ready. The placeholder SQL files remain
-non-executable during that review: each dimension and fact has a disabled
-`NN_build_<object>.sql` task and its `90_validate_<object>.sql` gate in the job,
-wired to the gates it reads (D-051).
+The AP1 to AP4 implementation contract is D-050. Building these source-aligned
+tables does not by itself make an analytical result or dashboard output ready.
 
-Proposed dimensions:
+Implemented dimensions whose reviewed inputs are available:
 
-- `dim_city_municipality`
-- `dim_barangay`
 - `dim_school`
 - `dim_school_year`
 - `dim_education_level`
-- `dim_city_poverty`
+- `dim_city_municipality`
+- `dim_barangay`
 
-Proposed facts:
+Implemented facts whose reviewed inputs are available:
 
-- `fact_school_enrollment`
 - `fact_school_classroom_capacity`
 - `fact_school_teacher_capacity`
-- `fact_city_population`
 - `fact_city_school_age_population`
 - `fact_school_year_source_availability`
 
-When approved, use one dimension or fact per file and give each dimension gate
-a uniqueness check on its declared key. Files follow `NN_<verb>_<object>.sql`,
-with checks in `90_validate_<object>.sql` (see [File naming and
-layout](../../docs/architecture/overview.md#file-naming-and-layout)).
+The following Gold tables are not implemented yet
+and remain assigned to follow-on work. Their disabled placeholders stay in the
+job, and no empty substitute is published:
 
-Implemented: `dim_city_municipality` (`04_build_dim_city_municipality.sql`,
-gate `90_validate_dim_city_municipality.sql`). The build writes a candidate;
-the gate publishes it only after every check passes, so a FAIL keeps the last
-good build.
-`dim_barangay` (`05_build_dim_barangay.sql`, gate
-`90_validate_dim_barangay.sql`) follows the same pattern.
-`fact_city_school_age_population` (`14_build_fact_city_school_age_population.sql`,
-gate `90_validate_fact_city_school_age_population.sql`) too.
+- `dim_city_poverty`
+- `fact_school_enrollment`
+- `fact_city_population`
+
+Enrollment and `dim_school_year` cover SY 2020-21 through SY 2025-26. Classroom
+and teacher capacity currently cover SY 2023-24 only.
+`fact_school_year_source_availability` records those source-level gaps separately
+from the school-level coverage checks.
+
+Each build writes a candidate table. Its `90_validate_*` gate checks grain, foreign keys, source reconciliation, and coverage before replacing the published table. A failed gate leaves the last good Gold table unchanged. Job dependencies follow D-051, so each table waits only for the source and dimension gates it reads.
