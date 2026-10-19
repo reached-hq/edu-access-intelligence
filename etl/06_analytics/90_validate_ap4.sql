@@ -1,4 +1,6 @@
 -- ap4 publication gate; a failure leaves the last valid output unchanged.
+-- gap checks: census population reconciles with Gold, gap, gap rate and public share arithmetic, and the change in
+-- gap only where the geography is comparable. trend checks: annual enrollment, change, ±5% band and status.
 -- the one-row summary is written once to a table named for this run and dropped after the checks are recorded:
 -- read many times as a temporary view, the same pattern made Databricks SQL fail with INTERNAL_ERROR (c64e949, #202).
 -- WARN: all-sector learners at schools not placed in a city or municipality (UNKNOWN or EXCLUDED) in SY 2020-21
@@ -33,6 +35,14 @@ WITH c AS (
            / NULLIF(SUM(learners), 0) AS DOUBLE) AS matched_share,
          COALESCE(SUM(CASE WHEN psgc_match_status <> 'matched' THEN learners END), 0) AS unplaced_learners
   FROM school_totals GROUP BY school_year
+), expected_population AS (
+  SELECT city_mun_psgc_code,
+         CAST(SUM(CASE WHEN reference_year = 2020 THEN population END) AS BIGINT) AS pop_2020,
+         CAST(SUM(CASE WHEN reference_year = 2024 THEN population END) AS BIGINT) AS pop_2024
+  FROM edu_access.`05-gold`.fact_city_school_age_population
+  WHERE reference_year IN (2020, 2024) AND sex IN ('male', 'female') AND age BETWEEN 5 AND 17
+    AND psgc_match_status = 'matched'
+  GROUP BY city_mun_psgc_code
 ), actual AS (
   SELECT city_mun_psgc_code, '2020-21' AS school_year, enrollment_2020_21 AS enrollment FROM c
   UNION ALL SELECT city_mun_psgc_code, '2021-22', enrollment_2021_22 FROM c
@@ -68,6 +78,17 @@ SELECT
     AND enrollment_2020_21 > 0 AND incomplete_school_year_rows = 0
     AND ABS(matched_learner_share_2025_26_pct - matched_learner_share_2020_21_pct) <= 2, FALSE)), 0) FROM c)
     AS status_mismatch,
+  (SELECT COUNT(*) FROM c LEFT JOIN expected_population p USING (city_mun_psgc_code)
+    WHERE c.school_age_population_2020 IS DISTINCT FROM p.pop_2020
+       OR c.school_age_population_2024 IS DISTINCT FROM p.pop_2024) AS population_mismatch,
+  (SELECT COALESCE(COUNT_IF(gap_2020 IS DISTINCT FROM school_age_population_2020 - enrollment_2020_21
+    OR gap_2024 IS DISTINCT FROM school_age_population_2024 - enrollment_2024_25
+    OR (school_age_population_2020 > 0 AND ABS(gap_rate_2020_pct - 100.0 * gap_2020 / school_age_population_2020) > 1e-9)
+    OR (school_age_population_2024 > 0 AND ABS(gap_rate_2024_pct - 100.0 * gap_2024 / school_age_population_2024) > 1e-9)
+    OR (enrollment_2024_25 > 0
+      AND ABS(public_school_share_2024_25_pct - 100.0 * public_enrollment_2024_25 / enrollment_2024_25) > 1e-9)
+    OR gap_change IS DISTINCT FROM CASE WHEN is_2020_2024_geography_comparable THEN gap_2024 - gap_2020 END), 0) FROM c)
+    AS gap_mismatch,
   (SELECT COALESCE(MAX(unplaced_learners), 0) FROM shares WHERE school_year = '2020-21') AS unplaced_learners_2020_21,
   (SELECT COALESCE(MAX(unplaced_learners), 0) FROM shares WHERE school_year = '2025-26') AS unplaced_learners_2025_26,
   (SELECT MAX(matched_share) FROM shares WHERE school_year = '2020-21') AS matched_share_2020_21,
@@ -85,6 +106,8 @@ FROM (
   UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'lgu_membership_reconciles', CASE WHEN lgu_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(lgu_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'annual_enrollment_reconciles', CASE WHEN annual_enrollment_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(annual_enrollment_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'census_population_reconciles', CASE WHEN population_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(population_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'gap_arithmetic', CASE WHEN gap_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(gap_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'matched_share_reconciles', CASE WHEN matched_share_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(matched_share_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'change_arithmetic', CASE WHEN change_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(change_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'trend_direction_valid', CASE WHEN trend_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(trend_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
@@ -105,5 +128,5 @@ WHERE run_id = :run_id AND source_id = 'ap4_enrollment_trend' AND layer = 'analy
 
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.ap4_enrollment_trend USING DELTA AS
 SELECT * FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate;
-COMMENT ON TABLE edu_access.`06-analytics`.ap4_enrollment_trend IS 'AP4 enrollment direction by regular LGU for SY 2020-21 through SY 2025-26.';
+COMMENT ON TABLE edu_access.`06-analytics`.ap4_enrollment_trend IS 'AP4 school-age population and enrollment gap (2020, 2024) and enrollment direction (SY 2020-21 to 2025-26) by regular LGU. Context only under D-057.';
 ALTER TABLE edu_access.`06-analytics`.ap4_enrollment_trend OWNER TO `reached-hq`;
