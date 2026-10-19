@@ -194,6 +194,22 @@ DepEd's documented teacher–learner method adds annex enrollment and teachers t
 
 ### AP4 · School-age population and enrollment gap
 
+> **Revised by D-058** (2026-10-20): AP4's main answer is the **enrollment trend**: enrolled learners in each city or municipality for every school year in the data (SY 2020-21 to 2025-26), and whether they go up or down. The school-age population and its gap below stay as **context**, on the two census school years only. The AP4 wording in D-042 is unchanged.
+
+```text
+enrollment_all_sectors (each school year) =
+    enrollment in public, private, and SUC/LUC schools located in the city or municipality,
+    excluding Philippine Schools Overseas
+enrollment_change_from_previous_year = enrollment (school year) - enrollment (previous school year)
+enrollment_change_first_to_latest = enrollment (latest school year) - enrollment (first school year)
+enrollment_trend = increasing | decreasing | no change, by the sign of that change (no threshold)
+public_school_share = public_school_enrollment / enrollment_all_sectors
+```
+
+**The trend.** Each school year's enrollment uses that year's school geography (D-048), so a school that moves is counted where it was. The first and latest school years are the first and latest in `fact_school_enrollment` (SY 2020-21 and 2025-26 today); the change from the previous year is NULL when the school year just before is not in the data, and percent changes are NULL when the base is 0. Schools with an incomplete offered level are left out of that year's sum and counted (`schools_incomplete`), so a year with many incomplete schools can look lower: read the trend beside that count. Geography-match coverage also differs by year (the SY 2020-21 IDs gone by SY 2023-24 are matched by name, D-049).
+
+**Context: school-age population and the gap, on census school years only.**
+
 ```text
 school_age_population =
     PSA Total Population, ages 5–17, both sexes
@@ -203,9 +219,6 @@ enrollment_all_sectors =
 
 population_enrollment_gap = school_age_population - enrollment_all_sectors
 gap_share = population_enrollment_gap / school_age_population
-gap_change_2020_2024 = population_enrollment_gap (2024) - population_enrollment_gap (2020)
-
-public_school_share = public_school_enrollment / enrollment_all_sectors
 ```
 
 **Matched periods.** "Over time" means two points. Each pairs a census with the school year that starts in the same year:
@@ -244,7 +257,7 @@ About 3.83 million of the public-only gap is private and SUC/LUC learners.
 
 For Negros, Sulu, and Maguindanao the cities and municipalities themselves did not change; only their province or region did. The flag matters for name matching and for any province or region grouping.
 
-**Validation status:** implemented in `etl/06_analytics/04_answer_ap4.sql` as `edu_access.06-analytics.ap4_school_age_enrollment_gap` (#147): one row per city or municipality member and AP4 period, built from `fact_city_school_age_population` and `fact_school_enrollment` only, with the `UNKNOWN` and `EXCLUDED` members kept as rows so the totals add up and unplaced schools and people stay visible. Its gate (`90_validate_ap4.sql`) rebuilds every row from the two Gold facts and fails on any difference, on unaligned years, and on a school placed in two cities in one year. The job tasks stay disabled until `fact_school_enrollment` (#196) is published. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
+**Validation status:** implemented in `etl/06_analytics/04_answer_ap4.sql` as `edu_access.06-analytics.ap4_enrollment_trend` (#147, D-058): one row per city or municipality member and school year, built from `fact_school_enrollment` and `fact_city_school_age_population` only, with the `UNKNOWN` and `EXCLUDED` members kept as rows so the totals add up and unplaced schools and people stay visible. The census columns are filled on SY 2020-21 and 2024-25 only; `census_context` says why they are empty elsewhere. Its gate (`90_validate_ap4.sql`) rebuilds every row from the two Gold facts and fails on any difference, on census context outside the aligned years, and on a school placed in two cities in one year. The job tasks stay disabled until `fact_school_enrollment` (#196) is published. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
 
 ### Context · Poverty 2023
 
@@ -355,7 +368,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, Population 2024, Population 2024 per public school, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Ready to implement and validate |
 | **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Ready to implement and validate for SY 2023-24 |
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Ready to implement and validate for SY 2023-24; project-defined |
-| **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Output built (#147); waits for `fact_school_enrollment` (#196) to run |
+| **AP4 enrollment trend** | enrollment in all sectors per school year, change from the previous year, change and trend from the first to the latest school year, public-school share; as context on census school years, population aged 5–17, gap, gap share | school year, incomplete-school count, population source and census year, "not available" label for school years without a census, negative-gap note, geography-comparability flag, name-match coverage | Output built (#147, D-058); waits for `fact_school_enrollment` (#196) to run |
 | **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | Decided (D-046); not built |
 | **Comparisons** | applicable benchmark and status, within-type percentile per measure, national same-type median, Similar LGUs | benchmark citation/version, comparison-group count, IQR, national percentile, Similar LGUs inputs | Tier comparison defined (D-057), planned in #178; Similar LGUs method planned in #96 |
 | **Priority label** | tier, Stable flag, high measures (with the AP3 level), affected learners | rule version (D-057), coverage per measure, the priority checks, missingness and quality warnings | Defined (D-057); planned in #178 |

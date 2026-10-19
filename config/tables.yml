@@ -224,10 +224,10 @@ gold_tables:
     grain: One school year and DepEd source.
 
 analytics_tables:
-  - table: ap4_school_age_enrollment_gap
+  - table: ap4_enrollment_trend
     build_file: 04_answer_ap4.sql
     validate_file: 90_validate_ap4.sql
-    grain: One city or municipality member (regular, UNKNOWN or EXCLUDED) and AP4 period (2020 with SY 2020-21, 2024 with SY 2024-25).
+    grain: One city or municipality member (regular, UNKNOWN or EXCLUDED) and school year; census context on SY 2020-21 and 2024-25 only (D-058).
 
 deferred_layers:
   - analytics
