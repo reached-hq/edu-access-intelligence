@@ -64,10 +64,10 @@ Listed for review (D-030). By kind:
 
 - **Spelling, abbreviation or punctuation** (18): for example `Sanchez-Mira` / `Sanchez Mira`, `Jetafe` / `Getafe`, `Gen Tinio` / `General Tinio`, `Santo Nino` / `Santo Niño`.
 - **Former name in brackets after the current name** (36): for example `Rodriguez (Montalban)` / `Rodriguez`; `Bacungan (Leon T. Postigo)` puts the current name in brackets.
-- **Renamed LGU** (6): `Rizal` / `Dr. Jose P. Rizal`, `San Isidro` / `Sawata`, `Don Victoriano Chiongbian` / `Don Victoriano` and `Bacungan (Leon T. Postigo)` / `Leon T. Postigo` are the same four renamed LGUs the HDX map confirmed by review (D-052); `Bumbaran` / `Amai Manabilang` is footnote 2 of the workbook; `Sultan Gumander` / `Picong` (Lanao del Sur) is **UNVERIFIED**: no second source was checked.
+- **Renamed LGU** (6): `Rizal` / `Dr. Jose P. Rizal`, `San Isidro` / `Sawata`, `Don Victoriano Chiongbian` / `Don Victoriano` and `Bacungan (Leon T. Postigo)` / `Leon T. Postigo` are the same four renamed LGUs the HDX map confirmed by review (D-052); `Bumbaran` / `Amai Manabilang` is footnote 2 of the workbook; `Sultan Gumander` / `Picong` (Lanao del Sur): PSGC 2Q 2026 lists `Sultan Gumander` as the old name of `1903635000` Picong, Correspondence Code `153635000` (confirmed by @maeveylain on #188 and rechecked in `psa_psgc_clean`).
 - **Manila district** (1): `Tondo` / `Tondo I/II`.
 
-Observed: none of the 60 checked names a different place. Each is matched by its code, never by its name, and none needs an override (D-054, **Open**). The reviewer should confirm `Sultan Gumander` / `Picong`.
+Observed: none of the 61 names a different place. Each is matched by its code, never by its name, and none needs an override (D-054, **Open**).
 
 | psgc_id | PSA name | PSGC code | PSGC name |
 |---|---|---|---|
@@ -187,4 +187,5 @@ The category comes from PSGC's own columns, as the gate counts it; no place is n
 ## Not checked
 
 - Databricks: not run. The SQL uses only constructs the HDX map already runs on Databricks, but D-017 still requires a `dev` run before this is trusted there.
-- Whether the 61 differing names all name the same place was judged by reading them, PSGC's names and the sources named above; `Sultan Gumander` / `Picong` has no second source.
+- Whether the 61 differing names all name the same place was judged by reading them, PSGC's names and old names, and the sources named above.
+- Boundary vintage: whether an estimate's territory equals today's PSGC unit is not checked (D-054, limitations).
