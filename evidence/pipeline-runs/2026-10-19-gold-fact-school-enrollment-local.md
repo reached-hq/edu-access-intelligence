@@ -50,6 +50,16 @@ Independent cross-checks (**observed**):
 - No offered level is partly blank in any year; the only blanks are whole levels in SY 2025-26. Of the 120 SHS ones, 21 are public schools, the 21 the metric specification names.
 - No row has a blank offering flag and no level that is not offered has a positive cell, so rules 1 and 4 of the metric specification do not fail on real data.
 
+## Column types
+
+The published table has the data model's columns and types. The build casts each one, and the test `test_columns_follow_the_data_model` (or the first test, for the enrollment fact) checks names, order and types. DuckDB, which the local run uses, names two Databricks types differently: `STRING` is `VARCHAR` and `INT` is `INTEGER` (`int32`); `BIGINT` shows as `int64` when printed. They are the same types.
+
+| Column | Data model (Databricks) | Local DuckDB |
+|---|---|---|
+| `school_id`, `school_year`, `education_level_code`, `city_mun_psgc_code`, `barangay_psgc_code`, `psgc_match_status`, `sector`, `annex_status` | STRING | VARCHAR |
+| `is_offered` | BOOLEAN | BOOLEAN |
+| `learner_count` | BIGINT | BIGINT |
+
 ## What this does not show
 
 - A Databricks `dev` run: the tasks wait for #168 and #193.
