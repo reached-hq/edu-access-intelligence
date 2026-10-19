@@ -78,7 +78,9 @@ No Integration working names remain. A new map follows the shape of `hdx_adm3_ps
 in [`docs/architecture/data-model.md`](../architecture/data-model.md). Tables with
 reviewed inputs may be implemented independently; geography-dependent tables remain
 disabled until their Integration prerequisites are ready. Analytics names remain
-deferred until their inputs are implemented and gated.
+deferred until their inputs are implemented and gated, except
+`ap4_school_age_enrollment_gap` (`etl/06_analytics/04_answer_ap4.sql`, #147): one row
+per city or municipality member and AP4 period.
 
 ## Gold names
 

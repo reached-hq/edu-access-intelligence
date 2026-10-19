@@ -137,3 +137,12 @@ def test_analysis_programs_use_role_prefixes(repo_files):
         and not ANALYSIS_FILE.fullmatch(path.name)
     ]
     assert not offenders, f"analysis programs need a role prefix: {offenders}"
+
+
+def test_analytics_registry_names_existing_builds_and_gates(repo_root):
+    registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text())
+    for table in registry.get("analytics_tables", []):
+        assert SQL_FILE.fullmatch(table["build_file"])
+        assert SQL_FILE.fullmatch(table["validate_file"])
+        assert (repo_root / "etl" / "06_analytics" / table["build_file"]).is_file()
+        assert (repo_root / "etl" / "06_analytics" / table["validate_file"]).is_file()
