@@ -200,3 +200,30 @@ def test_gates_record_tier_counts_and_drop_their_summaries(store):
     with pytest.raises(Exception, match="Analytics gate failed"):
         run(store, "90_validate_ap2.sql")
     assert store.query(leftovers) == []
+
+
+def test_ap2_counts_a_school_with_blank_enrollment_as_not_covered(store):
+    # S1 is active (ES has learners) but its offered JHS count is blank: it must lower City One's school coverage,
+    # not vanish from both learner sums and leave coverage at 100% (review on #203).
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = NULL
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
+    run_all(store)
+    assert store.query(f"""SELECT active_public_school_count, incomplete_enrollment_school_count, school_coverage_pct,
+        input_issue_reason, classification FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [
+        (2, 1, 50.0, "coverage below 90%", "Data Review")]
+    # City One is left out of the city reference, which is now City Two's own ratio
+    assert store.query(f"""SELECT national_same_type_ratio FROM {ANALYTICS}.ap2_classroom_pressure
+        WHERE city_mun_psgc_code = 'C2'""") == [(pytest.approx(33.0),)]
+
+
+def test_ap2_gate_rejects_coverage_that_hides_blank_enrollment(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = NULL
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
+    for build, gate in STEPS[:1]:
+        run(store, build)
+        run(store, gate)
+    run(store, "02_answer_ap2.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.ap2_classroom_pressure_candidate
+        SET school_coverage_pct = 100.0, ratio_school_count = active_public_school_count""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap2.sql")

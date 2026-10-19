@@ -34,6 +34,16 @@ WITH c AS (
          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY school_ratio) AS q1,
          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY school_ratio) AS q3
   FROM eligible GROUP BY lgu_type
+), expected_schools AS (
+  SELECT e.city_mun_psgc_code,
+         COUNT_IF(e.active = 1) AS active_schools,
+         COUNT_IF(e.active = 1 AND e.incomplete > 0) AS incomplete_schools,
+         COUNT_IF(e.active = 1 AND e.incomplete = 0 AND k.instructional_classrooms_total > 0) AS covered_schools
+  FROM enrollment e
+  LEFT JOIN edu_access.`05-gold`.fact_school_classroom_capacity k
+    ON k.school_id = e.school_id AND k.school_year = '2023-24'
+  WHERE e.psgc_match_status = 'matched'
+  GROUP BY e.city_mun_psgc_code
 ), expected AS (
   SELECT e.city_mun_psgc_code,
          CAST(SUM(e.learners) AS BIGINT) AS eligible_learners, CAST(SUM(e.rooms) AS BIGINT) AS rooms,
@@ -57,6 +67,13 @@ SELECT
   (SELECT COUNT(*) FROM c LEFT JOIN expected e USING (city_mun_psgc_code)
     WHERE c.eligible_learners IS DISTINCT FROM COALESCE(e.eligible_learners, 0)
        OR c.reported_instructional_classrooms IS DISTINCT FROM COALESCE(e.rooms, 0)) AS gold_mismatch,
+  (SELECT COUNT(*) FROM c LEFT JOIN expected_schools s USING (city_mun_psgc_code)
+    WHERE c.active_public_school_count IS DISTINCT FROM COALESCE(s.active_schools, 0)
+       OR c.incomplete_enrollment_school_count IS DISTINCT FROM COALESCE(s.incomplete_schools, 0)
+       OR c.ratio_school_count IS DISTINCT FROM COALESCE(s.covered_schools, 0)
+       OR (c.active_public_school_count > 0
+         AND ABS(c.school_coverage_pct - 100.0 * COALESCE(s.covered_schools, 0) / c.active_public_school_count) > 1e-9))
+    AS school_coverage_mismatch,
   (SELECT COUNT(*) FROM c LEFT JOIN expected e USING (city_mun_psgc_code)
     WHERE c.outlier_school_count IS DISTINCT FROM COALESCE(e.outlier_schools, 0)
        OR c.outlier_flag IS DISTINCT FROM (c.outlier_school_count > 0)) AS outlier_count_mismatch,
@@ -103,6 +120,7 @@ FROM (
   UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'lgu_membership_reconciles', CASE WHEN lgu_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(lgu_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'numerator_denominator_reconcile', CASE WHEN gold_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(gold_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'school_coverage_counts_incomplete_enrollment', CASE WHEN school_coverage_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(school_coverage_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'outlier_schools_reconcile', CASE WHEN outlier_count_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(outlier_count_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'input_issue_valid', CASE WHEN input_issue_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(input_issue_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'same_type_reference_pools_clean_lgus', CASE WHEN pooled_reference_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(pooled_reference_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
