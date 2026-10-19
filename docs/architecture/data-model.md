@@ -456,3 +456,31 @@ approval of the full model or make a downstream analytical output publishable.
    member; no records disappear through inner joins.
 6. Gold candidate tables are validated before they replace the last good build,
    following the repository's publish-after-gate rule.
+
+## Analytics output: `ap1_school_provision`
+
+One row represents a regular city or municipality, enrollment school year, and
+reporting level (`ALL`, `ES`, `JHS`, or `SHS`). The output retains every regular
+LGU and year even when it has no active public school. It contains LGU identity,
+the active public-school count including annexes, complete and incomplete
+enrollment coverage, public-school enrollment, learners per public school,
+Population 2024 and Population 2024 per public school using the separate
+`population_denominator_school_count` (the full active-school count), and the count and share
+of regular PSGC barangays without a matched active public school offering ES.
+
+The `ALL` ratio uses only active schools whose enrollment is complete in every
+offered level. Level rows count an active multi-level school once in each level
+it offers and use only schools with a complete count for that level. Population
+always retains `population_reference_year = 2024`; it is never selected by
+latest-year logic. An active public ES school on the LGU's unknown-barangay
+member remains in LGU totals, serves no regular barangay, increments
+`public_es_schools_without_barangay_match`, and makes
+`barangay_count_is_upper_bound` true. Matched, unmatched, and total active ES
+school counts also publish `barangay_match_coverage_pct`. Technical city and barangay members never
+become analytical LGU rows.
+
+The build writes `ap1_school_provision_candidate`. Its gate reconciles the full
+LGU-year-level key grid, school counts and enrollment against
+`fact_school_enrollment`, the fixed population year, every regular barangay,
+ratio arithmetic, and the upper-bound label before publishing
+`ap1_school_provision`.

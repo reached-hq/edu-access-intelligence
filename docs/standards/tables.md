@@ -77,8 +77,9 @@ No Integration working names remain. A new map follows the shape of `hdx_adm3_ps
 (D-052) unless its own decision says otherwise. Gold names from #45 are documented
 in [`docs/architecture/data-model.md`](../architecture/data-model.md). Tables with
 reviewed inputs may be implemented independently; geography-dependent tables remain
-disabled until their Integration prerequisites are ready. Analytics names remain
-deferred until their inputs are implemented and gated.
+disabled until their Integration prerequisites are ready. The first registered
+Analytics table is `ap1_school_provision`; it remains downstream of the three Gold
+gates named in `databricks.yml`.
 
 ## Gold names
 
@@ -104,3 +105,13 @@ gate publishes only after validation. `dim_city_municipality`, `dim_barangay`,
 `dim_city_poverty`, `fact_school_enrollment`, `fact_city_population`, and
 `fact_city_school_age_population` remain disabled and are assigned to follow-on
 work; this pull request does not publish empty substitutes for them.
+
+## Analytics names
+
+| Table | Grain |
+|---|---|
+| `ap1_school_provision` | Regular city or municipality x enrollment school year x reporting level (`ALL`, `ES`, `JHS`, `SHS`) |
+
+Implemented: `ap1_school_provision`. Its build writes a candidate and its gate
+publishes only after the key grid, source-derived counts, fixed 2024 population,
+barangay accounting, ratios, and upper-bound label pass validation.

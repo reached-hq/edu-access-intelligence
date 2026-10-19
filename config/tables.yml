@@ -203,5 +203,10 @@ gold_tables:
     validate_file: 90_validate_fact_school_year_source_availability.sql
     grain: One school year and DepEd source.
 
-deferred_layers:
-  - analytics
+analytics_tables:
+  - table: ap1_school_provision
+    build_file: 01_answer_ap1.sql
+    validate_file: 90_validate_ap1.sql
+    grain: One regular city or municipality, enrollment school year, and reporting level (ALL, ES, JHS, SHS).
+
+deferred_layers: []

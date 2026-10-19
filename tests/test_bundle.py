@@ -193,6 +193,7 @@ DOWNSTREAM = {
     "14_build_fact_city_school_age_population": {
         "90_validate_psa_school_age_population_psgc_map", "90_validate_dim_city_municipality"},
     "01_answer_ap1": {"90_validate_fact_school_enrollment", "90_validate_fact_city_population", "90_validate_dim_barangay"},
+    "90_validate_ap1": {"01_answer_ap1"},
     "02_answer_ap2": {"90_validate_fact_school_enrollment", "90_validate_fact_school_classroom_capacity"},
     "03_answer_ap3": {"90_validate_fact_school_enrollment", "90_validate_fact_school_teacher_capacity"},
     "04_answer_ap4": {"90_validate_fact_school_enrollment", "90_validate_fact_city_school_age_population"},
