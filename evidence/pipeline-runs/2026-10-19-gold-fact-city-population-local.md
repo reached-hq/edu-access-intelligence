@@ -31,6 +31,17 @@ Spot checks: City of Isabela `0990101000` 151,297; City of Manila `1380600000` 1
 
 On 2026-10-19 the whole job ran locally (`python -m src.job.local_run`) on a throwaway branch that merges #168, #193 and the three Gold branches, with every approved raw file except `Enrollment-in-SY-2021-2022.zip`. `13_build_fact_city_population` built on #193's real `dim_city_municipality` (1,642 regular members, plus `UNKNOWN` and `EXCLUDED`) and its gate passed: 19 PASS, 0 WARN, 0 FAIL, total 112,727,776. The published table has the same MD5 as above, `7a422d47bbc6458fae8abd4933d96ef8`, so the stand-in matched.
 
+## Column types
+
+The published table has the data model's columns and types. The build casts each one, and the test `test_columns_follow_the_data_model` (or the first test, for the enrollment fact) checks names, order and types. DuckDB, which the local run uses, names two Databricks types differently: `STRING` is `VARCHAR` and `INT` is `INTEGER` (`int32`); `BIGINT` shows as `int64` when printed. They are the same types.
+
+| Column | Data model (Databricks) | Local DuckDB |
+|---|---|---|
+| `city_mun_psgc_code` | STRING | VARCHAR |
+| `reference_year` | INT | INTEGER |
+| `population` | BIGINT | BIGINT |
+| `estimate_status`, `status_reason` | STRING | VARCHAR |
+
 ## What this does not show
 
 - A Databricks `dev` run. The tasks are enabled, but they wait for `90_validate_dim_city_municipality` (#193).
