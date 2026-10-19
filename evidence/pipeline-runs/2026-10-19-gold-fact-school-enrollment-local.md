@@ -52,7 +52,7 @@ Independent cross-checks (**observed**):
 
 ## Column types
 
-The published table has the data model's columns and types. The build casts each one, and the test `test_columns_follow_the_data_model` (or the first test, for the enrollment fact) checks names, order and types. DuckDB, which the local run uses, names two Databricks types differently: `STRING` is `VARCHAR` and `INT` is `INTEGER` (`int32`); `BIGINT` shows as `int64` when printed. They are the same types.
+The published table has the data model's columns and types. The build casts each one, and `test_three_rows_per_school_year_and_the_data_model_columns` checks names, order and types. DuckDB, which the local run uses, names `STRING` as `VARCHAR`; it is the same type.
 
 | Column | Data model (Databricks) | Local DuckDB |
 |---|---|---|
