@@ -12,7 +12,7 @@
 -- estimate that differs from its map row; an estimate year other than 2023; a 2023 map row at city or
 -- municipality level that is not matched, or matched to no regular member, so its estimate would be
 -- lost; and a map run that did not succeed.
--- A pull request that changes the PSGC or PSA pin updates the pinned counts below in the same pull
+-- A pull request that changes the PSGC or PSA pin updates the pins line below in the same pull
 -- request (D-046).
 -- Counts only (PASS): CV above 20, lower limit not above 0, Manila district rows kept out.
 
@@ -20,7 +20,11 @@ DECLARE OR REPLACE VARIABLE gold_gate_started_at_utc TIMESTAMP;
 SET VARIABLE gold_gate_started_at_utc = current_timestamp();
 
 CREATE OR REPLACE TEMPORARY VIEW dim_city_poverty_gate_summary AS
-WITH regular AS (
+WITH pins AS (
+  -- D-046's reconciled counts for PSGC 2Q 2026 and PSA 2023.
+  SELECT 1642 AS pin_rows, 1597 AS pin_estimated, 1 AS pin_no_estimate, 44 AS pin_not_in_source, 1 AS pin_manila_reason
+),
+regular AS (
   SELECT city_mun_psgc_code, city_mun_name, city_class
   FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'
 ),
@@ -44,6 +48,7 @@ manila_districts AS (
   GROUP BY 1
 )
 SELECT
+  pins.*,
   (SELECT COUNT(*) FROM dimension) AS dimension_rows,
   (SELECT COUNT(*) FROM regular) AS regular_members,
   (SELECT COUNT(*) - COUNT(DISTINCT city_mun_psgc_code) FROM dimension) AS duplicate_keys,
@@ -91,7 +96,8 @@ SELECT
     WHERE m.match_status = 'matched' AND r.city_mun_psgc_code IS NULL) AS map_rows_outside_dimension,
   (SELECT COUNT_IF(geographic_level = 'sub_mun') FROM map_2023) AS district_rows_kept_out,
   (SELECT COUNT_IF(cv_over_20) FROM dimension) AS cv_over_20_rows,
-  (SELECT COUNT_IF(poverty_ci90_lower <= 0) FROM dimension) AS lower_limit_not_positive;
+  (SELECT COUNT_IF(poverty_ci90_lower <= 0) FROM dimension) AS lower_limit_not_positive
+FROM pins;
 
 INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'dim_city_poverty', 'gold', 'edu_access.05-gold.dim_city_poverty', check_name, status, expected, actual, current_timestamp(), :code_revision
@@ -100,12 +106,12 @@ FROM (
   UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'rows_are_regular_members', CASE WHEN rows_not_regular = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(rows_not_regular AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'regular_members_present', CASE WHEN regular_without_row = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(regular_without_row AS STRING) FROM dim_city_poverty_gate_summary
-  UNION ALL SELECT 'rows_match_pin', CASE WHEN dimension_rows = 1642 THEN 'PASS' ELSE 'FAIL' END, '1642', CAST(dimension_rows AS STRING) FROM dim_city_poverty_gate_summary
-  UNION ALL SELECT 'estimated_match_pin', CASE WHEN estimated = 1597 THEN 'PASS' ELSE 'FAIL' END, '1597', CAST(estimated AS STRING) FROM dim_city_poverty_gate_summary
-  UNION ALL SELECT 'no_estimate_match_pin', CASE WHEN no_estimate = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(no_estimate AS STRING) FROM dim_city_poverty_gate_summary
-  UNION ALL SELECT 'not_in_source_match_pin', CASE WHEN not_in_source = 44 THEN 'PASS' ELSE 'FAIL' END, '44', CAST(not_in_source AS STRING) FROM dim_city_poverty_gate_summary
-  UNION ALL SELECT 'manila_reason_match_pin', CASE WHEN manila_reason_rows = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(manila_reason_rows AS STRING) FROM dim_city_poverty_gate_summary
-  UNION ALL SELECT 'manila_reason_on_city_of_manila', CASE WHEN manila_reason_on_manila = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(manila_reason_on_manila AS STRING) FROM dim_city_poverty_gate_summary
+  UNION ALL SELECT 'rows_match_pin', CASE WHEN dimension_rows = pin_rows THEN 'PASS' ELSE 'FAIL' END, CAST(pin_rows AS STRING), CAST(dimension_rows AS STRING) FROM dim_city_poverty_gate_summary
+  UNION ALL SELECT 'estimated_match_pin', CASE WHEN estimated = pin_estimated THEN 'PASS' ELSE 'FAIL' END, CAST(pin_estimated AS STRING), CAST(estimated AS STRING) FROM dim_city_poverty_gate_summary
+  UNION ALL SELECT 'no_estimate_match_pin', CASE WHEN no_estimate = pin_no_estimate THEN 'PASS' ELSE 'FAIL' END, CAST(pin_no_estimate AS STRING), CAST(no_estimate AS STRING) FROM dim_city_poverty_gate_summary
+  UNION ALL SELECT 'not_in_source_match_pin', CASE WHEN not_in_source = pin_not_in_source THEN 'PASS' ELSE 'FAIL' END, CAST(pin_not_in_source AS STRING), CAST(not_in_source AS STRING) FROM dim_city_poverty_gate_summary
+  UNION ALL SELECT 'manila_reason_match_pin', CASE WHEN manila_reason_rows = pin_manila_reason THEN 'PASS' ELSE 'FAIL' END, CAST(pin_manila_reason AS STRING), CAST(manila_reason_rows AS STRING) FROM dim_city_poverty_gate_summary
+  UNION ALL SELECT 'manila_reason_on_city_of_manila', CASE WHEN manila_reason_on_manila = pin_manila_reason THEN 'PASS' ELSE 'FAIL' END, CAST(pin_manila_reason AS STRING), CAST(manila_reason_on_manila AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'poverty_status_allowed', CASE WHEN bad_status = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_status AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'no_partial_estimate', CASE WHEN partial_estimate = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(partial_estimate AS STRING) FROM dim_city_poverty_gate_summary
   UNION ALL SELECT 'status_reason_allowed', CASE WHEN bad_reason = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_reason AS STRING) FROM dim_city_poverty_gate_summary
