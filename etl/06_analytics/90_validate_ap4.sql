@@ -17,6 +17,9 @@
 
 DECLARE OR REPLACE VARIABLE analytics_gate_started_at_utc TIMESTAMP;
 SET VARIABLE analytics_gate_started_at_utc = current_timestamp();
+DECLARE OR REPLACE VARIABLE analytics_gate_summary STRING;
+SET VARIABLE analytics_gate_summary = '`edu_access`.`06-analytics`.`ap4_gate_summary_r_' || sha2(:run_id, 256) || '`';
+DECLARE OR REPLACE VARIABLE analytics_gate_owner_sql STRING;
 
 -- Every row as the Gold facts say it should be, built once for the full-row comparison.
 CREATE OR REPLACE TEMPORARY VIEW ap4_expected AS
@@ -102,8 +105,12 @@ SET VARIABLE analytics_ap4_rows_not_matching = (
             school_age_population, is_2020_2024_geography_comparable
      FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate) AS x));
 
--- The full-row comparison is computed once, above, because the summary view is read once per result row.
-CREATE OR REPLACE TEMPORARY VIEW ap4_gate_summary AS
+-- The full-row comparison is computed once, above, because the summary is read once per result row.
+-- The one-row summary the checks read is written to a table first. Read 20 times as a temporary view, it
+-- made Databricks SQL's optimizer fail with INTERNAL_ERROR (dev run, 2026-10-20), as the DepEd PSGC gate did
+-- (c64e949). The table is this run's own (its name holds a hash of run_id) and is dropped once the checks
+-- are recorded, whether the gate passes or fails.
+CREATE OR REPLACE TABLE IDENTIFIER(session.analytics_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one ap4 gate. The gate drops it once its checks are recorded in data_quality_results.' AS
 WITH ap4 AS (
   SELECT * FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate
 ),
@@ -174,32 +181,37 @@ SELECT
   (SELECT COUNT(DISTINCT CASE WHEN member_type = 'regular' AND enrollment_trend = 'increasing' THEN city_mun_psgc_code END) FROM ap4) AS members_increasing,
   (SELECT COUNT(DISTINCT CASE WHEN member_type = 'regular' AND enrollment_trend = 'decreasing' THEN city_mun_psgc_code END) FROM ap4) AS members_decreasing,
   (SELECT COUNT(DISTINCT CASE WHEN member_type = 'regular' AND enrollment_trend = 'no change' THEN city_mun_psgc_code END) FROM ap4) AS members_no_change;
+SET VARIABLE analytics_gate_owner_sql = 'ALTER TABLE ' || session.analytics_gate_summary || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE analytics_gate_owner_sql;
 
 INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'ap4', 'analytics', 'edu_access.06-analytics.ap4_enrollment_trend', check_name, status, expected, actual, current_timestamp(), :code_revision
 FROM (
-  SELECT 'rows_match_gold' AS check_name, CASE WHEN rows_not_matching_gold = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(rows_not_matching_gold AS STRING) AS actual FROM ap4_gate_summary
-  UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'every_school_year_per_member', CASE WHEN members_missing_years = 0 AND years_not_in_gold = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(members_missing_years + years_not_in_gold AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'one_place_per_school_year', CASE WHEN schools_in_two_places = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(schools_in_two_places AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'enrollment_reconciles_by_school_year', CASE WHEN enrollment_years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(enrollment_years_not_reconciled AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'population_reconciles_by_census_year', CASE WHEN population_years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(population_years_not_reconciled AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'census_context_only_on_aligned_years', CASE WHEN unaligned_context_rows = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(unaligned_context_rows AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'arithmetic_holds', CASE WHEN arithmetic_errors = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(arithmetic_errors AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'year_over_year_change_holds', CASE WHEN change_errors = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(change_errors AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'member_type_fits_code', CASE WHEN bad_member_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_member_type AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'one_trend_per_member', CASE WHEN members_with_two_trends = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(members_with_two_trends AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'schools_incomplete', CASE WHEN schools_incomplete = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(schools_incomplete AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'learners_on_technical_members', CASE WHEN learners_on_technical_members = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(learners_on_technical_members AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'population_on_excluded', CASE WHEN population_on_excluded = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(population_on_excluded AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'regular_census_rows_without_population', CASE WHEN regular_census_rows_without_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_census_rows_without_population AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'rows', 'PASS', CAST(NULL AS STRING), CAST(total_rows AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'members_increasing', 'PASS', CAST(NULL AS STRING), CAST(members_increasing AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'members_decreasing', 'PASS', CAST(NULL AS STRING), CAST(members_decreasing AS STRING) FROM ap4_gate_summary
-  UNION ALL SELECT 'members_no_change', 'PASS', CAST(NULL AS STRING), CAST(members_no_change AS STRING) FROM ap4_gate_summary
+  SELECT 'rows_match_gold' AS check_name, CASE WHEN rows_not_matching_gold = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(rows_not_matching_gold AS STRING) AS actual FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'every_school_year_per_member', CASE WHEN members_missing_years = 0 AND years_not_in_gold = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(members_missing_years + years_not_in_gold AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'one_place_per_school_year', CASE WHEN schools_in_two_places = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(schools_in_two_places AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'enrollment_reconciles_by_school_year', CASE WHEN enrollment_years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(enrollment_years_not_reconciled AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'population_reconciles_by_census_year', CASE WHEN population_years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(population_years_not_reconciled AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'census_context_only_on_aligned_years', CASE WHEN unaligned_context_rows = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(unaligned_context_rows AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'arithmetic_holds', CASE WHEN arithmetic_errors = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(arithmetic_errors AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'year_over_year_change_holds', CASE WHEN change_errors = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(change_errors AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'member_type_fits_code', CASE WHEN bad_member_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_member_type AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'one_trend_per_member', CASE WHEN members_with_two_trends = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(members_with_two_trends AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'schools_incomplete', CASE WHEN schools_incomplete = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(schools_incomplete AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'learners_on_technical_members', CASE WHEN learners_on_technical_members = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(learners_on_technical_members AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'population_on_excluded', CASE WHEN population_on_excluded = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(population_on_excluded AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'regular_census_rows_without_population', CASE WHEN regular_census_rows_without_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_census_rows_without_population AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'rows', 'PASS', CAST(NULL AS STRING), CAST(total_rows AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'members_increasing', 'PASS', CAST(NULL AS STRING), CAST(members_increasing AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'members_decreasing', 'PASS', CAST(NULL AS STRING), CAST(members_decreasing AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'members_no_change', 'PASS', CAST(NULL AS STRING), CAST(members_no_change AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'enrollment_' || school_year, 'PASS', CAST(NULL AS STRING), CAST(enrollment AS STRING) FROM (SELECT school_year, SUM(enrollment_all_sectors) AS enrollment FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate GROUP BY school_year) AS national
 ) AS results;
+
+-- Every check is recorded, so the summary is no longer needed, whether the gate passes or fails.
+DROP TABLE IF EXISTS IDENTIFIER(session.analytics_gate_summary);
 
 SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Analytics gate failed for ap4: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s) in data_quality_results for run ' || :run_id) END
 FROM edu_access.`01-control`.data_quality_results

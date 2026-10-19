@@ -182,3 +182,15 @@ def test_a_school_in_two_places_in_one_year_fails():
     run_id, error = env.run()
     assert error
     assert env.checks(run_id)["one_place_per_school_year"]["status"] == "FAIL"
+
+
+def test_the_gate_summary_is_dropped_after_a_pass_and_a_fail():
+    leftovers = "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%gate_summary_r_%'"
+    env = Env()
+    _, error = env.run()
+    assert error is None and env.store.query(leftovers) == []
+    schools = SCHOOLS + [("S7", "2024-25", A, "Public", {"ES": (True, 10)}),
+                         ("S7", "2024-25", MAKATI, "Public", {"JHS": (True, 10)})]
+    bad = Env(schools)
+    _, error = bad.run()
+    assert error and bad.store.query(leftovers) == []
