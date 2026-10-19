@@ -1,8 +1,8 @@
 -- Gold build for fact_city_school_age_population (D-048, docs/architecture/data-model.md).
 --
 -- Grain: city or municipality x census year x single year of age x sex, for AP4 (D-042). Reads the
--- published psa_school_age_population_clean (D-053), its PSGC map (D-055), and dim_city_municipality
--- for each unit's region and province, so the task waits for that dimension's gate (D-051). Writes
+-- published psa_school_age_population_clean (D-053) and its PSGC map (D-055); the gate checks every
+-- key against dim_city_municipality, so the task waits for that dimension's gate (D-051). Writes
 -- fact_city_school_age_population_candidate; the gate (the next task) checks it and publishes the
 -- fact only if no check fails. It rebuilds on every run.
 --
@@ -11,44 +11,40 @@
 --     'male' and 'female' only. The published 'both' row is not stored; the gate reconciles to it
 --     (D-048). Every age Silver publishes is kept (5 to 24); Analytics selects 5 to 17. Nothing is
 --     interpolated, and the broader 5 to 24 category is never substituted.
---   - city_mun_psgc_code is the place's matched PSGC code. A place that is not matched (today the 8
---     2020 Special Geographic Area clusters, which are not LGUs, D-055) goes to the UNKNOWN member
---     of dim_city_municipality, with its psgc_match_status. Places that share UNKNOWN in a year are
---     summed into one row per age and sex, so no population is dropped and the key stays unique; if
---     they differ in status, the row keeps the first in alphabetical order (today all are unmatched).
---   - is_2020_2024_geography_comparable follows the AP4 comparability rule of the metric
---     specification and the data model ("boundary or hierarchy changes"). It is TRUE only for a code
---     matched in both census years that is not in the reviewed list below: units whose territory
---     changed, and every unit of a province or region whose hierarchy changed between the censuses.
---     Units that exist in one year only (the 8 Special Geographic Area municipalities of 2024) and
---     UNKNOWN are FALSE.
+--   - city_mun_psgc_code is the place's matched PSGC code. A place that is not matched goes to a
+--     technical member of dim_city_municipality, keeping its psgc_match_status (D-048):
+--       EXCLUDED  reviewed as having no PSGC unit, so known to sit outside city-level analysis
+--                 (today the 8 2020 Special Geographic Area clusters, which are not LGUs, D-055)
+--       UNKNOWN   not matched and not yet reviewed (pending or ambiguous)
+--     Places that share a technical member in a year are summed into one row per age and sex, so no
+--     population is dropped and the key stays unique; if they differ in status, the row keeps the
+--     first in alphabetical order (today all are unmatched).
+--   - is_2020_2024_geography_comparable is about the unit's own trend: TRUE only for a code matched in
+--     both census years whose territory did not change between them (the reviewed list below).
+--     Units that exist in one year only (the 8 Special Geographic Area municipalities of 2024) and the
+--     technical members are FALSE. Province and region changes (Negros Island Region, Sulu, the
+--     Maguindanao split) leave a unit's own territory unchanged, so they do not make it FALSE: Gold
+--     groups both years by the one PSGC 2Q 2026 hierarchy in dim_city_municipality, so a province or
+--     region total compares like with like (metric specification, AP4 comparability: "the cities and
+--     municipalities themselves did not change").
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`05-gold`;
 ALTER SCHEMA edu_access.`05-gold` OWNER TO `reached-hq`;
 
--- The reviewed 2020-to-2024 geography changes (metric specification, AP4 comparability):
---   unit      the unit's own territory changed: the EMBO barangays moved from Makati to Taguig, and
---             the six Cotabato towns whose barangays formed the Special Geographic Area (D-031, D-054)
---   region    the region changed: the Negros Island Region (RA No. 12000) took Negros Occidental,
---             Negros Oriental and Siquijor, and Bacolod, from Regions VI and VII
---   province  the province or region changed: Sulu moved from BARMM to Region IX (EO No. 91, s. 2025),
---             and Maguindanao split into del Norte and del Sur (RA No. 11550)
--- A unit matches on its own code, or on its region_psgc_code or province_psgc_code in dim_city_municipality.
-CREATE OR REPLACE TEMPORARY VIEW school_age_geography_changes AS
+-- Units whose 2024 territory is not their 2020 territory: the EMBO barangays moved from Makati to
+-- Taguig (metric specification, AP4; D-049), and the six Cotabato towns whose barangays formed the
+-- Special Geographic Area municipalities (D-031, D-054). The gate holds the same list: change both.
+CREATE OR REPLACE TEMPORARY VIEW school_age_territory_changes AS
 SELECT * FROM (VALUES
-  ('unit', '1380300000', 'City of Makati: EMBO barangays moved to Taguig'),
-  ('unit', '1381500000', 'City of Taguig: received the EMBO barangays from Makati'),
-  ('unit', '1204702000', 'Carmen, Cotabato: barangays moved to the Special Geographic Area'),
-  ('unit', '1204703000', 'Kabacan, Cotabato: barangays moved to the Special Geographic Area'),
-  ('unit', '1204709000', 'Midsayap, Cotabato: barangays moved to the Special Geographic Area'),
-  ('unit', '1204711000', 'Pigkawayan, Cotabato: barangays moved to the Special Geographic Area'),
-  ('unit', '1204712000', 'Pikit, Cotabato: barangays moved to the Special Geographic Area'),
-  ('unit', '1204717000', 'Aleosan, Cotabato: barangays moved to the Special Geographic Area'),
-  ('region', '1800000000', 'Negros Island Region: re-established from Regions VI and VII'),
-  ('province', '0906600000', 'Sulu: moved from BARMM to Region IX'),
-  ('province', '1908700000', 'Maguindanao del Norte: split from Maguindanao'),
-  ('province', '1908800000', 'Maguindanao del Sur: split from Maguindanao')
-) AS v(change_kind, psgc_code, reason);
+  ('1380300000', 'City of Makati: EMBO barangays moved to Taguig'),
+  ('1381500000', 'City of Taguig: received the EMBO barangays from Makati'),
+  ('1204702000', 'Carmen, Cotabato: barangays moved to the Special Geographic Area'),
+  ('1204703000', 'Kabacan, Cotabato: barangays moved to the Special Geographic Area'),
+  ('1204709000', 'Midsayap, Cotabato: barangays moved to the Special Geographic Area'),
+  ('1204711000', 'Pigkawayan, Cotabato: barangays moved to the Special Geographic Area'),
+  ('1204712000', 'Pikit, Cotabato: barangays moved to the Special Geographic Area'),
+  ('1204717000', 'Aleosan, Cotabato: barangays moved to the Special Geographic Area')
+) AS v(psgc_code, reason);
 
 CREATE OR REPLACE TABLE edu_access.`05-gold`.fact_city_school_age_population_candidate USING DELTA AS
 WITH placed AS (
@@ -57,7 +53,9 @@ WITH placed AS (
     s.age,
     s.sex,
     s.population,
-    CASE WHEN m.match_status = 'matched' THEN m.psgc_code ELSE 'UNKNOWN' END AS city_mun_psgc_code,
+    CASE WHEN m.match_status = 'matched' THEN m.psgc_code
+         WHEN m.review_status = 'reviewed' THEN 'EXCLUDED'
+         ELSE 'UNKNOWN' END AS city_mun_psgc_code,
     m.match_status AS psgc_match_status
   FROM edu_access.`03-silver`.psa_school_age_population_clean AS s
   JOIN edu_access.`04-integration`.psa_school_age_population_psgc_map AS m
@@ -78,18 +76,13 @@ summed AS (
 both_years AS (
   SELECT city_mun_psgc_code
   FROM summed
-  WHERE city_mun_psgc_code <> 'UNKNOWN'
+  WHERE city_mun_psgc_code NOT IN ('UNKNOWN', 'EXCLUDED')
   GROUP BY city_mun_psgc_code
   HAVING COUNT(DISTINCT reference_year) = 2
 ),
--- Each unit once, however many listed changes it falls under, so the join adds no rows.
+-- Each listed code once, so the join adds no rows.
 changed AS (
-  SELECT DISTINCT d.city_mun_psgc_code AS psgc_code
-  FROM edu_access.`05-gold`.dim_city_municipality AS d
-  JOIN school_age_geography_changes AS c
-    ON (c.change_kind = 'unit' AND c.psgc_code = d.city_mun_psgc_code)
-    OR (c.change_kind = 'region' AND c.psgc_code = d.region_psgc_code)
-    OR (c.change_kind = 'province' AND c.psgc_code = d.province_psgc_code)
+  SELECT DISTINCT psgc_code FROM school_age_territory_changes
 )
 SELECT
   f.city_mun_psgc_code,
