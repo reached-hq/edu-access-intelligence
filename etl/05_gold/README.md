@@ -14,6 +14,7 @@ Implemented dimensions whose reviewed inputs are available:
 - `dim_education_level`
 - `dim_city_municipality`
 - `dim_barangay`
+- `dim_city_poverty`
 
 Implemented facts whose reviewed inputs are available:
 
@@ -27,7 +28,6 @@ The following Gold tables are not implemented yet
 and remain assigned to follow-on work. Their disabled placeholders stay in the
 job, and no empty substitute is published:
 
-- `dim_city_poverty`
 - `fact_city_population`
 
 Enrollment and `dim_school_year` cover SY 2020-21 through SY 2025-26. Classroom
