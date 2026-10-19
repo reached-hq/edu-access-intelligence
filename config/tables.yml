@@ -178,10 +178,34 @@ integration_tables:
     purpose: DepEd enrollment schools matched to PSGC cities and barangays, EMISD code first, then reviewed name matching (D-049).
 
 gold_tables:
+  - table: dim_school
+    build_file: 01_build_dim_school.sql
+    validate_file: 90_validate_dim_school.sql
+    grain: One DepEd school.
+  - table: dim_school_year
+    build_file: 02_build_dim_school_year.sql
+    validate_file: 90_validate_dim_school_year.sql
+    grain: One enrollment school year.
+  - table: dim_education_level
+    build_file: 03_build_dim_education_level.sql
+    validate_file: 90_validate_dim_education_level.sql
+    grain: One education reporting level.
   - table: dim_city_poverty
     build_file: 06_build_dim_city_poverty.sql
     validate_file: 90_validate_dim_city_poverty.sql
     grain: One row per regular city or municipality of dim_city_municipality; PSA 2023 poverty estimate and its status (D-046).
+  - table: fact_school_classroom_capacity
+    build_file: 11_build_fact_school_classroom_capacity.sql
+    validate_file: 90_validate_fact_school_classroom_capacity.sql
+    grain: One school and school year.
+  - table: fact_school_teacher_capacity
+    build_file: 12_build_fact_school_teacher_capacity.sql
+    validate_file: 90_validate_fact_school_teacher_capacity.sql
+    grain: One school, school year, and education level.
+  - table: fact_school_year_source_availability
+    build_file: 15_build_fact_school_year_source_availability.sql
+    validate_file: 90_validate_fact_school_year_source_availability.sql
+    grain: One school year and DepEd source.
 
 deferred_layers:
   - analytics
