@@ -202,8 +202,10 @@ def replace(rows, school_id, **changes):
 
 
 @pytest.mark.parametrize("schools, geo, failed", [
-    (replace(SCHOOLS, "100001", offers_jhs=None), GEOGRAPHY, {"offering_flag_published"}),
-    (replace(SCHOOLS, "100001", g11_abm_male=3), GEOGRAPHY, {"not_offered_without_learners"}),
+    (replace(SCHOOLS, "100001", offers_jhs=None), GEOGRAPHY, {"offering_flag_published", "offering_flag_blank/2023-24/JHS"}),
+    (replace(SCHOOLS, "100001", g11_abm_male=3), GEOGRAPHY,
+     {"not_offered_without_learners", "not_offered_positive/2023-24/SHS"}),
+    (replace(SCHOOLS, "100003", g11_unique_male=5), GEOGRAPHY, {"cells_before_start_blank"}),  # unique cells start 2024-25
     (SCHOOLS, [g for g in GEOGRAPHY if g[1] != "100002"],
      {"geography_not_null", "member_follows_status", "city_in_dimension", "barangay_in_dimension"}),
     (SCHOOLS, [g if g[:3] != ("2023-24", "100001", "bgy") else ("2023-24", "100001", "bgy", OTHER_BARANGAY, "matched")

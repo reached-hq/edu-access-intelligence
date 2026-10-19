@@ -7,9 +7,10 @@
 -- match status (a school year with no map row); a match status outside matched, unmatched, ambiguous and
 -- excluded, or a geography member that does not follow it; a key that resolves to no dimension member; a
 -- barangay outside the row's city or municipality; a matched row on a technical member; a blank offering
--- flag, or a level not offered with a positive count (metric specification rules 1 and 4); a
--- learner_count that does not follow the rule; a sector outside DepEd's list; and an upstream run that
--- did not succeed.
+-- flag, or a level not offered with a positive count (metric specification rules 1 and 4), in total and
+-- by school year and level; a published SHS cell before the school year DepEd started it (it would be left
+-- out of learner_count); a learner_count that does not follow the rule; a sector outside DepEd's list;
+-- and an upstream run that did not succeed.
 -- WARN: schools whose city or municipality is unmatched or ambiguous, matched schools with no single
 -- barangay, and, by school year and level, offered levels with some or all cells blank.
 -- Counts (PASS): excluded schools, and by school year and level the complete offered rows, the learners
@@ -64,6 +65,14 @@ SELECT
       WHEN is_offered IS NULL THEN NULL
       WHEN NOT is_offered THEN 0
       WHEN null_cells = 0 THEN published_cell_sum END) FROM fact) AS learner_count_off_rule,
+  -- Unique-strand cells start in SY 2024-25 and Strengthened SHS cells in SY 2025-26; the build does not
+  -- count them before then, so a published one there must stop the gate rather than be left out.
+  (SELECT COUNT_IF(
+      (CAST(substr(school_year, 1, 4) AS INT) < 2024
+        AND COALESCE(g11_unique_male, g11_unique_female, g12_unique_male, g12_unique_female) IS NOT NULL)
+      OR (CAST(substr(school_year, 1, 4) AS INT) < 2025
+        AND COALESCE(g11_sshs_acad_male, g11_sshs_acad_female, g11_sshs_techpro_male, g11_sshs_techpro_female) IS NOT NULL))
+    FROM edu_access.`03-silver`.deped_enrollment_clean) AS cells_before_start,
   (SELECT COUNT_IF(sector IS NULL OR sector NOT IN ('Public', 'Private', 'SUC/LUC', 'PSO')) FROM fact) AS bad_sector,
   (SELECT COUNT_IF(psgc_match_status IN ('unmatched', 'ambiguous')) FROM school_years) AS schools_city_unknown,
   (SELECT COUNT_IF(psgc_match_status = 'matched' AND barangay_psgc_code LIKE '%-UNKNOWN') FROM school_years) AS schools_barangay_unknown,
@@ -76,6 +85,8 @@ SELECT
   COUNT_IF(is_offered AND null_cells = 0) AS offered_complete,
   COUNT_IF(is_offered AND null_cells > 0 AND null_cells < applicable_cells) AS offered_partial,
   COUNT_IF(is_offered AND null_cells = applicable_cells) AS offered_all_blank,
+  COUNT_IF(NOT is_offered AND published_cell_sum > 0) AS not_offered_positive,
+  COUNT_IF(is_offered IS NULL) AS offering_flag_blank,
   SUM(learner_count) AS learners,
   SUM(CASE WHEN is_offered AND null_cells > 0 THEN published_cell_sum ELSE 0 END) AS partial_published_cells
 FROM edu_access.`05-gold`.fact_school_enrollment_candidate
@@ -100,6 +111,7 @@ FROM (
   UNION ALL SELECT 'offering_flag_published', CASE WHEN offering_flag_blank = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(offering_flag_blank AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'not_offered_without_learners', CASE WHEN not_offered_with_learners = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(not_offered_with_learners AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'learner_count_follows_rule', CASE WHEN learner_count_off_rule = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(learner_count_off_rule AS STRING) FROM fact_school_enrollment_gate_summary
+  UNION ALL SELECT 'cells_before_start_blank', CASE WHEN cells_before_start = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_before_start AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'sector_allowed', CASE WHEN bad_sector = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_sector AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'schools_city_unknown', CASE WHEN schools_city_unknown = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(schools_city_unknown AS STRING) FROM fact_school_enrollment_gate_summary
   UNION ALL SELECT 'schools_barangay_unknown', CASE WHEN schools_barangay_unknown = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(schools_barangay_unknown AS STRING) FROM fact_school_enrollment_gate_summary
@@ -108,6 +120,8 @@ FROM (
   UNION ALL SELECT 'offered_complete/' || school_year || '/' || education_level_code, 'PASS', CAST(NULL AS STRING), CAST(offered_complete AS STRING) FROM fact_school_enrollment_gate_levels
   UNION ALL SELECT 'offered_partial/' || school_year || '/' || education_level_code, CASE WHEN offered_partial = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(offered_partial AS STRING) FROM fact_school_enrollment_gate_levels
   UNION ALL SELECT 'offered_all_blank/' || school_year || '/' || education_level_code, CASE WHEN offered_all_blank = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(offered_all_blank AS STRING) FROM fact_school_enrollment_gate_levels
+  UNION ALL SELECT 'not_offered_positive/' || school_year || '/' || education_level_code, CASE WHEN not_offered_positive = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(not_offered_positive AS STRING) FROM fact_school_enrollment_gate_levels
+  UNION ALL SELECT 'offering_flag_blank/' || school_year || '/' || education_level_code, CASE WHEN offering_flag_blank = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(offering_flag_blank AS STRING) FROM fact_school_enrollment_gate_levels
   UNION ALL SELECT 'learners/' || school_year || '/' || education_level_code, 'PASS', CAST(NULL AS STRING), CAST(learners AS STRING) FROM fact_school_enrollment_gate_levels
   UNION ALL SELECT 'partial_published_cells/' || school_year || '/' || education_level_code, 'PASS', CAST(NULL AS STRING), CAST(partial_published_cells AS STRING) FROM fact_school_enrollment_gate_levels
 ) AS results;
