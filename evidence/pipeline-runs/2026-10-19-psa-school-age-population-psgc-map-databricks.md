@@ -8,7 +8,7 @@ The two Integration tasks of `edu_access_pipeline` for the map, `05_map_psa_scho
 
 ## What was run
 
-The job `edu_access_pipeline` (job `921726647955407`), deployed with `databricks bundle deploy --target dev --profile reached-hq` from the pushed branch `feat/159-map-psa-school-age-psgc` at commit `8c57f543dec64f8f3b78d2b17fc7d9f914a837ef`. That is the `code_revision` on every map row and on both runs' `pipeline_runs` rows. It holds the map code and overrides of `796a5df` unchanged; only the `owner` field and D-054's last line differ. The job was run twice with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`. Times are Manila (UTC+8), 2026-10-19.
+The job `edu_access_pipeline` (job `921726647955407`), deployed with `databricks bundle deploy --target dev --profile reached-hq` from the pushed branch `feat/159-map-psa-school-age-psgc` at commit `8c57f543dec64f8f3b78d2b17fc7d9f914a837ef`. That is the `code_revision` on every map row and on both runs' `pipeline_runs` rows. It holds the map code and overrides of `796a5df` unchanged; only the `owner` field and the decision text differ. The job was run twice with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`. Times are Manila (UTC+8), 2026-10-19.
 
 | | Run 1 | Run 2 |
 |---|---|---|
