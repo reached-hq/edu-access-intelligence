@@ -192,6 +192,28 @@ DepEd's documented teacher–learner method adds annex enrollment and teachers t
 
 **Validation status:** ready to implement and validate as a project-defined ratio by level, limited to SY 2023-24. Teacher positions, levels, null rules, and annex handling are set (D-047). It is not DepEd's teacher–learner ratio. Resolve the reviewed personnel outliers before dashboard publication.
 
+#### AP3 implementation status (#146)
+
+`etl/06_analytics/03_answer_ap3.sql` builds
+`edu_access.06-analytics.ap3_teacher_pressure_candidate`.
+
+The output retains every regular city or municipality, enrollment school
+year, and education level (`ES`, `JHS`, `SHS`). It publishes the ratio,
+school and learner coverage, funding subtotals, missing-data counts,
+zero-teacher annex diagnostics, and explicit ratio NULL reasons.
+
+`90_validate_ap3.sql` independently reconciles the candidate to Gold and
+publishes `ap3_teacher_pressure` only when every FAIL-level check passes.
+A failure preserves the last published output.
+
+Local validation uses made-up Gold inputs. Real-data reconciliation and
+Databricks validation are to follow. The job tasks remain disabled until
+the required Gold inputs are ready.
+
+The sensitivity teacher-total requirement in #146 remains unresolved.
+This implementation therefore covers part of #146 and does not claim
+complete acceptance evidence or dashboard publication readiness.
+
 ### AP4 · School-age population and enrollment gap
 
 ```text

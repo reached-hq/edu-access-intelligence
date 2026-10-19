@@ -223,5 +223,12 @@ gold_tables:
     validate_file: 90_validate_fact_school_year_source_availability.sql
     grain: One school year and DepEd source.
 
+analytics_tables:
+  - table: ap3_teacher_pressure
+    build_file: 03_answer_ap3.sql
+    validate_file: 90_validate_ap3.sql
+    grain: One regular city or municipality, enrollment school year, and education level (ES, JHS, SHS).
+    purpose: Project-defined provisional learners per teacher, with coverage, funding splits, and annex diagnostics.
+
 deferred_layers:
   - analytics
