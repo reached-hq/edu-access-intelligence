@@ -227,5 +227,10 @@ gold_tables:
     validate_file: 90_validate_fact_school_year_source_availability.sql
     grain: One school year and DepEd source.
 
-deferred_layers:
-  - analytics
+analytics_tables:
+  - table: ap2_classroom_pressure
+    build_file: 02_answer_ap2.sql
+    validate_file: 90_validate_ap2.sql
+    grain: One regular city or municipality of dim_city_municipality, SY 2023-24 only.
+
+deferred_layers: []

@@ -1045,10 +1045,10 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 02_answer_ap2
-          disabled: true
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
             - task_key: 90_validate_fact_school_classroom_capacity
+            - task_key: 90_validate_dim_city_municipality
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -1056,7 +1056,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_ap2
-          disabled: true
           depends_on:
             - task_key: 02_answer_ap2
           run_if: ALL_SUCCESS

@@ -153,7 +153,7 @@ Levels are combined because rooms are shared across levels: 768 public schools h
 
 The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator.
 
-**Validation status:** ready to implement and validate as a project-defined descriptive measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication.
+**Validation status:** ready to implement and validate as a project-defined descriptive measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication. Implemented as `06-analytics`.`ap2_classroom_pressure` (#145). The published measure column is `learners_per_nsbi_instructional_room`. The gate records the D-057 outlier fence as a WARN count and changes no value. The non-NULL learner-cell audit sum for incomplete schools is not in the published enrollment fact, so the output shows the learners at those schools' complete levels instead.
 
 ### AP3 · Teacher pressure
 
