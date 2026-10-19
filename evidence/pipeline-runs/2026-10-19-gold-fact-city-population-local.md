@@ -27,8 +27,11 @@ Issue #46 · local DuckDB · 2026-10-19, Manila time (UTC+8) · run by @Catweyin
 
 Spot checks: City of Isabela `0990101000` 151,297; City of Manila `1380600000` 1,902,590 (its 14 districts are not added again); Kapalawan `1999901000` (Special Geographic Area) 29,191. The only `#N/A` population in PSGC is on the blank-level container `0990100000` "City of Isabela (Not a Province)", which is not a member, so no city or municipality is `missing`. The metric specification's note that "Isabela City has no 2024 population in PSGC" refers to that container row; the city row has one (observed).
 
+## Rerun on #193's real dim_city_municipality
+
+On 2026-10-19 the whole job ran locally (`python -m src.job.local_run`) on a throwaway branch that merges #168, #193 and the three Gold branches, with every approved raw file except `Enrollment-in-SY-2021-2022.zip`. `13_build_fact_city_population` built on #193's real `dim_city_municipality` (1,642 regular members, plus `UNKNOWN` and `EXCLUDED`) and its gate passed: 19 PASS, 0 WARN, 0 FAIL, total 112,727,776. The published table has the same MD5 as above, `7a422d47bbc6458fae8abd4933d96ef8`, so the stand-in matched.
+
 ## What this does not show
 
 - A Databricks `dev` run. The tasks are enabled, but they wait for `90_validate_dim_city_municipality` (#193).
-- #193's real `dim_city_municipality`. The stand-in has its regular members by its rule, not its build.
 - The `missing` path on real data: no member has it today. `tests/test_gold_fact_city_population.py` covers it on made-up rows, as well as a published 0, a negative value, a NULL with an unknown reason, a member not in PSGC, and a Silver run that did not succeed.
