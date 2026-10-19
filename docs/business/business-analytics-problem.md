@@ -1,6 +1,6 @@
 # Business and analytical questions
 
-**Status:** The question wording was approved through mentor review on 2026-10-14. D-058 revises the priority method previously recorded in D-057. The implementation-ready calculations are in the separate [metric specification](metric-specification.md).
+**Status:** The business question and the four analytical questions below are the wording approved through mentor review on 2026-10-14, unchanged. D-058 revises only the **metrics** that answer them and the priority method previously recorded in D-057; the metric changes are pending mentor confirmation. The implementation-ready calculations are in the separate [metric specification](metric-specification.md).
 
 | | |
 |---|---|
@@ -25,10 +25,12 @@ In this approved wording, “cities” includes cities and municipalities.
 
 ## Analytical questions
 
-1. **AP1:** Which cities and municipalities have higher school-age population per active public school than the national reference for their LGU type?
-2. **AP2:** Which cities and municipalities have higher public-school learners per reported instructional classroom than the national reference for their LGU type?
-3. **AP3:** Which cities and municipalities have higher public-school learners per approved teacher count than the national reference for their LGU type?
-4. **AP4:** In which cities and municipalities is enrollment growing, declining, or stable from SY 2020-21 to SY 2025-26?
+1. **Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population?**
+2. **Which cities and municipalities have the most public-school students per classroom?**
+3. **Which cities and municipalities have the most public-school students per teacher?**
+4. **Which cities and municipalities have the largest gap between school-age population and student enrollment over time?**
+
+The wording above is unchanged. Under D-058 each question is answered with the metric in the table below: AP1 with school-age population per active public school, AP2 and AP3 with learners per classroom and per teacher against the pooled same-type reference, and AP4 with the enrollment trend over time.
 
 ### How the analytical questions support the decision
 
@@ -53,12 +55,12 @@ The final matrix sends an LGU to `Data Review` when any current-pressure measure
 
 ## Analytical boundaries
 
-- AP1 uses 2024 school-age population aged 5–17 and active public schools. It is not a school-construction recommendation.
+- AP1 uses 2024 school-age population aged 5–17 and SY 2024-25 active public schools, the school year aligned with the 2024 census. It is not a school-construction recommendation. Each output carries its own school year, so AP1 (SY 2024-25) and AP2 and AP3 (SY 2023-24) are never presented as one year.
 - AP2 and AP3 use public-school enrollment for SY 2023-24, the year shared with the facilities and personnel sources.
 - AP3 pools the approved ES, JHS, and SHS teacher and learner contributions into one LGU ratio after applying the existing level-specific eligibility and annex rules.
-- AP4 uses enrollment in public, private, and SUC/LUC schools and excludes Philippine Schools Overseas. It is a direction signal, not current pressure.
+- AP4 uses enrollment in public, private, and SUC/LUC schools and excludes Philippine Schools Overseas. It is a direction signal, not current pressure. A change within ±5% is `Stable`. The first year, SY 2020-21, is a pandemic year, so growth from it is read with that caveat.
 - Enrollment is assigned to the LGU where the school is located, not the learner's residence. Cross-boundary attendance can affect the results.
-- Missing values remain missing. Outliers remain in observed totals and are never capped or removed.
+- Missing values remain missing. Outliers remain in observed totals and are never capped or removed. A school-level outlier sends an LGU to `Data Review` only when leaving it out moves the LGU across the reference.
 - The 90% gate is applied before AP1 to AP3 classification. An unresolved material quality flag also produces `Data Review`.
 - Cities compare only with cities and municipalities only with municipalities. The reference is a pooled ratio, not an average of LGU ratios.
 - Poverty, Similar LGUs, and other context fields never change an AP classification or priority.

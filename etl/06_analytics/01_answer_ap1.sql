@@ -1,5 +1,6 @@
 -- ap1 school provision under the same-type ratio methodology that supersedes D-057.
--- grain: one regular city or municipality for SY 2024-25.
+-- grain: one regular city or municipality for SY 2024-25 schools against the 2024 census (AP2 and AP3 use SY 2023-24).
+-- the same-type reference pools only LGUs with no input issue.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
@@ -49,22 +50,28 @@ WITH lgus AS (
   FROM lgus AS l
   LEFT JOIN schools AS s USING (city_mun_psgc_code)
   LEFT JOIN population AS p USING (city_mun_psgc_code)
+), assessed AS (
+  -- input problems are found before the reference, so an LGU that fails them never moves the line others are judged against.
+  SELECT *,
+         CASE WHEN school_age_population IS NULL THEN 'missing 2024 school-age population'
+              WHEN active_public_school_count = 0 THEN 'no active public school'
+              WHEN coverage_pct IS NULL OR coverage_pct < 90 THEN 'coverage below 90%'
+         END AS input_issue_reason
+  FROM metrics
 ), type_references AS (
   SELECT lgu_type,
          CAST(SUM(school_age_population) AS DOUBLE) / NULLIF(SUM(active_public_school_count), 0)
-           AS national_same_type_ratio
-  FROM metrics
-  WHERE school_age_population IS NOT NULL
+           AS national_same_type_ratio,
+         COUNT(*) AS reference_lgu_count
+  FROM assessed
+  WHERE input_issue_reason IS NULL
   GROUP BY lgu_type
 ), classified AS (
-  SELECT m.*, r.national_same_type_ratio,
-         m.school_age_population_per_public_school / NULLIF(r.national_same_type_ratio, 0) AS relative_pressure,
+  SELECT a.*, r.national_same_type_ratio, COALESCE(r.reference_lgu_count, 0) AS reference_lgu_count,
+         a.school_age_population_per_public_school / NULLIF(r.national_same_type_ratio, 0) AS relative_pressure,
          FALSE AS outlier_flag,
-         CASE WHEN m.school_age_population IS NULL THEN 'missing 2024 school-age population'
-              WHEN m.active_public_school_count = 0 THEN 'no active public school'
-              WHEN m.coverage_pct IS NULL OR m.coverage_pct < 90 THEN 'coverage below 90%'
-         END AS quality_issue_reason
-  FROM metrics AS m
+         a.input_issue_reason AS quality_issue_reason
+  FROM assessed AS a
   LEFT JOIN type_references AS r USING (lgu_type)
 )
 SELECT *,

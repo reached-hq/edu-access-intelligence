@@ -1,5 +1,7 @@
 -- ap4 enrollment direction under the methodology that supersedes D-057.
 -- grain: one regular city or municipality across SY 2020-21 through SY 2025-26.
+-- growth needs more than +5% and decline less than -5%, anything within the band is Stable. the trend is Data Review
+-- when the national matched-learner share moves more than 2 points between the endpoints.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
@@ -18,18 +20,27 @@ WITH lgus AS (
   FROM edu_access.`05-gold`.fact_school_enrollment
   GROUP BY school_year
 ), school_totals AS (
-  SELECT school_id, school_year, city_mun_psgc_code,
+  SELECT school_id, school_year, city_mun_psgc_code, MIN(psgc_match_status) AS psgc_match_status,
          CASE WHEN COUNT_IF(is_offered IS NULL OR (is_offered AND learner_count IS NULL)) > 0 THEN NULL
               ELSE SUM(CASE WHEN is_offered THEN learner_count ELSE 0 END) END AS school_learners
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year IN ('2020-21', '2021-22', '2022-23', '2023-24', '2024-25', '2025-26')
-    AND sector IN ('Public', 'Private', 'SUC/LUC') AND psgc_match_status = 'matched'
+    AND sector IN ('Public', 'Private', 'SUC/LUC')
   GROUP BY school_id, school_year, city_mun_psgc_code
+), matched_share AS (
+  -- learners at schools placed in a city or municipality, out of all complete schools that year; a large move
+  -- between the endpoints means part of any change could be matching, not enrollment.
+  SELECT school_year,
+         CAST(100.0 * SUM(CASE WHEN psgc_match_status = 'matched' THEN school_learners ELSE 0 END)
+           / NULLIF(SUM(school_learners), 0) AS DOUBLE) AS matched_learner_share_pct
+  FROM school_totals
+  GROUP BY school_year
 ), enrollment AS (
   SELECT city_mun_psgc_code, school_year, CAST(COALESCE(SUM(school_learners), 0) AS BIGINT) AS enrollment,
          COUNT(*) AS school_count, COUNT_IF(school_learners IS NOT NULL) AS complete_school_count,
          COUNT_IF(school_learners IS NULL) AS incomplete_school_count
   FROM school_totals
+  WHERE psgc_match_status = 'matched'
   GROUP BY city_mun_psgc_code, school_year
 ), grid AS (
   SELECT l.city_mun_psgc_code, l.city_mun_name, l.lgu_type, l.province_psgc_code, l.province_name,
@@ -60,21 +71,30 @@ WITH lgus AS (
   FROM grid
   GROUP BY city_mun_psgc_code
 ), changes AS (
-  SELECT *,
+  SELECT p.*,
+         (SELECT matched_learner_share_pct FROM matched_share WHERE school_year = '2020-21')
+           AS matched_learner_share_2020_21_pct,
+         (SELECT matched_learner_share_pct FROM matched_share WHERE school_year = '2025-26')
+           AS matched_learner_share_2025_26_pct,
          CASE WHEN available_year_count = 6 THEN enrollment_2025_26 - enrollment_2020_21 END AS absolute_change,
          CASE WHEN available_year_count = 6 THEN
            CAST(enrollment_2025_26 - enrollment_2020_21 AS DOUBLE) / NULLIF(enrollment_2020_21, 0) END AS pct_change
-  FROM pivoted
+  FROM pivoted AS p
 )
 SELECT *,
+       matched_learner_share_2025_26_pct - matched_learner_share_2020_21_pct AS matched_learner_share_change_pts,
+       CAST(0.05 AS DOUBLE) AS stable_band,
        CASE WHEN available_year_count < 6 THEN NULL
             WHEN enrollment_2020_21 IS NULL OR enrollment_2020_21 = 0 THEN NULL
-            WHEN pct_change > 0 THEN 'Growing'
-            WHEN pct_change < 0 THEN 'Declining'
+            WHEN pct_change > 0.05 THEN 'Growing'
+            WHEN pct_change < -0.05 THEN 'Declining'
             ELSE 'Stable' END AS trend_direction,
        CASE WHEN available_year_count < 6 THEN 'Data Review: one or more enrollment years unavailable'
             WHEN enrollment_2020_21 IS NULL OR enrollment_2020_21 = 0 THEN 'Data Review: starting enrollment is null or zero'
             WHEN incomplete_school_year_rows > 0 THEN 'Data Review: one or more school totals are incomplete'
+            WHEN matched_learner_share_2025_26_pct IS NULL OR matched_learner_share_2020_21_pct IS NULL
+              OR ABS(matched_learner_share_2025_26_pct - matched_learner_share_2020_21_pct) > 2
+              THEN 'Data Review: matched-learner share moved more than 2 points'
             ELSE 'Complete' END AS trend_status,
        :code_revision AS code_revision
 FROM changes;

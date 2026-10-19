@@ -12,10 +12,12 @@ All outputs have one row per regular city or municipality. Each build writes a c
 | `04_answer_ap4.sql` | `answer_ap4` | All-sector enrollment direction from SY 2020-21 through SY 2025-26, excluding Philippine Schools Overseas |
 | `05_build_priority_matrix.sql` | `priority_matrix` | Explainable priority from the three validated pressure signals and AP4 enrollment direction |
 
-AP1 to AP3 compare each LGU with a pooled national reference for the same LGU type. The reference is `SUM(numerator) / SUM(denominator)`, never an average of LGU ratios. A valid ratio above that reference is `Above Reference`; otherwise it is `At or Below Reference`. Coverage below 90%, a missing required value, or an unresolved quality flag produces `Data Review`. Observed outliers remain in every total and are never capped or removed.
+AP1 to AP3 compare each LGU with a pooled national reference for the same LGU type. The reference is `SUM(numerator) / SUM(denominator)`, never an average of LGU ratios. A valid ratio above that reference is `Above Reference`; otherwise it is `At or Below Reference`. The reference pools only LGUs with no input issue. Coverage below 90% or a missing required value produces `Data Review`. Observed outliers remain in every total and are never capped or removed; an LGU with flagged schools goes to `Data Review` only when its ratio without them falls on the other side of the reference.
 
-AP4 is a direction signal, not a pressure score. It retains each annual enrollment value and classifies the endpoint change as `Growing`, `Declining`, or `Stable`. It has no national comparison or percentile.
+AP4 is a direction signal, not a pressure score. It retains each annual enrollment value and classifies the endpoint change as `Growing` (above +5%), `Declining` (below −5%) or `Stable`. A national matched-learner share that moves more than 2 points between SY 2020-21 and SY 2025-26 sends the trend to `Data Review`. The matrix counts growth only when the trend status is `Complete`. It has no national comparison or percentile.
 
 The final matrix preserves every component ratio, reference, coverage measure, quality flag, classification, and trend. It counts AP1 to AP3 `Above Reference` results and applies D-058's explicit priority case. No percentile or weighted score sets priority.
+
+Each gate writes its one-row check summary to a table named for the run (`<output>_gate_summary_r_<sha256(run_id)>`) and drops it once the checks are recorded, as the Gold gates do (#202). Gates also record unplaced schools and learners as `WARN`, and the priority gate records the number of LGUs per tier.
 
 Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).

@@ -114,3 +114,89 @@ def test_priority_gate_rejects_wrong_priority(store):
     with pytest.raises(Exception, match="Analytics gate failed"):
         run(store, "90_validate_priority_matrix.sql")
     assert store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code") == before
+
+
+STEPS = [
+    ("01_answer_ap1.sql", "90_validate_ap1.sql"),
+    ("02_answer_ap2.sql", "90_validate_ap2.sql"),
+    ("03_answer_ap3.sql", "90_validate_ap3.sql"),
+    ("04_answer_ap4.sql", "90_validate_ap4.sql"),
+    ("05_build_priority_matrix.sql", "90_validate_priority_matrix.sql"),
+]
+
+
+def run_all(store):
+    for build, gate in STEPS:
+        run(store, build)
+        run(store, gate)
+
+
+def add_public_school(store, school_id, code, year, learners, rooms):
+    store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
+        ('{school_id}','{year}','ES','{code}','Public','matched','Mother School',TRUE,{learners}),
+        ('{school_id}','{year}','JHS','{code}','Public','matched','Mother School',FALSE,0),
+        ('{school_id}','{year}','SHS','{code}','Public','matched','Mother School',FALSE,0)""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_classroom_capacity VALUES ('{school_id}','{year}',{rooms})")
+
+
+def test_reference_pools_only_lgus_without_an_input_issue(store):
+    # S1 loses its room count, so City One's room coverage is 50% and it must not move the city line.
+    store.sql(f"DELETE FROM {GOLD}.fact_school_classroom_capacity WHERE school_id = 'S1'")
+    run_all(store)
+    rows = dict(store.query(f"""SELECT city_mun_psgc_code, national_same_type_ratio
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE lgu_type = 'City'"""))
+    assert rows["C2"] == pytest.approx(330 / 10)
+    assert store.query(f"""SELECT input_issue_reason, classification FROM {ANALYTICS}.ap2_classroom_pressure
+        WHERE city_mun_psgc_code = 'C1'""") == [("coverage below 90%", "Data Review")]
+
+
+@pytest.mark.parametrize("learners, rooms, expected", [
+    (60, 1, "Above Reference"),   # without the outlier, Town One is still above the line
+    (600, 10, "Data Review"),     # without the outlier, Town One drops below the line
+])
+def test_an_outlier_school_decides_data_review_only_when_it_flips_the_result(store, learners, rooms, expected):
+    for n in range(5):
+        add_public_school(store, f"T{n}", "M2", "2023-24", 210, 9)
+    add_public_school(store, "X1", "M1", "2023-24", learners, rooms)
+    run_all(store)
+    flag, count, classification = store.query(f"""SELECT outlier_flag, outlier_school_count, classification
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'M1'""")[0]
+    assert flag and count == 1
+    assert classification == expected
+
+
+def test_ap4_applies_the_stable_band(store):
+    # Town Two moves from 180 to 185 learners (+2.8%), inside the ±5% band; City One grows by 50%.
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET learner_count = 185
+        WHERE school_id = 'S5' AND school_year = '2025-26' AND education_level_code = 'ES'""")
+    run_all(store)
+    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, enrollment_2020_21, enrollment_2025_26,
+        trend_direction, trend_status FROM {ANALYTICS}.ap4_enrollment_trend""")}
+    assert rows["C1"] == (200, 300, "Growing", "Complete")
+    assert rows["M2"] == (180, 185, "Stable", "Complete")
+    assert store.query(f"""SELECT growing_enrollment_flag FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'C1'""") == [(True,)]
+
+
+def test_growth_needs_a_complete_trend(store):
+    # a large unplaced school in the latest year moves the matched-learner share by more than 2 points
+    store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
+        ('U1','2025-26','ES','UNKNOWN','Private','unmatched','Mother School',TRUE,500)""")
+    run_all(store)
+    assert store.query(f"""SELECT DISTINCT enrollment_trend, enrollment_trend_status, growing_enrollment_flag
+        FROM {ANALYTICS}.lgu_priority_matrix""") == [
+        ("Growing", "Data Review: matched-learner share moved more than 2 points", False)]
+
+
+def test_gates_record_tier_counts_and_drop_their_summaries(store):
+    run_all(store)
+    tiers = store.query("""SELECT SUM(CAST(actual AS BIGINT)) FROM edu_access."01-control".data_quality_results
+        WHERE source_id = 'lgu_priority_matrix' AND check_name LIKE 'lgus_%'""")
+    assert tiers == [(4,)]
+    leftovers = "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%gate_summary_r_%'"
+    assert store.query(leftovers) == []
+    run(store, "02_answer_ap2.sql")
+    store.sql(f"UPDATE {ANALYTICS}.ap2_classroom_pressure_candidate SET outlier_changes_classification = TRUE")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap2.sql")
+    assert store.query(leftovers) == []
