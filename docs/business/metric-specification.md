@@ -57,7 +57,7 @@ The Gold build uses the reviewed tables and fields below. Brace notation is shor
 | Classroom capacity | `deped_facilities_clean.school_id`, `school_year`, `es_classrooms_instructional`, `jhs_classrooms_instructional`, `shs_classrooms_instructional` | School x school year. Require public scope. Sum the three room fields that are not NULL; return NULL when all three are NULL. Do not substitute makeshift rooms, temporary learning spaces, or non-instructional rooms into this denominator. |
 | Teacher capacity | The level-specific personnel fields listed immediately below | School x school year x education level. Require public scope. Principals, assistant principals, administrative, health, guidance, library, security, utility, and all other non-teaching roles are excluded. |
 | DepEd source availability | `fact_school_year_source_availability.school_year`, `source_id`, `has_data` | School year x source. Require one row for each school year and each of `deped_enrollment`, `deped_facilities`, and `deped_personnel`. Use this fact only to determine whether a source has data for the selected year. It does not establish school or education-level coverage. |
-| AP1 total population | `fact_city_population.city_mun_psgc_code`, `reference_year`, `population`, `estimate_status` | City or municipality x reference year. Use only `reference_year = 2024` and `estimate_status = 'available'`; label the value **Population 2024** and do not substitute school-age population. |
+| AP1 school-age population (context) | `fact_city_school_age_population.city_mun_psgc_code`, `reference_year`, `age`, `sex`, `population`, `psgc_match_status` | City or municipality x reference year. Use only `reference_year = 2024`, ages 5–17, `sex IN ('male', 'female')` and `psgc_match_status = 'matched'`, following the team's BP and AP metrics; label the value **School-age population 2024**. Total population (`fact_city_population`) is not used by AP1. |
 | AP4 school-age population | `fact_city_school_age_population.city_mun_psgc_code`, `reference_year`, `age`, `sex`, `population`, `psgc_match_status`, `is_2020_2024_geography_comparable` | City or municipality x reference year. Sum `sex IN ('male', 'female')` and `age BETWEEN 5 AND 17`; use only reviewed PSGC matches. Never add a published both-sexes total to the male and female rows. |
 
 ### AP3 included personnel fields
@@ -141,7 +141,8 @@ learners_per_reported_instructional_room =
     / sum(total_instructional_rooms for the same schools)
 
 school_coverage_pct =
-    active_public_schools_with_usable_room_count / active_public_schools_in_scope * 100
+    active_public_schools_with_complete_enrollment_and_usable_room_count
+    / (active_public_schools_in_scope + schools_with_every_offered_count_blank) * 100
 
 learner_coverage_pct =
     enrollment_in_schools_with_usable_room_count / public_school_enrollment * 100
@@ -307,7 +308,7 @@ For each measure, the national same-type median, interquartile range, and the LG
 
 The priority rule is D-057. It ranks cities and municipalities for SY 2023-24 on AP1 (learners per public school), AP2 (learners per reported instructional room), and AP3 (learners per teacher by level), using the formulas above.
 
-1. **Coverage gate.** A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
+1. **Coverage gate.** (Implementation note: AP1 also counts schools that offer a level but have every offered count blank in the denominator, as missing data; see AP1.) A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
 2. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it; then each LGU's highest level percentile, from the levels that pass, is ranked again the same way among the LGUs with at least one passing level.
 3. **High.** A measure is high at a percentile of 0.90 or above; for AP3 this is the second, re-ranked percentile, and the output names the level with the highest level percentile. AP3 is not high only when every offered level passes and it is still not high; otherwise it is not assessed.
 4. **Tier.** **Critical** (3 high), **Elevated** (2), **Targeted** (1, naming the measure), **Monitor** (0), or **Data review**. Critical is always shown with its meaning: high on all three measures compared with LGUs of the same type. The priority table stores a fixed tier code (3, 2, 1, 0, `data_review`) beside the label. The tier is a count of high measures, not a weighted score; each measure keeps its own value, percentile, and coverage in every view.

@@ -220,3 +220,55 @@ def test_gates_record_tier_counts_and_drop_their_summaries(store):
     assert tiers == [(4,)]
     leftovers = "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%gate_summary_r_%'"
     assert store.query(leftovers) == []
+
+
+def add_public_school(store, school_id, code, learners, rooms, teachers=None):
+    store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
+        ('{school_id}','2023-24','ES','{code}','Public','matched','Mother School',TRUE,{learners}),
+        ('{school_id}','2023-24','JHS','{code}','Public','matched','Mother School',FALSE,0),
+        ('{school_id}','2023-24','SHS','{code}','Public','matched','Mother School',FALSE,0)""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_classroom_capacity VALUES ('{school_id}','2023-24',{rooms})")
+    if teachers is not None:
+        store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('{school_id}','2023-24','ES',{teachers})")
+
+
+def test_an_outlier_school_is_counted_but_never_changes_a_result(store):
+    # Town Two gains five ordinary schools and Town One one extreme school (60 learners in 1 room) above the fence
+    for n in range(5):
+        add_public_school(store, f"T{n}", "M2", 210, 9, 9)
+    add_public_school(store, "X1", "M1", 60, 1, 1)
+    run_all(store, STEPS[:2])
+    assert store.query(f"""SELECT outlier_school_count, outlier_flag, is_assessed, within_type_percentile, is_high
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'M1'""") == [(1, True, True, 1.0, True)]
+
+
+def test_critical_within_type_but_not_nationally_is_not_stable(store):
+    # Town Two's rooms drop to 5 (42 learners per room): it now leads AP2 nationally, above City Two's 33
+    store.sql(f"UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 5 WHERE school_id = 'S5'")
+    run_all(store)
+    c2 = matrix(store)["C2"]
+    assert c2[1:5] == ("Critical", "3", "Elevated", False)
+
+
+def test_a_measure_is_high_at_exactly_the_90th_percentile(store):
+    # eleven municipalities: nine new ones at 10 to 18 learners per room, then Town Two (23.3) and Town One (25)
+    for n in range(9):
+        code = f"N{n}"
+        store.sql(f"""INSERT INTO {GOLD}.dim_city_municipality VALUES
+            ('{code}','Town {code}','Municipality','P','Province','R','Region','regular')""")
+        add_public_school(store, f"Q{n}", code, 100 + 10 * n, 10)
+    run_all(store, STEPS[1:2])
+    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, within_type_percentile, is_high
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE lgu_type = 'Municipality'""")}
+    assert rows["M2"] == (0.9, True)          # rank 10 of 11: (10 - 1) / (11 - 1)
+    assert rows["N8"] == (pytest.approx(0.8), False)
+    assert rows["M1"] == (1.0, True)
+
+
+def test_ap3_gate_rejects_a_wrong_national_assessment(store):
+    run_all(store, STEPS[:2])
+    run(store, "03_answer_ap3.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.ap3_teacher_pressure_candidate SET is_assessed_nationally = FALSE
+        WHERE city_mun_psgc_code = 'C2'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap3.sql")

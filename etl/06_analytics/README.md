@@ -12,7 +12,7 @@ All outputs have one row per regular city or municipality. Each build writes a c
 | `04_answer_ap4.sql` | `ap4_enrollment_trend` | School-age population minus all-sector enrollment in 2020 and 2024, gap rate and change in gap, and the direction of enrollment from SY 2020-21 to 2025-26 (context) |
 | `05_build_priority_matrix.sql` | `lgu_priority_matrix` | D-057 tier from the AP1 to AP3 high measures, order within the tier, Stable flag, and AP4 as context |
 
-**Ranking (D-057).** A measure is ranked only when its coverage is at least 90%: learner coverage for AP2 and each AP3 level, and for AP1 the share of active public schools with complete all-level enrollment. Each measure is ranked with `PERCENT_RANK()` within LGU type, and it is high at 0.90 or above. AP3 ranks each level, then re-ranks each LGU's highest level, and names that level.
+**Ranking (D-057).** A measure is ranked only when its coverage is at least 90%: learner coverage for AP2 and each AP3 level, and for AP1 the share of active public schools with complete all-level enrollment (schools whose offered counts are all blank are added to the denominator as missing data). Each measure is ranked with `PERCENT_RANK()` within LGU type, and it is high at 0.90 or above. AP3 ranks each level, then re-ranks each LGU's highest level, and names that level.
 
 **Tier (D-057).** Critical (3 high), Elevated (2), Targeted (1, naming the measure), Monitor (0), or Data review when a measure is not assessed. The order within a tier is affected learners, then the lowest percentile. The same rule run nationally gives the Stable flag. A count of high measures is not a weighted score, and the result is relative pressure, not a shortage.
 

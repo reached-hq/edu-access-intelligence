@@ -85,6 +85,8 @@ SELECT
     OR gap_2024 IS DISTINCT FROM school_age_population_2024 - enrollment_2024_25
     OR (school_age_population_2020 > 0 AND ABS(gap_rate_2020_pct - 100.0 * gap_2020 / school_age_population_2020) > 1e-9)
     OR (school_age_population_2024 > 0 AND ABS(gap_rate_2024_pct - 100.0 * gap_2024 / school_age_population_2024) > 1e-9)
+    OR (enrollment_2020_21 > 0
+      AND ABS(public_school_share_2020_21_pct - 100.0 * public_enrollment_2020_21 / enrollment_2020_21) > 1e-9)
     OR (enrollment_2024_25 > 0
       AND ABS(public_school_share_2024_25_pct - 100.0 * public_enrollment_2024_25 / enrollment_2024_25) > 1e-9)
     OR gap_change IS DISTINCT FROM CASE WHEN is_2020_2024_geography_comparable THEN gap_2024 - gap_2020 END), 0) FROM c)

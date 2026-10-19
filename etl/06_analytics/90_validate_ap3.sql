@@ -80,6 +80,7 @@ WITH c AS (
   SELECT city_mun_psgc_code,
          MAX(CASE WHEN type_order = 1 THEN education_level_code END) AS level,
          MAX(CASE WHEN type_order = 1 THEN type_pct END) AS level_pct,
+         MAX(CASE WHEN national_order = 1 THEN education_level_code END) AS national_level,
          MAX(CASE WHEN national_order = 1 THEN national_pct END) AS national_level_pct
   FROM (
     SELECT a.city_mun_psgc_code, a.education_level_code, a.type_pct, a.national_pct,
@@ -89,7 +90,7 @@ WITH c AS (
   ) AS p
   GROUP BY city_mun_psgc_code
 ), reranks AS (
-  SELECT b.city_mun_psgc_code, b.level, b.level_pct,
+  SELECT b.city_mun_psgc_code, b.level, b.level_pct, b.national_level, b.national_level_pct,
          PERCENT_RANK() OVER (PARTITION BY r.lgu_type ORDER BY b.level_pct) AS type_pct,
          PERCENT_RANK() OVER (ORDER BY b.national_level_pct) AS national_pct
   FROM best b JOIN regular r USING (city_mun_psgc_code)
@@ -120,6 +121,9 @@ SELECT
        OR ABS(a.type_pct - r.type_pct) > 1e-9 OR ABS(a.national_pct - r.national_pct) > 1e-9) AS level_percentile_mismatch,
   (SELECT COUNT(*) FROM c LEFT JOIN reranks r USING (city_mun_psgc_code)
     WHERE c.highest_level IS DISTINCT FROM r.level
+       OR c.highest_level_percentile IS DISTINCT FROM r.level_pct
+       OR c.highest_level_nationally IS DISTINCT FROM r.national_level
+       OR c.highest_level_national_percentile IS DISTINCT FROM r.national_level_pct
        OR (c.within_type_percentile IS NULL) <> (r.type_pct IS NULL)
        OR (c.national_percentile IS NULL) <> (r.national_pct IS NULL)
        OR ABS(c.within_type_percentile - r.type_pct) > 1e-9
@@ -127,7 +131,14 @@ SELECT
   (SELECT COALESCE(COUNT_IF(is_high IS DISTINCT FROM COALESCE(within_type_percentile >= 0.9, FALSE)
     OR is_high_nationally IS DISTINCT FROM COALESCE(national_percentile >= 0.9, FALSE)
     OR is_assessed IS DISTINCT FROM (is_high OR (offered_level_count > 0 AND passing_level_count = offered_level_count))
-    OR is_assessed IS DISTINCT FROM (not_assessed_reason IS NULL)), 0) FROM c) AS assessment_mismatch,
+    OR is_assessed IS DISTINCT FROM (not_assessed_reason IS NULL)
+    OR is_assessed_nationally IS DISTINCT FROM
+      (is_high_nationally OR (offered_level_count > 0 AND passing_level_count = offered_level_count))
+    OR offered_level_count IS DISTINCT FROM CAST(COALESCE(es_offered_school_count > 0, FALSE) AS INT)
+      + CAST(COALESCE(jhs_offered_school_count > 0, FALSE) AS INT) + CAST(COALESCE(shs_offered_school_count > 0, FALSE) AS INT)
+    OR passing_level_count IS DISTINCT FROM CAST(COALESCE(es_passes_gate, FALSE) AS INT)
+      + CAST(COALESCE(jhs_passes_gate, FALSE) AS INT) + CAST(COALESCE(shs_passes_gate, FALSE) AS INT)), 0) FROM c)
+    AS assessment_mismatch,
   (SELECT COUNT(*) FROM schools WHERE active = 1 AND psgc_match_status <> 'matched') AS unplaced_active_schools,
   (SELECT COALESCE(SUM(learners), 0) FROM schools WHERE active = 1 AND psgc_match_status <> 'matched')
     AS unplaced_public_learners,
