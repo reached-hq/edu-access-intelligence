@@ -28,6 +28,9 @@ Proposed facts:
 - `fact_city_school_age_population`
 - `fact_school_year_source_availability`
 
+Built: `dim_city_poverty` (D-046), from `dim_city_municipality` and the poverty
+map; its gate pins D-046's counts and publishes only when no check fails.
+
 When approved, use one dimension or fact per file and give each dimension gate
 a uniqueness check on its declared key. Files follow `NN_<verb>_<object>.sql`,
 with checks in `90_validate_<object>.sql` (see [File naming and
