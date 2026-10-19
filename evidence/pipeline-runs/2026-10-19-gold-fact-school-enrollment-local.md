@@ -4,7 +4,7 @@ Issue #46 · local DuckDB · 2026-10-19, Manila time (UTC+8) · run by @Catweyin
 
 ## The claim
 
-`10_build_fact_school_enrollment.sql` and `90_validate_fact_school_enrollment.sql`, run by the local job on the real published `deped_enrollment_clean` (SY 2020-21 to 2025-26) and `deped_school_psgc_map`, build 1,086,066 rows, three for each of the 362,022 Silver rows. The gate records 107 PASS, 5 WARN and 0 FAIL, and publishes. A second job run gives the same table. **Observed**, local only: not yet run on Databricks.
+`10_build_fact_school_enrollment.sql` and `90_validate_fact_school_enrollment.sql`, run by the local job on the real published `deped_enrollment_clean` (SY 2020-21 to 2025-26) and `deped_school_psgc_map`, build 1,086,066 rows, three for each of the 362,022 Silver rows. The gate records 144 PASS, 5 WARN and 0 FAIL, and publishes. A second job run gives the same table. **Observed**, local only: not yet run on Databricks.
 
 ## What was run
 
@@ -26,11 +26,13 @@ The whole job succeeded: every Bronze, Silver, Integration and Gold task, 0 FAIL
 | `key_unique`, `key_not_null`, `geography_not_null`, `member_follows_status` | 0 | 0 | 0 |
 | `school_in_dimension`, `school_year_in_dimension`, `education_level_in_dimension`, `city_in_dimension`, `barangay_in_dimension`, `barangay_in_city` | 0 | 0 | 0 |
 | `offering_flag_published`, `not_offered_without_learners`, `learner_count_follows_rule` | 0 | 0 | 0 |
+| `offering_flag_blank/<school year>/<level>`, `not_offered_positive/<school year>/<level>` (18 each) | 0 | 0 | 0 |
+| `cells_before_start_blank` (unique-strand cells before SY 2024-25, Strengthened SHS cells before SY 2025-26) | 0 | 0 | 0 |
 | `schools_city_unknown` (WARN; school years, unmatched 58 + ambiguous 94) | 0 | 152 | 152 |
 | `schools_barangay_unknown` (WARN; city matched, no single barangay) | 0 | 583 | 583 |
 | `schools_excluded` (Philippine Schools Overseas and SGA schools, D-031) | count | 277 | 277 |
 | `offered_all_blank/2025-26/ES`, `/JHS`, `/SHS` (WARN) | 0 | 40 / 29 / 120 | 40 / 29 / 120 |
-| PASS / WARN / FAIL | | 107 / 5 / 0 | 107 / 5 / 0 |
+| PASS / WARN / FAIL | | 144 / 5 / 0 | 144 / 5 / 0 |
 | MD5 of the published table, ordered by key | | `40553872dae531e213187a7cfc149765` | `40553872dae531e213187a7cfc149765` |
 
 Learners (`learners/<school year>/<level>`), all sectors:
@@ -48,7 +50,8 @@ Independent cross-checks (**observed**):
 
 - ES learners equal a direct sum of Silver's 16 ES cells for offered rows in every school year, computed outside the build.
 - No offered level is partly blank in any year; the only blanks are whole levels in SY 2025-26. Of the 120 SHS ones, 21 are public schools, the 21 the metric specification names.
-- No row has a blank offering flag and no level that is not offered has a positive cell, so rules 1 and 4 of the metric specification do not fail on real data.
+- No row has a blank offering flag and no level that is not offered has a positive cell, so rules 1 and 4 of the metric specification do not fail on real data, in total or in any school year and level.
+- No unique-strand cell is published before SY 2024-25 and no Strengthened SHS cell before SY 2025-26, so the build leaves no published learner out of `learner_count`.
 
 ## Column types
 
