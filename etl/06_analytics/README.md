@@ -8,8 +8,9 @@ gates it reads. The priority table (#178) applies the D-057 rule after the AP2 a
 gates (D-051); peer groups were parked, and Similar LGUs (#96) is context only. Dataset names stay deferred until the
 analytical questions and output grains are approved.
 
-Built: `ap4_school_age_enrollment_gap` (`04_answer_ap4.sql`, gate `90_validate_ap4.sql`,
-#147), one row per city or municipality member and AP4 period. Its tasks stay
+Built: `ap4_enrollment_trend` (`04_answer_ap4.sql`, gate `90_validate_ap4.sql`, #147,
+D-058), one row per city or municipality member and school year: enrollment and
+its trend, with the school-age gap as context on the census school years. Its tasks stay
 disabled until `fact_school_enrollment` (#196) is published. The build writes a
 candidate; the gate publishes it only after every check passes. Files follow
 `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see [File
