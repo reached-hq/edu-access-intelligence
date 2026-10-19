@@ -203,6 +203,11 @@ carried as it is so the gate fails it. The gate
 municipality level that is unmatched or ambiguous, or matched to no regular
 member, so no PSA estimate leaves Gold unseen.
 
+Not in v1: a flag for 2023 estimates whose territory changed after 2023 (the
+Special Geographic Area parent towns, Makati and Taguig after EMBO), which D-054
+leaves for Gold. D-046 defers it to #174; until then the value describes the
+2023 territory, as the limitations log says.
+
 ### `fact_school_enrollment`
 
 | Column | Type |
