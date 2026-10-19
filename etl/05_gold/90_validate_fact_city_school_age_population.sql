@@ -3,20 +3,75 @@
 -- 'gold'), stops on any FAIL, and only then publishes the fact. A FAIL keeps the last good build.
 --
 -- FAIL: a repeated or NULL key; a key that is not in dim_city_municipality; a sex other than male or
--- female; a NULL or negative population; a year's population that differs from Silver's male and
--- female rows; a city, year and age whose male plus female differs from the published 'both' row; a
--- city, year and sex without every age Silver publishes; a matched row on UNKNOWN or an unmatched row
--- on a real code; and a comparability flag set on a code that is not in both census years.
--- WARN: population on the UNKNOWN member (today the 8 2020 Special Geographic Area clusters, D-055),
+-- female; a NULL or negative population; any fact row that differs, in any column, from the row
+-- expected from its Silver male or female cells (cells_match_silver: catches a swapped sex, population
+-- moved between cities, a wrong status or a wrong comparability flag); a year's population that differs
+-- from Silver's; a city, year and age whose male plus female differs from the published 'both' row; a
+-- city, year and sex without every age Silver publishes; a matched row on a technical member or an
+-- unmatched row on a real code; and a comparability flag set on a code that is not in both years.
+-- WARN: population on EXCLUDED (today the 8 2020 Special Geographic Area clusters, D-055) or UNKNOWN,
 -- and regular cities or municipalities without 2024 rows.
 -- Counts only (PASS): rows and population per year, rows not comparable.
 
 DECLARE OR REPLACE VARIABLE gold_gate_started_at_utc TIMESTAMP;
 SET VARIABLE gold_gate_started_at_utc = current_timestamp();
 
+-- Every fact row as Silver says it should be: one per code, year, age and sex, male or female. The
+-- territory-change list is the build's (keep the two in step; a test compares them).
+CREATE OR REPLACE TEMPORARY VIEW fact_city_school_age_population_expected AS
+WITH silver AS (
+  SELECT s.*, m.match_status,
+         CASE WHEN m.match_status = 'matched' THEN m.psgc_code
+              WHEN m.review_status = 'reviewed' THEN 'EXCLUDED'
+              ELSE 'UNKNOWN' END AS city_mun_psgc_code
+  FROM edu_access.`03-silver`.psa_school_age_population_clean AS s
+  JOIN edu_access.`04-integration`.psa_school_age_population_psgc_map AS m
+    ON m.census_year = s.census_year AND m.batch_id = s.batch_id AND m.place_row_number = s.place_row_number
+  WHERE s.level = 'city_municipality' AND s.population_concept = 'total'
+),
+territory_changes AS (
+  SELECT psgc_code FROM (VALUES
+    ('1380300000'), ('1381500000'), ('1204702000'), ('1204703000'),
+    ('1204709000'), ('1204711000'), ('1204712000'), ('1204717000')
+  ) AS v(psgc_code)
+),
+silver_years_per_code AS (
+  SELECT city_mun_psgc_code, COUNT(DISTINCT census_year) AS years
+  FROM silver WHERE city_mun_psgc_code NOT IN ('UNKNOWN', 'EXCLUDED') GROUP BY city_mun_psgc_code
+)
+SELECT
+    s.city_mun_psgc_code,
+    CAST(s.census_year AS INT) AS reference_year,
+    CAST(s.age AS INT) AS age,
+    s.sex,
+    CAST(SUM(s.population) AS BIGINT) AS population,
+    MIN(s.match_status) AS psgc_match_status,
+    COALESCE(MAX(y.years), 0) = 2 AND MAX(t.psgc_code) IS NULL AS is_2020_2024_geography_comparable
+  FROM silver AS s
+  LEFT JOIN silver_years_per_code AS y ON y.city_mun_psgc_code = s.city_mun_psgc_code
+  LEFT JOIN territory_changes AS t ON t.psgc_code = s.city_mun_psgc_code
+  WHERE s.sex IN ('male', 'female')
+  GROUP BY s.city_mun_psgc_code, s.census_year, s.age, s.sex;
+
+DECLARE OR REPLACE VARIABLE gold_fact_csap_cells_not_matching BIGINT;
+SET VARIABLE gold_fact_csap_cells_not_matching = (
+  (SELECT COUNT(*) FROM (
+     SELECT city_mun_psgc_code, reference_year, age, sex, population, psgc_match_status, is_2020_2024_geography_comparable
+     FROM edu_access.`05-gold`.fact_city_school_age_population_candidate
+     EXCEPT ALL SELECT * FROM fact_city_school_age_population_expected) AS x)
+  + (SELECT COUNT(*) FROM (
+     SELECT * FROM fact_city_school_age_population_expected
+     EXCEPT ALL
+     SELECT city_mun_psgc_code, reference_year, age, sex, population, psgc_match_status, is_2020_2024_geography_comparable
+     FROM edu_access.`05-gold`.fact_city_school_age_population_candidate) AS x));
+
+-- The full-row comparison is computed once, above, because the summary view is read once per result row.
 CREATE OR REPLACE TEMPORARY VIEW fact_city_school_age_population_gate_summary AS
 WITH silver AS (
-  SELECT s.*, CASE WHEN m.match_status = 'matched' THEN m.psgc_code ELSE 'UNKNOWN' END AS city_mun_psgc_code
+  SELECT s.*, m.match_status,
+         CASE WHEN m.match_status = 'matched' THEN m.psgc_code
+              WHEN m.review_status = 'reviewed' THEN 'EXCLUDED'
+              ELSE 'UNKNOWN' END AS city_mun_psgc_code
   FROM edu_access.`03-silver`.psa_school_age_population_clean AS s
   JOIN edu_access.`04-integration`.psa_school_age_population_psgc_map AS m
     ON m.census_year = s.census_year AND m.batch_id = s.batch_id AND m.place_row_number = s.place_row_number
@@ -68,6 +123,7 @@ SELECT
     WHERE d.city_mun_psgc_code IS NULL) AS keys_not_in_dim,
   (SELECT COUNT_IF(sex NOT IN ('male', 'female')) FROM fact) AS bad_sex,
   (SELECT COUNT_IF(population IS NULL OR population < 0) FROM fact) AS bad_population,
+  session.gold_fact_csap_cells_not_matching AS cells_not_matching_silver,
   (SELECT COUNT(*) FROM silver_city_rows AS c LEFT JOIN silver_mapped_rows AS m ON m.census_year = c.census_year
     WHERE m.n IS DISTINCT FROM c.n) AS years_with_unmapped_places,
   (SELECT COUNT(*) FROM silver_by_year AS s FULL OUTER JOIN fact_by_year AS f ON f.reference_year = s.census_year
@@ -77,11 +133,12 @@ SELECT
     WHERE s.population IS DISTINCT FROM f.population) AS cells_not_matching_both,
   (SELECT COUNT(*) FROM fact_ages AS f JOIN silver_ages AS s ON s.census_year = f.reference_year
     WHERE f.ages <> s.ages) AS cells_missing_ages,
-  (SELECT COUNT_IF((city_mun_psgc_code = 'UNKNOWN') = (psgc_match_status = 'matched') OR psgc_match_status IS NULL) FROM fact) AS status_code_mismatch,
+  (SELECT COUNT_IF((city_mun_psgc_code IN ('UNKNOWN', 'EXCLUDED')) = (psgc_match_status = 'matched') OR psgc_match_status IS NULL) FROM fact) AS status_code_mismatch,
   (SELECT COUNT(*) FROM fact AS f JOIN years_per_code AS y ON y.city_mun_psgc_code = f.city_mun_psgc_code
-    WHERE f.is_2020_2024_geography_comparable AND (y.years <> 2 OR f.city_mun_psgc_code = 'UNKNOWN')) AS comparable_without_both_years,
+    WHERE f.is_2020_2024_geography_comparable AND (y.years <> 2 OR f.city_mun_psgc_code IN ('UNKNOWN', 'EXCLUDED'))) AS comparable_without_both_years,
   (SELECT COUNT_IF(is_2020_2024_geography_comparable IS NULL) FROM fact) AS comparable_null,
   (SELECT COALESCE(SUM(population), 0) FROM fact WHERE city_mun_psgc_code = 'UNKNOWN') AS unknown_population,
+  (SELECT COALESCE(SUM(population), 0) FROM fact WHERE city_mun_psgc_code = 'EXCLUDED') AS excluded_population,
   (SELECT COUNT(*) FROM dim AS d
     WHERE d.member_type = 'regular'
       AND NOT EXISTS (SELECT 1 FROM fact AS f WHERE f.city_mun_psgc_code = d.city_mun_psgc_code AND f.reference_year = 2024)) AS regular_without_2024,
@@ -100,6 +157,7 @@ FROM (
   UNION ALL SELECT 'city_in_dim_city_municipality', CASE WHEN keys_not_in_dim = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(keys_not_in_dim AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'sex_male_or_female', CASE WHEN bad_sex = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_sex AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'population_not_null_or_negative', CASE WHEN bad_population = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_population AS STRING) FROM fact_city_school_age_population_gate_summary
+  UNION ALL SELECT 'cells_match_silver', CASE WHEN cells_not_matching_silver = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_not_matching_silver AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'every_place_mapped', CASE WHEN years_with_unmapped_places = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(years_with_unmapped_places AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'population_reconciles_by_year', CASE WHEN years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(years_not_reconciled AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'male_plus_female_is_published_total', CASE WHEN cells_not_matching_both = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_not_matching_both AS STRING) FROM fact_city_school_age_population_gate_summary
@@ -107,6 +165,7 @@ FROM (
   UNION ALL SELECT 'match_status_fits_code', CASE WHEN status_code_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(status_code_mismatch AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'comparable_only_with_both_years', CASE WHEN comparable_without_both_years = 0 AND comparable_null = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(comparable_without_both_years + comparable_null AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'unknown_member_population', CASE WHEN unknown_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unknown_population AS STRING) FROM fact_city_school_age_population_gate_summary
+  UNION ALL SELECT 'excluded_member_population', CASE WHEN excluded_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(excluded_population AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'regular_without_2024', CASE WHEN regular_without_2024 = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_without_2024 AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'rows_2020', 'PASS', CAST(NULL AS STRING), CAST(rows_2020 AS STRING) FROM fact_city_school_age_population_gate_summary
   UNION ALL SELECT 'rows_2024', 'PASS', CAST(NULL AS STRING), CAST(rows_2024 AS STRING) FROM fact_city_school_age_population_gate_summary

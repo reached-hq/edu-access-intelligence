@@ -42,11 +42,12 @@ class Env:
         self.store.sql(f"INSERT INTO {CONTROL}.pipeline_runs (run_id, pipeline_name, source_id, environment, status, code_revision, "
                        "started_at_utc) VALUES ('S1', 'silver_build', 'psa_psgc', 'local', 'succeeded', 'c', TIMESTAMP '2026-10-19 00:00:00')")
 
-    def run(self):
+    def run(self, build=True):
         run_id = str(uuid.uuid4())
         params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
         try:
-            self.store.run_file(BUILD, params)
+            if build:
+                self.store.run_file(BUILD, params)
             self.store.run_file(GATE, params)
         except Exception as e:
             return run_id, str(e)
@@ -117,3 +118,18 @@ def test_a_psgc_run_that_did_not_succeed_fails():
     run_id, error = env.run()
     assert error
     assert env.checks(run_id)["upstream_run_psa_psgc_clean"]["status"] == "FAIL"
+
+
+def test_a_barangay_moved_to_another_valid_city_fails():
+    """The parent is a real city, so only the source reconciliation can catch the move."""
+    env = Env()
+    env.run()
+    good = env.dim()
+    env.store.sql("UPDATE edu_access.`05-gold`.dim_barangay_candidate SET city_mun_psgc_code = '1381701000' "
+                  "WHERE barangay_psgc_code = '1380601001'")
+    run_id, error = env.run(build=False)
+    assert error
+    checks = env.checks(run_id)
+    assert checks["values_match_source"]["status"] == "FAIL"
+    assert checks["parent_is_city_or_municipality"]["status"] == "PASS"
+    assert env.dim() == good

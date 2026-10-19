@@ -15,19 +15,20 @@ BUILD = REPO_ROOT / "etl" / "05_gold" / "14_build_fact_city_school_age_populatio
 GATE = REPO_ROOT / "etl" / "05_gold" / "90_validate_fact_city_school_age_population.sql"
 AGES = (5, 6, 17)
 
-# census_year, place_row_number, psgc_code (None when unmatched), match_status, base population
+# census_year, place_row_number, psgc_code (None when unmatched), match_status, review_status, base population
 PLACES = [
-    (2020, 10, "0102801000", "matched", 100),
-    (2020, 11, "1380300000", "matched", 200),      # City of Makati: territory changed
-    (2020, 12, None, "unmatched", 7),               # an SGA cluster
-    (2020, 13, None, "unmatched", 3),               # another
-    (2024, 10, "0102801000", "matched", 110),
-    (2024, 11, "1380300000", "matched", 190),
-    (2024, 12, "1999901000", "matched", 9),         # 2024 only
-    (2020, 14, "1804501000", "matched", 50),        # Negros Island Region: region changed
-    (2024, 13, "1804501000", "matched", 55),
-    (2020, 15, "0906601000", "matched", 40),        # Sulu: province moved region
-    (2024, 14, "0906601000", "matched", 41),
+    (2020, 10, "0102801000", "matched", "rule", 100),
+    (2020, 11, "1380300000", "matched", "rule", 200),      # City of Makati: territory changed
+    (2020, 12, None, "unmatched", "reviewed", 7),           # an SGA cluster: reviewed, no PSGC unit
+    (2020, 13, None, "unmatched", "reviewed", 3),           # another
+    (2020, 16, None, "ambiguous", "pending", 2),            # not yet reviewed
+    (2024, 10, "0102801000", "matched", "rule", 110),
+    (2024, 11, "1380300000", "matched", "rule", 190),
+    (2024, 12, "1999901000", "matched", "rule", 9),         # 2024 only
+    (2020, 14, "1804501000", "matched", "rule", 50),        # Negros Island Region: only the region changed
+    (2024, 13, "1804501000", "matched", "rule", 55),
+    (2020, 15, "0906601000", "matched", "rule", 40),        # Sulu: only the province's region changed
+    (2024, 14, "0906601000", "matched", "rule", 41),
 ]
 # city_mun_psgc_code, member_type, region_psgc_code, province_psgc_code
 DIM = [("0102801000", "regular", "0100000000", "0102800000"), ("1380300000", "regular", "1300000000", None),
@@ -47,7 +48,8 @@ class Env:
                        "level STRING, population_concept STRING, sex STRING, age INT, population BIGINT, "
                        "batch_id STRING, place_row_number BIGINT, run_id STRING)")
         self.store.sql("CREATE TABLE edu_access.`04-integration`.psa_school_age_population_psgc_map (census_year INT, "
-                       "batch_id STRING, place_row_number BIGINT, psgc_code STRING, match_status STRING, run_id STRING)")
+                       "batch_id STRING, place_row_number BIGINT, psgc_code STRING, match_status STRING, review_status STRING, "
+                       "run_id STRING)")
         self.store.sql("CREATE TABLE edu_access.`05-gold`.dim_city_municipality (city_mun_psgc_code STRING, "
                        "member_type STRING, region_psgc_code STRING, province_psgc_code STRING)")
         for row in dim:
@@ -56,10 +58,10 @@ class Env:
             self.store.sql(f"INSERT INTO {CONTROL}.pipeline_runs (run_id, pipeline_name, source_id, environment, status, code_revision, "
                            "started_at_utc) VALUES (?, ?, 'psa_school_age_population', 'local', 'succeeded', 'c', "
                            "TIMESTAMP '2026-10-19 00:00:00')", [run, pipeline_name])
-        for year, row, code, status, base in places:
+        for year, row, code, status, review, base in places:
             batch = f"B{year}"
-            self.store.sql("INSERT INTO edu_access.`04-integration`.psa_school_age_population_psgc_map VALUES (?, ?, ?, ?, ?, 'M1')",
-                           [year, batch, row, code, status])
+            self.store.sql("INSERT INTO edu_access.`04-integration`.psa_school_age_population_psgc_map VALUES (?, ?, ?, ?, ?, ?, 'M1')",
+                           [year, batch, row, code, status, review])
             # a province row and a household row with the same place row: never read
             self.store.sql("INSERT INTO edu_access.`03-silver`.psa_school_age_population_clean VALUES "
                            "(?, 'province', 'total', 'male', 5, 999, ?, ?, 'S1')", [year, batch, row])
@@ -71,11 +73,12 @@ class Env:
                                        "(?, 'city_municipality', ?, ?, ?, ?, ?, ?, 'S1')",
                                        [year, concept, sex, age, value if concept == "total" else value - 1, batch, row])
 
-    def run(self):
+    def run(self, build=True):
         run_id = str(uuid.uuid4())
         params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
         try:
-            self.store.run_file(BUILD, params)
+            if build:
+                self.store.run_file(BUILD, params)
             self.store.run_file(GATE, params)
         except Exception as e:
             return run_id, str(e)
@@ -95,21 +98,25 @@ def test_builds_male_and_female_rows_per_city_year_and_age():
     run_id, error = env.run()
     assert error is None
     fact = env.fact()
-    # 2020: 4 matched places + UNKNOWN; 2024: 5 matched places; 3 ages x 2 sexes each
-    assert len(fact) == (5 + 5) * len(AGES) * 2
+    # 2020: 4 matched places + EXCLUDED + UNKNOWN; 2024: 5 matched places; 3 ages x 2 sexes each
+    assert len(fact) == (6 + 5) * len(AGES) * 2
     assert {k[3] for k in fact} == {"male", "female"}
     checks = env.checks(run_id)
     assert {c["status"] for c in checks.values()} == {"PASS", "WARN"}
+    assert checks["excluded_member_population"]["status"] == "WARN"
     assert checks["unknown_member_population"]["status"] == "WARN"
+    assert checks["cells_match_silver"]["status"] == "PASS"
 
 
-def test_total_concept_only_and_unmatched_places_summed_into_unknown():
+def test_total_concept_only_and_unmatched_places_go_to_a_technical_member():
     env = Env()
     env.run()
     fact = env.fact()
     assert fact[("0102801000", 2020, 17, "female")]["population"] == 100 + 34
-    unknown = fact[("UNKNOWN", 2020, 5, "male")]
-    assert (unknown["population"], unknown["psgc_match_status"]) == ((7 + 5) + (3 + 5), "unmatched")
+    excluded = fact[("EXCLUDED", 2020, 5, "male")]     # the two reviewed clusters, summed
+    assert (excluded["population"], excluded["psgc_match_status"]) == ((7 + 5) + (3 + 5), "unmatched")
+    unknown = fact[("UNKNOWN", 2020, 5, "male")]       # the pending place
+    assert (unknown["population"], unknown["psgc_match_status"]) == (2 + 5, "ambiguous")
     assert fact[("0102801000", 2024, 5, "male")]["psgc_match_status"] == "matched"
 
 
@@ -120,9 +127,10 @@ def test_comparability_flag():
     assert flags == {
         ("0102801000", 2020): True, ("0102801000", 2024): True,
         ("1380300000", 2020): False, ("1380300000", 2024): False,   # unit: territory changed
-        ("1804501000", 2020): False, ("1804501000", 2024): False,   # region: Negros Island Region
-        ("0906601000", 2020): False, ("0906601000", 2024): False,   # province: Sulu
+        ("1804501000", 2020): True, ("1804501000", 2024): True,     # only its region changed
+        ("0906601000", 2020): True, ("0906601000", 2024): True,     # only its province's region changed
         ("1999901000", 2024): False,                                 # 2024 only
+        ("EXCLUDED", 2020): False,
         ("UNKNOWN", 2020): False,
     }
 
@@ -169,3 +177,27 @@ def test_upstream_runs_are_recorded_and_must_have_succeeded():
     run_id, error = env.run()
     assert error
     assert env.checks(run_id)["upstream_run_psa_school_age_population_clean"]["status"] == "FAIL"
+
+
+def test_a_swapped_sex_or_moved_population_fails_the_cell_check():
+    env = Env()
+    env.run()
+    good = env.fact()
+    candidate = "edu_access.`05-gold`.fact_city_school_age_population_candidate"
+    # swap male and female for one city, year and age: every total still adds up
+    env.store.sql(f"UPDATE {candidate} SET sex = CASE sex WHEN 'male' THEN 'female' ELSE 'male' END "
+                  "WHERE city_mun_psgc_code = '0102801000' AND reference_year = 2024 AND age = 6")
+    run_id, error = env.run(build=False)
+    assert error
+    checks = env.checks(run_id)
+    assert checks["cells_match_silver"]["status"] == "FAIL"
+    assert checks["population_reconciles_by_year"]["status"] == "PASS"
+    assert checks["male_plus_female_is_published_total"]["status"] == "PASS"
+    assert env.fact() == good
+
+
+def test_the_gate_holds_the_same_territory_list_as_the_build():
+    import re
+    codes = lambda path: sorted(re.findall(r"\('(\d{10})'", path.read_text(encoding="utf-8")))
+    assert codes(BUILD) == codes(GATE)
+    assert len(codes(BUILD)) == 8

@@ -2,7 +2,10 @@
 -- to data_quality_results (layer 'gold'), stops on any FAIL, and only then publishes dim_barangay. A
 -- FAIL keeps the last good build.
 --
--- FAIL: a repeated or NULL key, a regular member that is not a Bgy row of the one master quarter (or
+-- FAIL: any row that differs, in any column, from the row expected from PSGC (values_match_source:
+-- catches a changed name or urban_rural, and a barangay moved to another valid city or municipality;
+-- its expected parent is the published City or Mun row, or for a Manila district the City row at the
+-- district's province position, and nothing else), a repeated or NULL key, a regular member that is not a Bgy row of the one master quarter (or
 -- one missing), a parent that is not a PSGC City or Mun of that quarter, a city or municipality without
 -- exactly one unknown-barangay member, technical members other than UNKNOWN and EXCLUDED under the same
 -- city codes, and an urban_rural value other than U, R or NULL.
@@ -12,6 +15,37 @@
 DECLARE OR REPLACE VARIABLE gold_gate_started_at_utc TIMESTAMP;
 SET VARIABLE gold_gate_started_at_utc = current_timestamp();
 
+-- Every row as PSGC says it should be, built once for the full-row comparison. A barangay whose
+-- published parent is neither a City or Mun row nor a SubMun under a City row gets a NULL parent here,
+-- so it can never match a built row.
+CREATE OR REPLACE TEMPORARY VIEW dim_barangay_expected AS
+WITH psgc AS (
+  SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
+)
+  SELECT
+    b.psgc_code AS barangay_psgc_code, b.name AS barangay_name,
+    CASE WHEN parent.geographic_level IN ('City', 'Mun') THEN parent.psgc_code
+         WHEN parent.geographic_level = 'SubMun' AND city.geographic_level = 'City' THEN city.psgc_code
+    END AS city_mun_psgc_code,
+    b.urban_rural, 'regular' AS member_type
+  FROM psgc AS b
+  LEFT JOIN psgc AS parent ON parent.psgc_code = b.city_municipality_code
+  LEFT JOIN psgc AS city ON city.psgc_code = substr(parent.psgc_code, 1, 5) || '00000'
+  WHERE b.geographic_level = 'Bgy'
+  UNION ALL
+  SELECT u.psgc_code || '-UNKNOWN', 'Unknown barangay in ' || u.name, u.psgc_code, CAST(NULL AS STRING), 'unknown'
+  FROM psgc AS u WHERE u.geographic_level IN ('City', 'Mun')
+  UNION ALL
+  SELECT v.code, v.label, v.code, CAST(NULL AS STRING), v.member_type
+  FROM (VALUES ('UNKNOWN', 'Unknown barangay', 'unknown'), ('EXCLUDED', 'Excluded from barangay analysis', 'excluded'))
+    AS v(code, label, member_type);
+
+DECLARE OR REPLACE VARIABLE gold_dim_barangay_rows_not_matching BIGINT;
+SET VARIABLE gold_dim_barangay_rows_not_matching = (
+  (SELECT COUNT(*) FROM (SELECT barangay_psgc_code, barangay_name, city_mun_psgc_code, urban_rural, member_type FROM edu_access.`05-gold`.dim_barangay_candidate EXCEPT ALL SELECT * FROM dim_barangay_expected) AS x)
+  + (SELECT COUNT(*) FROM (SELECT * FROM dim_barangay_expected EXCEPT ALL SELECT barangay_psgc_code, barangay_name, city_mun_psgc_code, urban_rural, member_type FROM edu_access.`05-gold`.dim_barangay_candidate) AS x));
+
+-- The full-row comparison is computed once, above, because the summary view is read once per result row.
 CREATE OR REPLACE TEMPORARY VIEW dim_barangay_gate_summary AS
 WITH psgc AS (
   SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
@@ -36,6 +70,7 @@ unknown_per_unit AS (
   GROUP BY u.psgc_code
 )
 SELECT
+  session.gold_dim_barangay_rows_not_matching AS rows_not_matching_source,
   (SELECT COUNT(*) FROM source_barangays) AS source_barangays,
   (SELECT COUNT(*) FROM regular) AS regular_rows,
   (SELECT COUNT(*) - COUNT(DISTINCT barangay_psgc_code) FROM dimension) AS duplicate_keys,
@@ -63,7 +98,8 @@ SELECT
 INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'dim_barangay', 'gold', 'edu_access.05-gold.dim_barangay', check_name, status, expected, actual, current_timestamp(), :code_revision
 FROM (
-  SELECT 'key_unique' AS check_name, CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(duplicate_keys AS STRING) AS actual FROM dim_barangay_gate_summary
+  SELECT 'values_match_source' AS check_name, CASE WHEN rows_not_matching_source = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(rows_not_matching_source AS STRING) AS actual FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM dim_barangay_gate_summary
   UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM dim_barangay_gate_summary
   UNION ALL SELECT 'regular_rows_reconcile', CASE WHEN regular_rows = source_barangays THEN 'PASS' ELSE 'FAIL' END, CAST(source_barangays AS STRING), CAST(regular_rows AS STRING) FROM dim_barangay_gate_summary
   UNION ALL SELECT 'regular_in_psgc_master', CASE WHEN regular_not_in_psgc = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(regular_not_in_psgc AS STRING) FROM dim_barangay_gate_summary

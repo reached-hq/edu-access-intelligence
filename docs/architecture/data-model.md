@@ -323,29 +323,44 @@ municipality. `sex` contains only `male` and `female`; the published total row i
 used for reconciliation and is not stored as another fact row. Analytics sums
 the male and female rows for ages 5–17, avoiding double counting. The row-level
 `psgc_match_status` retains the reviewed name-to-PSGC result.
-`is_2020_2024_geography_comparable` is false where boundary or hierarchy changes,
-including the Makati/Taguig transfer and the new Special Geographic Area
-municipalities, prevent a like-for-like trend. This fact must not be filled by
+`is_2020_2024_geography_comparable` is false where a boundary change, such as
+the Makati/Taguig transfer or the new Special Geographic Area municipalities,
+prevents a like-for-like trend for that city or municipality (see below for
+province and region changes). This fact must not be filled by
 interpolating or substituting the broader PSA ages 5–24 category.
 
 Built in `etl/05_gold/14_build_fact_city_school_age_population.sql` from
 `psa_school_age_population_clean` (`population_concept = 'total'`, D-042) and
 its PSGC map (D-055). Every published age, 5 to 24, is kept. A place the map
-does not match (the 8 2020 Special Geographic Area clusters, 96,899 people)
-goes to the `UNKNOWN` city member, summed into one row per age and sex, so no
-population is dropped. `is_2020_2024_geography_comparable` follows the AP4
-comparability rule of the [metric specification](../business/metric-specification.md):
-it is true only for a code matched in both census years that is not in the
-build's reviewed list of 2020-to-2024 changes. Territory changes: Makati and
-Taguig (EMBO barangays) and the six Cotabato towns whose barangays formed the
-Special Geographic Area (Carmen, Kabacan, Midsayap, Pigkawayan, Pikit,
-Aleosan). Hierarchy changes, by region or province in `dim_city_municipality`:
-every unit of the Negros Island Region (63), Sulu (19), and Maguindanao del
-Norte (13) and del Sur (24). The 8 Special Geographic Area municipalities,
-which exist only in 2024, and `UNKNOWN` are also false: 136 codes, 10,520 rows.
-The gate reconciles each year's population to Silver and each city, year and
-age's male plus female to the published total row, checks every key against
-`dim_city_municipality`, and WARNs on population held on `UNKNOWN`.
+reviewed as having no PSGC unit (the 8 2020 Special Geographic Area clusters,
+96,899 people, which are not LGUs) goes to the `EXCLUDED` city member; a place
+not yet reviewed (pending or ambiguous; none today) goes to `UNKNOWN`. Places
+on the same member are summed into one row per age and sex, so no population is
+dropped, and `psgc_match_status` keeps the map's status.
+
+`is_2020_2024_geography_comparable` describes a unit's own trend. It is true
+only for a code matched in both census years whose territory did not change
+between them. False: Makati and Taguig (EMBO barangays) and the six Cotabato
+towns whose barangays formed the Special Geographic Area (Carmen, Kabacan,
+Midsayap, Pigkawayan, Pikit, Aleosan), listed in the build; the 8 Special
+Geographic Area municipalities, which exist only in 2024; and the technical
+members: 17 codes, 1,000 rows. Province and region changes (the Negros Island
+Region, Sulu, the Maguindanao split) leave the unit itself unchanged, as the
+metric specification's AP4 comparability section notes, so they do not make
+it false: Gold groups both years by the one PSGC 2Q 2026 hierarchy in
+`dim_city_municipality`, so a province or region total compares like with
+like. A presentation that groups by census-year regions must disclose those
+changes itself.
+
+The gate rebuilds every expected row from the Silver male and female cells
+and FAILs if any fact row differs in any column (`cells_match_silver`), so a
+swapped sex or population moved between cities is caught even when totals
+still add up. It also reconciles each year's population and each city, year
+and age's male plus female to the published total row, checks every key
+against `dim_city_municipality`, and WARNs on population held on `EXCLUDED`
+or `UNKNOWN`. The two dimension gates likewise rebuild every expected row from
+PSGC (and HDX) and FAIL on any difference (`values_match_source`), including a
+barangay moved to another valid city or municipality.
 
 Each of the three gates also records one result per distinct upstream
 Silver or Integration `run_id` it read, and FAILs when that run has no

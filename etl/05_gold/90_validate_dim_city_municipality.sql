@@ -2,7 +2,8 @@
 -- PSGC and HDX tables it was built from, writes every result to data_quality_results (layer 'gold'),
 -- stops on any FAIL, and only then publishes dim_city_municipality. A FAIL keeps the last good build.
 --
--- FAIL: a repeated or NULL key, a regular member that is not a City or Mun row of the one master
+-- FAIL: any row that differs, in any column, from the row expected from its PSGC and HDX source rows
+-- (values_match_source: catches a changed name, parent, class, SGA flag or land area), a repeated or NULL key, a regular member that is not a City or Mun row of the one master
 -- quarter (or one missing), technical members other than exactly UNKNOWN and EXCLUDED, a region or
 -- province code without its name, a class that does not fit the LGU type, land area that is not
 -- positive or has no source, a unit matched by two HDX features of the latest release, and a
@@ -14,6 +15,49 @@
 DECLARE OR REPLACE VARIABLE gold_gate_started_at_utc TIMESTAMP;
 SET VARIABLE gold_gate_started_at_utc = current_timestamp();
 
+-- Every row as its source says it should be, column by column, built once for the full-row comparison.
+CREATE OR REPLACE TEMPORARY VIEW dim_city_municipality_expected AS
+WITH psgc AS (
+  SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
+),
+hdx_area AS (
+  SELECT m.psgc_code, h.area_sqkm
+  FROM edu_access.`04-integration`.hdx_adm3_psgc_map AS m
+  JOIN edu_access.`03-silver`.hdx_adm3_clean AS h
+    ON h.adm3_pcode = m.adm3_pcode AND h.valid_on = m.source_reference_date
+  WHERE m.match_status = 'matched'
+    AND m.source_reference_date = (SELECT MAX(source_reference_date) FROM edu_access.`04-integration`.hdx_adm3_psgc_map)
+)
+  SELECT
+    c.psgc_code AS city_mun_psgc_code, c.name AS city_mun_name,
+    c.province_code AS province_psgc_code, p.name AS province_name,
+    c.region_code AS region_psgc_code, r.name AS region_name,
+    CASE c.geographic_level WHEN 'City' THEN 'city' WHEN 'Mun' THEN 'municipality' END AS lgu_type,
+    c.city_class, c.income_class, c.income_class_retained_after_downgrade AS income_class_retained,
+    CAST(a.area_sqkm AS DECIMAL(18,4)) AS land_area_sqkm,
+    CASE WHEN a.area_sqkm IS NOT NULL THEN 'hdx_boundaries' END AS land_area_source,
+    COALESCE(p.level_blank AND p.psgc_code = '1999900000', FALSE) AS is_sga,
+    'regular' AS member_type, c.publication_period AS source_psgc_quarter
+  FROM psgc AS c
+  LEFT JOIN psgc AS p ON p.psgc_code = c.province_code
+  LEFT JOIN psgc AS r ON r.psgc_code = c.region_code AND r.geographic_level = 'Reg'
+  LEFT JOIN hdx_area AS a ON a.psgc_code = c.psgc_code
+  WHERE c.geographic_level IN ('City', 'Mun')
+  UNION ALL
+  SELECT v.code, v.label, CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING),
+         CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS BOOLEAN),
+         CAST(NULL AS DECIMAL(18,4)), CAST(NULL AS STRING), FALSE, v.member_type, (SELECT MAX(publication_period) FROM psgc)
+  FROM (VALUES
+    ('UNKNOWN', 'Unknown city or municipality', 'unknown'),
+    ('EXCLUDED', 'Excluded from city or municipality analysis', 'excluded')
+  ) AS v(code, label, member_type);
+
+DECLARE OR REPLACE VARIABLE gold_dim_city_rows_not_matching BIGINT;
+SET VARIABLE gold_dim_city_rows_not_matching = (
+  (SELECT COUNT(*) FROM (SELECT city_mun_psgc_code, city_mun_name, province_psgc_code, province_name, region_psgc_code, region_name, lgu_type, city_class, income_class, income_class_retained, land_area_sqkm, land_area_source, is_sga, member_type, source_psgc_quarter FROM edu_access.`05-gold`.dim_city_municipality_candidate EXCEPT ALL SELECT * FROM dim_city_municipality_expected) AS x)
+  + (SELECT COUNT(*) FROM (SELECT * FROM dim_city_municipality_expected EXCEPT ALL SELECT city_mun_psgc_code, city_mun_name, province_psgc_code, province_name, region_psgc_code, region_name, lgu_type, city_class, income_class, income_class_retained, land_area_sqkm, land_area_source, is_sga, member_type, source_psgc_quarter FROM edu_access.`05-gold`.dim_city_municipality_candidate) AS x));
+
+-- The full-row comparison is computed once, above, because the summary view is read once per result row.
 CREATE OR REPLACE TEMPORARY VIEW dim_city_municipality_gate_summary AS
 WITH psgc AS (
   SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
@@ -34,6 +78,7 @@ regular AS (
   SELECT * FROM dimension WHERE member_type = 'regular'
 )
 SELECT
+  session.gold_dim_city_rows_not_matching AS rows_not_matching_source,
   (SELECT COUNT(*) FROM source_units) AS source_units,
   (SELECT COUNT(*) FROM regular) AS regular_rows,
   (SELECT COUNT(*) - COUNT(DISTINCT city_mun_psgc_code) FROM dimension) AS duplicate_keys,
@@ -69,7 +114,8 @@ SELECT
 INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'dim_city_municipality', 'gold', 'edu_access.05-gold.dim_city_municipality', check_name, status, expected, actual, current_timestamp(), :code_revision
 FROM (
-  SELECT 'key_unique' AS check_name, CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(duplicate_keys AS STRING) AS actual FROM dim_city_municipality_gate_summary
+  SELECT 'values_match_source' AS check_name, CASE WHEN rows_not_matching_source = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(rows_not_matching_source AS STRING) AS actual FROM dim_city_municipality_gate_summary
+  UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM dim_city_municipality_gate_summary
   UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM dim_city_municipality_gate_summary
   UNION ALL SELECT 'regular_rows_reconcile', CASE WHEN regular_rows = source_units THEN 'PASS' ELSE 'FAIL' END, CAST(source_units AS STRING), CAST(regular_rows AS STRING) FROM dim_city_municipality_gate_summary
   UNION ALL SELECT 'regular_in_psgc_master', CASE WHEN regular_not_in_psgc = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(regular_not_in_psgc AS STRING) FROM dim_city_municipality_gate_summary

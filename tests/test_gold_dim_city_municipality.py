@@ -82,11 +82,12 @@ class Env:
             self.store.sql(f"INSERT INTO edu_access.`04-integration`.hdx_adm3_psgc_map VALUES (?, DATE '{RELEASE}', ?, ?, 'M1')",
                            [pcode, code, "matched" if code else "unmatched"])
 
-    def run(self):
+    def run(self, build=True):
         run_id = str(uuid.uuid4())
         params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
         try:
-            self.store.run_file(BUILD, params)
+            if build:
+                self.store.run_file(BUILD, params)
             self.store.run_file(GATE, params)
         except Exception as e:
             return run_id, str(e)
@@ -187,3 +188,18 @@ def test_upstream_runs_are_recorded_and_must_have_succeeded():
     run_id, error = env.run()
     assert error and "Gold gate failed for dim_city_municipality" in error
     assert env.checks(run_id)["upstream_run_hdx_adm3_psgc_map"]["status"] == "FAIL"
+
+
+def test_a_changed_value_fails_the_source_reconciliation():
+    """A build that keeps every key and domain valid but changes a value is still caught."""
+    candidate = "edu_access.`05-gold`.dim_city_municipality_candidate"
+    for change in ("land_area_sqkm = land_area_sqkm + 1", "province_psgc_code = NULL, province_name = NULL",
+                   "city_mun_name = 'Town Z'", "is_sga = TRUE"):
+        env = Env()
+        env.run()
+        good = env.dim()
+        env.store.sql(f"UPDATE {candidate} SET {change} WHERE city_mun_psgc_code = '0102801000'")
+        run_id, error = env.run(build=False)
+        assert error, change
+        assert env.checks(run_id)["values_match_source"]["status"] == "FAIL", change
+        assert env.dim() == good
