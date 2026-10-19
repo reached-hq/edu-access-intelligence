@@ -15,6 +15,9 @@ WITH lgus AS (
   SELECT school_id, city_mun_psgc_code,
          MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active,
          COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete_offered_levels,
+         -- offers a level but every offered count is blank: not active under the metric specification, but it is
+         -- missing data, not a closed school, so it lowers coverage instead of dropping out.
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS is_blank,
          SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS complete_level_learners
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year = '2024-25' AND sector = 'Public' AND psgc_match_status = 'matched'
@@ -24,6 +27,7 @@ WITH lgus AS (
          COUNT_IF(is_active = 1) AS active_public_school_count,
          COUNT_IF(is_active = 1 AND incomplete_offered_levels = 0) AS complete_enrollment_school_count,
          COUNT_IF(is_active = 1 AND incomplete_offered_levels > 0) AS incomplete_enrollment_school_count,
+         COUNT_IF(is_blank) AS blank_enrollment_school_count,
          SUM(CASE WHEN is_active = 1 AND incomplete_offered_levels = 0 THEN complete_level_learners ELSE 0 END)
            AS public_school_enrollment
   FROM school_rows
@@ -40,13 +44,14 @@ WITH lgus AS (
          COALESCE(s.active_public_school_count, 0) AS active_public_school_count,
          COALESCE(s.complete_enrollment_school_count, 0) AS complete_enrollment_school_count,
          COALESCE(s.incomplete_enrollment_school_count, 0) AS incomplete_enrollment_school_count,
+         COALESCE(s.blank_enrollment_school_count, 0) AS blank_enrollment_school_count,
          CAST(COALESCE(s.public_school_enrollment, 0) AS BIGINT) AS public_school_enrollment,
          CAST(p.school_age_population AS DOUBLE) / NULLIF(s.active_public_school_count, 0)
            AS school_age_population_per_public_school,
          CAST(s.public_school_enrollment AS DOUBLE) / NULLIF(s.complete_enrollment_school_count, 0)
            AS learners_per_public_school,
-         CAST(100.0 * s.complete_enrollment_school_count / NULLIF(s.active_public_school_count, 0) AS DOUBLE)
-           AS coverage_pct
+         CAST(100.0 * s.complete_enrollment_school_count
+           / NULLIF(s.active_public_school_count + s.blank_enrollment_school_count, 0) AS DOUBLE) AS coverage_pct
   FROM lgus AS l
   LEFT JOIN schools AS s USING (city_mun_psgc_code)
   LEFT JOIN population AS p USING (city_mun_psgc_code)

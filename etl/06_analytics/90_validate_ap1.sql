@@ -24,13 +24,15 @@ WITH c AS (
   SELECT school_id, city_mun_psgc_code, MIN(psgc_match_status) AS psgc_match_status,
          MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS active,
          COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete,
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS blank,
          SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS learners
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year = '2024-25' AND sector = 'Public'
   GROUP BY school_id, city_mun_psgc_code
 ), expected_schools AS (
   SELECT city_mun_psgc_code, COUNT_IF(active = 1) AS active_public_school_count,
-         COUNT_IF(active = 1 AND incomplete = 0) AS complete_enrollment_school_count
+         COUNT_IF(active = 1 AND incomplete = 0) AS complete_enrollment_school_count,
+         COUNT_IF(blank) AS blank_enrollment_school_count
   FROM school_rows WHERE psgc_match_status = 'matched' GROUP BY city_mun_psgc_code
 ), type_refs AS (
   SELECT lgu_type, CAST(SUM(school_age_population) AS DOUBLE) / NULLIF(SUM(active_public_school_count), 0) AS ratio
@@ -47,7 +49,11 @@ SELECT
     WHERE c.school_age_population IS DISTINCT FROM p.school_age_population) AS population_mismatch,
   (SELECT COUNT(*) FROM c LEFT JOIN expected_schools s USING (city_mun_psgc_code)
     WHERE c.active_public_school_count IS DISTINCT FROM COALESCE(s.active_public_school_count, 0)
-       OR c.complete_enrollment_school_count IS DISTINCT FROM COALESCE(s.complete_enrollment_school_count, 0)) AS school_mismatch,
+       OR c.complete_enrollment_school_count IS DISTINCT FROM COALESCE(s.complete_enrollment_school_count, 0)
+       OR c.blank_enrollment_school_count IS DISTINCT FROM COALESCE(s.blank_enrollment_school_count, 0)
+       OR (c.active_public_school_count + c.blank_enrollment_school_count > 0
+         AND ABS(c.coverage_pct - 100.0 * c.complete_enrollment_school_count
+           / (c.active_public_school_count + c.blank_enrollment_school_count)) > 1e-9)) AS school_mismatch,
   (SELECT COUNT_IF((input_issue_reason IS NULL) <> COALESCE(school_age_population IS NOT NULL
     AND active_public_school_count > 0 AND coverage_pct >= 90, FALSE)) FROM c) AS input_issue_mismatch,
   (SELECT COUNT(*) FROM c LEFT JOIN type_refs r USING (lgu_type)

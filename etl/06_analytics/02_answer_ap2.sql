@@ -15,6 +15,8 @@ WITH lgus AS (
   SELECT school_id, city_mun_psgc_code,
          MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active,
          COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete_levels,
+         -- offers a level but every offered count is blank: not active, but missing data, so it lowers coverage.
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS is_blank,
          SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS complete_level_learners
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year = '2023-24' AND sector = 'Public' AND psgc_match_status = 'matched'
@@ -49,6 +51,7 @@ WITH lgus AS (
          COUNT_IF(s.is_active = 1 AND s.instructional_classrooms_total > 0) AS usable_room_school_count,
          COALESCE(COUNT_IF(s.is_active = 1 AND s.in_ratio), 0) AS ratio_school_count,
          COALESCE(COUNT_IF(s.is_active = 1 AND NOT s.enrollment_complete), 0) AS incomplete_enrollment_school_count,
+         COALESCE(COUNT_IF(s.is_blank), 0) AS blank_enrollment_school_count,
          CAST(COALESCE(SUM(CASE WHEN s.is_active = 1 AND s.enrollment_complete THEN s.total_learners ELSE 0 END), 0) AS BIGINT)
            AS public_school_enrollment,
          CAST(COALESCE(SUM(CASE WHEN s.in_ratio THEN s.total_learners ELSE 0 END), 0) AS BIGINT) AS eligible_learners,
@@ -72,9 +75,11 @@ WITH lgus AS (
          CAST(eligible_learners AS DOUBLE) / NULLIF(reported_instructional_classrooms, 0) AS learners_per_classroom,
          CAST(eligible_learners_without_outliers AS DOUBLE) / NULLIF(reported_instructional_classrooms_without_outliers, 0)
            AS learners_per_classroom_without_outliers,
-         -- a school counts as covered only with both a complete enrollment total and a usable room count: an active
-         -- school with a blank offered level adds nothing to either learner sum, so only this count can show it is missing.
-         CAST(100.0 * ratio_school_count / NULLIF(active_public_school_count, 0) AS DOUBLE) AS school_coverage_pct,
+         -- a school counts as covered only with both a complete enrollment total and a usable room count: a school with
+         -- a blank offered level adds nothing to either learner sum, so only this count can show it is missing. schools
+         -- whose offered counts are all blank are not active but join the denominator for the same reason.
+         CAST(100.0 * ratio_school_count / NULLIF(active_public_school_count + blank_enrollment_school_count, 0) AS DOUBLE)
+           AS school_coverage_pct,
          CAST(100.0 * eligible_learners / NULLIF(public_school_enrollment, 0) AS DOUBLE) AS learner_coverage_pct
   FROM metrics
 ), assessed AS (

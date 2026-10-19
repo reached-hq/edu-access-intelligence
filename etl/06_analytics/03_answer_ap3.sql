@@ -12,17 +12,20 @@ WITH lgus AS (
   FROM edu_access.`05-gold`.dim_city_municipality
   WHERE member_type = 'regular'
 ), active AS (
-  SELECT school_id, MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active
+  SELECT school_id, MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active,
+         -- offers a level but every offered count is blank: not active, but its blank levels are kept so the LGU
+         -- shows incomplete enrollment instead of losing the school.
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS is_blank
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year = '2023-24' AND sector = 'Public' AND psgc_match_status = 'matched'
   GROUP BY school_id
 ), school_levels AS (
-  SELECT e.school_id, e.city_mun_psgc_code, e.education_level_code, e.annex_status, e.learner_count,
+  SELECT e.school_id, e.city_mun_psgc_code, e.education_level_code, e.annex_status, e.learner_count, a.is_blank,
          t.teacher_count, t.school_id IS NOT NULL AS has_teacher_row,
          COALESCE(t.teacher_count > 0, FALSE) AS teacher_usable,
          COALESCE(e.annex_status = 'Annex/Extension School' AND t.teacher_count = 0, FALSE) AS zero_teacher_annex
   FROM edu_access.`05-gold`.fact_school_enrollment AS e
-  JOIN active AS a ON a.school_id = e.school_id AND a.is_active = 1
+  JOIN active AS a ON a.school_id = e.school_id AND (a.is_active = 1 OR a.is_blank)
   JOIN lgus AS l ON l.city_mun_psgc_code = e.city_mun_psgc_code
   LEFT JOIN edu_access.`05-gold`.fact_school_teacher_capacity AS t
     ON t.school_id = e.school_id AND t.school_year = e.school_year
@@ -57,6 +60,7 @@ WITH lgus AS (
          COUNT_IF(NOT s.has_teacher_row OR s.teacher_count IS NULL) AS missing_teacher_school_level_count,
          COUNT_IF(s.teacher_count = 0) AS zero_teacher_school_level_count,
          COUNT_IF(s.zero_teacher_annex) AS zero_teacher_annex_school_level_count,
+         COALESCE(COUNT(DISTINCT CASE WHEN s.is_blank THEN s.school_id END), 0) AS blank_enrollment_school_count,
          CAST(COALESCE(SUM(s.learner_count), 0) AS BIGINT) AS public_school_enrollment,
          CAST(COALESCE(SUM(CASE WHEN s.teacher_usable OR s.zero_teacher_annex THEN s.learner_count ELSE 0 END), 0) AS BIGINT)
            AS eligible_learners,

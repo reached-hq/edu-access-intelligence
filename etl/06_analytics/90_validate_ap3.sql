@@ -16,16 +16,17 @@ WITH c AS (
 ), schools AS (
   SELECT school_id, MIN(psgc_match_status) AS psgc_match_status,
          MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS active,
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS blank,
          SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS learners
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year = '2023-24' AND sector = 'Public'
   GROUP BY school_id
 ), rows AS (
-  SELECT e.city_mun_psgc_code, r.lgu_type, e.school_id, e.education_level_code, e.learner_count, t.teacher_count,
+  SELECT e.city_mun_psgc_code, r.lgu_type, e.school_id, e.education_level_code, e.learner_count, t.teacher_count, a.blank,
          COALESCE(t.teacher_count > 0, FALSE) AS usable,
          COALESCE(e.annex_status = 'Annex/Extension School' AND t.teacher_count = 0, FALSE) AS zero_annex
   FROM edu_access.`05-gold`.fact_school_enrollment e
-  JOIN schools a ON a.school_id = e.school_id AND a.active = 1
+  JOIN schools a ON a.school_id = e.school_id AND (a.active = 1 OR a.blank)
   JOIN regular r ON r.city_mun_psgc_code = e.city_mun_psgc_code
   LEFT JOIN edu_access.`05-gold`.fact_school_teacher_capacity t
     ON t.school_id = e.school_id AND t.school_year = e.school_year AND t.education_level_code = e.education_level_code
@@ -42,6 +43,10 @@ WITH c AS (
   SELECT l.city_mun_psgc_code, COUNT_IF(l.school_ratio > f.q3 + 3 * (f.q3 - f.q1)) AS outlier_levels
   FROM level_ratios l JOIN fences f USING (lgu_type)
   GROUP BY l.city_mun_psgc_code
+), blank_counts AS (
+  SELECT city_mun_psgc_code, COUNT(DISTINCT school_id) AS blank_schools,
+         COUNT(*) AS blank_levels
+  FROM rows WHERE blank GROUP BY city_mun_psgc_code
 ), expected AS (
   SELECT city_mun_psgc_code,
          CAST(COALESCE(SUM(CASE WHEN usable OR zero_annex THEN learner_count ELSE 0 END), 0) AS BIGINT) AS eligible_learners,
@@ -65,6 +70,10 @@ SELECT
   (SELECT COUNT(*) FROM c LEFT JOIN expected e USING (city_mun_psgc_code)
     WHERE c.eligible_learners IS DISTINCT FROM COALESCE(e.eligible_learners, 0)
        OR c.approved_teacher_count IS DISTINCT FROM COALESCE(e.teachers, 0)) AS gold_mismatch,
+  (SELECT COUNT(*) FROM c LEFT JOIN blank_counts b USING (city_mun_psgc_code)
+    WHERE c.blank_enrollment_school_count IS DISTINCT FROM COALESCE(b.blank_schools, 0)
+       OR (COALESCE(b.blank_levels, 0) > 0 AND c.incomplete_enrollment_school_level_count < b.blank_levels))
+    AS blank_school_mismatch,
   (SELECT COUNT(*) FROM c LEFT JOIN outliers o USING (city_mun_psgc_code)
     WHERE c.outlier_school_level_count IS DISTINCT FROM COALESCE(o.outlier_levels, 0)
        OR c.outlier_flag IS DISTINCT FROM (c.outlier_school_level_count > 0)) AS outlier_count_mismatch,
@@ -111,6 +120,7 @@ FROM (
   UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'lgu_membership_reconciles', CASE WHEN lgu_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(lgu_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'numerator_denominator_reconcile', CASE WHEN gold_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(gold_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'blank_enrollment_schools_kept', CASE WHEN blank_school_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(blank_school_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'outlier_school_levels_reconcile', CASE WHEN outlier_count_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(outlier_count_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'input_issue_valid', CASE WHEN input_issue_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(input_issue_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'same_type_reference_pools_clean_lgus', CASE WHEN pooled_reference_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(pooled_reference_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)

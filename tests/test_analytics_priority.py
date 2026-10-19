@@ -227,3 +227,27 @@ def test_ap2_gate_rejects_coverage_that_hides_blank_enrollment(store):
         SET school_coverage_pct = 100.0, ratio_school_count = active_public_school_count""")
     with pytest.raises(Exception, match="Analytics gate failed"):
         run(store, "90_validate_ap2.sql")
+
+
+def test_a_school_with_every_offered_count_blank_lowers_coverage(store):
+    # S6 offers ES in City One but its count is blank: under the metric specification it is not active, but it is
+    # missing data, not a closed school, so it must not drop out of AP1 to AP3 (review on #203).
+    for year in ("2023-24", "2024-25"):
+        store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
+            ('S6','{year}','ES','C1','Public','matched','Mother School',TRUE,NULL),
+            ('S6','{year}','JHS','C1','Public','matched','Mother School',FALSE,0),
+            ('S6','{year}','SHS','C1','Public','matched','Mother School',FALSE,0)""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_classroom_capacity VALUES ('S6','2023-24',4)")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S6','2023-24','ES',4)")
+    for build, gate in STEPS[:3]:
+        run(store, build)
+        run(store, gate)
+    assert store.query(f"""SELECT active_public_school_count, blank_enrollment_school_count, coverage_pct, classification
+        FROM {ANALYTICS}.ap1_school_provision WHERE city_mun_psgc_code = 'C1'""") == [
+        (2, 1, pytest.approx(200 / 3), "Data Review")]
+    assert store.query(f"""SELECT active_public_school_count, blank_enrollment_school_count, school_coverage_pct, classification
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [
+        (2, 1, pytest.approx(200 / 3), "Data Review")]
+    assert store.query(f"""SELECT blank_enrollment_school_count, input_issue_reason, classification
+        FROM {ANALYTICS}.ap3_teacher_pressure WHERE city_mun_psgc_code = 'C1'""") == [
+        (1, "incomplete enrollment", "Data Review")]

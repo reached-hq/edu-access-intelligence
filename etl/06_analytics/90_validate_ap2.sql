@@ -17,6 +17,7 @@ WITH c AS (
   SELECT school_id, city_mun_psgc_code, MIN(psgc_match_status) AS psgc_match_status,
          MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS active,
          COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete,
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS blank,
          SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS learners
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year = '2023-24' AND sector = 'Public'
@@ -38,6 +39,7 @@ WITH c AS (
   SELECT e.city_mun_psgc_code,
          COUNT_IF(e.active = 1) AS active_schools,
          COUNT_IF(e.active = 1 AND e.incomplete > 0) AS incomplete_schools,
+         COUNT_IF(e.blank) AS blank_schools,
          COUNT_IF(e.active = 1 AND e.incomplete = 0 AND k.instructional_classrooms_total > 0) AS covered_schools
   FROM enrollment e
   LEFT JOIN edu_access.`05-gold`.fact_school_classroom_capacity k
@@ -71,8 +73,10 @@ SELECT
     WHERE c.active_public_school_count IS DISTINCT FROM COALESCE(s.active_schools, 0)
        OR c.incomplete_enrollment_school_count IS DISTINCT FROM COALESCE(s.incomplete_schools, 0)
        OR c.ratio_school_count IS DISTINCT FROM COALESCE(s.covered_schools, 0)
-       OR (c.active_public_school_count > 0
-         AND ABS(c.school_coverage_pct - 100.0 * COALESCE(s.covered_schools, 0) / c.active_public_school_count) > 1e-9))
+       OR c.blank_enrollment_school_count IS DISTINCT FROM COALESCE(s.blank_schools, 0)
+       OR (COALESCE(s.active_schools, 0) + COALESCE(s.blank_schools, 0) > 0
+         AND ABS(c.school_coverage_pct - 100.0 * COALESCE(s.covered_schools, 0)
+           / (COALESCE(s.active_schools, 0) + COALESCE(s.blank_schools, 0))) > 1e-9))
     AS school_coverage_mismatch,
   (SELECT COUNT(*) FROM c LEFT JOIN expected e USING (city_mun_psgc_code)
     WHERE c.outlier_school_count IS DISTINCT FROM COALESCE(e.outlier_schools, 0)
