@@ -28,6 +28,9 @@ Proposed facts:
 - `fact_city_school_age_population`
 - `fact_school_year_source_availability`
 
+Built: `fact_city_population`, from `dim_city_municipality` and PSGC Silver's
+2024 population; its gate publishes only when no check fails.
+
 When approved, use one dimension or fact per file and give each dimension gate
 a uniqueness check on its declared key. Files follow `NN_<verb>_<object>.sql`,
 with checks in `90_validate_<object>.sql` (see [File naming and

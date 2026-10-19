@@ -271,6 +271,15 @@ to `teacher_count` again.
 `estimate_status` is `available`, `missing`, `provisional`, or `excluded`.
 `status_reason` explains a non-available value and is NULL when available.
 
+Built by `13_build_fact_city_population.sql` from `dim_city_municipality` and
+PSGC Silver's `2024 Population` column (D-033): one row per regular member, all
+with `reference_year = 2024`, and none for the technical members. Population is
+as published, 0 stays 0. A member with no population is `missing`, its reason
+from Silver's `population_null_reason`; `provisional` and `excluded` have no rule
+yet, so no row takes them. The gate fails a value that differs from Silver and a
+total that differs from Silver's city and municipality total, and warns when the
+total differs from the 18 regions' total.
+
 ### `fact_city_school_age_population`
 
 | Column | Type |

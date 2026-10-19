@@ -177,6 +177,11 @@ integration_tables:
     grain: One row per enrollment school_id, school_year, and geographic_level (city_mun or bgy).
     purpose: DepEd enrollment schools matched to PSGC cities and barangays, EMISD code first, then reviewed name matching (D-049).
 
+gold_tables:
+  - table: fact_city_population
+    build_file: 13_build_fact_city_population.sql
+    validate_file: 90_validate_fact_city_population.sql
+    grain: One regular city or municipality of dim_city_municipality and reference year (2024, PSGC 2024 Population).
+
 deferred_layers:
-  - gold
   - analytics
