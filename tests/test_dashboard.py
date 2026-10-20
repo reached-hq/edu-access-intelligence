@@ -162,12 +162,13 @@ def test_every_widget_field_is_a_dataset_column(store, board):
                     assert column in columns[query["datasetName"]], f"{widget['name']}: {column}"
 
 
-def test_no_refresh_schedule_or_new_workspace_object_during_development():
-    """Low cost on the shared warehouse: the dashboard is a committed file only. Deploying it through the
-    bundle, and any refresh schedule, are separate, approved steps (D-008)."""
+def test_the_bundle_deploys_the_committed_file_without_a_schedule():
+    """No scheduled refresh during development (D-008): the dashboard refreshes only when it is opened."""
     bundle = yaml.safe_load((REPO_ROOT / "databricks.yml").read_text(encoding="utf-8"))
-    assert "dashboards" not in bundle["resources"]
-    assert "schedule" not in (REPO_ROOT / data_quality.PATH).read_text(encoding="utf-8")
+    resource = bundle["resources"]["dashboards"]["data_quality"]
+    assert resource["file_path"] == data_quality.PATH
+    assert resource["warehouse_id"] == "${var.warehouse_id}"
+    assert "schedule" not in resource and "schedules" not in resource
 
 
 # ---------------------------------------------------------------- the quality-attribute catalog

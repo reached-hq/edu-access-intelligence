@@ -6,7 +6,7 @@ Exported Databricks AI/BI dashboards (`.lvdash.json`).
 |---|---|---|
 | `data_quality.lvdash.json` | Data quality (#97) | `python -m src.dashboard.data_quality > dashboards/data_quality.lvdash.json`, from `config/quality_attributes.yml`. Do not edit by hand; `tests/test_dashboard.py` fails if it differs |
 
-Not deployed yet: there is no `dashboards` resource in `databricks.yml`, so no bundle deploy creates it, and no refresh schedule is set during development (D-008). Deploying it is a separate, approved step.
+Deployed with the bundle: `resources.dashboards.data_quality` in `databricks.yml` (`databricks bundle deploy --target dev --profile reached-hq`, or **Deploy** from your workspace Git folder). On `dev` it is your own `[dev <you>]` copy. No refresh schedule during development (D-008): it refreshes when opened.
 
 ## Data quality
 
