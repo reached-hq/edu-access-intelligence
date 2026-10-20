@@ -15,7 +15,7 @@ The metric contracts are complete enough to build and test the Gold facts. Publi
 | **AP1 · Schools** | Public-school and enrollment counts can be aggregated by LGU and school year; multi-level, active-school, annex, and unmatched-barangay rules are set | Publication must show geography-match coverage and preserve the screen's distance, demand, and feasibility caveats |
 | **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio, and its extreme observations are still under review |
 | **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level and the teacher positions and null rules are set | The source cannot show whether one person is counted in two columns, outliers remain under review, and without a mother-school ID the ratio is project-defined, not DepEd's indicator |
-| **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found, profiled, and loaded in Bronze for 2020 and 2024; SY 2020-21 and SY 2024-25 enrollment are acquired, validated in Bronze, and published in Silver | The PSA population workbooks are not yet published in Silver and carry names only, with no PSGC codes; the population-to-PSGC Integration match is not yet built |
+| **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found, profiled, and loaded in Bronze for 2020 and 2024; SY 2020-21 and SY 2024-25 enrollment are acquired, validated in Bronze, and published in Silver | Built in `ap4_enrollment_trend` (#208) from `fact_city_school_age_population` (2020 and 2024) and `fact_school_enrollment`. The gap is not an out-of-school count, and the change is NULL where the geography is not comparable |
 | **Poverty 2023 · Context** | PSA's 2023 estimate, 90% interval, and CV for 1,597 of the 1,642 cities and municipalities; the status of the other 45 is defined (D-046) | `dim_city_poverty` is not built yet (#174), and the model stays provisional until the team mentor approves the ERD; it is context only and never an analytical result |
 | **Resource-gap estimates** | RA No. 7880 supplies a 45:1 statutory classroom-shortage reference; the arithmetic form can be documented as a candidate | The current NSBI room field includes spaces excluded by the law, no current general teacher threshold has been validated, and the operational assumptions behind converting a ratio into rooms or teachers have not been approved |
 
@@ -30,7 +30,7 @@ Every published measure must declare:
 3. **numerator and denominator** — exact approved fields and filters, covering the same schools, education level, school scope, geography, and period;
 4. **aggregation** — calculate ratios from aggregated sums, not the unweighted average of school ratios;
 5. **missingness** — NULL remains missing and is never converted to zero without publisher evidence;
-6. **coverage** — both school and enrolled-learner coverage accompany AP2 and AP3;
+6. **coverage** — both school and enrolled-learner coverage accompany AP2 and AP3, and the share of active public schools with complete all-level enrollment accompanies AP1 for the [priority rule](#priority-rule);
 7. **geography** — the school-to-PSGC match version and unmatched/excluded counts;
 8. **period** — school year or population reference year shown on every result; and
 9. **quality status** — unresolved outliers, annex handling, and definition mismatches remain visible.
@@ -57,7 +57,7 @@ The Gold build uses the reviewed tables and fields below. Brace notation is shor
 | Classroom capacity | `deped_facilities_clean.school_id`, `school_year`, `es_classrooms_instructional`, `jhs_classrooms_instructional`, `shs_classrooms_instructional` | School x school year. Require public scope. Sum the three room fields that are not NULL; return NULL when all three are NULL. Do not substitute makeshift rooms, temporary learning spaces, or non-instructional rooms into this denominator. |
 | Teacher capacity | The level-specific personnel fields listed immediately below | School x school year x education level. Require public scope. Principals, assistant principals, administrative, health, guidance, library, security, utility, and all other non-teaching roles are excluded. |
 | DepEd source availability | `fact_school_year_source_availability.school_year`, `source_id`, `has_data` | School year x source. Require one row for each school year and each of `deped_enrollment`, `deped_facilities`, and `deped_personnel`. Use this fact only to determine whether a source has data for the selected year. It does not establish school or education-level coverage. |
-| AP1 total population | `fact_city_population.city_mun_psgc_code`, `reference_year`, `population`, `estimate_status` | City or municipality x reference year. Use only `reference_year = 2024` and `estimate_status = 'available'`; label the value **Population 2024** and do not substitute school-age population. |
+| AP1 school-age population (context) | `fact_city_school_age_population.city_mun_psgc_code`, `reference_year`, `age`, `sex`, `population`, `psgc_match_status` | City or municipality x reference year. Use only `reference_year = 2024`, ages 5–17, `sex IN ('male', 'female')` and `psgc_match_status = 'matched'`, following the team's BP and AP metrics; label the value **School-age population 2024**. Total population (`fact_city_population`) is not used by AP1. |
 | AP4 school-age population | `fact_city_school_age_population.city_mun_psgc_code`, `reference_year`, `age`, `sex`, `population`, `psgc_match_status`, `is_2020_2024_geography_comparable` | City or municipality x reference year. Sum `sex IN ('male', 'female')` and `age BETWEEN 5 AND 17`; use only reviewed PSGC matches. Never add a published both-sexes total to the male and female rows. |
 
 ### AP3 included personnel fields
@@ -99,7 +99,7 @@ These formulas are the implementation baseline. They do not by themselves author
 
 ```text
 learners_per_public_school = complete_public_school_enrollment / active_public_schools_with_complete_all_level_enrollment
-population_per_public_school = population_2024 / public_school_count
+school_age_population_per_public_school = school_age_population_2024 (ages 5–17) / public_school_count
 
 barangays_without_public_es =
     PSGC barangays in the LGU with no matched public school offering elementary
@@ -107,7 +107,7 @@ barangays_without_public_es_pct =
     barangays_without_public_es / PSGC barangays in the LGU * 100
 ```
 
-Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. For the all-level school count, count an active multi-level school once. For a level-specific school count, count it once in every level where `is_offered = true`; do not infer an offering from a positive learner count or from another source. A school is active when at least one offered level has a complete `learner_count` above 0, even when another offered level is incomplete. For `learners_per_public_school`, use only active public schools whose all-level total is complete in both the numerator and denominator. Also publish the total active-public-school count, the number excluded from this ratio because their all-level total is incomplete, and the non-NULL learner-cell audit sum. `population_per_public_school` divides the LGU's 2024 total population by the full active-public-school count. It is labelled **Population 2024 per public school**, not schools per 10,000 residents. A NULL or zero school count produces a NULL ratio with its reason. These measures describe provision and school size; they do not measure travel access or prove that construction is required.
+Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. For the all-level school count, count an active multi-level school once. For a level-specific school count, count it once in every level where `is_offered = true`; do not infer an offering from a positive learner count or from another source. A school is active when at least one offered level has a complete `learner_count` above 0, even when another offered level is incomplete. For `learners_per_public_school`, use only active public schools whose all-level total is complete in both the numerator and denominator. Also publish the total active-public-school count, the number excluded from this ratio because their all-level total is incomplete, and the non-NULL learner-cell audit sum. `school_age_population_per_public_school` divides the LGU's 2024 school-age population (PSA, ages 5–17) by the full active-public-school count, following the team's BP and AP metrics. It is labelled **School-age population 2024 per public school**, not schools per 10,000 residents, and is context under D-057: only `learners_per_public_school` is ranked. Because learners may attend school outside their LGU, it is never read as a school shortage. A NULL or zero school count produces a NULL ratio with its reason. These measures describe provision and school size; they do not measure travel access or prove that construction is required.
 
 The AP1 population join is fixed and must not select a population row by proximity, latest-year logic, or an unconstrained join:
 
@@ -127,7 +127,7 @@ A newly approved enrollment school year also maps to 2024 until a reviewed decis
 
 The barangay measures follow DepEd Order No. 40, s. 2014, which expects at least one Kindergarten-to-Grade-6 school for every barangay (see the [national benchmark register](national-benchmarks-and-indicators.md#ap1--school-provision-references)). They are calculated per city or municipality and school year from `member_type = 'regular'` barangays in the PSGC 2Q 2026 master and are never ranked by barangay. A public school serves a barangay only when it is active, offers ES, and has a reviewed match to that regular barangay. A school assigned to the LGU's unknown-barangay member is retained in LGU totals but does not serve a specific barangay. If an LGU has one or more such schools, show `at most N barangays without a matched public elementary school`, the unmatched-school count, and geography-match coverage. A barangay without its own school may still be served by a nearby school, so the count is a screen for review, not evidence that a school is needed.
 
-**Validation status:** ready to implement and validate. The active-school, multi-level, zero-enrollment, annex, and unmatched-barangay rules are set. Dashboard publication still requires the validation gate and the stated caveats.
+**Validation status:** built for SY 2023-24 in `ap1_school_provision` (#208): learners per public school (ranked), school-age population per public school (context), the coverage gate, and the within-type and national percentiles. A school that offers a level but has every offered count blank is not active, but it is missing data rather than a closed school, so it is added to the coverage denominator (`blank_enrollment_school_count`). The barangay measures are not built yet. The active-school, multi-level, zero-enrollment, annex, and unmatched-barangay rules are set. Dashboard publication still requires the validation gate and the stated caveats.
 
 ### AP2 · Classroom pressure
 
@@ -141,7 +141,8 @@ learners_per_reported_instructional_room =
     / sum(total_instructional_rooms for the same schools)
 
 school_coverage_pct =
-    active_public_schools_with_usable_room_count / active_public_schools_in_scope * 100
+    active_public_schools_with_complete_enrollment_and_usable_room_count
+    / (active_public_schools_in_scope + schools_with_every_offered_count_blank) * 100
 
 learner_coverage_pct =
     enrollment_in_schools_with_usable_room_count / public_school_enrollment * 100
@@ -153,7 +154,7 @@ Levels are combined because rooms are shared across levels: 768 public schools h
 
 The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator.
 
-**Validation status:** ready to implement and validate as a project-defined descriptive measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication.
+**Validation status:** built for SY 2023-24 in `ap2_classroom_pressure` (#208), gated on learner coverage (D-057) and ranked within type. Outlier schools are counted and never change a result. School coverage is published beside it, counting a school as covered only with both a complete enrollment total and a usable room count, over active plus blank-enrollment schools. A project-defined descriptive measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication.
 
 ### AP3 · Teacher pressure
 
@@ -190,7 +191,7 @@ The source measures personnel actually working in public schools; they are not a
 
 DepEd's documented teacher–learner method adds annex enrollment and teachers to the mother school before division. DepEd publishes no mother-school ID (#134), so AP3 cannot do this school by school. The ratio is labelled **project-defined** and must not claim to reproduce DepEd's indicator (D-047). An annex that reports 0 teachers keeps its learners in the city or municipality total instead of being dropped by the usable-denominator rule: 48 annexes with 21,114 learners in SY 2023-24. Because the ratio is summed to the city or municipality, this matches DepEd's add-to-mother rule whenever the annex and its mother school are in the same city or municipality.
 
-**Validation status:** ready to implement and validate as a project-defined ratio by level, limited to SY 2023-24. Teacher positions, levels, null rules, and annex handling are set (D-047). It is not DepEd's teacher–learner ratio. Resolve the reviewed personnel outliers before dashboard publication.
+**Validation status:** built for SY 2023-24 in `ap3_teacher_pressure` (#208): ES, JHS and SHS side by side, each with its ratio, coverage and percentile, then D-057's re-ranked AP3 percentile and the level named. A project-defined ratio by level, limited to SY 2023-24. Teacher positions, levels, null rules, and annex handling are set (D-047). It is not DepEd's teacher–learner ratio. Resolve the reviewed personnel outliers before dashboard publication.
 
 ### AP4 · School-age population and enrollment gap
 
@@ -244,11 +245,13 @@ About 3.83 million of the public-only gap is private and SUC/LUC learners.
 
 For Negros, Sulu, and Maguindanao the cities and municipalities themselves did not change; only their province or region did. The flag matters for name matching and for any province or region grouping.
 
-**Validation status:** method defined; calculation blocked pending Silver publication of the Bronze PSA 2020 and 2024 single-year-age workbooks and a reviewed match of their cities and municipalities to PSGC. SY 2020-21 and SY 2024-25 enrollment are already validated in Silver. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
+**Which way is enrollment moving.** AP4's answer is enrollment itself, as the BP and AP metrics ask: one row per city or municipality and school year, for every school year in `fact_school_enrollment` (SY 2020-21 to 2025-26 today, taken from the data, not listed). Each row has all-sector enrollment, public-school enrollment and share, the change from the previous school year (NULL when that year is not in the data), and the change from the first to the latest school year. `enrollment_trend` is `increasing`, `decreasing` or `no change` by the sign of that change, with no threshold. A school with a blank offered level is left out of the sums and counted in `schools_incomplete`, never read as 0. The census context (`census_year`, `school_age_population`, `population_enrollment_gap`, `gap_share`) is filled only on SY 2020-21 and 2024-25, and `census_context` says why the other years are empty. The `UNKNOWN` and `EXCLUDED` members keep their rows so the totals add up; dashboards filter `member_type = 'regular'`. The priority table reads one row per city: the two gaps, the gap rates, the change in gap (NULL where the geography is not comparable) and the trend.
+
+**Validation status:** built in `ap4_enrollment_trend` (#208, the design of #199): enrollment by school year and its trend, with the 2020 and 2024 gap as census-year context. The gate rebuilds every row from the two Gold facts and compares all columns. AP4 is context under D-057 and never changes a tier. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
 
 ### Context · Poverty 2023
 
-Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, peer group, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)).
+Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, tier, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)). Its one other use is as a standardized input to the context-only [Similar LGUs](#similar-lgus-context) list (D-057).
 
 | Item | Contract |
 |---|---|
@@ -292,18 +295,42 @@ The dashboard may show four distinct evidence types without treating them as int
 |---|---|
 | **LGU observed value** | Primary local measure, with coverage and quality status |
 | **Validated official benchmark** | Benchmark comparison only when authority, formula, scope, education level, effective period, and denominator compatibility match the observed metric; see the [research register](national-benchmarks-and-indicators.md) |
-| **Peer distribution** | Relative context using an approved peer definition; not proof of shortage |
-| **National same-type distribution** | Descriptive context for cities and municipalities separately; not an official standard |
+| **National same-type distribution** | Cities compared with cities and municipalities with municipalities; the within-type percentile sets the [priority tier](#priority-rule) (D-057). Relative pressure, not an official standard |
+| **Similar LGUs** | The most similar LGUs of the same type, shown as context (method set in #96); never sets or changes a tier |
 
-### Proposed peer method
+### Similar LGUs (context)
 
-The current proposal groups LGUs by type, income class, and a type-specific population-density band. Density uses land area from `hdx_boundaries.area_sqkm` (see the [dataset use map](dataset-use-map.md)). If a group does not meet the approved minimum size, density is dropped; if the broader group is still too small, only national same-type context is shown. The minimum group size, density bands, and fallback labels remain team decisions.
+Similar LGUs replaces the proposed peer groups, which were parked on 2026-10-18 (D-057). For each city or municipality, the LGU profile will list the most similar LGUs of the same type. The planned inputs are income class, population density (Population 2024 ÷ `hdx_boundaries.area_sqkm`; see the [dataset use map](dataset-use-map.md)), poverty incidence 2023 (D-046), and Population 2024. The method is not yet defined: how inputs are standardized, how income class is encoded, the distance measure, how many LGUs are listed, the rule for a missing input (44 areas have no PSA poverty row, most of them highly urbanized cities, and the 8 Special Geographic Area municipalities have no HDX area; every city and municipality has a 2024 population in PSGC, Isabela City included: the `#N/A` is on the container row "City of Isabela (Not a Province)", not on the city), and the tie-break are set and recorded in #96 before the view is built. The list describes the place; it is not a comparison group for the tier and never changes one.
 
-For an approved peer group, show the median, interquartile range, percentile, and group count. Median is not the only statistic: the IQR shows spread, the percentile locates the LGU, and the national same-type distribution reveals whether pressure is widespread beyond one peer group.
+For each measure, the national same-type median, interquartile range, and the LGU's percentile are shown beside the LGU's value. Median is not the only statistic: the IQR shows spread and the percentile locates the LGU.
 
-### Priority output
+### Priority rule
 
-Maintain separate classroom and teacher views. Until an official benchmark and the underlying metric are validated, sort only as **relative capacity pressure** using the observed ratio, affected enrollment, comparison position, coverage, and quality flags. Do not label the result a shortage, deficit, or number of resources needed. Do not create a combined classroom-teacher score without approved weights and interpretation.
+The priority rule is D-057. It ranks cities and municipalities for SY 2023-24 on AP1 (learners per public school), AP2 (learners per reported instructional room), and AP3 (learners per teacher by level), using the formulas above.
+
+1. **Coverage gate.** (Implementation note: AP1 also counts schools that offer a level but have every offered count blank in the denominator, as missing data; see AP1.) A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
+2. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it; then each LGU's highest level percentile, from the levels that pass, is ranked again the same way among the LGUs with at least one passing level.
+3. **High.** A measure is high at a percentile of 0.90 or above; for AP3 this is the second, re-ranked percentile, and the output names the level with the highest level percentile. AP3 is not high only when every offered level passes and it is still not high; otherwise it is not assessed.
+4. **Tier.** **Critical** (3 high), **Elevated** (2), **Targeted** (1, naming the measure), **Monitor** (0), or **Data review**. Critical is always shown with its meaning: high on all three measures compared with LGUs of the same type. The priority table stores a fixed tier code (3, 2, 1, 0, `data_review`) beside the label. The tier is a count of high measures, not a weighted score; each measure keeps its own value, percentile, and coverage in every view.
+5. **Order within a tier.** Affected learners (public-school learners in the LGU, the AP1 enrollment total), highest first; then the lowest of the three percentiles, highest first.
+6. **Stable.** The same steps without the type partition give a national tier. An LGU that is Critical both ways is marked Stable; the tier shown is always the within-type one.
+
+The result is labelled **relative capacity pressure**. Do not label it a shortage, deficit, or number of resources needed.
+
+These checks are reported beside the ranking and never change a tier:
+
+| Check | Variation | Reported |
+|---|---|---|
+| High line | 0.85 and 0.80 | The LGUs that join Critical at each line (a lower line only adds LGUs) |
+| Coverage gate | 95% | The share of the 90% Critical list kept, and the LGUs that join |
+| Comparison | National | The Stable flag |
+| Outliers | Without the schools above Q3 + 3 × IQR of their school-level ratio: learners per room (all levels) and learners per teacher per level, with quartiles computed within LGU type over public schools with a usable denominator, SY 2023-24 | LGUs whose tier would change; the flagged schools stay in the published totals (rule 8) and the list is saved with the run |
+| Flag rate | None | The share of LGUs high on each measure, by type; about 10% each is expected |
+| Overlap of measures | Spearman rank correlation between the three measures by type, and the share of LGUs high on one measure that are also high on another (10% expected if unrelated) | How far the measures repeat one signal; the shared learner numerator makes some overlap expected |
+
+**Revisit trigger.** The rule is revisited when, under any check, fewer than 80% of the Critical LGUs stay Critical and at least 3 leave (D-057).
+
+No significance test is used: the sources cover every public school, so there is no sampling error to test. Reporting error remains, and the coverage gate and the outlier check address it.
 
 ## Candidate resource-gap calculations — blocked
 
@@ -328,24 +355,24 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | View | Main fields | Coverage and drill-down fields | Current status |
 |---|---|---|---|
 | **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | source availability by school year, geography-match version, unmatched/excluded school counts, source versions | Required |
-| **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, Population 2024, Population 2024 per public school, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Ready to implement and validate |
-| **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Ready to implement and validate for SY 2023-24 |
-| **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Ready to implement and validate for SY 2023-24; project-defined |
-| **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending population Silver publication and PSGC integration |
+| **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, school-age population 2024 (5–17), school-age population 2024 per public school, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Built in `ap1_school_provision` (#208); barangay measures not built |
+| **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Built in `ap2_classroom_pressure` for SY 2023-24 (#208) |
+| **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Built in `ap3_teacher_pressure` for SY 2023-24 (#208); project-defined |
+| **AP4 context** | enrollment in all sectors by school year, change from the previous year, change and trend from the first to the latest year, public-school share; on SY 2020-21 and 2024-25, population aged 5–17, gap and gap share; change in gap from 2020 to 2024 | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Built in `ap4_enrollment_trend` (#208); context only |
 | **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | Decided (D-046); not built |
-| **Comparisons** | applicable benchmark and status, peer percentile, peer median, national same-type median | benchmark citation/version, peer ID/count/fallback, IQR, national distribution, comparison status | Blocked until method approval |
-| **Priority label** | relative-pressure band or benchmark status, affected enrollment | sort rule/version, missingness and quality warnings | Blocked until ranking rule approval |
+| **Comparisons** | applicable benchmark and status, within-type percentile per measure, national same-type median, Similar LGUs | benchmark citation/version, comparison-group count, IQR, national percentile, Similar LGUs inputs | Tier comparison built (D-057, #208); Similar LGUs method planned in #96 |
+| **Priority label** | tier, Stable flag, high measures (with the AP3 level), affected learners | rule version (D-057), coverage per measure, the priority checks, missingness and quality warnings | Built in `lgu_priority_matrix` (D-057, #208); the checks beside the ranking are a follow-up |
 
 ## Separate follow-on decisions
 
 The AP1 to AP4 fact and metric contracts above do not depend on the following work. These items must not be guessed inside #46:
 
 1. The AP4 name-match implementation from the PSA census workbooks to PSGC. The matching issue must preserve the approved ages, periods, enrollment scope, comparability flag, and no-modelling rule.
-2. Peer criteria, density bands, minimum group size, fallback, and percentile convention. HDX is the current land-area source.
-3. Relative-priority sorting or banding. A combined classroom-teacher score remains out of scope unless a later decision approves its weights and interpretation.
+2. ~~Peer criteria, density bands, minimum group size, fallback, and percentile convention.~~ Settled by D-057: peer groups are replaced by [Similar LGUs](#similar-lgus-context), and the percentile is `PERCENT_RANK()` within LGU type. The Similar LGUs method is planned in #96.
+3. ~~Relative-priority sorting or banding.~~ Settled by D-057: the [priority rule](#priority-rule). A weighted classroom-teacher score remains out of scope unless a later decision approves its weights and interpretation.
 4. Activation of the candidate classroom planning calculation or any teacher resource-gap calculation. These require compatible denominators and separate approval.
 
-Already set: poverty 2023 is context only, never a ranking, flag, peer criterion, or score input (D-046). The complete display, uncertainty, missingness, and recount contract is in [Context · Poverty 2023](#context--poverty-2023).
+Already set: poverty 2023 is context only, never a ranking, flag, tier, or score input (D-046); D-057 allows it as an input to the context-only Similar LGUs. The complete display, uncertainty, missingness, and recount contract is in [Context · Poverty 2023](#context--poverty-2023).
 
 ## Validation gate
 

@@ -8,7 +8,7 @@ without pretending that the business problem or analytical questions are final.
 
 | Dataset | Bronze table | Silver table | Silver quarantine |
 |---|---|---|---|
-| DepEd enrollment, SY 2023-24 through 2025-26 | `deped_enrollment_raw` | `deped_enrollment_clean` | `deped_enrollment_quarantine` |
+| DepEd enrollment, SY 2020-21 through 2025-26 | `deped_enrollment_raw` | `deped_enrollment_clean` | `deped_enrollment_quarantine` |
 | DepEd facilities, SY 2023-24 | `deped_facilities_raw` | `deped_facilities_clean` | `deped_facilities_quarantine` |
 | DepEd personnel, SY 2023-24 | `deped_personnel_raw` | `deped_personnel_clean` | `deped_personnel_quarantine` |
 | PSA PSGC workbook, `PSGC` sheet | `psa_psgc_raw` | `psa_psgc_clean` | `psa_psgc_quarantine` |
@@ -17,8 +17,8 @@ without pretending that the business problem or analytical questions are final.
 | DepEd EMISD enrollment with PSGC and coordinates (the school-to-PSGC crosswalk) | `deped_enrollment_psgc_raw` | `deped_enrollment_psgc_clean` | `deped_enrollment_psgc_quarantine` |
 | PSA school-age population, 2020 and 2024 census workbooks | `psa_school_age_population_raw` | `psa_school_age_population_clean` | `psa_school_age_population_quarantine` |
 
-Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
-the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
+The registry and job configuration are the source of truth for implementation
+and enablement status; this table fixes names and is not a progress checklist.
 
 Each Silver table and Silver quarantine also has a **candidate** copy with the
 suffix `_candidate` (for example `deped_enrollment_clean_candidate`): the build
@@ -56,31 +56,33 @@ The exact future file names are recorded beside each table in
 `config/tables.yml`. A registry entry does not mean the SQL file has been
 implemented.
 
-## Integration drafts
+## Integration tables
 
 Implemented: `deped_annex_mother_map`, one row per annex school and school year.
 It keeps the mother ID and match method NULL while the approved DepEd releases
 provide no reliable link, and lists every unmatched annex with evidence (D-044).
 Implemented: `hdx_adm3_psgc_map` (`03_map_hdx_adm3_psgc.sql`), one row per HDX ADM3
 feature with its reviewed PSGC match, review status, and reason (D-052).
+Implemented: `psa_poverty_psgc_map` (`02_map_psa_poverty_psgc.sql`), one row per PSA
+poverty estimate row (`psgc_id`, `estimate_year`) with its `Correspondence Code` match
+to PSGC and the estimate carried unchanged (D-054).
+Implemented: `psa_school_age_population_psgc_map` (`05_map_psa_school_age_population_psgc.sql`),
+one row per census year and city or municipality of the PSA school-age population, with its
+reviewed PSGC match, the PSGC parent it was searched in, review status, and reason (D-055).
+Implemented: `deped_school_psgc_map` (`01_map_deped_school_psgc.sql`), one row per enrollment
+school, school year, and geographic level (`city_mun`, `bgy`), with its EMISD-code or reviewed
+name match, including explicit unmatched, ambiguous, and excluded rows (#91, D-049).
 
-These are working names only:
+No Integration working names remain. A new map follows the shape of `hdx_adm3_psgc_map`
+(D-052) unless its own decision says otherwise. Gold names from #45 are documented
+in [`docs/architecture/data-model.md`](../architecture/data-model.md). Tables with
+reviewed inputs may be implemented independently; geography-dependent tables remain
+disabled until their Integration prerequisites are ready. Analytics names are
+registered in `config/tables.yml` (`analytics_tables`); `ap4_enrollment_trend` has
+one row per city or municipality member and school year, the others one row per
+regular city or municipality.
 
-| Candidate table | Candidate file | Intended grain |
-|---|---|---|
-| `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
-| `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | One reviewed poverty-statistic geography mapping to PSGC |
-| `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | One reviewed PSA school-age population place mapping to PSGC |
-
-Do not create these tables until their keys, match statuses, review workflow,
-and PSGC-version behavior are agreed; they follow the shape of `hdx_adm3_psgc_map`
-(D-052) unless their own decision says otherwise. Gold names proposed in #45 are documented
-in [`docs/architecture/data-model.md`](../architecture/data-model.md). They
-remain design-only until the team and mentor approve the ERD and Integration
-prerequisite #44 is ready. Analytics names remain deferred until the metric
-contract is approved.
-
-## Proposed Gold names
+## Gold names
 
 | Table | Grain |
 |---|---|
@@ -96,3 +98,11 @@ contract is approved.
 | `fact_city_population` | City or municipality x reference year |
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
 | `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |
+
+Implemented: `dim_school`, `dim_school_year`, `dim_education_level`,
+`dim_city_municipality`, `dim_barangay`, `fact_school_classroom_capacity`,
+`fact_school_teacher_capacity`, `fact_city_school_age_population`, and
+`fact_school_year_source_availability`. Each build writes a candidate and its
+gate publishes only after validation. `dim_city_poverty`,
+`fact_school_enrollment`, and `fact_city_population` remain disabled and are
+assigned to follow-on work; no empty substitutes are published for them.

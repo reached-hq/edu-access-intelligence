@@ -9,8 +9,8 @@ source_tables:
   - source_id: deped_enrollment
     dataset: DepEd enrollment
     scope:
-      school_years: [2020-21, 2023-24, 2024-25, 2025-26]
-      note: All four deliveries share one table and are distinguished by school_year.
+      school_years: [2020-21, 2021-22, 2022-23, 2023-24, 2024-25, 2025-26]
+      note: All six deliveries share one table and are distinguished by school_year.
     bronze:
       table: deped_enrollment_raw
       create_file: 01_create_deped_enrollment_raw.sql
@@ -151,18 +151,9 @@ source_tables:
 # Candidates only. Keep them out of executable ETL until their keys, review
 # workflow, and grains are approved.
 draft_integration_tables:
-  - table: deped_school_psgc_map
-    candidate_file: 01_map_deped_school_psgc.sql
-    purpose: Reviewed mapping from DepEd school geography to the selected PSGC version.
-  - table: psa_poverty_psgc_map
-    candidate_file: 02_map_psa_poverty_psgc.sql
-    purpose: Reviewed mapping from poverty-statistic geography identifiers to PSGC.
   - table: hdx_adm3_psgc_map
     candidate_file: 03_map_hdx_adm3_psgc.sql
     purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
-  - table: psa_school_age_population_psgc_map
-    candidate_file: 05_map_psa_school_age_population_psgc.sql
-    purpose: Reviewed mapping from PSA school-age population places to PSGC cities and municipalities.
 
 integration_tables:
   - table: deped_annex_mother_map
@@ -170,7 +161,92 @@ integration_tables:
     validate_file: 90_validate_deped_annex_mother_map.sql
     grain: One row per annex school and school year.
     purpose: Auditable annex-to-mother mapping. Rows remain unmatched until DepEd publishes a reliable crosswalk.
+  - table: psa_poverty_psgc_map
+    build_file: 02_map_psa_poverty_psgc.sql
+    validate_file: 90_validate_psa_poverty_psgc_map.sql
+    grain: One row per psa_poverty_stat_clean row (psgc_id, estimate_year).
+    purpose: PSA poverty estimates matched to PSGC by Correspondence Code only, estimates carried unchanged (D-054).
+  - table: psa_school_age_population_psgc_map
+    build_file: 05_map_psa_school_age_population_psgc.sql
+    validate_file: 90_validate_psa_school_age_population_psgc_map.sql
+    grain: One row per census year and city or municipality of psa_school_age_population_clean (census_year, place_name, parent_name).
+    purpose: PSA school-age population places matched to PSGC by name inside a reviewed parent, overrides in config (D-055).
+  - table: deped_school_psgc_map
+    build_file: 01_map_deped_school_psgc.sql
+    validate_file: 90_validate_deped_school_psgc_map.sql
+    grain: One row per enrollment school_id, school_year, and geographic_level (city_mun or bgy).
+    purpose: DepEd enrollment schools matched to PSGC cities and barangays, EMISD code first, then reviewed name matching (D-049).
 
-deferred_layers:
-  - gold
-  - analytics
+gold_tables:
+  - table: dim_school
+    build_file: 01_build_dim_school.sql
+    validate_file: 90_validate_dim_school.sql
+    grain: One DepEd school.
+  - table: dim_school_year
+    build_file: 02_build_dim_school_year.sql
+    validate_file: 90_validate_dim_school_year.sql
+    grain: One enrollment school year.
+  - table: dim_education_level
+    build_file: 03_build_dim_education_level.sql
+    validate_file: 90_validate_dim_education_level.sql
+    grain: One education reporting level.
+  - table: dim_city_municipality
+    build_file: 04_build_dim_city_municipality.sql
+    validate_file: 90_validate_dim_city_municipality.sql
+    grain: One PSGC city or municipality of the master quarter, plus the UNKNOWN and EXCLUDED technical members.
+  - table: dim_barangay
+    build_file: 05_build_dim_barangay.sql
+    validate_file: 90_validate_dim_barangay.sql
+    grain: One PSGC barangay of the master quarter, one unknown barangay per city or municipality, plus the UNKNOWN and EXCLUDED technical members.
+  - table: dim_city_poverty
+    build_file: 06_build_dim_city_poverty.sql
+    validate_file: 90_validate_dim_city_poverty.sql
+    grain: One row per regular city or municipality of dim_city_municipality; PSA 2023 poverty estimate and its status (D-046).
+  - table: fact_school_enrollment
+    build_file: 10_build_fact_school_enrollment.sql
+    validate_file: 90_validate_fact_school_enrollment.sql
+    grain: One school, school year and education level (ES, JHS, SHS) of deped_enrollment_clean, with that school year's geography.
+  - table: fact_school_classroom_capacity
+    build_file: 11_build_fact_school_classroom_capacity.sql
+    validate_file: 90_validate_fact_school_classroom_capacity.sql
+    grain: One school and school year.
+  - table: fact_school_teacher_capacity
+    build_file: 12_build_fact_school_teacher_capacity.sql
+    validate_file: 90_validate_fact_school_teacher_capacity.sql
+    grain: One school, school year, and education level.
+  - table: fact_city_population
+    build_file: 13_build_fact_city_population.sql
+    validate_file: 90_validate_fact_city_population.sql
+    grain: One regular city or municipality of dim_city_municipality and reference year (2024, PSGC 2024 Population).
+  - table: fact_city_school_age_population
+    build_file: 14_build_fact_city_school_age_population.sql
+    validate_file: 90_validate_fact_city_school_age_population.sql
+    grain: One city or municipality, census year, single year of age, and sex (male or female).
+  - table: fact_school_year_source_availability
+    build_file: 15_build_fact_school_year_source_availability.sql
+    validate_file: 90_validate_fact_school_year_source_availability.sql
+    grain: One school year and DepEd source.
+
+analytics_tables:
+  - table: ap1_school_provision
+    build_file: 01_answer_ap1.sql
+    validate_file: 90_validate_ap1.sql
+    grain: One regular city or municipality for SY 2023-24.
+  - table: ap2_classroom_pressure
+    build_file: 02_answer_ap2.sql
+    validate_file: 90_validate_ap2.sql
+    grain: One regular city or municipality for SY 2023-24.
+  - table: ap3_teacher_pressure
+    build_file: 03_answer_ap3.sql
+    validate_file: 90_validate_ap3.sql
+    grain: One regular city or municipality for SY 2023-24, with ES, JHS and SHS side by side.
+  - table: ap4_enrollment_trend
+    build_file: 04_answer_ap4.sql
+    validate_file: 90_validate_ap4.sql
+    grain: One city or municipality member (regular, UNKNOWN or EXCLUDED) and school year; census context on SY 2020-21 and 2024-25 only.
+  - table: lgu_priority_matrix
+    build_file: 05_build_priority_matrix.sql
+    validate_file: 90_validate_priority_matrix.sql
+    grain: One regular city or municipality, SY 2023-24 (D-057 priority tier).
+
+deferred_layers: []

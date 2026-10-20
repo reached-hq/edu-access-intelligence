@@ -1,7 +1,9 @@
 # Gold data model
 
-**Status:** proposed for team and mentor review under #45. Do not build these
-tables until the design is approved and Integration prerequisite #44 is ready.
+**Status:** provisional model under D-048 and the implementation contract in
+D-050. Tables with reviewed inputs may be built and gated independently while
+the model and ERD await final mentor approval. A table is not publication-ready
+until its own source, Integration, reconciliation, and validation requirements pass.
 
 The model keeps source-aligned values at their useful analytical grains. Gold
 stores keys and measures that cannot be reconstructed without losing meaning.
@@ -14,10 +16,10 @@ in Analytics views, not in these facts or in individual dashboard charts.
 
 | Analytical question | Gold inputs | Analytics rule |
 |---|---|---|
-| Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_population`, geography dimensions | Follow D-047: count a public school only when its enrollment for that school year is above 0; show zero-enrollment schools separately and do not count them as serving a barangay. Count annexes as schools, label the result "public schools (including annexes)", and show the annex count. Count only `member_type = 'regular'` barangays when identifying barangays without a public elementary school. If an LGU has a school assigned to its unknown-barangay member, label the unserved-barangay result "at most" and show the unmatched-school count. Report learners per public school and population per public school separately. Use 2024 population for every enrollment school year and label it "Population 2024". Use barangays for LGU-level context and drill-down, not as the ranking grain. |
+| Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_school_age_population` (2024, ages 5–17, per the team's BP and AP metrics), geography dimensions | Follow D-047: count a public school only when its enrollment for that school year is above 0; show zero-enrollment schools separately and do not count them as serving a barangay. Count annexes as schools, label the result "public schools (including annexes)", and show the annex count. Count only `member_type = 'regular'` barangays when identifying barangays without a public elementary school. If an LGU has a school assigned to its unknown-barangay member, label the unserved-barangay result "at most" and show the unmatched-school count. Report learners per public school and population per public school separately. Use 2024 population for every enrollment school year and label it "Population 2024". Use barangays for LGU-level context and drill-down, not as the ranking grain. |
 | Which cities and municipalities have the most public-school students per classroom? | `fact_school_enrollment`, `fact_school_classroom_capacity` | Aggregate public-school learners across levels to school x school year before joining whole-school instructional rooms. Divide summed learners by summed rooms by city or municipality and show denominator coverage. Do not create level ratios because integrated schools share rooms across levels. |
 | Which cities and municipalities have the most public-school students per teacher? | `fact_school_enrollment`, `fact_school_teacher_capacity` | Sum public-school learners and the approved teacher roles by city or municipality, school year, and education level. Include learners only from schools with `teacher_count > 0` at that level, except that annex learners remain when the annex reports zero teachers. Exclude other zero-teacher schools from the ratio and show their school and learner counts in coverage. Divide the LGU totals and label the result project-defined because mother-school links are unavailable. |
-| Which cities and municipalities have the largest gap between school-age population and student enrollment over time? | `fact_school_enrollment`, `fact_city_school_age_population` | Compare ages 5–17 with enrollment from all sectors except Philippine Schools Overseas for 2020 with SY 2020-21 and 2024 with SY 2024-25. Other school years are not available for AP4. Use enrollment geography for each school year and disclose the residence-versus-school-location limitation. |
+| Which cities and municipalities have the largest gap between school-age population and student enrollment over time? | `fact_school_enrollment`, `fact_city_school_age_population` | Compare ages 5–17 with enrollment from all sectors except Philippine Schools Overseas for 2020 with SY 2020-21 and 2024 with SY 2024-25. One row per city member and school year: every school year shows all-sector enrollment and its trend, and only SY 2020-21 and 2024-25 carry the population and gap. Use enrollment geography for each school year and disclose the residence-versus-school-location limitation. |
 
 Poverty is contextual. `dim_city_poverty` carries the selected 2023 estimate
 and availability status, but Analytics must not use poverty for priority scoring
@@ -42,6 +44,16 @@ cannot be matched. `excluded` keeps a record intentionally outside Philippine
 city-level analysis. Facts use these explicit members instead of silent NULL
 geography keys.
 
+Technical member codes (agreed on #174 and #193 by @saraevcldn, geography
+lane, 2026-10-19): `UNKNOWN` and `EXCLUDED` in `dim_city_municipality`; in
+`dim_barangay`, `<city_mun_psgc_code>-UNKNOWN` for each regular city or
+municipality, plus `UNKNOWN` and `EXCLUDED` under the matching city members.
+They are text, so they never collide with or pass as a ten-digit PSGC code; the
+facts' `psgc_match_status` keeps the reason. Every dimension and fact uses them
+the same way: `UNKNOWN` for geography not yet resolved (pending or ambiguous),
+`EXCLUDED` for a record reviewed as outside city-level analysis, and
+`<code>-UNKNOWN` for a known city or municipality whose barangay is unresolved.
+
 ## Facts
 
 | Table | Grain | Key | Measures |
@@ -50,7 +62,7 @@ geography keys.
 | `fact_school_classroom_capacity` | School x school year | (`school_id`, `school_year`) | Total reported instructional rooms plus all four published temporary-learning-space and makeshift measures |
 | `fact_school_teacher_capacity` | School x school year x education level | (`school_id`, `school_year`, `education_level_code`) | Approved teaching roles by level, including head teachers, with the four published local-funding categories kept separately |
 | `fact_city_population` | City or municipality x reference year | (`city_mun_psgc_code`, `reference_year`) | PSGC total population and its availability status |
-| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | (`city_mun_psgc_code`, `reference_year`, `age`, `sex`) | PSA single-year-age population for AP4; Analytics selects ages 5–17 |
+| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | (`city_mun_psgc_code`, `reference_year`, `age`, `sex`) | PSA single-year-age population for AP1 (2024, context) and AP4 (2020 and 2024); Analytics selects ages 5–17 |
 | `fact_school_year_source_availability` | School year x DepEd source | (`school_year`, `source_id`) | Whether the reviewed enrollment, facilities, or personnel source has data for the school year, for dashboard `not available` states. Added by D-051, which revises D-048 |
 
 `fact_school_enrollment` has exactly one row for each school, school year, and
@@ -121,6 +133,23 @@ deployment bands are not an active current benchmark.
 | `member_type` | STRING | `regular`, `unknown`, or `excluded` |
 | `source_psgc_quarter` | STRING | PSGC master reference used to build the member |
 
+Built in `etl/05_gold/04_build_dim_city_municipality.sql`. Regular members are
+the master quarter's `City` and `Mun` rows of `psa_psgc_clean` (1,642 for 2Q
+2026: 149 cities, 1,493 municipalities); the two blank-level containers,
+`0990100000` City of Isabela (Not a Province) and `1999900000` Special
+Geographic Area, are not members (D-035). The province is Silver's
+`province_code` as published, so the City of Isabela and the 8 Special
+Geographic Area municipalities carry their container, and the 33 highly
+urbanized cities and Pateros have none. `lgu_type` is `city` or
+`municipality`. `land_area_sqkm` is the area of the HDX feature matched to the
+unit in the latest HDX release (D-052), rounded to 4 decimals, with
+`land_area_source = 'hdx_boundaries'`; both are NULL for the 8 Special
+Geographic Area municipalities, which no HDX feature matches. Technical members
+carry only their code, name, `member_type`, `is_sga = false`, and the quarter.
+The gate (`90_validate_dim_city_municipality.sql`) reconciles the regular
+members to Silver and FAILs on a repeated key or a broken rule; it WARNs on
+members without land area.
+
 ### `dim_barangay`
 
 | Column | Type |
@@ -130,6 +159,18 @@ deployment bands are not an active current benchmark.
 | `city_mun_psgc_code` | STRING |
 | `urban_rural` | STRING |
 | `member_type` | STRING |
+
+Built in `etl/05_gold/05_build_dim_barangay.sql` from `psa_psgc_clean` only
+(D-051). Regular members are the master quarter's `Bgy` rows (42,010 for 2Q
+2026). `city_mun_psgc_code` is Silver's `city_municipality_code`, except that
+the City of Manila's 897 barangays, which PSGC places under its 14 `SubMun`
+districts, roll up to the City of Manila (`1380600000`), since Gold has no
+sub-municipality grain. `urban_rural` is `U`, `R`, or NULL where PSGC publishes
+`-` (38 barangays). Each of the 1,642 cities and municipalities has one
+`<code>-UNKNOWN` member, and `UNKNOWN` and `EXCLUDED` sit under the matching
+city members: 43,654 rows in all. The gate FAILs on a repeated key, a barangay
+whose parent is not a PSGC city or municipality, or a missing unknown member,
+and WARNs on barangays without `urban_rural`.
 
 ### `dim_school`
 
@@ -190,6 +231,24 @@ municipality (1,642), including those without an estimate, and none for the
 dashboard's `less precise` label. `status_reason` is NULL when estimated and
 otherwise one of the reasons listed in D-046.
 
+Built by `06_build_dim_city_poverty.sql` from `dim_city_municipality` and
+`psa_poverty_psgc_map` (D-054), which carries each Silver estimate unchanged. A
+regular member takes the 2023 map row matched to it at city or municipality
+level; with none it is `not_in_source`. The City of Manila reason goes to the
+member whose sub-municipality districts have 2023 map rows, so no code is
+written into the rule; the gate fails unless that one member is the highly
+urbanized city named City of Manila with its 14 district rows. `cv_over_20` is
+`poverty_cv > 20`, NULL without an estimate. A Silver `partial_estimate` row is
+carried as it is so the gate fails it. The gate
+`90_validate_dim_city_poverty.sql` also fails a 2023 map row at city or
+municipality level that is unmatched or ambiguous, or matched to no regular
+member, so no PSA estimate leaves Gold unseen.
+
+Not in v1: a flag for 2023 estimates whose territory changed after 2023 (the
+Special Geographic Area parent towns, Makati and Taguig after EMBO), which D-054
+leaves for Gold. D-046 defers it to #174; until then the value describes the
+2023 territory, as the limitations log says.
+
 ### `fact_school_enrollment`
 
 | Column | Type |
@@ -210,6 +269,19 @@ preserves the Integration result even when a technical geography member is
 used. NULL learner counts remain distinct from reported zero. `is_public`, overseas
 exclusion, and enrollment-status labels are derived in reviewed Analytics
 views from the standardized source values.
+
+Built by `10_build_fact_school_enrollment.sql` from `deped_enrollment_clean` and
+`deped_school_psgc_map` (D-049): three rows for every Silver row, overseas
+schools included. `learner_count` follows the metric specification's
+missingness rules, with each level's applicable cells taken from that
+specification (the unique-strand cells from SY 2024-25, the Strengthened SHS
+cells from SY 2025-26). Geography is the map's result for that school year: a
+matched city keeps its code; an unmatched or ambiguous one takes `UNKNOWN`, an
+excluded one `EXCLUDED`; a matched city with no single barangay takes its
+`<city_mun_psgc_code>-UNKNOWN` barangay. `psgc_match_status` is the city or
+municipality status. The candidate also carries three audit columns
+(`applicable_cells`, `null_cells`, `published_cell_sum`) for the gate, which
+publishes only the columns above.
 
 ### `fact_school_classroom_capacity`
 
@@ -256,7 +328,12 @@ usability are derived from these measures under the reviewed metric contract.
 `teacher_count` includes the reviewed teaching roles for the level, head
 teachers, and all four locally funded categories. Each funding column is a
 subset of `teacher_count` for the dashboard funding split and must not be added
-to `teacher_count` again.
+to `teacher_count` again. AP3 uses `fact_school_enrollment.is_offered` at the
+same school, school-year, and education-level grain to distinguish a level the
+school does not offer from an offered level whose personnel value is blank.
+Each classroom or teacher fact row resolves to exactly one Silver source row on
+(`school_id`, `school_year`); that row provides `batch_id`, `source_sha256`,
+`delivery_version`, `schema_version`, `run_id`, and `code_revision` for lineage.
 
 ### `fact_city_population`
 
@@ -270,6 +347,17 @@ to `teacher_count` again.
 
 `estimate_status` is `available`, `missing`, `provisional`, or `excluded`.
 `status_reason` explains a non-available value and is NULL when available.
+
+Built by `13_build_fact_city_population.sql` from `dim_city_municipality` and
+PSGC Silver's `2024 Population` column (D-033): one row per regular member, all
+with `reference_year = 2024`, and none for the technical members. Population is
+as published, 0 stays 0. A member with no population is `missing`, its reason
+from Silver's `population_null_reason`; `provisional` and `excluded` have no rule
+yet, so no row takes them, and the gate fails one until a rule is approved. The
+gate fails a value, status or reason that differs from Silver and a
+total that differs from the total of every City and Mun row of Silver's master
+quarter, so a city the dimension lacks fails too, and warns when the total
+differs from the 18 regions' total.
 
 ### `fact_city_school_age_population`
 
@@ -288,10 +376,49 @@ municipality. `sex` contains only `male` and `female`; the published total row i
 used for reconciliation and is not stored as another fact row. Analytics sums
 the male and female rows for ages 5–17, avoiding double counting. The row-level
 `psgc_match_status` retains the reviewed name-to-PSGC result.
-`is_2020_2024_geography_comparable` is false where boundary or hierarchy changes,
-including the Makati/Taguig transfer and the new Special Geographic Area
-municipalities, prevent a like-for-like trend. This fact must not be filled by
+`is_2020_2024_geography_comparable` is false where a boundary change, such as
+the Makati/Taguig transfer or the new Special Geographic Area municipalities,
+prevents a like-for-like trend for that city or municipality (see below for
+province and region changes). This fact must not be filled by
 interpolating or substituting the broader PSA ages 5–24 category.
+
+Built in `etl/05_gold/14_build_fact_city_school_age_population.sql` from
+`psa_school_age_population_clean` (`population_concept = 'total'`, D-042) and
+its PSGC map (D-055). Every published age, 5 to 24, is kept. A place the map
+reviewed as having no PSGC unit (the 8 2020 Special Geographic Area clusters,
+96,899 people, which are not LGUs) goes to the `EXCLUDED` city member; a place
+not yet reviewed (pending or ambiguous; none today) goes to `UNKNOWN`. Places
+on the same member are summed into one row per age and sex, so no population is
+dropped, and `psgc_match_status` keeps the map's status.
+
+`is_2020_2024_geography_comparable` describes a unit's own trend. It is true
+only for a code matched in both census years whose territory did not change
+between them. False: Makati and Taguig (EMBO barangays) and the six Cotabato
+towns whose barangays formed the Special Geographic Area (Carmen, Kabacan,
+Midsayap, Pigkawayan, Pikit, Aleosan), listed in the build; the 8 Special
+Geographic Area municipalities, which exist only in 2024; and the technical
+members: 17 codes, 1,000 rows. Province and region changes (the Negros Island
+Region, Sulu, the Maguindanao split) leave the unit itself unchanged, as the
+metric specification's AP4 comparability section notes, so they do not make
+it false: Gold groups both years by the one PSGC 2Q 2026 hierarchy in
+`dim_city_municipality`, so a province or region total compares like with
+like. A presentation that groups by census-year regions must disclose those
+changes itself.
+
+The gate rebuilds every expected row from the Silver male and female cells
+and FAILs if any fact row differs in any column (`cells_match_silver`), so a
+swapped sex or population moved between cities is caught even when totals
+still add up. It also reconciles each year's population and each city, year
+and age's male plus female to the published total row, checks every key
+against `dim_city_municipality`, and WARNs on population held on `EXCLUDED`
+or `UNKNOWN`. The two dimension gates likewise rebuild every expected row from
+PSGC (and HDX) and FAIL on any difference (`values_match_source`), including a
+barangay moved to another valid city or municipality.
+
+Each of the three gates also records one result per distinct upstream
+Silver or Integration `run_id` it read, and FAILs when that run has no
+succeeded `silver_build` or `integration_build` row in `pipeline_runs`
+(metric specification, integrity rule 1).
 
 ### `fact_school_year_source_availability`
 
@@ -431,14 +558,19 @@ erDiagram
   }
 ```
 
-## Build gate
+## Build and publication gates
 
-The design becomes buildable only after all of these are true:
+A Gold table may be built independently when all requirements that apply to it
+are true. Building a source-aligned table does not constitute final mentor
+approval of the full model or make a downstream analytical output publishable.
 
-1. The team and mentor approve this ERD and the grains above.
-2. #44 provides reviewed PSGC mappings and explicit unknown/excluded behavior.
-3. D-047 supplies the approved classroom and teacher denominator definitions;
-   #66 must resolve only any implementation detail that remains open.
+1. Its grain, keys, fields, and null behavior follow D-048, D-050, and the
+   relevant source decision.
+2. A geography-dependent table waits for its reviewed PSGC mappings and explicit
+   unknown or excluded behavior. Tables that do not read geography do not wait
+   for unrelated Integration lanes, following D-051.
+3. D-047 supplies the classroom and teacher denominator definitions, and D-050
+   supplies the implementation contract.
 4. Each dimension build has a uniqueness check on its declared key.
 5. Every fact foreign key resolves to a regular, unknown, or excluded dimension
    member; no records disappear through inner joins.

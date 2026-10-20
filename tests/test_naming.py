@@ -75,11 +75,55 @@ def test_known_source_table_names_are_registered(repo_root):
 def test_integration_registry_is_explicitly_draft(repo_root):
     registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text())
     assert registry["draft_integration_tables"]
-    assert registry["deferred_layers"] == ["gold", "analytics"]
+    assert registry["deferred_layers"] == []
     for candidate in registry["draft_integration_tables"]:
         assert candidate["table"].endswith("_map")
         assert SQL_FILE.fullmatch(candidate["candidate_file"])
         assert "_map_" in candidate["candidate_file"]
+
+
+def test_gold_registry_names_existing_builds_and_gates(repo_root):
+    registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text())
+    assert registry["gold_tables"]
+    names = [table["table"] for table in registry["gold_tables"]]
+    assert len(names) == len(set(names)), f"a Gold table is registered twice: {names}"
+    for table in registry["gold_tables"]:
+        assert SQL_FILE.fullmatch(table["build_file"])
+        assert SQL_FILE.fullmatch(table["validate_file"])
+        assert (repo_root / "etl" / "05_gold" / table["build_file"]).is_file()
+        assert (repo_root / "etl" / "05_gold" / table["validate_file"]).is_file()
+
+
+def test_analytics_registry_names_existing_builds_and_gates(repo_root):
+    registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text())
+    names = [table["table"] for table in registry["analytics_tables"]]
+    assert len(names) == len(set(names))
+    for table in registry["analytics_tables"]:
+        assert SQL_FILE.fullmatch(table["build_file"])
+        assert SQL_FILE.fullmatch(table["validate_file"])
+        assert (repo_root / "etl" / "06_analytics" / table["build_file"]).is_file()
+        assert (repo_root / "etl" / "06_analytics" / table["validate_file"]).is_file()
+
+
+def test_every_integration_map_is_registered_once(repo_root):
+    text = (repo_root / "config" / "tables.yml").read_text()
+    # yaml.safe_load keeps only the last of two equal keys, so a repeated block silently drops its tables.
+    keys = [line.split(":")[0] for line in text.splitlines() if re.match(r"^[a-z_]+:", line)]
+    assert len(keys) == len(set(keys)), f"repeated top-level keys in config/tables.yml: {keys}"
+    registry = yaml.safe_load(text)
+    implemented = {t["table"]: t for t in registry["integration_tables"]}
+    drafts = {t["table"]: t for t in registry["draft_integration_tables"]}
+    assert len(implemented) == len(registry["integration_tables"])
+    assert not set(implemented) & set(drafts)
+    folder = repo_root / "etl" / "04_integration"
+    for table, entry in implemented.items():
+        assert table.endswith("_map")
+        assert (folder / entry["build_file"]).is_file(), entry["build_file"]
+        assert entry["validate_file"] == f"90_validate_{table}.sql"
+        assert (folder / entry["validate_file"]).is_file(), entry["validate_file"]
+    registered = {t["build_file"] for t in implemented.values()} | {t["candidate_file"] for t in drafts.values()}
+    on_disk = {path.name for path in folder.glob("[0-8][0-9]_map_*.sql")}
+    assert on_disk <= registered, f"map files missing from config/tables.yml: {sorted(on_disk - registered)}"
 
 
 def test_etl_files_follow_the_layer_layout(repo_files):
