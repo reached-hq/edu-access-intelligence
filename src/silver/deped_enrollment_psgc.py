@@ -26,10 +26,10 @@ REASONS = ("school_id_malformed", "school_id_duplicated", "school_id_identical_c
 LEVELS = ("region", "province", "city_municipality", "barangay")
 FLAGS = ("missing", "zero", "outside_philippines")
 # Profiled counts recorded by the gate: PASS at the count, WARN when it changes, never FAIL.
-PROFILED = ("bronze_unit_rows", "bronze_other_rows", "barangay_codes_padded", "city_source_na", "city_not_in_workbook",
-            "barangay_source_na", "barangay_not_in_workbook", "recoded", "barangay_outside_city",
-            "coordinate_missing", "coordinate_zero", "coordinate_outside_philippines",
-            *[f"quarantine_{r}" for r in REASONS])
+PROFILED_BASE = ("bronze_unit_rows", "bronze_other_rows", "barangay_codes_padded", "city_source_na", "city_not_in_workbook",
+                 "barangay_source_na", "barangay_not_in_workbook", "recoded", "barangay_outside_city",
+                 "coordinate_missing", "coordinate_zero", "coordinate_outside_philippines")
+PROFILED = (*PROFILED_BASE, *[f"quarantine_{r}" for r in REASONS])
 
 
 def _error(message):
@@ -56,6 +56,17 @@ class CrosswalkSpec:
     profiled: dict
     content_columns: list
     mapping: dict = field(repr=False)
+    # Optional scope (deped_psgc_coordinates): rows whose column is not one of the values are quarantined
+    # with the rule's reason, never dropped. Empty for a source that keeps every unit row.
+    scope: list = field(default_factory=list)
+
+    @property
+    def reasons(self):
+        return (*REASONS, *[rule["reason"] for rule in self.scope])
+
+    @property
+    def profiled_names(self):
+        return (*PROFILED_BASE, *[f"quarantine_{r}" for r in self.reasons])
 
 
 def load_spec(repo_root=REPO_ROOT, source_id=SOURCE_ID):
@@ -77,15 +88,24 @@ def load_spec(repo_root=REPO_ROOT, source_id=SOURCE_ID):
     missing = [c for c in named if c not in columns]
     if missing:
         raise _error(f"the mapping names columns that are not in the Bronze contract: {missing}.")
-    if sorted(mapping["profiled"]) != sorted(PROFILED):
-        raise _error(f"profiled must give a count for exactly {sorted(PROFILED)}.")
+    scope = mapping.get("scope", [])
+    for rule in scope:
+        if set(rule) != {"column", "values", "reason"} or not rule["values"]:
+            raise _error("each scope rule must give column, a non-empty list of values, and reason.")
+        if rule["column"] != "school_year" and rule["column"] not in columns:
+            raise _error(f"scope column {rule['column']!r} is not in the Bronze contract.")
+        if rule["reason"] in REASONS:
+            raise _error(f"scope reason {rule['reason']!r} repeats a built-in reason.")
+    names = (*PROFILED_BASE, *[f"quarantine_{r}" for r in (*REASONS, *[rule["reason"] for rule in scope])])
+    if sorted(mapping["profiled"]) != sorted(names):
+        raise _error(f"profiled must give a count for exactly {sorted(names)}.")
     if set(codes["null_markers"].values()) != {"source_na", "not_in_workbook"}:
         raise _error("codes.null_markers must map to the reasons source_na and not_in_workbook.")
     return CrosswalkSpec(source_id, contract["bronze_table"], silver["clean_file"], mapping["silver_table"],
                          mapping["quarantine_table"], silver["candidate_table"], silver["candidate_quarantine_table"],
                          mapping["row_kind"], mapping["identifier"]["column"], mapping["identifier"]["pattern"],
                          codes, mapping["recode"], coords, mapping["published_text"],
-                         mapping["quarantine_max_percent"], mapping["profiled"], columns, mapping)
+                         mapping["quarantine_max_percent"], mapping["profiled"], columns, mapping, scope)
 
 
 def _header(spec, name, command, path):
@@ -115,6 +135,11 @@ def _number(spec, column, alias="r"):
 VALUE_COLUMNS = ("school_year", "school_id", *[f"psgc_{level}" for level in LEVELS], "psgc_recoded",
                  "psgc_city_municipality_null_reason", "psgc_barangay_null_reason", "barangay_outside_city",
                  "longitude", "latitude", "longitude_published", "latitude_published", "coordinate_flag")
+
+
+def _out_of_scope(rule, ref):
+    """TRUE when a row is outside one scope rule: its value is missing or not one of the rule's values."""
+    return f"({ref} IS NULL OR {ref} NOT IN ({', '.join(lit(v) for v in rule['values'])}))"
 
 
 def _stage_padded(spec):
@@ -171,6 +196,7 @@ def build_sql(spec):
         "g.id_rows", "g.id_versions",
         f"ROW_NUMBER() OVER (PARTITION BY r.school_year, r.{spec.identifier} ORDER BY r.source_row_number) AS id_copy",
         *[f"r.{c}" for c in LINEAGE],
+        *[f"r.{rule['column']} AS scope_{rule['column']}" for rule in spec.scope],
     ]
     typed = [
         *_stage_final(spec),
@@ -178,6 +204,7 @@ def build_sql(spec):
             f"CASE WHEN NOT regexp_like(c.school_id, {lit(spec.identifier_pattern)}) THEN 'school_id_malformed' END",
             "CASE WHEN c.id_rows > 1 AND c.id_versions > 1 THEN 'school_id_duplicated' END",
             "CASE WHEN c.id_rows > 1 AND c.id_versions = 1 AND c.id_copy > 1 THEN 'school_id_identical_copy' END",
+            *[f"CASE WHEN {_out_of_scope(rule, 'c.scope_' + rule['column'])} THEN {lit(rule['reason'])} END" for rule in spec.scope],
         ], 6) + "\n    ) AS quarantine_reasons",
         *[f"c.{x}" for x in LINEAGE],
     ]
@@ -240,8 +267,9 @@ def _checks(spec):
         ("coordinate_values_recognized", "FAIL", "unrecognized_coordinates", "= 0"),
         ("lineage_complete", "FAIL", "missing_lineage", "= 0"),
         ("rows_built_by_this_run", "FAIL", "other_run_rows", "= 0"),
+        *([("rows_in_scope", "FAIL", "out_of_scope_clean_rows", "= 0")] if spec.scope else []),
     ]
-    profiled = [(f"profiled_{name}", "WARN", name, f"= {p[name]}") for name in PROFILED]
+    profiled = [(f"profiled_{name}", "WARN", name, f"= {p[name]}") for name in spec.profiled_names]
     return fail + profiled
 
 
@@ -317,7 +345,10 @@ def gate_sql(spec):
         "(SELECT COUNT_IF(psgc_recoded) FROM c) AS recoded",
         "(SELECT COUNT_IF(barangay_outside_city) FROM c) AS barangay_outside_city",
         *[f"(SELECT COUNT_IF(coordinate_flag = {lit(f)}) FROM c) AS coordinate_{f}" for f in FLAGS],
-        *[f"(SELECT COUNT_IF(array_contains(quarantine_reasons, {lit(r)})) FROM q) AS quarantine_{r}" for r in REASONS],
+        *[f"(SELECT COUNT_IF(array_contains(quarantine_reasons, {lit(r)})) FROM q) AS quarantine_{r}" for r in spec.reasons],
+        *([f"(SELECT COUNT(*) FROM c JOIN unit AS b ON b.source_sha256 = c.source_sha256 AND b.source_row_number = c.source_row_number "
+           "WHERE " + " OR ".join(_out_of_scope(rule, 'b.' + rule['column']) for rule in spec.scope) + ") AS out_of_scope_clean_rows"]
+          if spec.scope else []),
     ]
     counts = [_null_safe(item) for item in counts]
     lines = _header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [
