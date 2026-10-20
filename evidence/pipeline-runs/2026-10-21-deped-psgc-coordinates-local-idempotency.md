@@ -1,6 +1,6 @@
 # Evidence: the public-only DepEd PSGC and coordinates workbook loads into Bronze locally once, and a second run inserts nothing
 
-Issue: not yet opened · local DuckDB (D-017) only; nothing has run on Databricks · 2026-10-21, Manila time (UTC+8) · run by @catweyine
+Issue #217 · local DuckDB (D-017) only; nothing has run on Databricks · 2026-10-21, Manila time (UTC+8) · run by @catweyine
 
 ## The claim
 
