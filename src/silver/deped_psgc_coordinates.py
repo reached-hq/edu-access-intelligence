@@ -56,9 +56,10 @@ def dictionary_markdown(spec):
         "one row per school for SY 2023-24. It is not an enrollment table: the workbook's counts equal `deped_enrollment`, "
         "so enrollment comes only from `deped_enrollment_clean`. Only Bronze rows of kind `unit` are read. "
         f"Scope: {scope}. Licensing is unverified (source card).", "",
-        "The coordinates are each school's own published point, not an administrative-area centre: 47,080 of the "
-        "in-box points are spread across their city or municipality, and only 128 pairs are shared by more than one school "
-        "(profile O-4, O-6). They are kept and flagged, never corrected or geocoded.", "",
+        "The coordinates are each school's own published point from the National School Building Inventory, not an "
+        "administrative-area centre: of the 47,080 unflagged points, only 126 pairs are shared by more than one school "
+        "(254 schools), and 40,046 lie within 10 km of the median point of their own city or municipality (profile O-6). "
+        "They are kept and flagged, never corrected, geocoded, or inferred.", "",
         *rows, "",
         "## Not carried from Bronze", "",
         "Every Bronze column stays in `deped_psgc_coordinates_raw`. These are not carried, because another Silver table "

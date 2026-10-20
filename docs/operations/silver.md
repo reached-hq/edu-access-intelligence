@@ -987,7 +987,7 @@ More than 1% of unit rows in quarantine fails the gate, so a file that is no lon
 ### Coordinates: the school's own point
 
 The coordinates are each school's published point from the National School Building Inventory (NSBI, as of 2025-07-07), not a municipality centre:
-- Only 128 pairs are shared by more than one school (261 schools).
+- Of the 47,080 unflagged points, only 126 pairs are shared by more than one school (254 schools).
 - 40,046 of the 47,080 in-box points are within 10 km of the median point of their own city or municipality, and 260 are over 100 km from it (profile O-6).
 
 Silver keeps them and flags them; it never corrects, geocodes, or infers them. Distances and the boundary test (S-1) belong after Silver.
