@@ -8,7 +8,7 @@ the source card and profile. First load Bronze, from the repository root, with R
 
 then:
 
-    python analysis/verification/deped_enrollment_psgc_public_bronze.py --db <scratch>/emisd.duckdb
+    python analysis/verification/deped-psgc-coordinates.py --db <scratch>/emisd.duckdb
 
 Only rows of current batches are read. It prints counts, never row values, and writes nothing. The
 coordinate number pattern and Philippine box are Silver's (config/mappings/deped_enrollment_psgc.json),

@@ -16,7 +16,7 @@ The workbook is read from `$RAW_DATA_DIR/deped/original/`. The loader hashed it 
 
 ```bash
 python -m src.ingestion.cli ingest --source deped_enrollment_psgc --db <scratch>/emisd.duckdb   # twice
-python analysis/verification/deped_enrollment_psgc_public_bronze.py --db <scratch>/emisd.duckdb
+python analysis/verification/deped-psgc-coordinates.py --db <scratch>/emisd.duckdb
 ```
 
 | | Run 1 | Run 2 |
