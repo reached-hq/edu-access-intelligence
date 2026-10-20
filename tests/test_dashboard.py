@@ -197,14 +197,17 @@ def test_the_bundle_deploys_the_committed_file_without_a_schedule():
 
 
 def test_one_donut_per_core_attribute(board):
-    """Six donuts in one row, each the pass rate of one core attribute's current tests."""
+    """Six donuts in one row, title only (the definitions are in the Definitions box, 0ef532f)."""
     donuts = [(w, p) for _, w, p in widgets(board) if w.get("spec", {}).get("widgetType") == "custom-vega-viz"]
     assert [w["spec"]["frame"]["title"] for w, _ in donuts] == CORE
     assert sum(p["width"] for _, p in donuts) == 12 and len({p["y"] for _, p in donuts}) == 1
     for widget, _ in donuts:
         query = widget["queries"][0]["query"]
         assert query["filters"] == [{"expression": f"`quality_attribute` = '{widget['spec']['frame']['title']}'"}]
-        assert widget["spec"]["frame"]["description"]                      # the attribute's definition
+        assert "description" not in widget["spec"]["frame"]
+    definitions = next(w for _, w, _ in widgets(board) if w["name"] == "definitions")
+    text = "".join(definitions["multilineTextboxSpec"]["lines"])
+    assert all(f"**{name}**:" in text for name in CORE), "each core attribute's definition is listed"
 
 
 def test_a_donut_with_no_tests_is_no_checks_not_zero(store, board):
@@ -236,11 +239,32 @@ def literal_check_names():
         names |= set(re.findall(r"'([a-z][a-z0-9_]+)'\s+AS\s+check_name", sql))
         names |= set(re.findall(r"SELECT\s+:run_id,\s*[^,]+,\s*[^,]+,\s*'\w+',\s*'[^']+',\s*'([a-z0-9_]+)'", sql))
         names |= set(re.findall(r"SELECT\s+'([a-z][a-z0-9_]+)',\s*(?:'[A-Z]+'|CASE)", sql))
+        # SELECT batch_id, '<table>', '<check>', status ... (e.g. the personnel quarantine reasons)
+        names |= set(re.findall(r"SELECT\s+[a-z_.]+,\s*'[^']*',\s*'([a-z][a-z0-9_]+)',\s*(?:'[A-Z]+'|CASE)", sql))
     for path in (REPO_ROOT / "src" / "ingestion").glob("*.py"):
         code = path.read_text(encoding="utf-8")
         names |= set(re.findall(r'(?:add|profiled)\(\s*"([a-z][a-z0-9_]+)"', code))
         names |= set(re.findall(r'\(\s*"([a-z][a-z0-9_]+)",\s*[a-z_]+ ==', code))
     return sorted(names)
+
+
+def built_check_names():
+    """A sample of every check name a gate builds in SQL as '<base>_' || school_year ... or '<base>/' || ...,
+    with a qualifier of the same shape, so the base must be listed (or covered by a family)."""
+    names = set()
+    for path in (REPO_ROOT / "etl").rglob("90_*.sql"):
+        for base, sep in re.findall(r"'([a-z][a-z0-9_]*?)([_/])'\s*\|\|", path.read_text(encoding="utf-8")):
+            names.add(base + ("/2023-24/ES" if sep == "/" else "_2023-24_city_mun"))
+    return sorted(names)
+
+
+def test_every_check_name_built_in_sql_is_in_the_catalog(store, board):
+    """profiled_<school year>_<level> went unclassified until this test existed (review on #191)."""
+    names = built_check_names()
+    assert "profiled_2023-24_city_mun" in names and "learners/2023-24/ES" in names
+    found = classified(store, board, names)
+    missing = sorted(n for n, r in found.items() if r["classification_basis"].startswith("not in"))
+    assert not missing, f"Add the base names of these to {data_quality.CONFIG}: {missing}"
 
 
 def test_every_literal_check_name_is_in_the_catalog(store, board):
@@ -360,6 +384,26 @@ def test_runs_roll_bronze_loads_up_to_their_job_run_without_counting_results_twi
     assert got["manual-1"]["run_status"] == "running or interrupted" and got["manual-1"]["run_finished_at_utc"] is None
     assert got["orphan-run"]["run_status"] == "no pipeline_runs row"
     assert {r["run_recency"]: r["run_id"] for r in got.values()}[1] == "orphan-run"
+
+
+def test_a_gold_fail_fails_the_run_even_when_every_recorded_step_succeeded(store, board):
+    """Gold and Analytics gates write no pipeline_runs row, so a FAIL they record must still fail the run
+    (review on #191). A repaired run keeps its run_id: a later PASS of the same check replaces the FAIL."""
+    run(store, "job-1", "deped_enrollment", "succeeded", 0, job_run_id="job-1", pipeline_name="silver_build")
+    result(store, "job-1", "key_unique", "FAIL", 5, layer="gold", source_id="dim_school",
+           table_name="edu_access.05-gold.dim_school", batch_id=None)
+    job = {r["run_id"]: r for r in rows(store, board, "ds_runs")}["job-1"]
+    assert (job["step_status"], job["run_status"], job["fail_results"]) == ("succeeded", "failed", 1)
+    result(store, "job-1", "key_unique", "PASS", 30, layer="gold", source_id="dim_school",
+           table_name="edu_access.05-gold.dim_school", batch_id=None)
+    job = {r["run_id"]: r for r in rows(store, board, "ds_runs")}["job-1"]
+    assert (job["run_status"], job["fail_results"], job["pass_results"]) == ("succeeded", 0, 1)
+
+
+def test_job_runs_are_not_date_filtered(board):
+    """The latest run must not disappear when it is older than the date range (review on #191)."""
+    date_filter = next(w for _, w, _ in widgets(board) if w["name"] == "g_dates")
+    assert {q["query"]["datasetName"] for q in date_filter["queries"]} == {"ds_history"}
 
 
 def test_freshness_shows_what_the_stale_sources_alert_emails(store, board):

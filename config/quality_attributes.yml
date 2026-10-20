@@ -227,6 +227,8 @@ checks:
     - quarantine_reason_incidence_out_of_range
     - quarantine_reason_valid_on_uncastable
     - quarantine_reason_valid_to_uncastable
+    - quarantine_reason_measure_negative
+    - quarantine_reason_measure_above_int_max
     - profiled_quarantine_school_id_malformed
     - profiled_coordinate_zero
     - profiled_coordinate_outside_philippines
@@ -388,6 +390,9 @@ checks:
     - flag_se_cv_inconsistent
     - known_issue_se_disagrees_with_cv
     - quarantine_reason_ci_inconsistent
+    - quarantine_reason_measure_outside_public_scope
+    - quarantine_reason_measure_outside_offered_level
+    - profiled  # profiled_<school year>_<level>: map counts equal the reviewed counts
     - profiled_bronze_unit_rows
     - profiled_bronze_other_rows
     - profiled_recoded
@@ -404,7 +409,6 @@ checks:
     - master_psgc_version
     - sga_inside_container
     - population_on_excluded
-    - excluded_member_population
     - no_partial_estimate
     - no_value_without_estimate
     - cells_before_start_blank
@@ -481,6 +485,7 @@ checks:
     - schools_city_unknown
     - schools_barangay_unknown
     - unknown_member_population
+    - excluded_member_population
     - learners_on_technical_members
   Reconciliation:
     - rows_reconcile

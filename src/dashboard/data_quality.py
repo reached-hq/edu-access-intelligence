@@ -217,6 +217,8 @@ def runs_sql():
         "-- One row per job run. A Bronze load records its own run_id and the job run in job_run_id,",
         "-- and writes its batch checks under its own run_id; every gate writes under the job run. So",
         "-- both sides are rolled up to the job run, and aggregated, before the join: nothing counts twice.",
+        "-- Gold and Analytics gates write no pipeline_runs row, so the run's status also reads its results:",
+        "-- the newest result of each check in the run (a repaired run keeps its run_id and replaces a FAIL).",
         "WITH run_keys AS (",
         "  SELECT DISTINCT run_id, COALESCE(job_run_id, run_id) AS run_key",
         f"  FROM {CONTROL}.pipeline_runs",
@@ -236,20 +238,31 @@ def runs_sql():
         f"  FROM {CONTROL}.pipeline_runs",
         "  GROUP BY COALESCE(job_run_id, run_id)",
         "),",
-        "checks AS (",
-        "  SELECT COALESCE(k.run_key, q.run_id) AS run_id,",
-        "         COUNT_IF(q.status = 'PASS') AS pass_results, COUNT_IF(q.status = 'WARN') AS warn_results,",
-        "         COUNT_IF(q.status = 'FAIL') AS fail_results, MIN(q.checked_at_utc) AS first_checked_at_utc",
+        "keyed AS (",
+        "  SELECT COALESCE(k.run_key, q.run_id) AS run_id, q.status, q.checked_at_utc,",
+        "         RANK() OVER (PARTITION BY COALESCE(k.run_key, q.run_id), q.layer, q.source_id, q.batch_id,",
+        "                                   q.table_name, q.check_name ORDER BY q.checked_at_utc DESC) AS result_rank",
         f"  FROM {DQ} AS q",
         "  LEFT JOIN run_keys AS k ON k.run_id = q.run_id",
-        "  GROUP BY COALESCE(k.run_key, q.run_id)",
+        "),",
+        "checks AS (",
+        "  SELECT run_id,",
+        "         COUNT_IF(status = 'PASS') AS pass_results, COUNT_IF(status = 'WARN') AS warn_results,",
+        "         COUNT_IF(status = 'FAIL') AS fail_results, MIN(checked_at_utc) AS first_checked_at_utc",
+        "  FROM keyed",
+        "  WHERE result_rank = 1",
+        "  GROUP BY run_id",
         "),",
         "joined AS (",
         "  SELECT COALESCE(r.run_id, c.run_id) AS run_id, r.environment,",
-        "         CASE WHEN r.run_id IS NULL THEN 'no pipeline_runs row'",
+        "         CASE WHEN r.failed_steps > 0 OR c.fail_results > 0 THEN 'failed'",
+        "              WHEN r.unfinished_steps > 0 THEN 'running or interrupted'",
+        "              WHEN r.run_id IS NULL THEN 'no pipeline_runs row'",
+        "              ELSE 'succeeded' END AS run_status,",
+        "         CASE WHEN r.run_id IS NULL THEN 'none recorded'",
         "              WHEN r.failed_steps > 0 THEN 'failed'",
         "              WHEN r.unfinished_steps > 0 THEN 'running or interrupted'",
-        "              ELSE 'succeeded' END AS run_status,",
+        "              ELSE 'succeeded' END AS step_status,",
         "         COALESCE(r.started_at_utc, c.first_checked_at_utc) AS run_started_at_utc,",
         "         r.finished_at_utc AS run_finished_at_utc,",
         "         timestampdiff(SECOND, r.started_at_utc, r.finished_at_utc) / 60.0 AS duration_minutes,",
@@ -391,7 +404,7 @@ def chart(name, widget_type, dataset, fields, encodings, title, description, x, 
     }, x, y, width, height)
 
 
-def donut(name, attribute, means, x, y, width, height):
+def donut(name, attribute, x, y, width, height):
     """One core attribute's pass rate of current tests, as a donut (Vega-Lite; standard pies have no hole).
 
     Aggregated with no GROUP BY, the query returns one row even when the attribute has no test, with
@@ -435,7 +448,7 @@ def donut(name, attribute, means, x, y, width, height):
                  "jsonSpec": {"type": "vega-lite", "spec": json.dumps(vega)},
                  "encodings": {"fields": [{"fieldName": "passed"}, {"fieldName": "tests"}]},
                  "data": {"queryName": "main_query"},
-                 "frame": _frame(attribute, means)},
+                 "frame": _frame(attribute)},
     }, x, y, width, height)
 
 
@@ -471,20 +484,16 @@ def multi_filter(name, title, field, datasets_, x, y, width, height=2, default=N
 
 
 def date_filter(name, x, y, width, height=2):
-    queries = [
-        {"name": f"{name}_ds_history", "query": {"datasetName": "ds_history", "parameters": [
-            {"name": "history_range", "keyword": "history_range"}], "disaggregated": False}},
-        {"name": f"{name}_ds_runs", "query": {"datasetName": "ds_runs", "fields": [_field("run_started_at_utc")],
-                                              "disaggregated": False}},
-    ]
-    fields = [{"parameterName": "history_range", "queryName": f"{name}_ds_history"},
-              {"fieldName": "run_started_at_utc", "queryName": f"{name}_ds_runs"}]
+    """The history window. Job runs are not filtered, so the latest run is always shown."""
+    queries = [{"name": f"{name}_ds_history", "query": {"datasetName": "ds_history", "parameters": [
+        {"name": "history_range", "keyword": "history_range"}], "disaggregated": False}}]
+    fields = [{"parameterName": "history_range", "queryName": f"{name}_ds_history"}]
     return _place({
         "name": name, "queries": queries,
         "spec": {"version": 2, "widgetType": "filter-date-range-picker", "encodings": {"fields": fields},
                  "frame": _frame("Date range (UTC)",
-                                 f"History and runs; default the last {HISTORY_DAYS} days. "
-                                 "Current results are not date-filtered.")},
+                                 f"The Check explorer's result events; default the last {HISTORY_DAYS} days. "
+                                 "Current results, job runs, and the 7-day trend are not date-filtered.")},
     }, x, y, width, height)
 
 
@@ -497,7 +506,8 @@ CURRENT_SCOPE = ("Current results: the newest result of each check, from whichev
                  "Counts are check results, not data rows.")
 
 
-RUN_COLUMNS = [("run_id", "Job run"), ("run_status", "Run status"), ("environment", "Environment"),
+RUN_COLUMNS = [("run_id", "Job run"), ("run_status", "Run status"), ("step_status", "Recorded steps"),
+               ("environment", "Environment"),
                ("run_started_at_utc", "Started (UTC)"), ("run_finished_at_utc", "Finished (UTC)"),
                ("duration_minutes", "Minutes"), ("steps_not_succeeded", "Steps not succeeded"),
                ("failure_stages", "Failure stage"), ("last_error_message", "Error (first 300 characters)"),
@@ -526,16 +536,16 @@ def overview_page(attributes, core):
                 "Pass rate (tests)", "PASS / (PASS + WARN + FAIL) of current tests. Not a score.", 8, 2, PERCENT),
         counter("kpi_stale", "ds_freshness", "sum(is_stale)", "SUM(`is_stale`)", "Stale sources",
                 "source_fresh WARNs, as the stale_sources alert emails", 10, 2),
-        # One donut per core attribute, under the counters.
-        *[donut(f"donut_{name.lower()}", name, means, i * (12 // len(core)), 5, 12 // len(core), 7)
-          for i, (name, means) in enumerate(core)],
+        # One donut per core attribute, under the counters: title only, the definitions are at the bottom.
+        *[donut(f"donut_{name.lower()}", name, i * (12 // len(core)), 5, 12 // len(core), 3)
+          for i, (name, _) in enumerate(core)],
         # 1. Where: which layer holds the WARNs and FAILs.
         chart("current_by_layer", "bar", "ds_current", [_field("layer"), _field("status"), COUNT],
               {"x": _axis("layer", "categorical", "Layer", sort={"by": "custom-order", "orderedValues": LAYER_ORDER}),
                "y": _axis("count(*)", "quantitative", "Results"), "color": _status_color(), "label": {"show": True}},
               "1. Where: current results by layer and status",
               CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.",
-              0, 12, 6, 7),
+              0, 8, 6, 7),
         # 2. Which source is weak on which attribute.
         chart("current_by_source", "heatmap", "ds_current",
               [_field("quality_attribute"), _field("source_id"), PASS_RATE],
@@ -549,7 +559,7 @@ def overview_page(attributes, core):
               "Color only: PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute, red low to "
               "sage high (hover for the value); an empty cell has no "
               "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3.",
-              0, 19, 6, 7, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
+              0, 15, 6, 7, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
                                     f"`quality_attribute` IN ({core_list})"]),
         # 3. What needs attention: which sources hold the WARNs and FAILs now.
         chart("not_pass_by_source", "bar", "ds_current", [_field("source_id"), _field("status"), COUNT],
@@ -558,7 +568,7 @@ def overview_page(attributes, core):
               "3. What needs attention: WARN and FAIL by source",
               "Only what is not PASS: current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
               "most first. Open issues on Pipeline health lists each check.",
-              6, 12, 6, 7, filters=[NOT_PASS]),
+              6, 8, 6, 7, filters=[NOT_PASS]),
         # 4. Trend.
         chart("history_by_day", "line", "ds_trend",
               [_field("checked_on_utc"), _field("status"), _field("sum(result_events)", "SUM(`result_events`)")],
@@ -568,7 +578,7 @@ def overview_page(attributes, core):
               "Every recorded result per day over the last seven days, 0 on days nothing ran. A check "
               "that ran in three runs is three events: activity and direction, not the number of "
               "checks. Always the last week; follows the layer filter, not date or source.",
-              6, 19, 6, 7),
+              6, 15, 6, 7),
         text("definitions", [
             "### Definitions\n", "\n",
             "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (rows quarantined within the "
@@ -579,9 +589,11 @@ def overview_page(attributes, core):
             "**Pass rate (tests)** = PASS / (PASS + WARN + FAIL) over current tests; each donut is the same rate "
             "for one core attribute, and says *No checks* when it has none. *Recorded counts* (rows a rule "
             "changed, matches per method, LGUs per tier) are always PASS and left out.\n", "\n",
-            "**Quality attributes**: " + ", ".join(attributes) + ", from config/quality_attributes.yml. A check "
+            "**Core attributes** (the donuts): "
+            + " ".join(f"**{name}**: {means}." for name, means in core) + "\n", "\n",
+            "**All quality attributes**: " + ", ".join(attributes) + ", from config/quality_attributes.yml. A check "
             "it does not list is **Unclassified**, shown, and covers no attribute.",
-        ], 0, 26, 12, 4),
+        ], 0, 22, 12, 7),
     ]
     return {"name": "overview", "displayName": "Quality overview", "pageType": "PAGE_TYPE_CANVAS",
             "layoutVersion": "GRID_V1", "layout": layout}
@@ -592,11 +604,12 @@ def health_page():
     layout = [
         text("health_title", [
             "## Pipeline health\n", "\n",
-            "What to fix first (open issues), freshness and runs, then the checks #97 asks to see on their own. All current except job runs, "
-            "which follow the date range. Times are UTC.",
+            "What to fix first (open issues), freshness and runs, then the checks #97 asks to see on their own. "
+            "All current; job runs list every run. Times are UTC.",
         ], 0, 0, 12, 2),
-        table("latest_run", "ds_runs", RUN_COLUMNS[:12], "Latest job run",
-              "The run that started last, rolled up from pipeline_runs. Result counts are that run's events.",
+        table("latest_run", "ds_runs", RUN_COLUMNS[:13], "Latest job run",
+              "The run that started last. Run status is failed when a recorded step failed or any gate recorded "
+              "a FAIL (Gold and Analytics gates record no step); counts are the newest result of each check in it.",
               0, 2, 12, 3, filters=["`run_recency` = 1"]),
         table("open_issues", "ds_current", [
             ("status", "Status"), ("layer", "Layer"), ("source_id", "Source"), ("table_name", "Table"),
@@ -612,9 +625,10 @@ def health_page():
             ("current_batches", "Current batches"), ("freshness_checked_at_utc", "Checked (UTC)")],
               "Source freshness", "Latest source_fresh check, as the stale_sources alert reads it; limits from "
               "config/freshness.yml. A WARN means check the publisher, not that data is wrong.", 0, 13, 6, 7),
-        table("recent_runs", "ds_runs", RUN_COLUMNS, "Job runs in the date range",
-              "A Bronze load's own run is rolled up to its job run. 'no pipeline_runs row': results under a run "
-              "id with no run record.", 6, 13, 6, 7),
+        table("recent_runs", "ds_runs", RUN_COLUMNS, "Job runs",
+              "Every job run, newest first. A Bronze load's own run is rolled up to its job run. Recorded steps "
+              "are pipeline_runs only; run status also counts FAIL results.", 6, 13, 6, 7,
+              orders=[("run_started_at_utc", "DESC")]),
         table("quarantine", "ds_current", [
             ("source_id", "Source"), ("batch_period", "School year or dataset"), ("table_name", "Table"),
             ("check_name", "Check"), ("status", "Status"), ("expected", "Expected"),

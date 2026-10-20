@@ -12,7 +12,7 @@ Deployed with the bundle: `resources.dashboards.data_quality` in `databricks.yml
 
 For data engineers and reviewers: what every gate recorded, and whether anything needs attention. It reads only the control tables in `` edu_access.`01-control` `` (`data_quality_results`, `pipeline_runs`, `ingestion_batches`, `current_batches`), never a data table, so it shows each layer, Gold included, only through what its gates recorded. All times are UTC. Counts are **check results, never data rows**; results hold counts and rules, never row values.
 
-**Pages.** *Quality overview*: six counters, one donut per core attribute (Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness: the pass rate of its current tests, or *No checks*), and four graphs: 1. current results by layer and status (bar, in pipeline order), 2. pass rate by source and core attribute (heatmap), 3. WARN and FAIL by source (bar), 4. result events per day (line). *Pipeline health*: latest job run, open issues (every current WARN and FAIL, with expected, actual, run, and code revision), source freshness, job runs, quarantine against the 1% limit, PSGC match rates, and Gold lineage. *Check explorer*: every result event in the date range, filterable by status (starts at WARN and FAIL), table, check, and job run. *Filters* (global): date range, layer, source.
+**Pages.** *Quality overview*: six counters, one donut per core attribute (Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness: the pass rate of its current tests, or *No checks*; title only, the definitions are in the Definitions box), and four graphs: 1. current results by layer and status (bar, in pipeline order), 2. pass rate by source and core attribute (heatmap), 3. WARN and FAIL by source (bar), 4. result events per day (line). *Pipeline health*: latest job run, open issues (every current WARN and FAIL, with expected, actual, run, and code revision), source freshness, job runs, quarantine against the 1% limit, PSGC match rates, and Gold lineage. *Check explorer*: every result event in the date range, filterable by status (starts at WARN and FAIL), table, check, and job run. *Filters* (global): date range, layer, source.
 
 ### Current and history
 
@@ -28,9 +28,9 @@ Current rules:
 - Each check keeps its own newest result, whichever run wrote it. Unlike the `quality_failures` alert (latest run only), a partial run does not hide an earlier FAIL of a check it did not run.
 - `RANK`, as in the alerts: rows one gate statement wrote together all stay.
 - Results of a delivery replaced by a newer version (succeeded, but no longer in `current_batches`) are left out. A failed or blocked delivery stays until it is retried.
-- A check no gate runs any more keeps its last result; its *Last checked* date shows how old it is.
+- A check no gate runs any more, or a retired table's checks, keep their last result forever; its *Last checked* date shows how old it is. For example, a local database that ran the retired AP4 table `ap4_school_age_enrollment_gap` still shows its 23 results, 3 of them WARN, in Open issues. A database built only by the current code has none.
 
-Other datasets: `ds_runs` (one row per job run; a Bronze load's own `run_id` is rolled up through `job_run_id`, and both sides are aggregated before the join, so nothing is counted twice), `ds_freshness` (the rows the `stale_sources` alert emails).
+Other datasets: `ds_runs` (one row per job run, every run, not date-filtered; a Bronze load's own `run_id` is rolled up through `job_run_id`, and both sides are aggregated before the join, so nothing is counted twice. *Recorded steps* is what `pipeline_runs` holds; *Run status* is also `failed` when any gate recorded a FAIL as the newest result of a check in that run, because Gold and Analytics gates write no `pipeline_runs` row), `ds_freshness` (the rows the `stale_sources` alert emails).
 
 ### Metrics
 
