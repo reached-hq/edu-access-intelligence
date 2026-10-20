@@ -20,6 +20,7 @@ WITH c AS (
 ), schools AS (
   SELECT school_id, MIN(psgc_match_status) AS psgc_match_status,
          MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS active,
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS blank,
          SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS learners
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year = '2023-24' AND sector = 'Public'
@@ -30,7 +31,7 @@ WITH c AS (
          COALESCE(e.annex_status = 'Annex/Extension School' AND t.teacher_count = 0, FALSE)
            AND e.learner_count IS NOT NULL AS zero_annex
   FROM edu_access.`05-gold`.fact_school_enrollment e
-  JOIN schools a ON a.school_id = e.school_id AND a.active = 1
+  JOIN schools a ON a.school_id = e.school_id AND (a.active = 1 OR a.blank)
   JOIN regular r ON r.city_mun_psgc_code = e.city_mun_psgc_code
   LEFT JOIN edu_access.`05-gold`.fact_school_teacher_capacity t
     ON t.school_id = e.school_id AND t.school_year = e.school_year AND t.education_level_code = e.education_level_code

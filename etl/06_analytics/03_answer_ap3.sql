@@ -21,7 +21,10 @@ WITH lgus AS (
 ), levels AS (
   SELECT * FROM VALUES ('ES', 1), ('JHS', 2), ('SHS', 3) AS v(education_level_code, level_order)
 ), active AS (
-  SELECT school_id, MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active
+  -- a school that offers a level but has every offered count blank is not active, but it is missing data, not a
+  -- closed school: its blank levels stay in so the level counts as incomplete and is never read as not offered.
+  SELECT school_id, MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active,
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS is_blank
   FROM edu_access.`05-gold`.fact_school_enrollment
   WHERE school_year = '2023-24' AND sector = 'Public' AND psgc_match_status = 'matched'
   GROUP BY school_id
@@ -31,7 +34,7 @@ WITH lgus AS (
          COALESCE(e.annex_status = 'Annex/Extension School' AND t.teacher_count = 0, FALSE)
            AND e.learner_count IS NOT NULL AS zero_teacher_annex
   FROM edu_access.`05-gold`.fact_school_enrollment AS e
-  JOIN active AS a ON a.school_id = e.school_id AND a.is_active = 1
+  JOIN active AS a ON a.school_id = e.school_id AND (a.is_active = 1 OR a.is_blank)
   JOIN lgus AS l ON l.city_mun_psgc_code = e.city_mun_psgc_code
   LEFT JOIN edu_access.`05-gold`.fact_school_teacher_capacity AS t
     ON t.school_id = e.school_id AND t.school_year = e.school_year AND t.education_level_code = e.education_level_code
