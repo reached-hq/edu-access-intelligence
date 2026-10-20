@@ -4,6 +4,8 @@
 -- coverage gate (D-057): learner coverage, the share of learners in schools with a usable room count, at least 90%.
 -- school coverage is shown beside it, with incomplete and blank-enrollment schools in its denominator.
 -- outlier schools (above Q3 + 3 x IQR within LGU type) are counted and stay in every total, they never change a result.
+-- no 45:1 value is published: RA 7880's statutory line does not apply to this NSBI room count, which includes rooms
+-- the law excludes (D-045), so a column beside the ratio would invite a reference line.
 -- percentiles: PERCENT_RANK within LGU type and nationally, among LGUs that pass the gate.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
@@ -97,7 +99,6 @@ SELECT g.*,
        r.national_percentile,
        COALESCE(r.within_type_percentile >= 0.9, FALSE) AS is_high,
        COALESCE(r.national_percentile >= 0.9, FALSE) AS is_high_nationally,
-       CAST(45 AS DOUBLE) AS contextual_45_to_1_reference,
        'learners per reported instructional room, source DepEd School Facilities (NSBI), not the DepEd classroom-learner ratio' AS measure_label,
        :code_revision AS code_revision
 FROM gated AS g

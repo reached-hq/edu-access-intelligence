@@ -59,6 +59,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-055 | 2026-10-19 | The PSA school-age population to PSGC map, psa_school_age_population_psgc_map: one row per census year and city or municipality, names matched only inside a PSGC parent found through a reviewed region list and province aliases, D-052's columns and gate | Provisional | Both census years join PSGC by code; the 8 2020 Interim Province clusters stay unmatched, reviewed |
 | D-056 | 2026-10-19 | The team moves to a new Free Edition workspace (`dbc-2b6bf1c5-7bc3`); profile, target, catalog and names stay the same | Provisional | The new workspace starts empty, so its first run reloads every source |
 | D-057 | 2026-10-19 | LGU priority rule v1: rank cities and municipalities within LGU type on AP1 to AP3, flag a measure at the 90th percentile, tier by the count of high measures, order by affected learners | Provisional | One rule feeds the priority table, the dashboard, and Genie; an LGU below 90% coverage on any measure goes to data review; Similar LGUs and poverty never change a tier |
+| D-058 | 2026-10-20 | LGU priority rule v2 (pooled same-type ratios, AP4 enrollment growth in the tier), proposed in #203 | Withdrawn, not adopted | Superseded by D-057 as applied in #210; nothing in the pipeline uses it |
 
 ---
 
@@ -664,3 +665,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
   - The prototype figures (48 Critical within type, 57 nationally, 30 Stable) came from prototype data with the per-level teacher measure and a 95% coverage gate. They also used the earlier AP3 rule (high if any level is high); with the re-ranked AP3 the v4 prototype gives about 29 Critical within type, without the AP1 completeness gate. None of these are results; #178 reruns them with the 90% gate on the published tables.
   - The [benchmark register](../business/national-benchmarks-and-indicators.md), [planner needs](../business/planner-needs.md), the [dataset use map](../business/dataset-use-map.md), and the [Analytics README](../../etl/06_analytics/README.md) point to this entry, so no document describes peer groups as the current method. Their full update is pending: planner needs A-03, A-05, A-06, and A-07 in a follow-up by @maeveylain, and the rest when #178 and #96 build. #143's peer-group parts close under this entry.
   - **Provisional:** proposed by @hyenalouise on 2026-10-19 in #142. Revisit when DepEd provides a classroom count or teacher norm compatible with these metrics (D-045), or when a check in #178's rerun meets the revisit trigger.
+
+## D-058: LGU priority rule, version 2 (withdrawn)
+
+- **Status:** Withdrawn, not adopted. Proposed in #203 on 2026-10-20 (pooled national ratio within LGU type for AP1 to AP3, AP4 enrollment growth counted in the tier) without a decision issue, and never confirmed by the team or the mentor. Superseded by D-057 as applied in #210, which also brings AP1 to AP4 in line with the team's BP and AP metrics. The entry is kept so references to D-058 in #203 and #199 stay readable; its full text is in the history of #203.

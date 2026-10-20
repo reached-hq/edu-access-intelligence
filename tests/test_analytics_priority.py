@@ -292,3 +292,12 @@ def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
         offered_level_count, passing_level_count, is_assessed FROM {ANALYTICS}.ap3_teacher_pressure
         WHERE city_mun_psgc_code = 'C1'""") == [(1, 1, False, 2, 1, False)]
     assert matrix(store)["C1"][1:3] == ("Data review", "data_review")
+
+
+def test_ap2_publishes_no_45_to_1_line(store):
+    # review on #210: RA 7880's 45:1 does not apply to the NSBI room count (D-045), so no column may invite a target line
+    run_all(store, STEPS[1:2])
+    columns = [c[0] for c in store.query(f"""SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'ap2_classroom_pressure'""")]
+    assert "learners_per_classroom" in columns
+    assert not [c for c in columns if "45" in c]
