@@ -348,7 +348,8 @@ def counter(name, dataset, field, expression, title, description, x, y, value_fo
     }, x, y, 2, 3)
 
 
-def status_bar(name, dataset, dimension, title, description, x, y, width, height, filters=None):
+def status_bar(name, dataset, dimension, title, description, x, y, width, height, filters=None,
+               statuses=tuple(STATUS_COLORS)):
     """Result count per value of `dimension`, stacked by status, horizontal so long names stay readable."""
     query = {"datasetName": dataset,
              "fields": [_field(dimension), _field("status"), _field("count(*)", "COUNT(`*`)")],
@@ -365,7 +366,7 @@ def status_bar(name, dataset, dimension, title, description, x, y, width, height
                 "y": {"fieldName": dimension, "scale": {"type": "categorical"},
                       "displayName": dimension.replace("_", " ").capitalize()},
                 "color": {"fieldName": "status", "scale": {"type": "categorical", "mappings": [
-                    {"value": status, "color": color} for status, color in STATUS_COLORS.items()]},
+                    {"value": status, "color": STATUS_COLORS[status]} for status in statuses]},
                           "displayName": "Status"},
             },
             "frame": _frame(title, description),
@@ -600,9 +601,9 @@ def overview_page(attributes, core):
                                                f"`quality_attribute` IN ({core_list})"]),
         # 3. What needs attention: which sources hold the WARNs and FAILs now.
         status_bar("not_pass_by_source", "ds_current", "source_id", "3. What needs attention: WARN and FAIL by source",
-                   "Current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
+                   "Only what is not PASS: current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
                    "most first. Open issues on Pipeline health lists each check.",
-                   0, 17, 6, 7, filters=[NOT_PASS]),
+                   0, 17, 6, 7, filters=[NOT_PASS], statuses=("WARN", "FAIL")),
         # 4. Trend.
         trend("history_by_day", 6, 17, 6, 7),
         text("definitions", [

@@ -1113,10 +1113,6 @@
                     "type": "categorical",
                     "mappings": [
                       {
-                        "value": "PASS",
-                        "color": "#97A87A"
-                      },
-                      {
                         "value": "WARN",
                         "color": "#DB9558"
                       },
@@ -1133,7 +1129,7 @@
                 "showTitle": true,
                 "title": "3. What needs attention: WARN and FAIL by source",
                 "showDescription": true,
-                "description": "Current WARN and FAIL results per source (a Gold or Analytics table is its own source), most first. Open issues on Pipeline health lists each check."
+                "description": "Only what is not PASS: current WARN and FAIL results per source (a Gold or Analytics table is its own source), most first. Open issues on Pipeline health lists each check."
               },
               "data": {
                 "queryName": "main_query"
