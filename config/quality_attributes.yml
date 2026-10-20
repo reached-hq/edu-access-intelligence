@@ -29,7 +29,7 @@
 version: 1
 
 # Display order. Each attribute says what its checks look at. The first six are the core
-# data-quality attributes, each shown as a donut on the dashboard; the last three stay in its bar chart.
+# data-quality attributes, each shown as a donut on the dashboard; the last three show with each open issue.
 attributes:
   - name: Completeness
     core: true

@@ -21,8 +21,9 @@ Which quality attribute a check tests comes from one reviewed file,
 check it does not list is shown as Unclassified.
 
 Kept cheap on the shared Free Edition warehouse: five small datasets over the
-control tables, history limited by the date range in its WHERE, no refresh
-schedule, and nothing new is created or persisted.
+control tables; only current rows are classified; history and the trend filter
+the timestamp itself, so Delta skips older files; no refresh schedule, and
+nothing new is created or persisted.
 
     python -m src.dashboard.data_quality > dashboards/data_quality.lvdash.json
 """
@@ -112,17 +113,12 @@ def _catalog_cte(rows):
     ]
 
 
-def _classified_ctes(rows, more=False):
-    """The results with their attribute: exact name, then without a qualifier, then a family.
-
-    `more` leaves the list open for another CTE after `classified`."""
+def _classified_ctes(rows, source):
+    """`source`'s rows with their attribute: exact name, then without a qualifier, then a family."""
     return [
         *_catalog_cte(rows),
         "results AS (",
-        "  SELECT q.run_id, q.batch_id, q.source_id, q.layer, q.table_name, q.check_name, q.status,",
-        "         q.expected, q.actual, q.checked_at_utc, q.code_revision,",
-        f"         regexp_replace(q.check_name, '{SHEET_PREFIX}', '') AS check_key",
-        f"  FROM {DQ} AS q",
+        f"  SELECT s.*, regexp_replace(s.check_name, '{SHEET_PREFIX}', '') AS check_key FROM {source} AS s",
         "),",
         "classified AS (",
         "  SELECT r.*,",
@@ -138,7 +134,7 @@ def _classified_ctes(rows, more=False):
         f"    AND b.check_key = regexp_replace(r.check_key, '{QUALIFIER}', '') AND b.check_key <> r.check_key",
         "  LEFT JOIN catalog AS f ON f.match_kind = 'family' AND e.check_key IS NULL AND b.check_key IS NULL",
         "    AND LEFT(r.check_key, LENGTH(f.check_key)) = f.check_key",
-        ")," if more else ")",
+        ")",
     ]
 
 
@@ -149,19 +145,25 @@ STATUS_FLAGS = [
     "CASE WHEN status = 'WARN' THEN 1 ELSE 0 END AS is_warn",
     "CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END AS is_fail",
 ]
-IN_RANGE = "CAST(q.checked_at_utc AS DATE) BETWEEN :history_range.min AND :history_range.max"
+
+
+def _in_days(keyword):
+    """The days of a DATE range parameter, on the timestamp itself so Delta can skip older files."""
+    return f"q.checked_at_utc >= :{keyword}.min AND q.checked_at_utc < :{keyword}.max + 1"
 
 
 def current_sql(rows):
     return [
         "-- Current: the newest result of each check. A check is one (layer, source_id, table_name,",
-        "-- check_name, batch_id); RANK keeps every row one gate statement wrote together.",
+        "-- check_name, batch_id); RANK keeps every row one gate statement wrote together. Only the",
+        "-- current rows are classified, so the cost of classifying does not grow with the history.",
         "WITH",
-        *_classified_ctes(rows, more=True),
         "newest AS (",
-        "  SELECT c.*, RANK() OVER (PARTITION BY c.layer, c.source_id, c.table_name, c.check_name, c.batch_id",
-        "                           ORDER BY c.checked_at_utc DESC) AS result_rank",
-        "  FROM classified AS c",
+        "  SELECT q.run_id, q.batch_id, q.source_id, q.layer, q.table_name, q.check_name, q.status,",
+        "         q.expected, q.actual, q.checked_at_utc, q.code_revision,",
+        "         RANK() OVER (PARTITION BY q.layer, q.source_id, q.table_name, q.check_name, q.batch_id",
+        "                      ORDER BY q.checked_at_utc DESC) AS result_rank",
+        f"  FROM {DQ} AS q",
         "),",
         "batches AS (",
         "  SELECT b.batch_id, b.status AS batch_status, COALESCE(b.school_year, b.logical_dataset) AS batch_period,",
@@ -180,7 +182,8 @@ def current_sql(rows):
         "  WHERE n.result_rank = 1",
         "    -- A delivery replaced by a newer version is no longer read downstream.",
         "    AND NOT COALESCE(bt.batch_status = 'succeeded' AND NOT bt.is_current_batch, FALSE)",
-        ")",
+        "),",
+        *_classified_ctes(rows, "snapshot"),
         "SELECT layer, source_id, table_name, check_name, status, expected, actual,",
         "       quality_attribute, check_kind, classification_basis,",
         "       run_id, batch_id, batch_period, batch_state, checked_at_utc AS last_checked_at_utc, code_revision,",
@@ -188,7 +191,7 @@ def current_sql(rows):
         "       1 AS is_result,",
         "       CASE WHEN check_kind = 'test' THEN 1 ELSE 0 END AS is_test,",
         "       CASE WHEN check_kind = 'test' AND status = 'PASS' THEN 1 ELSE 0 END AS is_test_pass",
-        "FROM snapshot",
+        "FROM classified",
     ]
 
 
@@ -198,7 +201,7 @@ def history_sql():
         "SELECT q.layer, q.source_id, q.table_name, q.check_name, q.status, q.expected, q.actual,",
         "       q.run_id, q.batch_id, q.checked_at_utc, q.code_revision",
         f"FROM {DQ} AS q",
-        f"WHERE {IN_RANGE}",
+        f"WHERE {_in_days('history_range')}",
     ]
 
 
@@ -210,13 +213,17 @@ def trend_sql():
         "  SELECT explode(sequence(CAST(:trend_week.min AS DATE), CAST(:trend_week.max AS DATE),",
         "                          INTERVAL 1 DAY)) AS checked_on_utc",
         "),",
-        f"layers AS (SELECT DISTINCT layer FROM {DQ}),",
         "statuses AS (SELECT * FROM (VALUES ('PASS'), ('WARN'), ('FAIL')) AS s(status)),",
         "counts AS (",
         "  SELECT CAST(q.checked_at_utc AS DATE) AS checked_on_utc, q.layer, q.status, COUNT(*) AS result_events",
         f"  FROM {DQ} AS q",
-        "  WHERE CAST(q.checked_at_utc AS DATE) BETWEEN :trend_week.min AND :trend_week.max",
+        f"  WHERE {_in_days('trend_week')}",
         "  GROUP BY CAST(q.checked_at_utc AS DATE), q.layer, q.status",
+        "),",
+        "-- The pipeline's layers, and any other layer the week recorded, without reading the whole history.",
+        "layers AS (",
+        "  SELECT layer FROM (VALUES " + ", ".join(f"('{layer}')" for layer in LAYER_ORDER) + ") AS l(layer)",
+        "  UNION SELECT layer FROM counts",
         ")",
         "SELECT d.checked_on_utc, l.layer, s.status, COALESCE(c.result_events, 0) AS result_events",
         "FROM days AS d CROSS JOIN layers AS l CROSS JOIN statuses AS s",
@@ -299,7 +306,7 @@ def freshness_sql():
         "  GROUP BY source_id",
         ")",
         "SELECT n.source_id, n.status AS freshness_status, n.expected AS freshness_limit,",
-        "       n.actual AS freshness_observed, n.checked_at_utc AS freshness_checked_at_utc, n.run_id,",
+        "       n.actual AS freshness_observed, n.checked_at_utc AS freshness_checked_at_utc,",
         "       d.last_succeeded_at_utc, d.current_batches,",
         "       CASE WHEN n.status = 'WARN' THEN 1 ELSE 0 END AS is_stale",
         "FROM newest AS n",
@@ -383,14 +390,17 @@ def counter(name, dataset, field, expression, title, description, x, y, value_fo
     }, x, y, 2, 3)
 
 
-def status_bar(name, dataset, dimension, title, description, x, y, width, height, filters=None,
-               statuses=tuple(STATUS_COLORS)):
+def _status_color(statuses=tuple(STATUS_COLORS)):
+    return {"fieldName": "status", "displayName": "Status", "scale": {"type": "categorical", "mappings": [
+        {"value": status, "color": STATUS_COLORS[status]} for status in statuses]}}
+
+
+def status_bar(name, dataset, dimension, title, description, x, y, width, height, filters, statuses):
     """Result count per value of `dimension`, stacked by status, horizontal so long names stay readable."""
     query = {"datasetName": dataset,
              "fields": [_field(dimension), _field("status"), _field("count(*)", "COUNT(`*`)")],
+             "filters": [{"expression": f} for f in filters],
              "disaggregated": False}
-    if filters:
-        query["filters"] = [{"expression": f} for f in filters]
     return _place({
         "name": name,
         "queries": [{"name": "main_query", "query": query}],
@@ -400,9 +410,7 @@ def status_bar(name, dataset, dimension, title, description, x, y, width, height
                 "x": {"fieldName": "count(*)", "scale": {"type": "quantitative"}, "displayName": "Results"},
                 "y": {"fieldName": dimension, "scale": {"type": "categorical"},
                       "displayName": dimension.replace("_", " ").capitalize()},
-                "color": {"fieldName": "status", "scale": {"type": "categorical", "mappings": [
-                    {"value": status, "color": STATUS_COLORS[status]} for status in statuses]},
-                          "displayName": "Status"},
+                "color": _status_color(statuses),
             },
             "frame": _frame(title, description),
         },
@@ -426,9 +434,7 @@ def layer_bar(name, title, description, x, y, width, height):
                 "x": {"fieldName": "layer", "displayName": "Layer",
                       "scale": {"type": "categorical", "sort": {"by": "custom-order", "orderedValues": LAYER_ORDER}}},
                 "y": {"fieldName": "count(*)", "scale": {"type": "quantitative"}, "displayName": "Results"},
-                "color": {"fieldName": "status", "scale": {"type": "categorical", "mappings": [
-                    {"value": status, "color": color} for status, color in STATUS_COLORS.items()]},
-                          "displayName": "Status"},
+                "color": _status_color(),
                 "label": {"show": True},
             },
             "frame": _frame(title, description),
@@ -437,19 +443,17 @@ def layer_bar(name, title, description, x, y, width, height):
 
 
 def heatmap(name, x_field, y_field, value_name, value_expression, value_label, ramp, title, description,
-            x, y, width, height, value_format=None, filters=None, labels=True):
-    """A grid of x by y on the current dataset, colored by one aggregate, with the value in each cell."""
-    color = {"fieldName": value_name, "displayName": value_label,
+            x, y, width, height, value_format, filters):
+    """A grid of x by y on the current dataset, colored by one aggregate; color only, hover for the value."""
+    color = {"fieldName": value_name, "displayName": value_label, "format": value_format,
              "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential",
                                                              "colors": {"start": ramp[0], "end": ramp[1]}}}}
-    if value_format:
-        color["format"] = value_format
     return _place({
         "name": name,
         "queries": [{"name": "main_query", "query": {
             "datasetName": "ds_current",
             "fields": [_field(x_field), _field(y_field), _field(value_name, value_expression)],
-            **({"filters": [{"expression": f} for f in filters]} if filters else {}),
+            "filters": [{"expression": f} for f in filters],
             "disaggregated": False}}],
         "spec": {
             "version": 3, "widgetType": "heatmap",
@@ -459,7 +463,7 @@ def heatmap(name, x_field, y_field, value_name, value_expression, value_label, r
                 "y": {"fieldName": y_field, "scale": {"type": "categorical"},
                       "displayName": y_field.replace("_", " ").capitalize()},
                 "color": color,
-                "label": {"show": labels},
+                "label": {"show": False},
             },
             "frame": _frame(title, description),
         },
@@ -478,9 +482,7 @@ def trend(name, x, y, width, height):
             "encodings": {
                 "x": {"fieldName": "checked_on_utc", "scale": {"type": "temporal"}, "displayName": "Day (UTC)"},
                 "y": {"fieldName": "sum(result_events)", "scale": {"type": "quantitative"}, "displayName": "Result events"},
-                "color": {"fieldName": "status", "scale": {"type": "categorical", "mappings": [
-                    {"value": status, "color": color} for status, color in STATUS_COLORS.items()]},
-                          "displayName": "Status"},
+                "color": _status_color(),
             },
             "frame": _frame("4. Trend: check-result events per day, last 7 days (UTC)",
                             "Every recorded result per day over the last seven days, 0 on days nothing ran. A check "
@@ -570,14 +572,14 @@ def multi_filter(name, title, field, datasets_, x, y, width, height=2, default=N
 
 
 def date_filter(name, x, y, width, height=2):
-    by_parameter = ["ds_history"]
-    queries = [{"name": f"{name}_{d}", "query": {"datasetName": d, "parameters": [
-        {"name": "history_range", "keyword": "history_range"}], "disaggregated": False}} for d in by_parameter]
-    queries.append({"name": f"{name}_ds_runs", "query": {"datasetName": "ds_runs",
-                                                         "fields": [_field("run_started_at_utc")],
-                                                         "disaggregated": False}})
-    fields = [{"parameterName": "history_range", "queryName": f"{name}_{d}"} for d in by_parameter]
-    fields.append({"fieldName": "run_started_at_utc", "queryName": f"{name}_ds_runs"})
+    queries = [
+        {"name": f"{name}_ds_history", "query": {"datasetName": "ds_history", "parameters": [
+            {"name": "history_range", "keyword": "history_range"}], "disaggregated": False}},
+        {"name": f"{name}_ds_runs", "query": {"datasetName": "ds_runs", "fields": [_field("run_started_at_utc")],
+                                              "disaggregated": False}},
+    ]
+    fields = [{"parameterName": "history_range", "queryName": f"{name}_ds_history"},
+              {"fieldName": "run_started_at_utc", "queryName": f"{name}_ds_runs"}]
     return _place({
         "name": name, "queries": queries,
         "spec": {"version": 2, "widgetType": "filter-date-range-picker", "encodings": {"fields": fields},
@@ -623,9 +625,12 @@ def overview_page(attributes, core):
                 "Pass rate (tests)", "PASS / (PASS + WARN + FAIL) of current tests. Not a score.", 8, 2, PERCENT),
         counter("kpi_stale", "ds_freshness", "sum(is_stale)", "SUM(`is_stale`)", "Stale sources",
                 "source_fresh WARNs, as the stale_sources alert emails", 10, 2),
+        # One donut per core attribute, under the counters.
+        *[donut(f"donut_{name.lower()}", name, means, i * (12 // len(core)), 5, 12 // len(core), 7)
+          for i, (name, means) in enumerate(core)],
         # 1. Where: which layer holds the WARNs and FAILs.
         layer_bar("current_by_layer", "1. Where: current results by layer and status",
-                CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.", 0, 11, 6, 7),
+                CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.", 0, 12, 6, 7),
         # 2. Which source is weak on which attribute.
         heatmap("current_by_source", "quality_attribute", "source_id", "measure(Pass rate (tests))",
                 "MEASURE(`Pass rate (tests)`)", "Pass rate (tests)", (STATUS_COLORS["FAIL"], STATUS_COLORS["PASS"]),
@@ -633,15 +638,15 @@ def overview_page(attributes, core):
                 "Color only: PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute, red low to "
                 "sage high (hover for the value); an empty cell has no "
                 "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3.",
-                0, 18, 6, 7, PERCENT, labels=False, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
-                                               f"`quality_attribute` IN ({core_list})"]),
+                0, 19, 6, 7, PERCENT, ["`layer` IN ('control', 'bronze', 'silver', 'integration')",
+                                       f"`quality_attribute` IN ({core_list})"]),
         # 3. What needs attention: which sources hold the WARNs and FAILs now.
         status_bar("not_pass_by_source", "ds_current", "source_id", "3. What needs attention: WARN and FAIL by source",
                    "Only what is not PASS: current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
                    "most first. Open issues on Pipeline health lists each check.",
-                   6, 11, 6, 7, filters=[NOT_PASS], statuses=("WARN", "FAIL")),
+                   6, 12, 6, 7, [NOT_PASS], ("WARN", "FAIL")),
         # 4. Trend.
-        trend("history_by_day", 6, 18, 6, 7),
+        trend("history_by_day", 6, 19, 6, 7),
         text("definitions", [
             "### Definitions\n", "\n",
             "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (rows quarantined within the "
@@ -654,15 +659,8 @@ def overview_page(attributes, core):
             "changed, matches per method, LGUs per tier) are always PASS and left out.\n", "\n",
             "**Quality attributes**: " + ", ".join(attributes) + ", from config/quality_attributes.yml. A check "
             "it does not list is **Unclassified**, shown, and covers no attribute.",
-        ], 0, 25, 12, 4),
+        ], 0, 26, 12, 4),
     ]
-    # Counters take rows 2-4; the core attributes' donuts go under them, and the graphs move down one row.
-    for item in layout:
-        if item["position"]["y"] >= 11:
-            item["position"]["y"] += 1
-    width = 12 // len(core)
-    layout[7:7] = [donut(f"donut_{name.lower()}", name, means, i * width, 5, width, 7)
-                   for i, (name, means) in enumerate(core)]
     return {"name": "overview", "displayName": "Quality overview", "pageType": "PAGE_TYPE_CANVAS",
             "layoutVersion": "GRID_V1", "layout": layout}
 

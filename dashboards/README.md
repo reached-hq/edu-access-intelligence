@@ -20,7 +20,7 @@ For data engineers and reviewers: what every gate recorded, and whether anything
 
 | View | Datasets | One row per | Used for |
 |---|---|---|---|
-| Current | `ds_current` | Check: (`layer`, `source_id`, `table_name`, `check_name`, `batch_id`), its newest result | PASS/WARN/FAIL counters, pass rate, the by-layer/source/attribute/Gold-table charts, Gold lineage, quarantine, match rates |
+| Current | `ds_current` | Check: (`layer`, `source_id`, `table_name`, `check_name`, `batch_id`), its newest result | PASS/WARN/FAIL counters, pass rate, attribute donuts, the layer, source, and heatmap graphs, open issues, Gold lineage, quarantine, match rates |
 | History | `ds_history` | Recorded result (event) in the date range, default the last 90 days | Daily trend, explorer event table |
 
 Current rules:
@@ -46,15 +46,19 @@ PASS: as expected. WARN: worth knowing, not necessarily wrong; the batch or buil
 
 ### Quality attributes
 
-`config/quality_attributes.yml` assigns each check one of Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness, Referential integrity, Reconciliation, or Lineage, by exact name, then the name without a year, concept, school-year, or level qualifier (`_2018`, `_household`, `_total`, `_2023-24_bgy`, `/2023-24/ES`), then a declared name family (`labels_mapped_`, `level_count_`, `upstream_run_`). A Bronze sheet prefix (`2024 Total Pop: `) is removed first. *Recorded count* marks results that are always PASS by construction (rows a cleaning rule changed, matches per method, row kinds, and the counts Gold and Analytics gates record with no expected value, such as LGUs per tier or learners per level). A check that is not listed is **Unclassified**: shown, and covering no attribute. An attribute with no bar has no check, which is not a pass. `tests/test_dashboard.py` fails when a gate can write a check that is not listed.
+`config/quality_attributes.yml` assigns each check one of Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness, Referential integrity, Reconciliation, or Lineage, by exact name, then the name without a year, concept, school-year, or level qualifier (`_2018`, `_household`, `_total`, `_2023-24_bgy`, `/2023-24/ES`), then a declared name family (`labels_mapped_`, `level_count_`, `upstream_run_`). A Bronze sheet prefix (`2024 Total Pop: `) is removed first. *Recorded count* marks results that are always PASS by construction (rows a cleaning rule changed, matches per method, row kinds, and the counts Gold and Analytics gates record with no expected value, such as LGUs per tier or learners per level). A check that is not listed is **Unclassified**: shown, and covering no attribute. A donut that says *No checks* has no test, which is not a pass. `tests/test_dashboard.py` fails when a gate can write a check that is not listed.
 
 ### Gold and Analytics
 
-The Gold tables follow [the data model](../docs/architecture/data-model.md): six dimensions and six facts, each published only after its `90_validate_*` gate passes, then five Analytics outputs. The dashboard shows them through those gates: *current results by table* for each dimension, fact, and output, the fact-to-dimension key checks under Referential integrity (`*_in_dimension`, `*_fk_resolves`, `keys_in_dimension`), and *Gold lineage*, one `upstream_run_<table>` result per Silver or Integration table a Gold gate reads (PASS when that build succeeded in the same job run). It never reads a Gold table itself.
+The Gold tables follow [the data model](../docs/architecture/data-model.md): six dimensions and six facts, each published only after its `90_validate_*` gate passes, then five Analytics outputs. The dashboard shows them through those gates: current results by layer, WARN and FAIL by source (each Gold table and Analytics output is its own source), the fact-to-dimension key checks under Referential integrity (`*_in_dimension`, `*_fk_resolves`, `keys_in_dimension`), and *Gold lineage*, one `upstream_run_<table>` result per Silver or Integration table a Gold gate reads (PASS when that build succeeded in the same job run). It never reads a Gold table itself.
 
 ### Cost
 
-Four small queries over the control tables, the history one limited by the date range in its `WHERE`. No refresh schedule, no new table, view, or job.
+Five small datasets over the control tables. Each widget runs its own query over its dataset, so the cost is kept low where it repeats:
+
+- `ds_current`, behind most widgets, ranks to the newest result of each check first and classifies only those rows, so classifying does not grow with the history.
+- History and the trend filter `checked_at_utc` itself (not a cast of it), so Delta skips files older than the range; the trend reads only its week, never the whole table.
+- No refresh schedule, no new table, view, or job.
 
 ### Known limits
 

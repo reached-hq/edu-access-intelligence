@@ -424,8 +424,25 @@ def test_the_trend_is_its_own_last_seven_days(board):
 def test_the_daily_trend_has_a_zero_for_every_day_nothing_ran(store, board):
     """A line needs a point per day: days and statuses with no result are 0, not missing."""
     result(store, "run-1", "rows_reconcile", "WARN", 0)                      # 2026-10-13 only
-    got = {(str(r["checked_on_utc"])[:10], r["status"]): r["result_events"]
-           for r in rows(store, board, "ds_trend", start="2026-10-12", end="2026-10-14")}
-    assert len(got) == 9                                                     # 3 days x 3 statuses, one layer
+    result(store, "run-0", "rows_reconcile", "FAIL", -60 * 24 * 30, layer="staging")  # outside the week
+    trend = rows(store, board, "ds_trend", start="2026-10-12", end="2026-10-14")
+    got = {}
+    for r in trend:                                                          # summed over layers, as the line is
+        key = (str(r["checked_on_utc"])[:10], r["status"])
+        got[key] = got.get(key, 0) + r["result_events"]
+    assert len(got) == 9                                                     # 3 days x 3 statuses
     assert got[("2026-10-13", "WARN")] == 1
     assert sum(got.values()) == 1
+    # Every pipeline layer has its zeros for the layer filter; a layer the week did not record is not read.
+    assert {r["layer"] for r in trend} == set(LAYERS)
+
+
+def test_a_date_range_keeps_its_whole_last_day(store, board):
+    """The range filters the timestamp itself (so Delta can skip older files); its last day stays whole."""
+    for minutes, run_id in ((-61, "day-before"), (0, "first-day"), (60 * 24 + 22 * 60 + 59, "last-day-23:59"),
+                            (60 * 24 * 2 - 59, "day-after")):
+        result(store, run_id, "rows_reconcile", "PASS", minutes)          # T0 is 2026-10-13 01:00
+    history = {r["run_id"] for r in rows(store, board, "ds_history", start="2026-10-13", end="2026-10-14")}
+    assert history == {"first-day", "last-day-23:59"}
+    trend = rows(store, board, "ds_trend", start="2026-10-13", end="2026-10-14")
+    assert sum(r["result_events"] for r in trend) == 2
