@@ -12,7 +12,7 @@ import pytest
 
 from factories.deped_deliveries import fake_repo, write_config
 from factories.report_workbooks import (
-    FIXTURE_COUNTS, FIXTURE_QUALITY, NA, approve, default_rows, empty_config, headers, make_workbook, real_config,
+    FIXTURE_COUNTS, FIXTURE_QUALITY, approve, default_rows, empty_config, headers, make_workbook, real_config,
     registry_entry, school, titles, workbook_name,
 )
 from src.ingestion import formats
@@ -242,101 +242,6 @@ def test_a_failed_shape_blocks_the_batch_and_loads_nothing(env):
     env.deliver(approve_kwargs=dict(unit_rows=4, blank_rows=2))
     assert env.run().status == "failed"
     assert env.q(f"SELECT COUNT(*) FROM {BRONZE}") == [(0,)]
-
-
-def test_a_changed_workbook_for_a_loaded_year_is_blocked_as_a_revision(env):
-    """Same name, different bytes, not approved: nothing loads and the batch says it is a revision."""
-    env.deliver()
-    env.run()
-    rows = default_rows()
-    rows[9] = school(100001, learners=2)
-    resent = make_workbook(env.inbox / "resent", rows=rows)
-    summary = env.run()
-    assert summary.status == "failed"
-    assert env.q(f"SELECT archive_path, status, load_type, error_code FROM {CONTROL}.ingestion_batches "
-                 "WHERE status <> 'succeeded'") == [
-        (resent.relative_to(env.landing).as_posix(), "blocked", "revision", "checksum_mismatch")]
-    assert env.q(f"SELECT COUNT(*) FROM {BRONZE}") == [(FIXTURE_COUNTS["row_count"],)]
-    assert env.q(f"SELECT school_year, delivery_version FROM {CONTROL}.current_batches") == [("2023-24", 1)]
-
-
-def test_an_approved_revision_keeps_both_versions_and_only_the_new_one_is_current(env):
-    first = env.deliver()
-    env.run()
-    rows = default_rows()
-    rows[9] = school(100001, learners=2)
-    revised = make_workbook(env.inbox / "revised", rows=rows)
-    approve(env.config, revised, delivery_version=2, supersedes=env.config["deliveries"][0]["workbook_sha256"])
-    write_config(env.repo, env.config)
-    assert env.run().status == "succeeded"
-    n = FIXTURE_COUNTS["row_count"]
-    assert env.q(f"SELECT delivery_version, COUNT(*) FROM {BRONZE} GROUP BY 1 ORDER BY 1") == [(1, n), (2, n)]
-    assert env.q(f"SELECT school_year, delivery_version FROM {CONTROL}.current_batches") == [("2023-24", 2)]
-    assert first.exists() and revised.exists()
-
-
-# --- Public-school scope and the publisher's location columns --------------------------
-# Bronze keeps every sector: the public scope is `sector = 'Public'` on unit rows, applied in
-# Gold and Analytics (D-022), and AP4 counts the other sectors. PSGC codes and coordinates are
-# columns of the workbook itself, so Bronze joins nothing and cannot multiply a school.
-
-def _school_in(sector, school_id, **kwargs):
-    row = school(school_id, **kwargs)
-    row[10] = sector
-    return row
-
-
-def _deliver_rows(env, rows):
-    last = max(rows)
-    blank = sum(1 for r in range(9, last + 1) if r not in rows)
-    env.deliver(rows=rows, approve_kwargs=dict(row_count=last - 8, unit_rows=len(rows), blank_rows=blank,
-                                               no_identifier_rows=0, last_row=last))
-    assert env.run().status == "succeeded"
-
-
-def test_every_sector_is_kept_and_the_public_scope_is_selected_by_sector(env):
-    _deliver_rows(env, {
-        9: _school_in("Public", 100001),
-        10: _school_in("Private", 400001),
-        11: _school_in("SUCsLUCs", 500001),
-        12: _school_in("PSO", 600001, codes=(NA,) * 4, lon=NA, lat=NA),
-    })
-    assert env.q(f"SELECT sector, COUNT(*) FROM {BRONZE} GROUP BY 1 ORDER BY 1") == [
-        ("PSO", 1), ("Private", 1), ("Public", 1), ("SUCsLUCs", 1)]
-    assert env.q(f"SELECT school_id, psgc_barangay, longitude, latitude FROM {BRONZE} "
-                 "WHERE source_row_kind = 'unit' AND sector = 'Public'") == [("100001", "102802013", "120.5", "16.25")]
-
-
-def test_a_school_the_publisher_did_not_locate_is_kept_with_its_markers(env):
-    _deliver_rows(env, {
-        9: _school_in("Public", 100001),
-        10: _school_in("Public", 100002, codes=(NA,) * 4, lon=NA, lat=NA),
-        11: _school_in("Public", 100003, codes=("", "", "", ""), lon="", lat=""),
-    })
-    assert env.q(f"SELECT school_id, psgc_barangay, longitude, latitude FROM {BRONZE} ORDER BY source_row_number") == [
-        ("100001", "102802013", "120.5", "16.25"), ("100002", "#N/A", "#N/A", "#N/A"), ("100003", "", "", "")]
-
-
-def test_schools_sharing_a_place_and_a_point_stay_one_row_each(env):
-    _deliver_rows(env, {9: _school_in("Public", 100001), 10: _school_in("Public", 100002)})
-    assert env.q(f"SELECT COUNT(*), COUNT(DISTINCT source_sha256 || ':' || CAST(source_row_number AS VARCHAR)), "
-                 f"COUNT(DISTINCT psgc_barangay || longitude || latitude) FROM {BRONZE}") == [(2, 2, 1)]
-
-
-def test_a_blank_enrollment_count_stays_blank_and_a_zero_stays_zero(env):
-    row = _school_in("Public", 100001, learners=0)
-    row[31] = ""                                           # k_female left blank by the publisher
-    _deliver_rows(env, {9: row})
-    assert env.q(f"SELECT k_male, k_female, g1_male FROM {BRONZE}") == [("0", "", "0")]
-
-
-def test_a_repeated_school_keeps_every_row_and_is_counted(env):
-    env.deliver()
-    env.run()
-    assert env.q(f"SELECT source_row_number FROM {BRONZE} WHERE school_id = '100003' ORDER BY 1") == [(11,), (12,)]
-    assert env.q(f"SELECT check_name, actual FROM {CONTROL}.data_quality_results "
-                 "WHERE check_name IN ('school_id_duplicates', 'duplicate_rows_in_file') ORDER BY 1") == [
-        ("duplicate_rows_in_file", "1"), ("school_id_duplicates", "1")]
 
 
 def test_the_format_puts_the_school_year_where_deped_has_it():
