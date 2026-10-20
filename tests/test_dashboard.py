@@ -152,6 +152,21 @@ def test_every_widget_binds_to_fields_its_dataset_has(board):
         assert used == selected, f"{widget['name']}: encodings must name exactly the selected fields"
 
 
+def test_no_two_widgets_overlap_and_the_overview_has_at_most_six_graphs(board):
+    for page in board["pages"]:
+        cells = {}
+        for item in page["layout"]:
+            p = item["position"]
+            for x in range(p["x"], p["x"] + p["width"]):
+                for y in range(p["y"], p["y"] + p["height"]):
+                    assert (x, y) not in cells, f"{page['name']}: {item['widget']['name']} overlaps {cells[(x, y)]}"
+                    cells[(x, y)] = item["widget"]["name"]
+    overview = next(p for p in board["pages"] if p["name"] == "overview")
+    graphs = [i["widget"]["name"] for i in overview["layout"]
+              if i["widget"].get("spec", {}).get("widgetType") in ("bar", "line", "heatmap", "table")]
+    assert len(graphs) <= 6, graphs
+
+
 def test_every_widget_field_is_a_dataset_column(store, board):
     """A widget expression that names a column the dataset does not return breaks on Databricks only."""
     def returned(name):

@@ -439,7 +439,7 @@ def trend(name, x, y, width, height):
                     {"value": status, "color": color} for status, color in STATUS_COLORS.items()]},
                           "displayName": "Status"},
             },
-            "frame": _frame("History: check-result events per day (UTC)",
+            "frame": _frame("4. Trend: check-result events per day (UTC)",
                             "Every recorded result in the date range. A check that ran in three runs is three "
                             "events, so this is activity and direction, not the number of checks."),
         },
@@ -494,10 +494,12 @@ def donut(name, attribute, means, x, y, width, height):
     }, x, y, width, height)
 
 
-def table(name, dataset, columns, title, description, x, y, width, height, filters=None):
+def table(name, dataset, columns, title, description, x, y, width, height, filters=None, orders=None):
     query = {"datasetName": dataset, "fields": [_field(field) for field, _ in columns], "disaggregated": True}
     if filters:
         query["filters"] = [{"expression": f} for f in filters]
+    if orders:
+        query["orders"] = [{"direction": d, "expression": f"`{f}`"} for f, d in orders]
     return _place({
         "name": name,
         "queries": [{"name": "main_query", "query": query}],
@@ -548,120 +550,137 @@ CURRENT_SCOPE = ("Current results: the newest result of each check, from whichev
                  "Counts are check results, not data rows.")
 
 
+RUN_COLUMNS = [("run_id", "Job run"), ("run_status", "Run status"), ("environment", "Environment"),
+               ("run_started_at_utc", "Started (UTC)"), ("run_finished_at_utc", "Finished (UTC)"),
+               ("duration_minutes", "Minutes"), ("steps_not_succeeded", "Steps not succeeded"),
+               ("failure_stages", "Failure stage"), ("last_error_message", "Error (first 300 characters)"),
+               ("pass_results", "PASS results"), ("warn_results", "WARN results"),
+               ("fail_results", "FAIL results"), ("code_revisions", "Code revision")]
+NOT_PASS = "`status` IN ('WARN', 'FAIL')"
+
+
 def overview_page(attributes, core):
-    run_columns = [("run_id", "Job run"), ("run_status", "Run status"), ("environment", "Environment"),
-                   ("run_started_at_utc", "Started (UTC)"), ("run_finished_at_utc", "Finished (UTC)"),
-                   ("duration_minutes", "Minutes"), ("steps_not_succeeded", "Steps not succeeded"),
-                   ("failure_stages", "Failure stage"), ("last_error_message", "Error (first 300 characters)"),
-                   ("pass_results", "PASS results"), ("warn_results", "WARN results"),
-                   ("fail_results", "FAIL results"), ("code_revisions", "Code revision")]
+    """Counters, one donut per core attribute, then at most six graphs: where, which source, what, trend,
+    what to fix, and which layers have run."""
+    core_list = ", ".join(f"'{name}'" for name, _ in core)
     layout = [
         text("overview_title", [
             "# Data quality: Education Access Intelligence pipeline\n", "\n",
-            "What every gate recorded in `edu_access.01-control.data_quality_results`, with runs from "
-            "`pipeline_runs` and deliveries from `ingestion_batches`. **Counts are check results, never data "
-            "rows.** All times are UTC. **Current** widgets show the newest result of each check; **History** "
-            "widgets count every recorded result in the date range. A layer with no results says so, it is not "
-            "shown as passing. Definitions are at the bottom of this page.",
-        ], 0, 0, 12, 3),
+            "What every gate recorded in `edu_access.01-control.data_quality_results`. **Counts are check results, "
+            "never data rows.** Times are UTC. **Current** widgets show the newest result of each check; "
+            "**History** counts every recorded result in the date range. Pipeline health has freshness, runs, "
+            "quarantine, match rates, and Gold lineage; Check explorer has every result.",
+        ], 0, 0, 12, 2),
         counter("kpi_checks", "ds_current", "sum(is_result)", "SUM(`is_result`)", "Current checks",
-                "Results in the current view (tests and recorded counts). Empty: nothing recorded yet.", 0, 3),
-        counter("kpi_pass", "ds_current", "sum(is_pass)", "SUM(`is_pass`)", "PASS",
-                "Current results with status PASS", 2, 3),
-        counter("kpi_warn", "ds_current", "sum(is_warn)", "SUM(`is_warn`)", "WARN",
-                "Current results with status WARN", 4, 3),
-        counter("kpi_fail", "ds_current", "sum(is_fail)", "SUM(`is_fail`)", "FAIL",
-                "Current results with status FAIL", 6, 3),
+                "Tests and recorded counts. Empty: nothing recorded yet.", 0, 2),
+        counter("kpi_pass", "ds_current", "sum(is_pass)", "SUM(`is_pass`)", "PASS", "Current results", 2, 2),
+        counter("kpi_warn", "ds_current", "sum(is_warn)", "SUM(`is_warn`)", "WARN", "Current results", 4, 2),
+        counter("kpi_fail", "ds_current", "sum(is_fail)", "SUM(`is_fail`)", "FAIL", "Current results", 6, 2),
         counter("kpi_pass_rate", "ds_current", "measure(Pass rate (tests))", "MEASURE(`Pass rate (tests)`)",
-                "Pass rate (tests)", "PASS / (PASS + WARN + FAIL) of current tests, recorded counts left out. "
-                "Not a data-quality score.", 8, 3, PERCENT),
-        counter("kpi_stale", "ds_freshness", "sum(is_stale)", "SUM(`is_stale`)", "Stale-source WARNs",
-                "source_fresh WARNs in the latest freshness check, the rows the stale_sources alert emails", 10, 3),
-        table("latest_run", "ds_runs", run_columns[:12],
-              "Latest job run", "The run that started last (pipeline_runs rolled up to the job run). Result "
-              "counts are that run's events only.", 0, 6, 12, 3, filters=["`run_recency` = 1"]),
+                "Pass rate (tests)", "PASS / (PASS + WARN + FAIL) of current tests. Not a score.", 8, 2, PERCENT),
+        counter("kpi_stale", "ds_freshness", "sum(is_stale)", "SUM(`is_stale`)", "Stale sources",
+                "source_fresh WARNs, as the stale_sources alert emails", 10, 2),
+        # 1. Where: which layer holds the WARNs and FAILs.
         heatmap("current_by_layer", "status", "layer", "count(*)", "COUNT(`*`)", "Results", ("#E8F1FA", "#0072B2"),
-                "Current results by layer and status",
-                CURRENT_SCOPE + " A layer with no results is absent here; see Layer coverage.", 0, 9, 6, 6),
-        table("layer_coverage", "ds_layers", [
-            ("layer", "Layer"), ("coverage_state", "Coverage"), ("result_events", "Result events (all time)"),
-            ("runs", "Runs"), ("distinct_checks", "Check names"), ("last_checked_at_utc", "Last checked (UTC)")],
-              "Layer coverage", "Every pipeline layer. 'No checks recorded yet' means no gate of that layer has "
-              "written a result: not built or not run, never a pass.", 6, 9, 6, 6),
+                "1. Where: current results by layer and status",
+                CURRENT_SCOPE + " A layer with no results is absent; see 6.", 0, 11, 6, 6),
+        # 2. Which source is weak on which attribute.
         heatmap("current_by_source", "quality_attribute", "source_id", "measure(Pass rate (tests))",
                 "MEASURE(`Pass rate (tests)`)", "Pass rate (tests)", (STATUS_COLORS["FAIL"], STATUS_COLORS["PASS"]),
-                "Pass rate by source and core attribute, sources only (current)",
-                "Each cell: PASS / (PASS + WARN + FAIL) of that source's current tests of that attribute. An empty "
-                "cell has no test, which is not a pass. Gold and Analytics tables have their own chart below.",
-                0, 15, 6, 7, PERCENT, filters=[
-                    "`layer` IN ('control', 'bronze', 'silver', 'integration')",
-                    "`quality_attribute` IN (" + ", ".join(f"'{name}'" for name, _ in core) + ")"]),
-        status_bar("current_by_attribute", "ds_current", "quality_attribute", "Current results by quality attribute",
-                   "From config/quality_attributes.yml. An attribute missing here has no check, which is not a "
-                   "pass. Unclassified checks stay visible; Recorded count is evidence, always PASS.",
-                   6, 15, 6, 7),
-        status_bar("gold_by_table", "ds_current", "table_name", "Gold and Analytics: current results by table",
-                   "Each Gold dimension and fact, and each Analytics output, as its gate last checked it "
-                   "(docs/architecture/data-model.md). Fact-to-dimension keys are the Referential integrity checks.",
-                   0, 22, 6, 7, filters=["`layer` IN ('gold', 'analytics')"]),
-        table("gold_lineage", "ds_current", [
-            ("table_name", "Gold table"), ("check_name", "Reads"), ("status", "Status"),
-            ("expected", "Expected"), ("actual", "Job run read"), ("last_checked_at_utc", "Checked (UTC)")],
-              "Gold lineage: upstream builds each Gold table read (current)",
-              "One upstream_run_<table> check per Silver or Integration table a Gold gate reads: PASS when that "
-              "build succeeded in the same job run.", 6, 22, 6, 7, filters=["`check_name` LIKE 'upstream_run_%'"]),
-        trend("history_by_day", 0, 29, 12, 6),
+                "2. Which source: pass rate by source and core attribute",
+                "PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute; an empty cell has no "
+                "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 5.",
+                6, 11, 6, 6, PERCENT, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
+                                               f"`quality_attribute` IN ({core_list})"]),
+        # 3. What needs attention: which sources hold the WARNs and FAILs now.
+        status_bar("not_pass_by_source", "ds_current", "source_id", "3. What needs attention: WARN and FAIL by source",
+                   "Current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
+                   "most first. Table 5 lists each check.",
+                   0, 17, 6, 7, filters=[NOT_PASS]),
+        # 4. Trend.
+        trend("history_by_day", 6, 17, 6, 7),
+        # 5. What to fix, traced to its run and batch.
+        table("open_issues", "ds_current", [
+            ("status", "Status"), ("layer", "Layer"), ("source_id", "Source"), ("table_name", "Table"),
+            ("check_name", "Check"), ("expected", "Expected"), ("actual", "Actual"),
+            ("quality_attribute", "Attribute"), ("batch_period", "Period"), ("run_id", "Job run"),
+            ("code_revision", "Code revision"), ("last_checked_at_utc", "Last checked (UTC)")],
+              "5. Open issues: current WARN and FAIL",
+              "Newest result of each check that is not PASS, FAIL first. Expected and actual as recorded.",
+              0, 24, 8, 7, filters=[NOT_PASS], orders=[("status", "ASC"), ("layer", "ASC")]),
+        # 6. Which layers have run, and when.
+        table("layer_coverage", "ds_layers", [
+            ("layer", "Layer"), ("coverage_state", "Coverage"), ("last_checked_at_utc", "Last checked (UTC)"),
+            ("runs", "Runs"), ("result_events", "Result events")],
+              "6. Layer coverage and last checked",
+              "'No checks recorded yet' means no gate of that layer has run: never a pass.", 8, 24, 4, 7,
+              orders=[("layer_order", "ASC")]),
+        text("definitions", [
+            "### Definitions\n", "\n",
+            "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (rows quarantined within the "
+            "limit, a stale source); the batch or build stands. **FAIL** the batch or build is not trusted and "
+            "its gate fails.\n", "\n",
+            "**Current** is one row per (layer, source, table, check, batch): its newest result. A delivery "
+            "replaced by a newer version is left out; a failed or blocked one stays until it is retried.\n", "\n",
+            "**Pass rate (tests)** = PASS / (PASS + WARN + FAIL) over current tests; each donut is the same rate "
+            "for one core attribute, and says *No checks* when it has none. *Recorded counts* (rows a rule "
+            "changed, matches per method, LGUs per tier) are always PASS and left out.\n", "\n",
+            "**Quality attributes**: " + ", ".join(attributes) + ", from config/quality_attributes.yml. A check "
+            "it does not list is **Unclassified**, shown, and covers no attribute.",
+        ], 0, 31, 12, 4),
+    ]
+    # Counters take rows 2-4; the core attributes' donuts go under them, and the graphs move down one row.
+    for item in layout:
+        if item["position"]["y"] >= 11:
+            item["position"]["y"] += 1
+    width = 12 // len(core)
+    layout[7:7] = [donut(f"donut_{name.lower()}", name, means, i * width, 5, width, 7)
+                   for i, (name, means) in enumerate(core)]
+    return {"name": "overview", "displayName": "Quality overview", "pageType": "PAGE_TYPE_CANVAS",
+            "layoutVersion": "GRID_V1", "layout": layout}
+
+
+def health_page():
+    """The #97 detail tables: freshness, runs, quarantine, match rates, Gold lineage. Tables only."""
+    layout = [
+        text("health_title", [
+            "## Pipeline health\n", "\n",
+            "Freshness and runs, then the checks #97 asks to see on their own. All current except job runs, "
+            "which follow the date range. Times are UTC.",
+        ], 0, 0, 12, 2),
+        table("latest_run", "ds_runs", RUN_COLUMNS[:12], "Latest job run",
+              "The run that started last, rolled up from pipeline_runs. Result counts are that run's events.",
+              0, 2, 12, 3, filters=["`run_recency` = 1"]),
         table("freshness", "ds_freshness", [
             ("source_id", "Source"), ("freshness_status", "Status"), ("freshness_limit", "Limit"),
             ("freshness_observed", "Observed"), ("last_succeeded_at_utc", "Last succeeded delivery (UTC)"),
             ("current_batches", "Current batches"), ("freshness_checked_at_utc", "Checked (UTC)")],
-              "Source freshness (current)", "Latest source_fresh check, as the stale_sources alert reads it. "
-              "Limits come from config/freshness.yml; a WARN means check the publisher, not that data is wrong.",
-              0, 35, 6, 7),
-        table("recent_runs", "ds_runs", run_columns, "Job runs (history)",
-              "Runs that started in the date range. A Bronze load's own run is rolled up to its job run. "
-              "'no pipeline_runs row' means results exist under a run id with no run record.", 6, 35, 6, 7),
+              "Source freshness", "Latest source_fresh check, as the stale_sources alert reads it; limits from "
+              "config/freshness.yml. A WARN means check the publisher, not that data is wrong.", 0, 5, 6, 7),
+        table("recent_runs", "ds_runs", RUN_COLUMNS, "Job runs in the date range",
+              "A Bronze load's own run is rolled up to its job run. 'no pipeline_runs row': results under a run "
+              "id with no run record.", 6, 5, 6, 7),
         table("quarantine", "ds_current", [
             ("source_id", "Source"), ("batch_period", "School year or dataset"), ("table_name", "Table"),
             ("check_name", "Check"), ("status", "Status"), ("expected", "Expected"),
             ("actual", "Quarantined rows"), ("last_checked_at_utc", "Checked (UTC)")],
-              "Quarantine against the 1% limit (current)", "Silver quarantine_rate per delivery: WARN above 0, "
-              "FAIL above 1% of that year's Bronze rows. Expected and actual are shown as recorded.",
-              0, 42, 6, 6, filters=["`check_name` LIKE 'quarantine_rate%'"]),
+              "Quarantine against the 1% limit", "Silver quarantine_rate per delivery: WARN above 0, FAIL above "
+              "1% of that year's Bronze rows.", 0, 12, 6, 6, filters=["`check_name` LIKE 'quarantine_rate%'"]),
         table("match_rates", "ds_current", [
             ("source_id", "Source"), ("table_name", "Map"), ("check_name", "Check (school year, level)"),
             ("status", "Status"), ("expected", "Expected"), ("actual", "Match rate (%)"),
             ("last_checked_at_utc", "Checked (UTC)")],
-              "PSGC match rates (current)", "As each PSGC map's gate records them. The DepEd school map checks "
-              "each school year and level (match_rate_<school year>_<level>) and FAILs below 99%; the other maps "
-              "record their rate, per census year for school-age population.",
-              6, 42, 6, 6, filters=["`check_name` LIKE 'match_rate%'"]),
-        text("definitions", [
-            "### Definitions\n", "\n",
-            "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (for example rows quarantined "
-            "within the limit, a stale source); the batch or build stands. **FAIL** the batch or build is not "
-            "trusted: a Bronze batch is not marked succeeded, a Silver or Integration candidate is not "
-            "published, and the gate task fails.\n", "\n",
-            "**Current** is one row per (layer, source, table, check, batch): its newest result. Results of a "
-            "delivery replaced by a newer version are left out; a failed or blocked delivery stays until it is "
-            "retried. A check no gate runs any more keeps its last result, with its date.\n", "\n",
-            "**Pass rate (tests)** = PASS / (PASS + WARN + FAIL) over current tests; each donut is the same rate for "
-            "one core attribute. *Recorded counts* (how many "
-            "rows a cleaning rule changed, matches per method, row kinds) are always PASS and left out. It is "
-            "empty, not 0% or 100%, when there is no test result.\n", "\n",
-            "**Quality attributes**: " + ", ".join(attributes) + ". Assigned in config/quality_attributes.yml; "
-            "a check it does not list is **Unclassified**, shown, and covers no attribute.",
-        ], 0, 48, 12, 5),
+              "PSGC match rates", "The DepEd school map checks each school year and level and FAILs below 99%; "
+              "the other maps record their rate.", 6, 12, 6, 6, filters=["`check_name` LIKE 'match_rate%'"]),
+        table("gold_lineage", "ds_current", [
+            ("table_name", "Gold table"), ("check_name", "Reads"), ("status", "Status"),
+            ("expected", "Expected"), ("actual", "Job run read"), ("last_checked_at_utc", "Checked (UTC)")],
+              "Gold lineage: the upstream builds each Gold table read",
+              "One upstream_run_<table> check per Silver or Integration table a Gold gate reads "
+              "(docs/architecture/data-model.md): PASS when that build succeeded in the same job run.",
+              0, 18, 12, 7, filters=["`check_name` LIKE 'upstream_run_%'"]),
     ]
-    # The core attributes' donuts go under the counters; everything after them moves down.
-    donut_height, top = 6, 6
-    for item in layout:
-        if item["position"]["y"] >= top:
-            item["position"]["y"] += donut_height
-    width = 12 // len(core)
-    layout[7:7] = [donut(f"donut_{name.lower()}", name, means, i * width, top, width, donut_height)
-                   for i, (name, means) in enumerate(core)]
-    return {"name": "overview", "displayName": "Quality overview", "pageType": "PAGE_TYPE_CANVAS",
+    return {"name": "health", "displayName": "Pipeline health", "pageType": "PAGE_TYPE_CANVAS",
             "layoutVersion": "GRID_V1", "layout": layout}
 
 
@@ -711,9 +730,16 @@ def filters_page():
 
 def dashboard(repo_root=REPO_ROOT):
     attributes, core, rows = load_catalog(repo_root)
+    pages = [overview_page(attributes, core), health_page(), explorer_page(), filters_page()]
+    # As Databricks exports them: each chart, counter, and table names the query it draws.
+    for page in pages:
+        for item in page["layout"]:
+            spec = item["widget"].get("spec")
+            if spec and not spec["widgetType"].startswith("filter-"):
+                spec.setdefault("data", {"queryName": "main_query"})
     return {
         "datasets": datasets(rows),
-        "pages": [overview_page(attributes, core), explorer_page(), filters_page()],
+        "pages": pages,
         "uiSettings": {"theme": {
             "canvasBackgroundColor": {"light": "#F7F8FA", "dark": "#1F272D"},
             "widgetBackgroundColor": {"light": "#FFFFFF", "dark": "#11171C"},
