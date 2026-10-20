@@ -22,6 +22,7 @@ CONTROL = "edu_access.`01-control`"
 T0 = datetime(2026, 10, 13, 1, 0)
 WIDGET_VERSIONS = {"counter": 2, "table": 2, "bar": 3, "filter-multi-select": 2, "filter-date-range-picker": 2,
                    "custom-vega-viz": 1, "heatmap": 3, "line": 3}
+LAYERS = ["control", "bronze", "silver", "integration", "gold", "analytics"]
 CORE = ["Completeness", "Uniqueness", "Validity", "Accuracy", "Consistency", "Timeliness"]
 
 
@@ -293,8 +294,6 @@ def test_catalog_rejects_overlapping_families_and_repeats(tmp_path):
 def test_no_results_is_no_data_not_zero_failures(store, board):
     assert rows(store, board, "ds_current") == []
     assert totals(store, board) == {"checks": None, "pass": None, "warn": None, "fail": None, "pass_rate": None}
-    layers = {r["layer"]: r["coverage_state"] for r in rows(store, board, "ds_layers")}
-    assert layers == {layer: "No checks recorded yet" for layer in data_quality.LAYERS}
 
 
 def test_a_check_rerun_counts_once_in_current_and_every_time_in_history(store, board):
@@ -344,15 +343,6 @@ def test_history_is_limited_to_the_date_range(store, board):
     result(store, "run-2", "rows_reconcile", "FAIL", 60 * 24 * 10)
     assert len(rows(store, board, "ds_history", start="2026-10-20", end="2026-12-31")) == 1
     assert [r["status"] for r in rows(store, board, "ds_history", start="2026-10-01", end="2026-10-14")] == ["PASS"]
-
-
-def test_layers_without_results_say_so_and_an_unknown_layer_is_shown(store, board):
-    result(store, "run-1", "rows_reconcile", "PASS", 0, layer="silver")
-    result(store, "run-1", "rows_reconcile", "PASS", 0, layer="staging")
-    layers = {r["layer"]: r["coverage_state"] for r in rows(store, board, "ds_layers")}
-    assert layers["silver"] == "Checks recorded"
-    assert layers["gold"] == layers["analytics"] == "No checks recorded yet"
-    assert layers["staging"] == "Checks recorded (layer not in the pipeline list)"
 
 
 def test_runs_roll_bronze_loads_up_to_their_job_run_without_counting_results_twice(store, board):
@@ -406,8 +396,7 @@ def test_every_check_a_local_job_run_writes_is_classified_and_every_dataset_runs
         recorded = store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results")[0][0]
         assert len(rows(store, board, "ds_history")) == recorded            # history: every event
         assert len(current) < recorded                                       # current: each check once
-        layers = {r["layer"]: r["coverage_state"] for r in rows(store, board, "ds_layers")}
-        assert layers == {layer: "Checks recorded" for layer in data_quality.LAYERS}   # Gold is built now
+        assert {r["layer"] for r in current} == set(LAYERS)                    # Gold is built now
         # The Gold widgets have rows: every Gold table and Analytics output, its upstream builds, and
         # a match rate from each PSGC map.
         gold = {r["table_name"].split(".")[-1].removesuffix("_candidate") for r in current

@@ -12,7 +12,7 @@ Deployed with the bundle: `resources.dashboards.data_quality` in `databricks.yml
 
 For data engineers and reviewers: what every gate recorded, and whether anything needs attention. It reads only the control tables in `` edu_access.`01-control` `` (`data_quality_results`, `pipeline_runs`, `ingestion_batches`, `current_batches`), never a data table, so it shows each layer, Gold included, only through what its gates recorded. All times are UTC. Counts are **check results, never data rows**; results hold counts and rules, never row values.
 
-**Pages.** *Quality overview*: counters, one donut per core attribute (Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness: the pass rate of its current tests, or *No checks*), latest job run, current results by layer, source, and quality attribute, layer coverage, Gold and Analytics results by table with the upstream builds each Gold table read, the daily trend, source freshness, job runs, quarantine against the 1% limit, and PSGC match rates. *Check explorer*: every result event and the current result of each check, filterable by status (starts at WARN and FAIL), attribute, table, check, and job run. *Filters* (global): date range, layer, source.
+**Pages.** *Quality overview*: six counters, one donut per core attribute (Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness: the pass rate of its current tests, or *No checks*), and five graphs: 1. current results by layer and status (heatmap), 2. pass rate by source and core attribute (heatmap), 3. WARN and FAIL by source (bar), 4. result events per day (line), 5. open issues (table of current WARN and FAIL). *Pipeline health*: latest job run, source freshness, job runs, quarantine against the 1% limit, PSGC match rates, and Gold lineage. *Check explorer*: every result event in the date range, filterable by status (starts at WARN and FAIL), table, check, and job run. *Filters* (global): date range, layer, source.
 
 ### Current and history
 
@@ -21,7 +21,7 @@ For data engineers and reviewers: what every gate recorded, and whether anything
 | View | Datasets | One row per | Used for |
 |---|---|---|---|
 | Current | `ds_current` | Check: (`layer`, `source_id`, `table_name`, `check_name`, `batch_id`), its newest result | PASS/WARN/FAIL counters, pass rate, the by-layer/source/attribute/Gold-table charts, Gold lineage, quarantine, match rates |
-| History | `ds_history` | Recorded result (event) in the date range, default the last 90 days | Daily trend, event table |
+| History | `ds_history` | Recorded result (event) in the date range, default the last 90 days | Daily trend, explorer event table |
 
 Current rules:
 
@@ -30,7 +30,7 @@ Current rules:
 - Results of a delivery replaced by a newer version (succeeded, but no longer in `current_batches`) are left out. A failed or blocked delivery stays until it is retried.
 - A check no gate runs any more keeps its last result; its *Last checked* date shows how old it is.
 
-Other datasets: `ds_runs` (one row per job run; a Bronze load's own `run_id` is rolled up through `job_run_id`, and both sides are aggregated before the join, so nothing is counted twice), `ds_freshness` (the rows the `stale_sources` alert emails), `ds_layers` (every pipeline layer; *No checks recorded yet* means no gate of that layer has written a result, never a pass).
+Other datasets: `ds_runs` (one row per job run; a Bronze load's own `run_id` is rolled up through `job_run_id`, and both sides are aggregated before the join, so nothing is counted twice), `ds_freshness` (the rows the `stale_sources` alert emails).
 
 ### Metrics
 
@@ -54,7 +54,7 @@ The Gold tables follow [the data model](../docs/architecture/data-model.md): six
 
 ### Cost
 
-Five small queries over the control tables, the history one limited by the date range in its `WHERE`. No refresh schedule, no new table, view, or job.
+Four small queries over the control tables, the history one limited by the date range in its `WHERE`. No refresh schedule, no new table, view, or job.
 
 ### Known limits
 

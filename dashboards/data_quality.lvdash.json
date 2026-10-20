@@ -189,26 +189,6 @@
         "LEFT JOIN delivered AS d ON d.source_id = n.source_id\n",
         "WHERE n.result_rank = 1\n"
       ]
-    },
-    {
-      "name": "ds_layers",
-      "displayName": "Layer coverage",
-      "queryLines": [
-        "-- Every pipeline layer, with or without results, and any other layer a gate recorded.\n",
-        "WITH recorded AS (\n",
-        "  SELECT layer, COUNT(*) AS result_events, COUNT(DISTINCT run_id) AS runs,\n",
-        "         COUNT(DISTINCT check_name) AS distinct_checks, MAX(checked_at_utc) AS last_checked_at_utc\n",
-        "  FROM edu_access.`01-control`.data_quality_results\n",
-        "  GROUP BY layer\n",
-        ")\n",
-        "SELECT COALESCE(l.layer, r.layer) AS layer, COALESCE(l.layer_order, 99) AS layer_order,\n",
-        "       CASE WHEN r.layer IS NULL THEN 'No checks recorded yet'\n",
-        "            WHEN l.layer IS NULL THEN 'Checks recorded (layer not in the pipeline list)'\n",
-        "            ELSE 'Checks recorded' END AS coverage_state,\n",
-        "       r.result_events, r.runs, r.distinct_checks, r.last_checked_at_utc\n",
-        "FROM (VALUES (1, 'control'), (2, 'bronze'), (3, 'silver'), (4, 'integration'), (5, 'gold'), (6, 'analytics')) AS l(layer_order, layer)\n",
-        "FULL OUTER JOIN recorded AS r ON r.layer = l.layer\n"
-      ]
     }
   ],
   "pages": [
@@ -951,7 +931,7 @@
                 "showTitle": true,
                 "title": "1. Where: current results by layer and status",
                 "showDescription": true,
-                "description": "Current results: the newest result of each check, from whichever run checked it last. Counts are check results, not data rows. A layer with no results is absent; see 6."
+                "description": "Current results: the newest result of each check, from whichever run checked it last. Counts are check results, not data rows. A layer with no results is absent: no gate of that layer has run, which is not a pass."
               },
               "data": {
                 "queryName": "main_query"
@@ -1379,92 +1359,7 @@
           "position": {
             "x": 0,
             "y": 25,
-            "width": 8,
-            "height": 7
-          }
-        },
-        {
-          "widget": {
-            "name": "layer_coverage",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "ds_layers",
-                  "fields": [
-                    {
-                      "name": "layer",
-                      "expression": "`layer`"
-                    },
-                    {
-                      "name": "coverage_state",
-                      "expression": "`coverage_state`"
-                    },
-                    {
-                      "name": "last_checked_at_utc",
-                      "expression": "`last_checked_at_utc`"
-                    },
-                    {
-                      "name": "runs",
-                      "expression": "`runs`"
-                    },
-                    {
-                      "name": "result_events",
-                      "expression": "`result_events`"
-                    }
-                  ],
-                  "disaggregated": true,
-                  "orders": [
-                    {
-                      "direction": "ASC",
-                      "expression": "`layer_order`"
-                    }
-                  ]
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "layer",
-                    "displayName": "Layer"
-                  },
-                  {
-                    "fieldName": "coverage_state",
-                    "displayName": "Coverage"
-                  },
-                  {
-                    "fieldName": "last_checked_at_utc",
-                    "displayName": "Last checked (UTC)"
-                  },
-                  {
-                    "fieldName": "runs",
-                    "displayName": "Runs"
-                  },
-                  {
-                    "fieldName": "result_events",
-                    "displayName": "Result events"
-                  }
-                ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "6. Layer coverage and last checked",
-                "showDescription": true,
-                "description": "'No checks recorded yet' means no gate of that layer has run: never a pass."
-              },
-              "data": {
-                "queryName": "main_query"
-              }
-            }
-          },
-          "position": {
-            "x": 8,
-            "y": 25,
-            "width": 4,
+            "width": 12,
             "height": 7
           }
         },
@@ -2238,19 +2133,6 @@
                   ],
                   "disaggregated": false
                 }
-              },
-              {
-                "name": "f_status_ds_current",
-                "query": {
-                  "datasetName": "ds_current",
-                  "fields": [
-                    {
-                      "name": "status",
-                      "expression": "`status`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
               }
             ],
             "spec": {
@@ -2262,11 +2144,6 @@
                     "fieldName": "status",
                     "displayName": "Status",
                     "queryName": "f_status_ds_history"
-                  },
-                  {
-                    "fieldName": "status",
-                    "displayName": "Status",
-                    "queryName": "f_status_ds_current"
                   }
                 ]
               },
@@ -2294,50 +2171,7 @@
           "position": {
             "x": 0,
             "y": 2,
-            "width": 2,
-            "height": 2
-          }
-        },
-        {
-          "widget": {
-            "name": "f_attribute",
-            "queries": [
-              {
-                "name": "f_attribute_ds_current",
-                "query": {
-                  "datasetName": "ds_current",
-                  "fields": [
-                    {
-                      "name": "quality_attribute",
-                      "expression": "`quality_attribute`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "filter-multi-select",
-              "encodings": {
-                "fields": [
-                  {
-                    "fieldName": "quality_attribute",
-                    "displayName": "Quality attribute (current)",
-                    "queryName": "f_attribute_ds_current"
-                  }
-                ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Quality attribute (current)"
-              }
-            }
-          },
-          "position": {
-            "x": 2,
-            "y": 2,
-            "width": 2,
+            "width": 3,
             "height": 2
           }
         },
@@ -2357,19 +2191,6 @@
                   ],
                   "disaggregated": false
                 }
-              },
-              {
-                "name": "f_table_ds_current",
-                "query": {
-                  "datasetName": "ds_current",
-                  "fields": [
-                    {
-                      "name": "table_name",
-                      "expression": "`table_name`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
               }
             ],
             "spec": {
@@ -2381,11 +2202,6 @@
                     "fieldName": "table_name",
                     "displayName": "Table",
                     "queryName": "f_table_ds_history"
-                  },
-                  {
-                    "fieldName": "table_name",
-                    "displayName": "Table",
-                    "queryName": "f_table_ds_current"
                   }
                 ]
               },
@@ -2396,7 +2212,7 @@
             }
           },
           "position": {
-            "x": 4,
+            "x": 3,
             "y": 2,
             "width": 3,
             "height": 2
@@ -2418,19 +2234,6 @@
                   ],
                   "disaggregated": false
                 }
-              },
-              {
-                "name": "f_check_ds_current",
-                "query": {
-                  "datasetName": "ds_current",
-                  "fields": [
-                    {
-                      "name": "check_name",
-                      "expression": "`check_name`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
               }
             ],
             "spec": {
@@ -2442,11 +2245,6 @@
                     "fieldName": "check_name",
                     "displayName": "Check",
                     "queryName": "f_check_ds_history"
-                  },
-                  {
-                    "fieldName": "check_name",
-                    "displayName": "Check",
-                    "queryName": "f_check_ds_current"
                   }
                 ]
               },
@@ -2457,7 +2255,7 @@
             }
           },
           "position": {
-            "x": 7,
+            "x": 6,
             "y": 2,
             "width": 3,
             "height": 2
@@ -2479,19 +2277,6 @@
                   ],
                   "disaggregated": false
                 }
-              },
-              {
-                "name": "f_run_ds_current",
-                "query": {
-                  "datasetName": "ds_current",
-                  "fields": [
-                    {
-                      "name": "run_id",
-                      "expression": "`run_id`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
               }
             ],
             "spec": {
@@ -2503,11 +2288,6 @@
                     "fieldName": "run_id",
                     "displayName": "Job run",
                     "queryName": "f_run_ds_history"
-                  },
-                  {
-                    "fieldName": "run_id",
-                    "displayName": "Job run",
-                    "queryName": "f_run_ds_current"
                   }
                 ]
               },
@@ -2518,9 +2298,9 @@
             }
           },
           "position": {
-            "x": 10,
+            "x": 9,
             "y": 2,
-            "width": 2,
+            "width": 3,
             "height": 2
           }
         },
@@ -2648,166 +2428,7 @@
             "x": 0,
             "y": 4,
             "width": 12,
-            "height": 9
-          }
-        },
-        {
-          "widget": {
-            "name": "current_detail",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "ds_current",
-                  "fields": [
-                    {
-                      "name": "last_checked_at_utc",
-                      "expression": "`last_checked_at_utc`"
-                    },
-                    {
-                      "name": "status",
-                      "expression": "`status`"
-                    },
-                    {
-                      "name": "layer",
-                      "expression": "`layer`"
-                    },
-                    {
-                      "name": "source_id",
-                      "expression": "`source_id`"
-                    },
-                    {
-                      "name": "table_name",
-                      "expression": "`table_name`"
-                    },
-                    {
-                      "name": "check_name",
-                      "expression": "`check_name`"
-                    },
-                    {
-                      "name": "expected",
-                      "expression": "`expected`"
-                    },
-                    {
-                      "name": "actual",
-                      "expression": "`actual`"
-                    },
-                    {
-                      "name": "quality_attribute",
-                      "expression": "`quality_attribute`"
-                    },
-                    {
-                      "name": "classification_basis",
-                      "expression": "`classification_basis`"
-                    },
-                    {
-                      "name": "batch_period",
-                      "expression": "`batch_period`"
-                    },
-                    {
-                      "name": "batch_state",
-                      "expression": "`batch_state`"
-                    },
-                    {
-                      "name": "run_id",
-                      "expression": "`run_id`"
-                    },
-                    {
-                      "name": "batch_id",
-                      "expression": "`batch_id`"
-                    },
-                    {
-                      "name": "code_revision",
-                      "expression": "`code_revision`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "last_checked_at_utc",
-                    "displayName": "Last checked (UTC)"
-                  },
-                  {
-                    "fieldName": "status",
-                    "displayName": "Status"
-                  },
-                  {
-                    "fieldName": "layer",
-                    "displayName": "Layer"
-                  },
-                  {
-                    "fieldName": "source_id",
-                    "displayName": "Source"
-                  },
-                  {
-                    "fieldName": "table_name",
-                    "displayName": "Table"
-                  },
-                  {
-                    "fieldName": "check_name",
-                    "displayName": "Check"
-                  },
-                  {
-                    "fieldName": "expected",
-                    "displayName": "Expected"
-                  },
-                  {
-                    "fieldName": "actual",
-                    "displayName": "Actual"
-                  },
-                  {
-                    "fieldName": "quality_attribute",
-                    "displayName": "Attribute"
-                  },
-                  {
-                    "fieldName": "classification_basis",
-                    "displayName": "Why this attribute"
-                  },
-                  {
-                    "fieldName": "batch_period",
-                    "displayName": "Period"
-                  },
-                  {
-                    "fieldName": "batch_state",
-                    "displayName": "Batch"
-                  },
-                  {
-                    "fieldName": "run_id",
-                    "displayName": "Job run"
-                  },
-                  {
-                    "fieldName": "batch_id",
-                    "displayName": "Batch id"
-                  },
-                  {
-                    "fieldName": "code_revision",
-                    "displayName": "Code revision"
-                  }
-                ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Current: newest result of each check",
-                "showDescription": true,
-                "description": "Not date-filtered. One row per (layer, source, table, check, batch)."
-              },
-              "data": {
-                "queryName": "main_query"
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 13,
-            "width": 12,
-            "height": 9
+            "height": 12
           }
         }
       ]
@@ -2908,19 +2529,6 @@
                   ],
                   "disaggregated": false
                 }
-              },
-              {
-                "name": "g_layer_ds_layers",
-                "query": {
-                  "datasetName": "ds_layers",
-                  "fields": [
-                    {
-                      "name": "layer",
-                      "expression": "`layer`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
               }
             ],
             "spec": {
@@ -2937,11 +2545,6 @@
                     "fieldName": "layer",
                     "displayName": "Layer",
                     "queryName": "g_layer_ds_history"
-                  },
-                  {
-                    "fieldName": "layer",
-                    "displayName": "Layer",
-                    "queryName": "g_layer_ds_layers"
                   }
                 ]
               },

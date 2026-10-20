@@ -41,8 +41,6 @@ CONFIG = "config/quality_attributes.yml"
 CONTROL = "edu_access.`01-control`"
 DQ = f"{CONTROL}.data_quality_results"
 
-# Pipeline layers in order (docs/architecture/overview.md), so one with no result is listed, not missing.
-LAYERS = ["control", "bronze", "silver", "integration", "gold", "analytics"]
 UNCLASSIFIED = "Unclassified"
 RECORDED = "Recorded count"
 # A trailing qualifier a gate adds when it checks each estimate year, census concept, school year, or
@@ -283,26 +281,6 @@ def freshness_sql():
     ]
 
 
-def layers_sql():
-    values = ", ".join(f"({i}, '{layer}')" for i, layer in enumerate(LAYERS, start=1))
-    return [
-        "-- Every pipeline layer, with or without results, and any other layer a gate recorded.",
-        "WITH recorded AS (",
-        "  SELECT layer, COUNT(*) AS result_events, COUNT(DISTINCT run_id) AS runs,",
-        "         COUNT(DISTINCT check_name) AS distinct_checks, MAX(checked_at_utc) AS last_checked_at_utc",
-        f"  FROM {DQ}",
-        "  GROUP BY layer",
-        ")",
-        "SELECT COALESCE(l.layer, r.layer) AS layer, COALESCE(l.layer_order, 99) AS layer_order,",
-        "       CASE WHEN r.layer IS NULL THEN 'No checks recorded yet'",
-        "            WHEN l.layer IS NULL THEN 'Checks recorded (layer not in the pipeline list)'",
-        "            ELSE 'Checks recorded' END AS coverage_state,",
-        "       r.result_events, r.runs, r.distinct_checks, r.last_checked_at_utc",
-        f"FROM (VALUES {values}) AS l(layer_order, layer)",
-        "FULL OUTER JOIN recorded AS r ON r.layer = l.layer",
-    ]
-
-
 def history_parameter():
     return {
         "displayName": "Date range (UTC)",
@@ -329,7 +307,6 @@ def datasets(rows):
         dataset("ds_history", "Check result events", history_sql(), parameters=[history_parameter()]),
         dataset("ds_runs", "Job runs", runs_sql()),
         dataset("ds_freshness", "Source freshness", freshness_sql()),
-        dataset("ds_layers", "Layer coverage", layers_sql()),
     ]
 
 
@@ -560,8 +537,8 @@ NOT_PASS = "`status` IN ('WARN', 'FAIL')"
 
 
 def overview_page(attributes, core):
-    """Counters, one donut per core attribute, then at most six graphs: where, which source, what, trend,
-    what to fix, and which layers have run."""
+    """Counters, one donut per core attribute, then five graphs: where, which source, what, trend, and
+    what to fix."""
     core_list = ", ".join(f"'{name}'" for name, _ in core)
     layout = [
         text("overview_title", [
@@ -583,7 +560,7 @@ def overview_page(attributes, core):
         # 1. Where: which layer holds the WARNs and FAILs.
         heatmap("current_by_layer", "status", "layer", "count(*)", "COUNT(`*`)", "Results", ("#E8F1FA", "#0072B2"),
                 "1. Where: current results by layer and status",
-                CURRENT_SCOPE + " A layer with no results is absent; see 6.", 0, 11, 6, 6),
+                CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.", 0, 11, 6, 6),
         # 2. Which source is weak on which attribute.
         heatmap("current_by_source", "quality_attribute", "source_id", "measure(Pass rate (tests))",
                 "MEASURE(`Pass rate (tests)`)", "Pass rate (tests)", (STATUS_COLORS["FAIL"], STATUS_COLORS["PASS"]),
@@ -607,14 +584,7 @@ def overview_page(attributes, core):
             ("code_revision", "Code revision"), ("last_checked_at_utc", "Last checked (UTC)")],
               "5. Open issues: current WARN and FAIL",
               "Newest result of each check that is not PASS, FAIL first. Expected and actual as recorded.",
-              0, 24, 8, 7, filters=[NOT_PASS], orders=[("status", "ASC"), ("layer", "ASC")]),
-        # 6. Which layers have run, and when.
-        table("layer_coverage", "ds_layers", [
-            ("layer", "Layer"), ("coverage_state", "Coverage"), ("last_checked_at_utc", "Last checked (UTC)"),
-            ("runs", "Runs"), ("result_events", "Result events")],
-              "6. Layer coverage and last checked",
-              "'No checks recorded yet' means no gate of that layer has run: never a pass.", 8, 24, 4, 7,
-              orders=[("layer_order", "ASC")]),
+              0, 24, 12, 7, filters=[NOT_PASS], orders=[("status", "ASC"), ("layer", "ASC")]),
         text("definitions", [
             "### Definitions\n", "\n",
             "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (rows quarantined within the "
@@ -685,33 +655,24 @@ def health_page():
 
 
 def explorer_page():
-    explored = ["ds_history", "ds_current"]
+    explored = ["ds_history"]
     layout = [
         text("explorer_title", [
             "## Check explorer\n", "\n",
             "Find a WARN or FAIL and trace it to its run, batch, and code revision. Status starts at WARN and "
             "FAIL; add PASS to compare. Results hold counts and rules, never row values. Times are UTC.",
         ], 0, 0, 12, 2),
-        multi_filter("f_status", "Status", "status", explored, 0, 2, 2, default=["WARN", "FAIL"]),
-        multi_filter("f_attribute", "Quality attribute (current)", "quality_attribute", ["ds_current"], 2, 2, 2),
-        multi_filter("f_table", "Table", "table_name", explored, 4, 2, 3),
-        multi_filter("f_check", "Check", "check_name", explored, 7, 2, 3),
-        multi_filter("f_run", "Job run", "run_id", explored, 10, 2, 2),
+        multi_filter("f_status", "Status", "status", explored, 0, 2, 3, default=["WARN", "FAIL"]),
+        multi_filter("f_table", "Table", "table_name", explored, 3, 2, 3),
+        multi_filter("f_check", "Check", "check_name", explored, 6, 2, 3),
+        multi_filter("f_run", "Job run", "run_id", explored, 9, 2, 3),
         table("events", "ds_history", [
             ("checked_at_utc", "Checked (UTC)"), ("status", "Status"), ("layer", "Layer"), ("source_id", "Source"),
             ("table_name", "Table"), ("check_name", "Check"), ("expected", "Expected"), ("actual", "Actual"),
             ("run_id", "Job run"), ("batch_id", "Batch"), ("code_revision", "Code revision")],
               "History: every result event in the date range",
               "Each row is one recorded result. The same check appears once per run (and batch) that ran it, "
-              "so a check that keeps warning shows once per run.", 0, 4, 12, 9),
-        table("current_detail", "ds_current", [
-            ("last_checked_at_utc", "Last checked (UTC)"), ("status", "Status"), ("layer", "Layer"),
-            ("source_id", "Source"), ("table_name", "Table"), ("check_name", "Check"), ("expected", "Expected"),
-            ("actual", "Actual"), ("quality_attribute", "Attribute"), ("classification_basis", "Why this attribute"),
-            ("batch_period", "Period"), ("batch_state", "Batch"), ("run_id", "Job run"), ("batch_id", "Batch id"),
-            ("code_revision", "Code revision")],
-              "Current: newest result of each check",
-              "Not date-filtered. One row per (layer, source, table, check, batch).", 0, 13, 12, 9),
+              "so a check that keeps warning shows once per run.", 0, 4, 12, 12),
     ]
     return {"name": "explorer", "displayName": "Check explorer", "pageType": "PAGE_TYPE_CANVAS",
             "layoutVersion": "GRID_V1", "layout": layout}
@@ -721,7 +682,7 @@ def filters_page():
     checked = ["ds_current", "ds_history"]
     layout = [
         date_filter("g_dates", 0, 0, 12),
-        multi_filter("g_layer", "Layer", "layer", checked + ["ds_layers"], 0, 2, 12),
+        multi_filter("g_layer", "Layer", "layer", checked, 0, 2, 12),
         multi_filter("g_source", "Source", "source_id", checked + ["ds_freshness"], 0, 4, 12),
     ]
     return {"name": "filters", "displayName": "Filters", "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
