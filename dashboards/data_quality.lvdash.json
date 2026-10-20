@@ -2664,7 +2664,7 @@
   "uiSettings": {
     "theme": {
       "canvasBackgroundColor": {
-        "light": "#FCF9EA",
+        "light": "#FEFDF8",
         "dark": "#1F272D"
       },
       "widgetBackgroundColor": {

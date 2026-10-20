@@ -52,6 +52,7 @@ SHEET_PREFIX = "^[^:]+: "
 # The team's palette: orange, cream, sage, light sage; plus red for FAIL.
 ORANGE, CREAM, SAGE, LIGHT_SAGE, RED = "#DB9558", "#FCF9EA", "#97A87A", "#A8BBA3", "#C0392B"
 DARK_SAGE = "#5F7046"   # sage darkened for text-weight accents (selection, tab underline)
+CANVAS = "#FEFDF8"      # the cream, lightened for the page background
 STATUS_COLORS = {"PASS": SAGE, "WARN": ORANGE, "FAIL": RED}
 HISTORY_DAYS = 90
 
@@ -729,7 +730,7 @@ def dashboard(repo_root=REPO_ROOT):
         "datasets": datasets(rows),
         "pages": pages,
         "uiSettings": {"theme": {
-            "canvasBackgroundColor": {"light": CREAM, "dark": "#1F272D"},
+            "canvasBackgroundColor": {"light": CANVAS, "dark": "#1F272D"},
             "widgetBackgroundColor": {"light": "#FFFFFF", "dark": "#11171C"},
             "widgetBorderColor": {"light": "#FFFFFF", "dark": "#11171C"},
             "fontColor": {"light": "#2B2B24", "dark": "#E8ECF0"},
