@@ -45,19 +45,28 @@ WITH joined AS (
     c.is_high_nationally AS ap3_high_nationally,
     COALESCE(c.es_outlier_school_count, 0) + COALESCE(c.jhs_outlier_school_count, 0)
       + COALESCE(c.shs_outlier_school_count, 0) AS ap3_outlier_school_level_count,
-    d.gap_2020 AS ap4_gap_2020,
-    d.gap_2024 AS ap4_gap_2024,
-    d.gap_rate_2020_pct AS ap4_gap_rate_2020_pct,
-    d.gap_rate_2024_pct AS ap4_gap_rate_2024_pct,
-    d.gap_change AS ap4_gap_change,
-    d.gap_status AS ap4_gap_status,
-    d.trend_direction AS ap4_enrollment_trend,
-    d.trend_status AS ap4_enrollment_trend_status
+    d.ap4_gap_2020, d.ap4_gap_2024, d.ap4_gap_rate_2020_pct, d.ap4_gap_rate_2024_pct, d.ap4_gap_change,
+    d.ap4_enrollment_trend, d.ap4_enrollment_change_pct
   FROM edu_access.`05-gold`.dim_city_municipality AS l
   LEFT JOIN edu_access.`06-analytics`.ap1_school_provision AS a USING (city_mun_psgc_code)
   LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS b USING (city_mun_psgc_code)
   LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS c USING (city_mun_psgc_code)
-  LEFT JOIN edu_access.`06-analytics`.ap4_enrollment_trend AS d USING (city_mun_psgc_code)
+  -- AP4 has one row per city and school year: read one row per city, the census-year gaps and the trend.
+  LEFT JOIN (
+    SELECT city_mun_psgc_code,
+           MAX(CASE WHEN school_year = '2020-21' THEN population_enrollment_gap END) AS ap4_gap_2020,
+           MAX(CASE WHEN school_year = '2024-25' THEN population_enrollment_gap END) AS ap4_gap_2024,
+           MAX(CASE WHEN school_year = '2020-21' THEN 100 * gap_share END) AS ap4_gap_rate_2020_pct,
+           MAX(CASE WHEN school_year = '2024-25' THEN 100 * gap_share END) AS ap4_gap_rate_2024_pct,
+           CASE WHEN BOOL_AND(is_2020_2024_geography_comparable)
+                THEN MAX(CASE WHEN school_year = '2024-25' THEN population_enrollment_gap END)
+                   - MAX(CASE WHEN school_year = '2020-21' THEN population_enrollment_gap END) END AS ap4_gap_change,
+           MAX(enrollment_trend) AS ap4_enrollment_trend,
+           MAX(enrollment_change_pct_first_to_latest) AS ap4_enrollment_change_pct
+    FROM edu_access.`06-analytics`.ap4_enrollment_trend
+    WHERE member_type = 'regular'
+    GROUP BY city_mun_psgc_code
+  ) AS d USING (city_mun_psgc_code)
   WHERE l.member_type = 'regular'
 ), counted AS (
   SELECT *,

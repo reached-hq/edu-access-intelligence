@@ -38,7 +38,7 @@ In this question, “cities” means cities and municipalities, the same unit th
 | **AP1 · Schools** | Learners per public school counts toward the priority tier with AP2 and AP3 (D-057); school-age population per public school is context only. On its own it does not recommend construction or show a school shortage, because learners may attend school outside their LGU | Learners per public school, school-age population (5–17, 2024) per public school, and barangays without a public elementary school |
 | **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school enrollment relative to reported classroom capacity, with coverage |
 | **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school enrollment relative to reported teaching personnel, with coverage |
-| **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Population aged 5–17 minus enrollment in all sectors, for 2020 and 2024, the gap rate, and the change between them; the public-school share and the direction of enrollment (SY 2020-21 to 2025-26) are shown beside it |
+| **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Enrollment in all sectors for every school year and whether it goes up or down (`increasing`, `decreasing`, `no change`); on SY 2020-21 and 2024-25, population aged 5–17, the gap and the gap rate, and the change in gap between them; the public-school share beside it |
 
 ```mermaid
 flowchart LR

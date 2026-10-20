@@ -243,7 +243,7 @@ analytics_tables:
   - table: ap4_enrollment_trend
     build_file: 04_answer_ap4.sql
     validate_file: 90_validate_ap4.sql
-    grain: One regular city or municipality, with the 2020 and 2024 census points and SY 2020-21 through SY 2025-26.
+    grain: One city or municipality member (regular, UNKNOWN or EXCLUDED) and school year; census context on SY 2020-21 and 2024-25 only.
   - table: lgu_priority_matrix
     build_file: 05_build_priority_matrix.sql
     validate_file: 90_validate_priority_matrix.sql

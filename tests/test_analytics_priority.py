@@ -178,12 +178,17 @@ def test_ap4_gives_the_gap_at_both_censuses_and_never_changes_a_tier(store):
     store.sql(f"""UPDATE {GOLD}.fact_city_school_age_population SET is_2020_2024_geography_comparable = FALSE
         WHERE city_mun_psgc_code = 'M2'""")
     run_all(store)
-    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, school_age_population_2020,
-        enrollment_2020_21, gap_2020, gap_2024, gap_change, gap_status FROM {ANALYTICS}.ap4_enrollment_trend""")}
-    # City One: 2020 population 34 x 26 = 884, SY 2020-21 enrollment 200; 2024: 988 - 280
-    assert rows["C1"] == (884, 200, 684, 708, 24, "Complete")
-    assert rows["M2"][4:] == (None, "change not comparable: geography changed")
-    assert matrix(store)["C2"][1] == "Critical"
+    rows = {(r[0], r[1]): r[2:] for r in store.query(f"""SELECT city_mun_psgc_code, school_year, school_age_population,
+        enrollment_all_sectors, population_enrollment_gap, census_context FROM {ANALYTICS}.ap4_enrollment_trend""")}
+    # City One: 2020 population 34 x 26 = 884 against SY 2020-21 enrollment 200; 2024: 988 against 280
+    assert rows[("C1", "2020-21")] == (884, 200, 684, "available")
+    assert rows[("C1", "2024-25")] == (988, 280, 708, "available")
+    assert rows[("C1", "2023-24")] == (None, 260, None, "not available: no census in this school year")
+    gaps = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap4_gap_2020, ap4_gap_2024, ap4_gap_change,
+        ap4_enrollment_trend FROM {ANALYTICS}.lgu_priority_matrix""")}
+    assert gaps["C1"] == (684, 708, 24, "increasing")
+    assert gaps["M2"][2] is None                      # geography not comparable: no change in gap
+    assert matrix(store)["C2"][1] == "Critical"     # AP4 never changes a tier
 
 
 def test_no_d058_logic_remains():
@@ -272,3 +277,18 @@ def test_ap3_gate_rejects_a_wrong_national_assessment(store):
         WHERE city_mun_psgc_code = 'C2'""")
     with pytest.raises(Exception, match="Analytics gate failed"):
         run(store, "90_validate_ap3.sql")
+
+
+def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
+    # review on #210: S7 offers JHS in City One with a blank count. It is not active, but the JHS level must stay
+    # offered and incomplete, so AP3 is not assessed and City One is Data review, never Monitor.
+    store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
+        ('S7','2023-24','ES','C1','Public','matched','Mother School',FALSE,0),
+        ('S7','2023-24','JHS','C1','Public','matched','Mother School',TRUE,NULL),
+        ('S7','2023-24','SHS','C1','Public','matched','Mother School',FALSE,0)""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S7','2023-24','JHS',3)")
+    run_all(store)
+    assert store.query(f"""SELECT jhs_offered_school_count, jhs_incomplete_school_count, jhs_passes_gate,
+        offered_level_count, passing_level_count, is_assessed FROM {ANALYTICS}.ap3_teacher_pressure
+        WHERE city_mun_psgc_code = 'C1'""") == [(1, 1, False, 2, 1, False)]
+    assert matrix(store)["C1"][1:3] == ("Data review", "data_review")
