@@ -106,6 +106,49 @@
       ]
     },
     {
+      "name": "ds_trend",
+      "displayName": "Result events per day",
+      "queryLines": [
+        "-- History by day: result events per day, layer, and status in the date range, with a 0 for every\n",
+        "-- day nothing was recorded, so the daily line is continuous. Counts events, not checks.\n",
+        "WITH days AS (\n",
+        "  SELECT explode(sequence(CAST(:history_range.min AS DATE), CAST(:history_range.max AS DATE),\n",
+        "                          INTERVAL 1 DAY)) AS checked_on_utc\n",
+        "),\n",
+        "layers AS (SELECT DISTINCT layer FROM edu_access.`01-control`.data_quality_results),\n",
+        "statuses AS (SELECT * FROM (VALUES ('PASS'), ('WARN'), ('FAIL')) AS s(status)),\n",
+        "counts AS (\n",
+        "  SELECT CAST(q.checked_at_utc AS DATE) AS checked_on_utc, q.layer, q.status, COUNT(*) AS result_events\n",
+        "  FROM edu_access.`01-control`.data_quality_results AS q\n",
+        "  WHERE CAST(q.checked_at_utc AS DATE) BETWEEN :history_range.min AND :history_range.max\n",
+        "  GROUP BY CAST(q.checked_at_utc AS DATE), q.layer, q.status\n",
+        ")\n",
+        "SELECT d.checked_on_utc, l.layer, s.status, COALESCE(c.result_events, 0) AS result_events\n",
+        "FROM days AS d CROSS JOIN layers AS l CROSS JOIN statuses AS s\n",
+        "LEFT JOIN counts AS c\n",
+        "  ON c.checked_on_utc = d.checked_on_utc AND c.layer = l.layer AND c.status = s.status\n"
+      ],
+      "parameters": [
+        {
+          "displayName": "Date range (UTC)",
+          "keyword": "history_range",
+          "dataType": "DATE",
+          "complexType": "RANGE",
+          "defaultSelection": {
+            "range": {
+              "dataType": "DATE",
+              "min": {
+                "value": "now-90d/d"
+              },
+              "max": {
+                "value": "now/d"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "ds_runs",
       "displayName": "Job runs",
       "queryLines": [
@@ -960,7 +1003,7 @@
             "x": 0,
             "y": 12,
             "width": 6,
-            "height": 6
+            "height": 7
           }
         },
         {
@@ -1052,10 +1095,10 @@
             }
           },
           "position": {
-            "x": 6,
-            "y": 12,
+            "x": 0,
+            "y": 19,
             "width": 6,
-            "height": 6
+            "height": 7
           }
         },
         {
@@ -1137,8 +1180,8 @@
             }
           },
           "position": {
-            "x": 0,
-            "y": 18,
+            "x": 6,
+            "y": 12,
             "width": 6,
             "height": 7
           }
@@ -1150,19 +1193,19 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_history",
+                  "datasetName": "ds_trend",
                   "fields": [
                     {
-                      "name": "daily(checked_at_utc)",
-                      "expression": "DATE_TRUNC(\"DAY\", `checked_at_utc`)"
+                      "name": "checked_on_utc",
+                      "expression": "`checked_on_utc`"
                     },
                     {
                       "name": "status",
                       "expression": "`status`"
                     },
                     {
-                      "name": "count(*)",
-                      "expression": "COUNT(`*`)"
+                      "name": "sum(result_events)",
+                      "expression": "SUM(`result_events`)"
                     }
                   ],
                   "disaggregated": false
@@ -1174,14 +1217,14 @@
               "widgetType": "line",
               "encodings": {
                 "x": {
-                  "fieldName": "daily(checked_at_utc)",
+                  "fieldName": "checked_on_utc",
                   "scale": {
                     "type": "temporal"
                   },
                   "displayName": "Day (UTC)"
                 },
                 "y": {
-                  "fieldName": "count(*)",
+                  "fieldName": "sum(result_events)",
                   "scale": {
                     "type": "quantitative"
                   },
@@ -1213,7 +1256,7 @@
                 "showTitle": true,
                 "title": "4. Trend: check-result events per day (UTC)",
                 "showDescription": true,
-                "description": "Every recorded result in the date range. A check that ran in three runs is three events, so this is activity and direction, not the number of checks."
+                "description": "Every recorded result per day in the date range, 0 on days nothing ran. A check that ran in three runs is three events: activity and direction, not the number of checks. Follows the date and layer filters, not source."
               },
               "data": {
                 "queryName": "main_query"
@@ -1222,7 +1265,7 @@
           },
           "position": {
             "x": 6,
-            "y": 18,
+            "y": 19,
             "width": 6,
             "height": 7
           }
@@ -1246,7 +1289,7 @@
           },
           "position": {
             "x": 0,
-            "y": 25,
+            "y": 26,
             "width": 12,
             "height": 4
           }
@@ -2471,6 +2514,19 @@
                 }
               },
               {
+                "name": "g_dates_ds_trend",
+                "query": {
+                  "datasetName": "ds_trend",
+                  "parameters": [
+                    {
+                      "name": "history_range",
+                      "keyword": "history_range"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
                 "name": "g_dates_ds_runs",
                 "query": {
                   "datasetName": "ds_runs",
@@ -2492,6 +2548,10 @@
                   {
                     "parameterName": "history_range",
                     "queryName": "g_dates_ds_history"
+                  },
+                  {
+                    "parameterName": "history_range",
+                    "queryName": "g_dates_ds_trend"
                   },
                   {
                     "fieldName": "run_started_at_utc",
@@ -2543,6 +2603,19 @@
                   ],
                   "disaggregated": false
                 }
+              },
+              {
+                "name": "g_layer_ds_trend",
+                "query": {
+                  "datasetName": "ds_trend",
+                  "fields": [
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
               }
             ],
             "spec": {
@@ -2559,6 +2632,11 @@
                     "fieldName": "layer",
                     "displayName": "Layer",
                     "queryName": "g_layer_ds_history"
+                  },
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer",
+                    "queryName": "g_layer_ds_trend"
                   }
                 ]
               },

@@ -46,7 +46,7 @@ def dataset_sql(board, name, start="2000-01-01", end="2100-01-01"):
     dataset = next(d for d in board["datasets"] if d["name"] == name)
     sql = "".join(dataset["queryLines"])
     sql = sql.replace(":history_range.min", f"DATE '{start}'").replace(":history_range.max", f"DATE '{end}'")
-    return sql.replace("timestampdiff(SECOND, ", "datediff('second', ")
+    return sql.replace("explode(sequence(", "unnest(generate_series(").replace("timestampdiff(SECOND, ", "datediff('second', ")
 
 
 def rows(store, board, name, **dates):
@@ -411,3 +411,13 @@ def test_every_check_a_local_job_run_writes_is_classified_and_every_dataset_runs
     finally:
         store.close()
 
+
+
+def test_the_daily_trend_has_a_zero_for_every_day_nothing_ran(store, board):
+    """A line needs a point per day: days and statuses with no result are 0, not missing."""
+    result(store, "run-1", "rows_reconcile", "WARN", 0)                      # 2026-10-13 only
+    got = {(str(r["checked_on_utc"])[:10], r["status"]): r["result_events"]
+           for r in rows(store, board, "ds_trend", start="2026-10-12", end="2026-10-14")}
+    assert len(got) == 9                                                     # 3 days x 3 statuses, one layer
+    assert got[("2026-10-13", "WARN")] == 1
+    assert sum(got.values()) == 1

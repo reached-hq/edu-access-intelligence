@@ -202,6 +202,29 @@ def history_sql():
     ]
 
 
+def trend_sql():
+    return [
+        "-- History by day: result events per day, layer, and status in the date range, with a 0 for every",
+        "-- day nothing was recorded, so the daily line is continuous. Counts events, not checks.",
+        "WITH days AS (",
+        "  SELECT explode(sequence(CAST(:history_range.min AS DATE), CAST(:history_range.max AS DATE),",
+        "                          INTERVAL 1 DAY)) AS checked_on_utc",
+        "),",
+        f"layers AS (SELECT DISTINCT layer FROM {DQ}),",
+        "statuses AS (SELECT * FROM (VALUES ('PASS'), ('WARN'), ('FAIL')) AS s(status)),",
+        "counts AS (",
+        "  SELECT CAST(q.checked_at_utc AS DATE) AS checked_on_utc, q.layer, q.status, COUNT(*) AS result_events",
+        f"  FROM {DQ} AS q",
+        f"  WHERE {IN_RANGE}",
+        "  GROUP BY CAST(q.checked_at_utc AS DATE), q.layer, q.status",
+        ")",
+        "SELECT d.checked_on_utc, l.layer, s.status, COALESCE(c.result_events, 0) AS result_events",
+        "FROM days AS d CROSS JOIN layers AS l CROSS JOIN statuses AS s",
+        "LEFT JOIN counts AS c",
+        "  ON c.checked_on_utc = d.checked_on_utc AND c.layer = l.layer AND c.status = s.status",
+    ]
+
+
 def runs_sql():
     return [
         "-- One row per job run. A Bronze load records its own run_id and the job run in job_run_id,",
@@ -309,6 +332,7 @@ def datasets(rows):
              "expression": "SUM(`is_test_pass`) * 1.0 / NULLIF(SUM(`is_test`), 0)"},
         ]),
         dataset("ds_history", "Check result events", history_sql(), parameters=[history_parameter()]),
+        dataset("ds_trend", "Result events per day", trend_sql(), parameters=[history_parameter()]),
         dataset("ds_runs", "Job runs", runs_sql()),
         dataset("ds_freshness", "Source freshness", freshness_sql()),
     ]
@@ -435,22 +459,22 @@ def trend(name, x, y, width, height):
     return _place({
         "name": name,
         "queries": [{"name": "main_query", "query": {
-            "datasetName": "ds_history",
-            "fields": [_field("daily(checked_at_utc)", 'DATE_TRUNC("DAY", `checked_at_utc`)'),
-                       _field("status"), _field("count(*)", "COUNT(`*`)")],
+            "datasetName": "ds_trend",
+            "fields": [_field("checked_on_utc"), _field("status"), _field("sum(result_events)", "SUM(`result_events`)")],
             "disaggregated": False}}],
         "spec": {
             "version": 3, "widgetType": "line",
             "encodings": {
-                "x": {"fieldName": "daily(checked_at_utc)", "scale": {"type": "temporal"}, "displayName": "Day (UTC)"},
-                "y": {"fieldName": "count(*)", "scale": {"type": "quantitative"}, "displayName": "Result events"},
+                "x": {"fieldName": "checked_on_utc", "scale": {"type": "temporal"}, "displayName": "Day (UTC)"},
+                "y": {"fieldName": "sum(result_events)", "scale": {"type": "quantitative"}, "displayName": "Result events"},
                 "color": {"fieldName": "status", "scale": {"type": "categorical", "mappings": [
                     {"value": status, "color": color} for status, color in STATUS_COLORS.items()]},
                           "displayName": "Status"},
             },
             "frame": _frame("4. Trend: check-result events per day (UTC)",
-                            "Every recorded result in the date range. A check that ran in three runs is three "
-                            "events, so this is activity and direction, not the number of checks."),
+                            "Every recorded result per day in the date range, 0 on days nothing ran. A check that "
+                            "ran in three runs is three events: activity and direction, not the number of checks. "
+                            "Follows the date and layer filters, not source."),
         },
     }, x, y, width, height)
 
@@ -535,7 +559,7 @@ def multi_filter(name, title, field, datasets_, x, y, width, height=2, default=N
 
 
 def date_filter(name, x, y, width, height=2):
-    by_parameter = ["ds_history"]
+    by_parameter = ["ds_history", "ds_trend"]
     queries = [{"name": f"{name}_{d}", "query": {"datasetName": d, "parameters": [
         {"name": "history_range", "keyword": "history_range"}], "disaggregated": False}} for d in by_parameter]
     queries.append({"name": f"{name}_ds_runs", "query": {"datasetName": "ds_runs",
@@ -590,22 +614,22 @@ def overview_page(attributes, core):
                 "source_fresh WARNs, as the stale_sources alert emails", 10, 2),
         # 1. Where: which layer holds the WARNs and FAILs.
         layer_bar("current_by_layer", "1. Where: current results by layer and status",
-                CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.", 0, 11, 6, 6),
+                CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.", 0, 11, 6, 7),
         # 2. Which source is weak on which attribute.
         heatmap("current_by_source", "quality_attribute", "source_id", "measure(Pass rate (tests))",
                 "MEASURE(`Pass rate (tests)`)", "Pass rate (tests)", (STATUS_COLORS["FAIL"], STATUS_COLORS["PASS"]),
                 "2. Which source: pass rate by source and core attribute",
                 "PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute; an empty cell has no "
                 "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3.",
-                6, 11, 6, 6, PERCENT, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
+                0, 18, 6, 7, PERCENT, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
                                                f"`quality_attribute` IN ({core_list})"]),
         # 3. What needs attention: which sources hold the WARNs and FAILs now.
         status_bar("not_pass_by_source", "ds_current", "source_id", "3. What needs attention: WARN and FAIL by source",
                    "Only what is not PASS: current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
                    "most first. Open issues on Pipeline health lists each check.",
-                   0, 17, 6, 7, filters=[NOT_PASS], statuses=("WARN", "FAIL")),
+                   6, 11, 6, 7, filters=[NOT_PASS], statuses=("WARN", "FAIL")),
         # 4. Trend.
-        trend("history_by_day", 6, 17, 6, 7),
+        trend("history_by_day", 6, 18, 6, 7),
         text("definitions", [
             "### Definitions\n", "\n",
             "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (rows quarantined within the "
@@ -618,7 +642,7 @@ def overview_page(attributes, core):
             "changed, matches per method, LGUs per tier) are always PASS and left out.\n", "\n",
             "**Quality attributes**: " + ", ".join(attributes) + ", from config/quality_attributes.yml. A check "
             "it does not list is **Unclassified**, shown, and covers no attribute.",
-        ], 0, 24, 12, 4),
+        ], 0, 25, 12, 4),
     ]
     # Counters take rows 2-4; the core attributes' donuts go under them, and the graphs move down one row.
     for item in layout:
@@ -711,7 +735,7 @@ def filters_page():
     checked = ["ds_current", "ds_history"]
     layout = [
         date_filter("g_dates", 0, 0, 12),
-        multi_filter("g_layer", "Layer", "layer", checked, 0, 2, 12),
+        multi_filter("g_layer", "Layer", "layer", checked + ["ds_trend"], 0, 2, 12),
         multi_filter("g_source", "Source", "source_id", checked + ["ds_freshness"], 0, 4, 12),
     ]
     return {"name": "filters", "displayName": "Filters", "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
