@@ -1080,14 +1080,14 @@
                   }
                 },
                 "label": {
-                  "show": true
+                  "show": false
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "2. Which source: pass rate by source and core attribute",
                 "showDescription": true,
-                "description": "PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute; an empty cell has no test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3."
+                "description": "Color only: PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute, red low to sage high (hover for the value); an empty cell has no test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3."
               },
               "data": {
                 "queryName": "main_query"

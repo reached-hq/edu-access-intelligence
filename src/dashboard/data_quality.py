@@ -437,7 +437,7 @@ def layer_bar(name, title, description, x, y, width, height):
 
 
 def heatmap(name, x_field, y_field, value_name, value_expression, value_label, ramp, title, description,
-            x, y, width, height, value_format=None, filters=None):
+            x, y, width, height, value_format=None, filters=None, labels=True):
     """A grid of x by y on the current dataset, colored by one aggregate, with the value in each cell."""
     color = {"fieldName": value_name, "displayName": value_label,
              "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential",
@@ -459,7 +459,7 @@ def heatmap(name, x_field, y_field, value_name, value_expression, value_label, r
                 "y": {"fieldName": y_field, "scale": {"type": "categorical"},
                       "displayName": y_field.replace("_", " ").capitalize()},
                 "color": color,
-                "label": {"show": True},
+                "label": {"show": labels},
             },
             "frame": _frame(title, description),
         },
@@ -630,9 +630,10 @@ def overview_page(attributes, core):
         heatmap("current_by_source", "quality_attribute", "source_id", "measure(Pass rate (tests))",
                 "MEASURE(`Pass rate (tests)`)", "Pass rate (tests)", (STATUS_COLORS["FAIL"], STATUS_COLORS["PASS"]),
                 "2. Which source: pass rate by source and core attribute",
-                "PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute; an empty cell has no "
+                "Color only: PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute, red low to "
+                "sage high (hover for the value); an empty cell has no "
                 "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3.",
-                0, 18, 6, 7, PERCENT, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
+                0, 18, 6, 7, PERCENT, labels=False, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
                                                f"`quality_attribute` IN ({core_list})"]),
         # 3. What needs attention: which sources hold the WARNs and FAILs now.
         status_bar("not_pass_by_source", "ds_current", "source_id", "3. What needs attention: WARN and FAIL by source",
