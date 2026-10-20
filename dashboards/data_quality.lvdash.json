@@ -109,10 +109,14 @@
       "name": "ds_runs",
       "displayName": "Job runs",
       "queryLines": [
-        "-- One row per job run. A Bronze load records its own run_id and the job run in job_run_id;\n",
-        "-- its gate, and every other gate, write results under the job run. So both sides are\n",
-        "-- aggregated to that id before the join, and nothing is counted twice.\n",
-        "WITH runs AS (\n",
+        "-- One row per job run. A Bronze load records its own run_id and the job run in job_run_id,\n",
+        "-- and writes its batch checks under its own run_id; every gate writes under the job run. So\n",
+        "-- both sides are rolled up to the job run, and aggregated, before the join: nothing counts twice.\n",
+        "WITH run_keys AS (\n",
+        "  SELECT DISTINCT run_id, COALESCE(job_run_id, run_id) AS run_key\n",
+        "  FROM edu_access.`01-control`.pipeline_runs\n",
+        "),\n",
+        "runs AS (\n",
         "  SELECT COALESCE(job_run_id, run_id) AS run_id,\n",
         "         MAX(environment) AS environment,\n",
         "         MIN(started_at_utc) AS started_at_utc,\n",
@@ -128,10 +132,12 @@
         "  GROUP BY COALESCE(job_run_id, run_id)\n",
         "),\n",
         "checks AS (\n",
-        "  SELECT run_id, COUNT_IF(status = 'PASS') AS pass_results, COUNT_IF(status = 'WARN') AS warn_results,\n",
-        "         COUNT_IF(status = 'FAIL') AS fail_results, MIN(checked_at_utc) AS first_checked_at_utc\n",
-        "  FROM edu_access.`01-control`.data_quality_results\n",
-        "  GROUP BY run_id\n",
+        "  SELECT COALESCE(k.run_key, q.run_id) AS run_id,\n",
+        "         COUNT_IF(q.status = 'PASS') AS pass_results, COUNT_IF(q.status = 'WARN') AS warn_results,\n",
+        "         COUNT_IF(q.status = 'FAIL') AS fail_results, MIN(q.checked_at_utc) AS first_checked_at_utc\n",
+        "  FROM edu_access.`01-control`.data_quality_results AS q\n",
+        "  LEFT JOIN run_keys AS k ON k.run_id = q.run_id\n",
+        "  GROUP BY COALESCE(k.run_key, q.run_id)\n",
         "),\n",
         "joined AS (\n",
         "  SELECT COALESCE(r.run_id, c.run_id) AS run_id, r.environment,\n",
@@ -548,7 +554,7 @@
             "x": 0,
             "y": 6,
             "width": 2,
-            "height": 4
+            "height": 6
           }
         },
         {
@@ -610,7 +616,7 @@
             "x": 2,
             "y": 6,
             "width": 2,
-            "height": 4
+            "height": 6
           }
         },
         {
@@ -672,7 +678,7 @@
             "x": 4,
             "y": 6,
             "width": 2,
-            "height": 4
+            "height": 6
           }
         },
         {
@@ -734,7 +740,7 @@
             "x": 6,
             "y": 6,
             "width": 2,
-            "height": 4
+            "height": 6
           }
         },
         {
@@ -796,7 +802,7 @@
             "x": 8,
             "y": 6,
             "width": 2,
-            "height": 4
+            "height": 6
           }
         },
         {
@@ -858,7 +864,7 @@
             "x": 10,
             "y": 6,
             "width": 2,
-            "height": 4
+            "height": 6
           }
         },
         {
@@ -993,7 +999,7 @@
           },
           "position": {
             "x": 0,
-            "y": 10,
+            "y": 12,
             "width": 12,
             "height": 3
           }
@@ -1008,12 +1014,12 @@
                   "datasetName": "ds_current",
                   "fields": [
                     {
-                      "name": "layer",
-                      "expression": "`layer`"
-                    },
-                    {
                       "name": "status",
                       "expression": "`status`"
+                    },
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
                     },
                     {
                       "name": "count(*)",
@@ -1026,14 +1032,14 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "bar",
+              "widgetType": "heatmap",
               "encodings": {
                 "x": {
-                  "fieldName": "count(*)",
+                  "fieldName": "status",
                   "scale": {
-                    "type": "quantitative"
+                    "type": "categorical"
                   },
-                  "displayName": "Results"
+                  "displayName": "Status"
                 },
                 "y": {
                   "fieldName": "layer",
@@ -1043,30 +1049,26 @@
                   "displayName": "Layer"
                 },
                 "color": {
-                  "fieldName": "status",
+                  "fieldName": "count(*)",
+                  "displayName": "Results",
                   "scale": {
-                    "type": "categorical",
-                    "mappings": [
-                      {
-                        "value": "PASS",
-                        "color": "#009E73"
-                      },
-                      {
-                        "value": "WARN",
-                        "color": "#E69F00"
-                      },
-                      {
-                        "value": "FAIL",
-                        "color": "#D55E00"
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#E8F1FA",
+                        "end": "#0072B2"
                       }
-                    ]
-                  },
-                  "displayName": "Status"
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Current results by layer",
+                "title": "Current results by layer and status",
                 "showDescription": true,
                 "description": "Current results: the newest result of each check, from whichever run checked it last. Counts are check results, not data rows. A layer with no results is absent here; see Layer coverage."
               }
@@ -1074,7 +1076,7 @@
           },
           "position": {
             "x": 0,
-            "y": 13,
+            "y": 15,
             "width": 6,
             "height": 6
           }
@@ -1158,7 +1160,7 @@
           },
           "position": {
             "x": 6,
-            "y": 13,
+            "y": 15,
             "width": 6,
             "height": 6
           }
@@ -1173,16 +1175,24 @@
                   "datasetName": "ds_current",
                   "fields": [
                     {
+                      "name": "quality_attribute",
+                      "expression": "`quality_attribute`"
+                    },
+                    {
                       "name": "source_id",
                       "expression": "`source_id`"
                     },
                     {
-                      "name": "status",
-                      "expression": "`status`"
+                      "name": "measure(Pass rate (tests))",
+                      "expression": "MEASURE(`Pass rate (tests)`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`layer` IN ('control', 'bronze', 'silver', 'integration')"
                     },
                     {
-                      "name": "count(*)",
-                      "expression": "COUNT(`*`)"
+                      "expression": "`quality_attribute` IN ('Completeness', 'Uniqueness', 'Validity', 'Accuracy', 'Consistency', 'Timeliness')"
                     }
                   ],
                   "disaggregated": false
@@ -1191,14 +1201,14 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "bar",
+              "widgetType": "heatmap",
               "encodings": {
                 "x": {
-                  "fieldName": "count(*)",
+                  "fieldName": "quality_attribute",
                   "scale": {
-                    "type": "quantitative"
+                    "type": "categorical"
                   },
-                  "displayName": "Results"
+                  "displayName": "Quality attribute"
                 },
                 "y": {
                   "fieldName": "source_id",
@@ -1208,38 +1218,41 @@
                   "displayName": "Source id"
                 },
                 "color": {
-                  "fieldName": "status",
+                  "fieldName": "measure(Pass rate (tests))",
+                  "displayName": "Pass rate (tests)",
                   "scale": {
-                    "type": "categorical",
-                    "mappings": [
-                      {
-                        "value": "PASS",
-                        "color": "#009E73"
-                      },
-                      {
-                        "value": "WARN",
-                        "color": "#E69F00"
-                      },
-                      {
-                        "value": "FAIL",
-                        "color": "#D55E00"
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#D55E00",
+                        "end": "#009E73"
                       }
-                    ]
+                    }
                   },
-                  "displayName": "Status"
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Current results by source",
+                "title": "Pass rate by source and core attribute, sources only (current)",
                 "showDescription": true,
-                "description": "Current results: the newest result of each check, from whichever run checked it last. Counts are check results, not data rows. An empty source is a layer-wide check with no source_id."
+                "description": "Each cell: PASS / (PASS + WARN + FAIL) of that source's current tests of that attribute. An empty cell has no test, which is not a pass. Gold and Analytics tables have their own chart below."
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 19,
+            "y": 21,
             "width": 6,
             "height": 7
           }
@@ -1320,7 +1333,7 @@
           },
           "position": {
             "x": 6,
-            "y": 19,
+            "y": 21,
             "width": 6,
             "height": 7
           }
@@ -1406,7 +1419,7 @@
           },
           "position": {
             "x": 0,
-            "y": 26,
+            "y": 28,
             "width": 6,
             "height": 7
           }
@@ -1495,7 +1508,7 @@
           },
           "position": {
             "x": 6,
-            "y": 26,
+            "y": 28,
             "width": 6,
             "height": 7
           }
@@ -1528,7 +1541,7 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "bar",
+              "widgetType": "line",
               "encodings": {
                 "x": {
                   "fieldName": "daily(checked_at_utc)",
@@ -1576,7 +1589,7 @@
           },
           "position": {
             "x": 0,
-            "y": 33,
+            "y": 35,
             "width": 12,
             "height": 6
           }
@@ -1668,7 +1681,7 @@
           },
           "position": {
             "x": 0,
-            "y": 39,
+            "y": 41,
             "width": 6,
             "height": 7
           }
@@ -1808,7 +1821,7 @@
           },
           "position": {
             "x": 6,
-            "y": 39,
+            "y": 41,
             "width": 6,
             "height": 7
           }
@@ -1913,7 +1926,7 @@
           },
           "position": {
             "x": 0,
-            "y": 46,
+            "y": 48,
             "width": 6,
             "height": 6
           }
@@ -2010,7 +2023,7 @@
           },
           "position": {
             "x": 6,
-            "y": 46,
+            "y": 48,
             "width": 6,
             "height": 6
           }
@@ -2034,7 +2047,7 @@
           },
           "position": {
             "x": 0,
-            "y": 52,
+            "y": 54,
             "width": 12,
             "height": 5
           }

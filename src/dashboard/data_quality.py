@@ -202,10 +202,14 @@ def history_sql():
 
 def runs_sql():
     return [
-        "-- One row per job run. A Bronze load records its own run_id and the job run in job_run_id;",
-        "-- its gate, and every other gate, write results under the job run. So both sides are",
-        "-- aggregated to that id before the join, and nothing is counted twice.",
-        "WITH runs AS (",
+        "-- One row per job run. A Bronze load records its own run_id and the job run in job_run_id,",
+        "-- and writes its batch checks under its own run_id; every gate writes under the job run. So",
+        "-- both sides are rolled up to the job run, and aggregated, before the join: nothing counts twice.",
+        "WITH run_keys AS (",
+        "  SELECT DISTINCT run_id, COALESCE(job_run_id, run_id) AS run_key",
+        f"  FROM {CONTROL}.pipeline_runs",
+        "),",
+        "runs AS (",
         "  SELECT COALESCE(job_run_id, run_id) AS run_id,",
         "         MAX(environment) AS environment,",
         "         MIN(started_at_utc) AS started_at_utc,",
@@ -221,10 +225,12 @@ def runs_sql():
         "  GROUP BY COALESCE(job_run_id, run_id)",
         "),",
         "checks AS (",
-        "  SELECT run_id, COUNT_IF(status = 'PASS') AS pass_results, COUNT_IF(status = 'WARN') AS warn_results,",
-        "         COUNT_IF(status = 'FAIL') AS fail_results, MIN(checked_at_utc) AS first_checked_at_utc",
-        f"  FROM {DQ}",
-        "  GROUP BY run_id",
+        "  SELECT COALESCE(k.run_key, q.run_id) AS run_id,",
+        "         COUNT_IF(q.status = 'PASS') AS pass_results, COUNT_IF(q.status = 'WARN') AS warn_results,",
+        "         COUNT_IF(q.status = 'FAIL') AS fail_results, MIN(q.checked_at_utc) AS first_checked_at_utc",
+        f"  FROM {DQ} AS q",
+        "  LEFT JOIN run_keys AS k ON k.run_id = q.run_id",
+        "  GROUP BY COALESCE(k.run_key, q.run_id)",
         "),",
         "joined AS (",
         "  SELECT COALESCE(r.run_id, c.run_id) AS run_id, r.environment,",
@@ -386,6 +392,36 @@ def status_bar(name, dataset, dimension, title, description, x, y, width, height
     }, x, y, width, height)
 
 
+def heatmap(name, x_field, y_field, value_name, value_expression, value_label, ramp, title, description,
+            x, y, width, height, value_format=None, filters=None):
+    """A grid of x by y on the current dataset, colored by one aggregate, with the value in each cell."""
+    color = {"fieldName": value_name, "displayName": value_label,
+             "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential",
+                                                             "colors": {"start": ramp[0], "end": ramp[1]}}}}
+    if value_format:
+        color["format"] = value_format
+    return _place({
+        "name": name,
+        "queries": [{"name": "main_query", "query": {
+            "datasetName": "ds_current",
+            "fields": [_field(x_field), _field(y_field), _field(value_name, value_expression)],
+            **({"filters": [{"expression": f} for f in filters]} if filters else {}),
+            "disaggregated": False}}],
+        "spec": {
+            "version": 3, "widgetType": "heatmap",
+            "encodings": {
+                "x": {"fieldName": x_field, "scale": {"type": "categorical"},
+                      "displayName": x_field.replace("_", " ").capitalize()},
+                "y": {"fieldName": y_field, "scale": {"type": "categorical"},
+                      "displayName": y_field.replace("_", " ").capitalize()},
+                "color": color,
+                "label": {"show": True},
+            },
+            "frame": _frame(title, description),
+        },
+    }, x, y, width, height)
+
+
 def trend(name, x, y, width, height):
     return _place({
         "name": name,
@@ -395,7 +431,7 @@ def trend(name, x, y, width, height):
                        _field("status"), _field("count(*)", "COUNT(`*`)")],
             "disaggregated": False}}],
         "spec": {
-            "version": 3, "widgetType": "bar",
+            "version": 3, "widgetType": "line",
             "encodings": {
                 "x": {"fieldName": "daily(checked_at_utc)", "scale": {"type": "temporal"}, "displayName": "Day (UTC)"},
                 "y": {"fieldName": "count(*)", "scale": {"type": "quantitative"}, "displayName": "Result events"},
@@ -544,15 +580,22 @@ def overview_page(attributes, core):
         table("latest_run", "ds_runs", run_columns[:12],
               "Latest job run", "The run that started last (pipeline_runs rolled up to the job run). Result "
               "counts are that run's events only.", 0, 6, 12, 3, filters=["`run_recency` = 1"]),
-        status_bar("current_by_layer", "ds_current", "layer", "Current results by layer",
-                   CURRENT_SCOPE + " A layer with no results is absent here; see Layer coverage.", 0, 9, 6, 6),
+        heatmap("current_by_layer", "status", "layer", "count(*)", "COUNT(`*`)", "Results", ("#E8F1FA", "#0072B2"),
+                "Current results by layer and status",
+                CURRENT_SCOPE + " A layer with no results is absent here; see Layer coverage.", 0, 9, 6, 6),
         table("layer_coverage", "ds_layers", [
             ("layer", "Layer"), ("coverage_state", "Coverage"), ("result_events", "Result events (all time)"),
             ("runs", "Runs"), ("distinct_checks", "Check names"), ("last_checked_at_utc", "Last checked (UTC)")],
               "Layer coverage", "Every pipeline layer. 'No checks recorded yet' means no gate of that layer has "
               "written a result: not built or not run, never a pass.", 6, 9, 6, 6),
-        status_bar("current_by_source", "ds_current", "source_id", "Current results by source",
-                   CURRENT_SCOPE + " An empty source is a layer-wide check with no source_id.", 0, 15, 6, 7),
+        heatmap("current_by_source", "quality_attribute", "source_id", "measure(Pass rate (tests))",
+                "MEASURE(`Pass rate (tests)`)", "Pass rate (tests)", (STATUS_COLORS["FAIL"], STATUS_COLORS["PASS"]),
+                "Pass rate by source and core attribute, sources only (current)",
+                "Each cell: PASS / (PASS + WARN + FAIL) of that source's current tests of that attribute. An empty "
+                "cell has no test, which is not a pass. Gold and Analytics tables have their own chart below.",
+                0, 15, 6, 7, PERCENT, filters=[
+                    "`layer` IN ('control', 'bronze', 'silver', 'integration')",
+                    "`quality_attribute` IN (" + ", ".join(f"'{name}'" for name, _ in core) + ")"]),
         status_bar("current_by_attribute", "ds_current", "quality_attribute", "Current results by quality attribute",
                    "From config/quality_attributes.yml. An attribute missing here has no check, which is not a "
                    "pass. Unclassified checks stay visible; Recorded count is evidence, always PASS.",
@@ -611,7 +654,7 @@ def overview_page(attributes, core):
         ], 0, 48, 12, 5),
     ]
     # The core attributes' donuts go under the counters; everything after them moves down.
-    donut_height, top = 4, 6
+    donut_height, top = 6, 6
     for item in layout:
         if item["position"]["y"] >= top:
             item["position"]["y"] += donut_height

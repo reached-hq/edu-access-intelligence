@@ -21,7 +21,7 @@ from test_local_job import REVISION, deliver, repo  # noqa: F401  (repo is that 
 CONTROL = "edu_access.`01-control`"
 T0 = datetime(2026, 10, 13, 1, 0)
 WIDGET_VERSIONS = {"counter": 2, "table": 2, "bar": 3, "filter-multi-select": 2, "filter-date-range-picker": 2,
-                   "custom-vega-viz": 1}
+                   "custom-vega-viz": 1, "heatmap": 3, "line": 3}
 CORE = ["Completeness", "Uniqueness", "Validity", "Accuracy", "Consistency", "Timeliness"]
 
 
@@ -148,7 +148,7 @@ def test_every_widget_binds_to_fields_its_dataset_has(board):
         elif "columns" in encodings:
             used = {c["fieldName"] for c in encodings["columns"]}
         else:
-            used = {e["fieldName"] for e in encodings.values()}
+            used = {e["fieldName"] for e in encodings.values() if "fieldName" in e}
         assert used == selected, f"{widget['name']}: encodings must name exactly the selected fields"
 
 
@@ -346,8 +346,9 @@ def test_runs_roll_bronze_loads_up_to_their_job_run_without_counting_results_twi
         error_message="row count")
     run(store, "job-1", "deped_enrollment", "succeeded", 10, job_run_id="job-1", pipeline_name="silver_build")
     run(store, "manual-1", "psa_psgc", "running", 100, finished=False)
-    for check in ("rows_reconcile", "row_count_matches_approved", "lineage_complete"):
+    for check in ("rows_reconcile", "lineage_complete"):
         result(store, "job-1", check, "PASS", 5)
+    result(store, "uuid-1", "row_count_matches_approved", "PASS", 0)   # a load's batch check: its own run_id
     result(store, "job-1", "row_count_matches_approved", "FAIL", 5, source_id="psa_psgc", batch_id="b2")
     result(store, "orphan-run", "rows_reconcile", "PASS", 200)
     got = {r["run_id"]: r for r in rows(store, board, "ds_runs")}
