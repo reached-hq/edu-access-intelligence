@@ -110,3 +110,15 @@ def test_a_changed_file_for_the_loaded_year_is_blocked_as_a_revision(env):
     assert env.q(f"SELECT status, load_type, error_code FROM {CONTROL}.ingestion_batches WHERE status <> 'succeeded'") == [
         ("blocked", "revision", "checksum_mismatch")]
     assert env.q(f"SELECT COUNT(*) FROM {BRONZE}") == [(2,)]
+
+
+def test_a_missing_approved_workbook_fails_the_run(env):
+    """An approved file that is not in the landing folder fails the lane, so an empty Bronze table
+    never passes for a loaded one (as for PSGC, require_approved_deliveries)."""
+    path = env.deliver()
+    path.unlink()
+    summary = env.run()
+    assert summary.status == "failed" and summary.missing_deliveries == [PUBLIC_ONLY]
+    assert env.q(f"SELECT status FROM {CONTROL}.data_quality_results WHERE check_name = 'approved_deliveries_present'") == [
+        ("FAIL",)]
+    assert env.q(f"SELECT COUNT(*) FROM {BRONZE}") == [(0,)]

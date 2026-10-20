@@ -9,6 +9,7 @@
     "DB"
   ],
   "max_uncompressed_bytes": 200000000,
+  "require_approved_deliveries": true,
   "header_row": 8,
   "period_cell": {
     "cell": "A2",
