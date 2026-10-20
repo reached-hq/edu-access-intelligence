@@ -185,6 +185,7 @@ def literal_check_names():
         sql = path.read_text(encoding="utf-8")
         names |= set(re.findall(r"'([a-z][a-z0-9_]+)'\s+AS\s+check_name", sql))
         names |= set(re.findall(r"SELECT\s+:run_id,\s*[^,]+,\s*[^,]+,\s*'\w+',\s*'[^']+',\s*'([a-z0-9_]+)'", sql))
+        names |= set(re.findall(r"SELECT\s+'([a-z][a-z0-9_]+)',\s*(?:'[A-Z]+'|CASE)", sql))
     for path in (REPO_ROOT / "src" / "ingestion").glob("*.py"):
         code = path.read_text(encoding="utf-8")
         names |= set(re.findall(r'(?:add|profiled)\(\s*"([a-z][a-z0-9_]+)"', code))
@@ -204,7 +205,8 @@ def test_names_resolve_exactly_then_by_qualifier_then_by_family(store, board):
     found = classified(store, board, [
         "rows_reconcile", "rows_reconcile_2018", "key_unique_household", "household_not_above_total",
         "2024 Total Pop: no_pipeline_duplicates", "labels_mapped_sector", "rule_blank_text_to_null",
-        "method_valid", "silver_lane_succeeded", "a_check_nobody_listed"])
+        "method_valid", "silver_lane_succeeded", "a_check_nobody_listed", "match_rate_2023-24_bgy",
+        "learners/2023-24/ES", "upstream_run_psa_psgc_clean", "rule_codes_in_psgc"])
     got = {n: (r["quality_attribute"], r["check_kind"], r["classification_basis"]) for n, r in found.items()}
     assert got["rows_reconcile"] == ("Reconciliation", "test", "listed")
     assert got["rows_reconcile_2018"] == ("Reconciliation", "test", "listed, with a year or concept qualifier")
@@ -216,6 +218,10 @@ def test_names_resolve_exactly_then_by_qualifier_then_by_family(store, board):
     assert got["method_valid"][0] == "Validity"                                     # exact wins over method_
     assert got["silver_lane_succeeded"][0] == "Unclassified"
     assert got["silver_lane_succeeded"][2].startswith("deliberately unclassified: ")
+    assert got["match_rate_2023-24_bgy"][:2] == ("Referential integrity", "test")    # school year and level
+    assert got["learners/2023-24/ES"][:2] == ("Recorded count", "record")
+    assert got["upstream_run_psa_psgc_clean"] == ("Lineage", "test", "name family upstream_run_")
+    assert got["rule_codes_in_psgc"][0] == "Referential integrity"                  # exact wins over rule_
     assert got["a_check_nobody_listed"] == ("Unclassified", "test", f"not in {data_quality.CONFIG}")
 
 
@@ -352,7 +358,16 @@ def test_every_check_a_local_job_run_writes_is_classified_and_every_dataset_runs
         assert len(rows(store, board, "ds_history")) == recorded            # history: every event
         assert len(current) < recorded                                       # current: each check once
         layers = {r["layer"]: r["coverage_state"] for r in rows(store, board, "ds_layers")}
-        assert layers["gold"] == layers["analytics"] == "No checks recorded yet"
+        assert layers == {layer: "Checks recorded" for layer in data_quality.LAYERS}   # Gold is built now
+        # The Gold widgets have rows: every Gold table and Analytics output, its upstream builds, and
+        # a match rate from each PSGC map.
+        gold = {r["table_name"].split(".")[-1].removesuffix("_candidate") for r in current
+                if r["layer"] in ("gold", "analytics")}
+        assert {"dim_school", "fact_school_enrollment", "lgu_priority_matrix"} <= gold and len(gold) == 17
+        assert all(r["layer"] == "gold" for r in current if r["check_name"].startswith("upstream_run_"))
+        assert {r["table_name"].split(".")[-1].removesuffix("_candidate") for r in current
+                if r["check_name"].startswith("match_rate")} == {
+            "deped_school_psgc_map", "psa_poverty_psgc_map", "hdx_adm3_psgc_map", "psa_school_age_population_psgc_map"}
         assert {r["run_id"] for r in rows(store, board, "ds_runs")} >= {"job-run-1", "job-run-2"}
         assert rows(store, board, "ds_freshness")
     finally:

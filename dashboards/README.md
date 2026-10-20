@@ -10,9 +10,9 @@ Not deployed yet: there is no `dashboards` resource in `databricks.yml`, so no b
 
 ## Data quality
 
-For data engineers and reviewers: what every gate recorded, and whether anything needs attention. It reads only the control tables in `` edu_access.`01-control` `` (`data_quality_results`, `pipeline_runs`, `ingestion_batches`, `current_batches`), never a data table, so it works before Gold is built. All times are UTC. Counts are **check results, never data rows**; results hold counts and rules, never row values.
+For data engineers and reviewers: what every gate recorded, and whether anything needs attention. It reads only the control tables in `` edu_access.`01-control` `` (`data_quality_results`, `pipeline_runs`, `ingestion_batches`, `current_batches`), never a data table, so it shows each layer, Gold included, only through what its gates recorded. All times are UTC. Counts are **check results, never data rows**; results hold counts and rules, never row values.
 
-**Pages.** *Quality overview*: counters, latest job run, current results by layer, source, and quality attribute, layer coverage, the daily trend, source freshness, job runs, quarantine against the 1% limit, and Integration map checks. *Check explorer*: every result event and the current result of each check, filterable by status (starts at WARN and FAIL), attribute, table, check, and job run. *Filters* (global): date range, layer, source.
+**Pages.** *Quality overview*: counters, latest job run, current results by layer, source, and quality attribute, layer coverage, Gold and Analytics results by table with the upstream builds each Gold table read, the daily trend, source freshness, job runs, quarantine against the 1% limit, and PSGC match rates. *Check explorer*: every result event and the current result of each check, filterable by status (starts at WARN and FAIL), attribute, table, check, and job run. *Filters* (global): date range, layer, source.
 
 ### Current and history
 
@@ -20,7 +20,7 @@ For data engineers and reviewers: what every gate recorded, and whether anything
 
 | View | Datasets | One row per | Used for |
 |---|---|---|---|
-| Current | `ds_current` | Check: (`layer`, `source_id`, `table_name`, `check_name`, `batch_id`), its newest result | PASS/WARN/FAIL counters, pass rate, the by-layer/source/attribute charts, quarantine, Integration maps |
+| Current | `ds_current` | Check: (`layer`, `source_id`, `table_name`, `check_name`, `batch_id`), its newest result | PASS/WARN/FAIL counters, pass rate, the by-layer/source/attribute/Gold-table charts, Gold lineage, quarantine, match rates |
 | History | `ds_history` | Recorded result (event) in the date range, default the last 90 days | Daily trend, event table |
 
 Current rules:
@@ -45,7 +45,11 @@ PASS: as expected. WARN: worth knowing, not necessarily wrong; the batch or buil
 
 ### Quality attributes
 
-`config/quality_attributes.yml` assigns each check one of Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness, Referential integrity, Reconciliation, or Lineage, by exact name, then the name without a year or concept qualifier (`_2018`, `_household`, `_total`), then a declared name family (`labels_mapped_`, `level_count_`). A Bronze sheet prefix (`2024 Total Pop: `) is removed first. *Recorded count* marks results that are always PASS by construction (rows a cleaning rule changed, matches per method, row kinds). A check that is not listed is **Unclassified**: shown, and covering no attribute. An attribute with no bar has no check, which is not a pass. `tests/test_dashboard.py` fails when a gate can write a check that is not listed.
+`config/quality_attributes.yml` assigns each check one of Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness, Referential integrity, Reconciliation, or Lineage, by exact name, then the name without a year, concept, school-year, or level qualifier (`_2018`, `_household`, `_total`, `_2023-24_bgy`, `/2023-24/ES`), then a declared name family (`labels_mapped_`, `level_count_`, `upstream_run_`). A Bronze sheet prefix (`2024 Total Pop: `) is removed first. *Recorded count* marks results that are always PASS by construction (rows a cleaning rule changed, matches per method, row kinds, and the counts Gold and Analytics gates record with no expected value, such as LGUs per tier or learners per level). A check that is not listed is **Unclassified**: shown, and covering no attribute. An attribute with no bar has no check, which is not a pass. `tests/test_dashboard.py` fails when a gate can write a check that is not listed.
+
+### Gold and Analytics
+
+The Gold tables follow [the data model](../docs/architecture/data-model.md): six dimensions and six facts, each published only after its `90_validate_*` gate passes, then five Analytics outputs. The dashboard shows them through those gates: *current results by table* for each dimension, fact, and output, the fact-to-dimension key checks under Referential integrity (`*_in_dimension`, `*_fk_resolves`, `keys_in_dimension`), and *Gold lineage*, one `upstream_run_<table>` result per Silver or Integration table a Gold gate reads (PASS when that build succeeded in the same job run). It never reads a Gold table itself.
 
 ### Cost
 
@@ -55,5 +59,4 @@ Five small queries over the control tables, the history one limited by the date 
 
 - Rendering in the workspace is not tested by CI: the JSON is checked for structure, and each dataset's SQL is run on DuckDB (made-up rows and a whole local job run). The first deploy must be checked by eye.
 - `run_id` means the job run for every gate; a manual Bronze load outside the job has its own `run_id`.
-- `expected` and `actual` are shown as recorded text, never parsed. Quarantine shares and match rates are therefore not charted; only the HDX map records `match_rate_percent`.
-- No Gold or Analytics checks exist yet; their gates are placeholders. They appear automatically once their gates write results.
+- `expected` and `actual` are shown as recorded text, never parsed, so quarantine shares and match rates are listed, not charted. Only the DepEd school map tests its match rate (FAIL below 99%, per school year and level); the others record it.

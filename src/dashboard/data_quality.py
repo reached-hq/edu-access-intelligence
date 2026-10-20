@@ -45,8 +45,9 @@ DQ = f"{CONTROL}.data_quality_results"
 LAYERS = ["control", "bronze", "silver", "integration", "gold", "analytics"]
 UNCLASSIFIED = "Unclassified"
 RECORDED = "Recorded count"
-# A trailing qualifier a Silver gate adds when it checks each estimate year or census concept separately.
-QUALIFIER = "_([0-9]{4}|household|total)$"
+# A trailing qualifier a gate adds when it checks each estimate year, census concept, school year, or
+# level separately: rows_reconcile_2018, key_unique_household, match_rate_2023-24_bgy, learners/2023-24/ES.
+QUALIFIER = "(/.*|_[0-9]{4}(-[0-9]{2})?(_[a-z_]+)?|_household|_total)$"
 # A leading "<sheet>: " a Bronze gate adds when it checks a workbook sheet by sheet.
 SHEET_PREFIX = "^[^:]+: "
 
@@ -500,38 +501,49 @@ def overview_page(attributes):
             ("layer", "Layer"), ("coverage_state", "Coverage"), ("result_events", "Result events (all time)"),
             ("runs", "Runs"), ("distinct_checks", "Check names"), ("last_checked_at_utc", "Last checked (UTC)")],
               "Layer coverage", "Every pipeline layer. 'No checks recorded yet' means no gate of that layer has "
-              "written a result: not built or not run, never a pass. Gold and Analytics gates are placeholders "
-              "until they are implemented.", 6, 9, 6, 6),
+              "written a result: not built or not run, never a pass.", 6, 9, 6, 6),
         status_bar("current_by_source", "ds_current", "source_id", "Current results by source",
                    CURRENT_SCOPE + " An empty source is a layer-wide check with no source_id.", 0, 15, 6, 7),
         status_bar("current_by_attribute", "ds_current", "quality_attribute", "Current results by quality attribute",
                    "From config/quality_attributes.yml. An attribute missing here has no check, which is not a "
                    "pass. Unclassified checks stay visible; Recorded count is evidence, always PASS.",
                    6, 15, 6, 7),
-        trend("history_by_day", 0, 22, 12, 6),
+        status_bar("gold_by_table", "ds_current", "table_name", "Gold and Analytics: current results by table",
+                   "Each Gold dimension and fact, and each Analytics output, as its gate last checked it "
+                   "(docs/architecture/data-model.md). Fact-to-dimension keys are the Referential integrity checks.",
+                   0, 22, 6, 7, filters=["`layer` IN ('gold', 'analytics')"]),
+        table("gold_lineage", "ds_current", [
+            ("table_name", "Gold table"), ("check_name", "Reads"), ("status", "Status"),
+            ("expected", "Expected"), ("actual", "Job run read"), ("last_checked_at_utc", "Checked (UTC)")],
+              "Gold lineage: upstream builds each Gold table read (current)",
+              "One upstream_run_<table> check per Silver or Integration table a Gold gate reads: PASS when that "
+              "build succeeded in the same job run.", 6, 22, 6, 7, filters=["`check_name` LIKE 'upstream_run_%'"]),
+        trend("history_by_day", 0, 29, 12, 6),
         table("freshness", "ds_freshness", [
             ("source_id", "Source"), ("freshness_status", "Status"), ("freshness_limit", "Limit"),
             ("freshness_observed", "Observed"), ("last_succeeded_at_utc", "Last succeeded delivery (UTC)"),
             ("current_batches", "Current batches"), ("freshness_checked_at_utc", "Checked (UTC)")],
               "Source freshness (current)", "Latest source_fresh check, as the stale_sources alert reads it. "
               "Limits come from config/freshness.yml; a WARN means check the publisher, not that data is wrong.",
-              0, 28, 6, 7),
+              0, 35, 6, 7),
         table("recent_runs", "ds_runs", run_columns, "Job runs (history)",
               "Runs that started in the date range. A Bronze load's own run is rolled up to its job run. "
-              "'no pipeline_runs row' means results exist under a run id with no run record.", 6, 28, 6, 7),
+              "'no pipeline_runs row' means results exist under a run id with no run record.", 6, 35, 6, 7),
         table("quarantine", "ds_current", [
             ("source_id", "Source"), ("batch_period", "School year or dataset"), ("table_name", "Table"),
             ("check_name", "Check"), ("status", "Status"), ("expected", "Expected"),
             ("actual", "Quarantined rows"), ("last_checked_at_utc", "Checked (UTC)")],
               "Quarantine against the 1% limit (current)", "Silver quarantine_rate per delivery: WARN above 0, "
               "FAIL above 1% of that year's Bronze rows. Expected and actual are shown as recorded.",
-              0, 35, 6, 6, filters=["`check_name` LIKE 'quarantine_rate%'"]),
-        table("integration_maps", "ds_current", [
-            ("source_id", "Source"), ("table_name", "Map"), ("check_name", "Check"), ("status", "Status"),
-            ("expected", "Expected"), ("actual", "Actual"), ("quality_attribute", "Attribute")],
-              "Integration and PSGC map checks (current)", "Match outcomes, review state, and match rate as "
-              "each Integration gate records them. Only the HDX map records a match_rate_percent so far.",
-              6, 35, 6, 6, filters=["`layer` = 'integration'"]),
+              0, 42, 6, 6, filters=["`check_name` LIKE 'quarantine_rate%'"]),
+        table("match_rates", "ds_current", [
+            ("source_id", "Source"), ("table_name", "Map"), ("check_name", "Check (school year, level)"),
+            ("status", "Status"), ("expected", "Expected"), ("actual", "Match rate (%)"),
+            ("last_checked_at_utc", "Checked (UTC)")],
+              "PSGC match rates (current)", "As each PSGC map's gate records them. The DepEd school map checks "
+              "each school year and level (match_rate_<school year>_<level>) and FAILs below 99%; the other maps "
+              "record their rate, per census year for school-age population.",
+              6, 42, 6, 6, filters=["`check_name` LIKE 'match_rate%'"]),
         text("definitions", [
             "### Definitions\n", "\n",
             "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (for example rows quarantined "
@@ -546,7 +558,7 @@ def overview_page(attributes):
             "empty, not 0% or 100%, when there is no test result.\n", "\n",
             "**Quality attributes**: " + ", ".join(attributes) + ". Assigned in config/quality_attributes.yml; "
             "a check it does not list is **Unclassified**, shown, and covers no attribute.",
-        ], 0, 41, 12, 5),
+        ], 0, 48, 12, 5),
     ]
     return {"name": "overview", "displayName": "Quality overview", "pageType": "PAGE_TYPE_CANVAS",
             "layoutVersion": "GRID_V1", "layout": layout}
