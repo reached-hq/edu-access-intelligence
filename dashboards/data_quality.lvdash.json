@@ -107,12 +107,12 @@
     },
     {
       "name": "ds_trend",
-      "displayName": "Result events per day",
+      "displayName": "Result events per day, last 7 days",
       "queryLines": [
-        "-- History by day: result events per day, layer, and status in the date range, with a 0 for every\n",
-        "-- day nothing was recorded, so the daily line is continuous. Counts events, not checks.\n",
+        "-- The last seven days: result events per day, layer, and status, with a 0 for every day nothing\n",
+        "-- was recorded, so the daily line is continuous. Counts events, not checks.\n",
         "WITH days AS (\n",
-        "  SELECT explode(sequence(CAST(:history_range.min AS DATE), CAST(:history_range.max AS DATE),\n",
+        "  SELECT explode(sequence(CAST(:trend_week.min AS DATE), CAST(:trend_week.max AS DATE),\n",
         "                          INTERVAL 1 DAY)) AS checked_on_utc\n",
         "),\n",
         "layers AS (SELECT DISTINCT layer FROM edu_access.`01-control`.data_quality_results),\n",
@@ -120,7 +120,7 @@
         "counts AS (\n",
         "  SELECT CAST(q.checked_at_utc AS DATE) AS checked_on_utc, q.layer, q.status, COUNT(*) AS result_events\n",
         "  FROM edu_access.`01-control`.data_quality_results AS q\n",
-        "  WHERE CAST(q.checked_at_utc AS DATE) BETWEEN :history_range.min AND :history_range.max\n",
+        "  WHERE CAST(q.checked_at_utc AS DATE) BETWEEN :trend_week.min AND :trend_week.max\n",
         "  GROUP BY CAST(q.checked_at_utc AS DATE), q.layer, q.status\n",
         ")\n",
         "SELECT d.checked_on_utc, l.layer, s.status, COALESCE(c.result_events, 0) AS result_events\n",
@@ -130,15 +130,15 @@
       ],
       "parameters": [
         {
-          "displayName": "Date range (UTC)",
-          "keyword": "history_range",
+          "displayName": "Trend week (UTC)",
+          "keyword": "trend_week",
           "dataType": "DATE",
           "complexType": "RANGE",
           "defaultSelection": {
             "range": {
               "dataType": "DATE",
               "min": {
-                "value": "now-90d/d"
+                "value": "now-6d/d"
               },
               "max": {
                 "value": "now/d"
@@ -1254,9 +1254,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "4. Trend: check-result events per day (UTC)",
+                "title": "4. Trend: check-result events per day, last 7 days (UTC)",
                 "showDescription": true,
-                "description": "Every recorded result per day in the date range, 0 on days nothing ran. A check that ran in three runs is three events: activity and direction, not the number of checks. Follows the date and layer filters, not source."
+                "description": "Every recorded result per day over the last seven days, 0 on days nothing ran. A check that ran in three runs is three events: activity and direction, not the number of checks. Always the last week; follows the layer filter, not date or source."
               },
               "data": {
                 "queryName": "main_query"
@@ -2514,19 +2514,6 @@
                 }
               },
               {
-                "name": "g_dates_ds_trend",
-                "query": {
-                  "datasetName": "ds_trend",
-                  "parameters": [
-                    {
-                      "name": "history_range",
-                      "keyword": "history_range"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
                 "name": "g_dates_ds_runs",
                 "query": {
                   "datasetName": "ds_runs",
@@ -2548,10 +2535,6 @@
                   {
                     "parameterName": "history_range",
                     "queryName": "g_dates_ds_history"
-                  },
-                  {
-                    "parameterName": "history_range",
-                    "queryName": "g_dates_ds_trend"
                   },
                   {
                     "fieldName": "run_started_at_utc",

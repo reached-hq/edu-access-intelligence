@@ -45,7 +45,8 @@ def dataset_sql(board, name, start="2000-01-01", end="2100-01-01"):
     """The dataset's SQL as Databricks gets it, with the date range bound and one DuckDB spelling."""
     dataset = next(d for d in board["datasets"] if d["name"] == name)
     sql = "".join(dataset["queryLines"])
-    sql = sql.replace(":history_range.min", f"DATE '{start}'").replace(":history_range.max", f"DATE '{end}'")
+    for keyword in ("history_range", "trend_week"):
+        sql = sql.replace(f":{keyword}.min", f"DATE '{start}'").replace(f":{keyword}.max", f"DATE '{end}'")
     return sql.replace("explode(sequence(", "unnest(generate_series(").replace("timestampdiff(SECOND, ", "datediff('second', ")
 
 
@@ -411,6 +412,13 @@ def test_every_check_a_local_job_run_writes_is_classified_and_every_dataset_runs
     finally:
         store.close()
 
+
+
+def test_the_trend_is_its_own_last_seven_days(board):
+    trend = next(d for d in board["datasets"] if d["name"] == "ds_trend")
+    assert trend["parameters"][0]["defaultSelection"]["range"]["min"] == {"value": "now-6d/d"}
+    date_filter = next(w for _, w, _ in widgets(board) if w["name"] == "g_dates")
+    assert "ds_trend" not in {q["query"]["datasetName"] for q in date_filter["queries"]}
 
 
 def test_the_daily_trend_has_a_zero_for_every_day_nothing_ran(store, board):

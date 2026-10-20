@@ -204,10 +204,10 @@ def history_sql():
 
 def trend_sql():
     return [
-        "-- History by day: result events per day, layer, and status in the date range, with a 0 for every",
-        "-- day nothing was recorded, so the daily line is continuous. Counts events, not checks.",
+        "-- The last seven days: result events per day, layer, and status, with a 0 for every day nothing",
+        "-- was recorded, so the daily line is continuous. Counts events, not checks.",
         "WITH days AS (",
-        "  SELECT explode(sequence(CAST(:history_range.min AS DATE), CAST(:history_range.max AS DATE),",
+        "  SELECT explode(sequence(CAST(:trend_week.min AS DATE), CAST(:trend_week.max AS DATE),",
         "                          INTERVAL 1 DAY)) AS checked_on_utc",
         "),",
         f"layers AS (SELECT DISTINCT layer FROM {DQ}),",
@@ -215,7 +215,7 @@ def trend_sql():
         "counts AS (",
         "  SELECT CAST(q.checked_at_utc AS DATE) AS checked_on_utc, q.layer, q.status, COUNT(*) AS result_events",
         f"  FROM {DQ} AS q",
-        f"  WHERE {IN_RANGE}",
+        "  WHERE CAST(q.checked_at_utc AS DATE) BETWEEN :trend_week.min AND :trend_week.max",
         "  GROUP BY CAST(q.checked_at_utc AS DATE), q.layer, q.status",
         ")",
         "SELECT d.checked_on_utc, l.layer, s.status, COALESCE(c.result_events, 0) AS result_events",
@@ -308,6 +308,17 @@ def freshness_sql():
     ]
 
 
+def trend_parameter():
+    """The trend's own window, the last seven days including today; the global date range does not change it."""
+    return {
+        "displayName": "Trend week (UTC)",
+        "keyword": "trend_week",
+        "dataType": "DATE",
+        "complexType": "RANGE",
+        "defaultSelection": {"range": {"dataType": "DATE", "min": {"value": "now-6d/d"}, "max": {"value": "now/d"}}},
+    }
+
+
 def history_parameter():
     return {
         "displayName": "Date range (UTC)",
@@ -332,7 +343,7 @@ def datasets(rows):
              "expression": "SUM(`is_test_pass`) * 1.0 / NULLIF(SUM(`is_test`), 0)"},
         ]),
         dataset("ds_history", "Check result events", history_sql(), parameters=[history_parameter()]),
-        dataset("ds_trend", "Result events per day", trend_sql(), parameters=[history_parameter()]),
+        dataset("ds_trend", "Result events per day, last 7 days", trend_sql(), parameters=[trend_parameter()]),
         dataset("ds_runs", "Job runs", runs_sql()),
         dataset("ds_freshness", "Source freshness", freshness_sql()),
     ]
@@ -471,10 +482,10 @@ def trend(name, x, y, width, height):
                     {"value": status, "color": color} for status, color in STATUS_COLORS.items()]},
                           "displayName": "Status"},
             },
-            "frame": _frame("4. Trend: check-result events per day (UTC)",
-                            "Every recorded result per day in the date range, 0 on days nothing ran. A check that "
-                            "ran in three runs is three events: activity and direction, not the number of checks. "
-                            "Follows the date and layer filters, not source."),
+            "frame": _frame("4. Trend: check-result events per day, last 7 days (UTC)",
+                            "Every recorded result per day over the last seven days, 0 on days nothing ran. A check "
+                            "that ran in three runs is three events: activity and direction, not the number of "
+                            "checks. Always the last week; follows the layer filter, not date or source."),
         },
     }, x, y, width, height)
 
@@ -559,7 +570,7 @@ def multi_filter(name, title, field, datasets_, x, y, width, height=2, default=N
 
 
 def date_filter(name, x, y, width, height=2):
-    by_parameter = ["ds_history", "ds_trend"]
+    by_parameter = ["ds_history"]
     queries = [{"name": f"{name}_{d}", "query": {"datasetName": d, "parameters": [
         {"name": "history_range", "keyword": "history_range"}], "disaggregated": False}} for d in by_parameter]
     queries.append({"name": f"{name}_ds_runs", "query": {"datasetName": "ds_runs",
