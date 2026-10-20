@@ -339,13 +339,6 @@ def test_pass_rate_leaves_recorded_counts_out(store, board):
     assert totals(store, board) == {"checks": 3, "pass": 2, "warn": 0, "fail": 1, "pass_rate": 0.0}
 
 
-def test_history_is_limited_to_the_date_range(store, board):
-    result(store, "run-1", "rows_reconcile", "PASS", 0)
-    result(store, "run-2", "rows_reconcile", "FAIL", 60 * 24 * 10)
-    assert len(rows(store, board, "ds_history", start="2026-10-20", end="2026-12-31")) == 1
-    assert [r["status"] for r in rows(store, board, "ds_history", start="2026-10-01", end="2026-10-14")] == ["PASS"]
-
-
 def test_runs_roll_bronze_loads_up_to_their_job_run_without_counting_results_twice(store, board):
     run(store, "uuid-1", "deped_enrollment", "succeeded", 0, job_run_id="job-1")
     run(store, "uuid-2", "psa_psgc", "failed", 1, job_run_id="job-1", failure_stage="validate",

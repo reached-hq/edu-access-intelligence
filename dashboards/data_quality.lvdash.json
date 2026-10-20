@@ -944,7 +944,6 @@
               "encodings": {
                 "x": {
                   "fieldName": "layer",
-                  "displayName": "Layer",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -958,7 +957,8 @@
                         "analytics"
                       ]
                     }
-                  }
+                  },
+                  "displayName": "Layer"
                 },
                 "y": {
                   "fieldName": "count(*)",
@@ -1032,6 +1032,7 @@
                       "expression": "MEASURE(`Pass rate (tests)`)"
                     }
                   ],
+                  "disaggregated": false,
                   "filters": [
                     {
                       "expression": "`layer` IN ('control', 'bronze', 'silver', 'integration')"
@@ -1039,8 +1040,7 @@
                     {
                       "expression": "`quality_attribute` IN ('Completeness', 'Uniqueness', 'Validity', 'Accuracy', 'Consistency', 'Timeliness')"
                     }
-                  ],
-                  "disaggregated": false
+                  ]
                 }
               }
             ],
@@ -1127,12 +1127,12 @@
                       "expression": "COUNT(`*`)"
                     }
                   ],
+                  "disaggregated": false,
                   "filters": [
                     {
                       "expression": "`status` IN ('WARN', 'FAIL')"
                     }
-                  ],
-                  "disaggregated": false
+                  ]
                 }
               }
             ],

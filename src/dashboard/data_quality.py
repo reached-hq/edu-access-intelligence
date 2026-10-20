@@ -1,29 +1,8 @@
 """The data-quality dashboard, `dashboards/data_quality.lvdash.json`, generated (#97).
 
-The dashboard reads only the control tables in `01-control`: what every gate
-recorded in `data_quality_results`, the runs in `pipeline_runs`, and the
-deliveries in `ingestion_batches` and `current_batches`. It never reads a
-Bronze, Silver, Integration, or Gold table, so it works before Gold exists, and
-a layer whose gates have not run yet shows "No checks recorded yet", not PASS.
-
-`data_quality_results` is append-only: a check is recorded again every run. So
-the dashboard keeps two views apart (see dashboards/README.md):
-
-- current: the newest result of each check, one row per (layer, source_id,
-  table_name, check_name, batch_id), all its PASS/WARN/FAIL counts and pass
-  rate come from this. Results of a superseded delivery are left out; results
-  of a failed or blocked one stay until it is retried.
-- history: every recorded result, in the dashboard's date range, for the trend
-  and the explorer. It counts result events, never checks.
-
-Which quality attribute a check tests comes from one reviewed file,
-`config/quality_attributes.yml`, written into the current dataset only; a
-check it does not list is shown as Unclassified.
-
-Kept cheap on the shared Free Edition warehouse: five small datasets over the
-control tables; only current rows are classified; history and the trend filter
-the timestamp itself, so Delta skips older files; no refresh schedule, and
-nothing new is created or persisted.
+It reads only the control tables in `01-control`. Current results (each check's newest) and history
+(every recorded result) are kept apart, and each check's quality attribute comes from
+`config/quality_attributes.yml`; see dashboards/README.md for the rules and the cost.
 
     python -m src.dashboard.data_quality > dashboards/data_quality.lvdash.json
 """
@@ -56,6 +35,7 @@ DARK_SAGE = "#5F7046"   # sage darkened for text-weight accents (selection, tab 
 CANVAS = "#F5F3DC"      # page background, chosen by the team
 STATUS_COLORS = {"PASS": SAGE, "WARN": ORANGE, "FAIL": RED}
 HISTORY_DAYS = 90
+LAYER_ORDER = ["control", "bronze", "silver", "integration", "gold", "analytics"]
 
 
 class CatalogError(Exception):
@@ -395,100 +375,19 @@ def _status_color(statuses=tuple(STATUS_COLORS)):
         {"value": status, "color": STATUS_COLORS[status]} for status in statuses]}}
 
 
-def status_bar(name, dataset, dimension, title, description, x, y, width, height, filters, statuses):
-    """Result count per value of `dimension`, stacked by status, horizontal so long names stay readable."""
-    query = {"datasetName": dataset,
-             "fields": [_field(dimension), _field("status"), _field("count(*)", "COUNT(`*`)")],
-             "filters": [{"expression": f} for f in filters],
-             "disaggregated": False}
+def _axis(field, kind, label, **scale):
+    return {"fieldName": field, "scale": {"type": kind, **scale}, "displayName": label}
+
+
+def chart(name, widget_type, dataset, fields, encodings, title, description, x, y, width, height, filters=()):
+    """A bar, line, or heatmap; `encodings` name the `fields` it selects."""
+    query = {"datasetName": dataset, "fields": fields, "disaggregated": False}
+    if filters:
+        query["filters"] = [{"expression": f} for f in filters]
     return _place({
         "name": name,
         "queries": [{"name": "main_query", "query": query}],
-        "spec": {
-            "version": 3, "widgetType": "bar",
-            "encodings": {
-                "x": {"fieldName": "count(*)", "scale": {"type": "quantitative"}, "displayName": "Results"},
-                "y": {"fieldName": dimension, "scale": {"type": "categorical"},
-                      "displayName": dimension.replace("_", " ").capitalize()},
-                "color": _status_color(statuses),
-            },
-            "frame": _frame(title, description),
-        },
-    }, x, y, width, height)
-
-
-LAYER_ORDER = ["control", "bronze", "silver", "integration", "gold", "analytics"]
-
-
-def layer_bar(name, title, description, x, y, width, height):
-    """Current results per layer, in pipeline order, stacked by status."""
-    return _place({
-        "name": name,
-        "queries": [{"name": "main_query", "query": {
-            "datasetName": "ds_current",
-            "fields": [_field("layer"), _field("status"), _field("count(*)", "COUNT(`*`)")],
-            "disaggregated": False}}],
-        "spec": {
-            "version": 3, "widgetType": "bar",
-            "encodings": {
-                "x": {"fieldName": "layer", "displayName": "Layer",
-                      "scale": {"type": "categorical", "sort": {"by": "custom-order", "orderedValues": LAYER_ORDER}}},
-                "y": {"fieldName": "count(*)", "scale": {"type": "quantitative"}, "displayName": "Results"},
-                "color": _status_color(),
-                "label": {"show": True},
-            },
-            "frame": _frame(title, description),
-        },
-    }, x, y, width, height)
-
-
-def heatmap(name, x_field, y_field, value_name, value_expression, value_label, ramp, title, description,
-            x, y, width, height, value_format, filters):
-    """A grid of x by y on the current dataset, colored by one aggregate; color only, hover for the value."""
-    color = {"fieldName": value_name, "displayName": value_label, "format": value_format,
-             "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential",
-                                                             "colors": {"start": ramp[0], "end": ramp[1]}}}}
-    return _place({
-        "name": name,
-        "queries": [{"name": "main_query", "query": {
-            "datasetName": "ds_current",
-            "fields": [_field(x_field), _field(y_field), _field(value_name, value_expression)],
-            "filters": [{"expression": f} for f in filters],
-            "disaggregated": False}}],
-        "spec": {
-            "version": 3, "widgetType": "heatmap",
-            "encodings": {
-                "x": {"fieldName": x_field, "scale": {"type": "categorical"},
-                      "displayName": x_field.replace("_", " ").capitalize()},
-                "y": {"fieldName": y_field, "scale": {"type": "categorical"},
-                      "displayName": y_field.replace("_", " ").capitalize()},
-                "color": color,
-                "label": {"show": False},
-            },
-            "frame": _frame(title, description),
-        },
-    }, x, y, width, height)
-
-
-def trend(name, x, y, width, height):
-    return _place({
-        "name": name,
-        "queries": [{"name": "main_query", "query": {
-            "datasetName": "ds_trend",
-            "fields": [_field("checked_on_utc"), _field("status"), _field("sum(result_events)", "SUM(`result_events`)")],
-            "disaggregated": False}}],
-        "spec": {
-            "version": 3, "widgetType": "line",
-            "encodings": {
-                "x": {"fieldName": "checked_on_utc", "scale": {"type": "temporal"}, "displayName": "Day (UTC)"},
-                "y": {"fieldName": "sum(result_events)", "scale": {"type": "quantitative"}, "displayName": "Result events"},
-                "color": _status_color(),
-            },
-            "frame": _frame("4. Trend: check-result events per day, last 7 days (UTC)",
-                            "Every recorded result per day over the last seven days, 0 on days nothing ran. A check "
-                            "that ran in three runs is three events: activity and direction, not the number of "
-                            "checks. Always the last week; follows the layer filter, not date or source."),
-        },
+        "spec": {"version": 3, "widgetType": widget_type, "encodings": encodings, "frame": _frame(title, description)},
     }, x, y, width, height)
 
 
@@ -592,6 +491,8 @@ def date_filter(name, x, y, width, height=2):
 # ---------------------------------------------------------------- pages
 
 PERCENT = {"type": "number-percent", "decimalPlaces": {"type": "max", "places": 1}}
+PASS_RATE = _field("measure(Pass rate (tests))", "MEASURE(`Pass rate (tests)`)")
+COUNT = _field("count(*)", "COUNT(`*`)")
 CURRENT_SCOPE = ("Current results: the newest result of each check, from whichever run checked it last. "
                  "Counts are check results, not data rows.")
 
@@ -621,7 +522,7 @@ def overview_page(attributes, core):
         counter("kpi_pass", "ds_current", "sum(is_pass)", "SUM(`is_pass`)", "PASS", "Current results", 2, 2),
         counter("kpi_warn", "ds_current", "sum(is_warn)", "SUM(`is_warn`)", "WARN", "Current results", 4, 2),
         counter("kpi_fail", "ds_current", "sum(is_fail)", "SUM(`is_fail`)", "FAIL", "Current results", 6, 2),
-        counter("kpi_pass_rate", "ds_current", "measure(Pass rate (tests))", "MEASURE(`Pass rate (tests)`)",
+        counter("kpi_pass_rate", "ds_current", PASS_RATE["name"], PASS_RATE["expression"],
                 "Pass rate (tests)", "PASS / (PASS + WARN + FAIL) of current tests. Not a score.", 8, 2, PERCENT),
         counter("kpi_stale", "ds_freshness", "sum(is_stale)", "SUM(`is_stale`)", "Stale sources",
                 "source_fresh WARNs, as the stale_sources alert emails", 10, 2),
@@ -629,24 +530,45 @@ def overview_page(attributes, core):
         *[donut(f"donut_{name.lower()}", name, means, i * (12 // len(core)), 5, 12 // len(core), 7)
           for i, (name, means) in enumerate(core)],
         # 1. Where: which layer holds the WARNs and FAILs.
-        layer_bar("current_by_layer", "1. Where: current results by layer and status",
-                CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.", 0, 12, 6, 7),
+        chart("current_by_layer", "bar", "ds_current", [_field("layer"), _field("status"), COUNT],
+              {"x": _axis("layer", "categorical", "Layer", sort={"by": "custom-order", "orderedValues": LAYER_ORDER}),
+               "y": _axis("count(*)", "quantitative", "Results"), "color": _status_color(), "label": {"show": True}},
+              "1. Where: current results by layer and status",
+              CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.",
+              0, 12, 6, 7),
         # 2. Which source is weak on which attribute.
-        heatmap("current_by_source", "quality_attribute", "source_id", "measure(Pass rate (tests))",
-                "MEASURE(`Pass rate (tests)`)", "Pass rate (tests)", (STATUS_COLORS["FAIL"], STATUS_COLORS["PASS"]),
-                "2. Which source: pass rate by source and core attribute",
-                "Color only: PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute, red low to "
-                "sage high (hover for the value); an empty cell has no "
-                "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3.",
-                0, 19, 6, 7, PERCENT, ["`layer` IN ('control', 'bronze', 'silver', 'integration')",
-                                       f"`quality_attribute` IN ({core_list})"]),
+        chart("current_by_source", "heatmap", "ds_current",
+              [_field("quality_attribute"), _field("source_id"), PASS_RATE],
+              {"x": _axis("quality_attribute", "categorical", "Quality attribute"),
+               "y": _axis("source_id", "categorical", "Source id"),
+               "color": {"fieldName": PASS_RATE["name"], "displayName": "Pass rate (tests)", "format": PERCENT,
+                         "scale": {"type": "quantitative", "colorRamp": {
+                             "mode": "custom-sequential", "colors": {"start": RED, "end": SAGE}}}},
+               "label": {"show": False}},
+              "2. Which source: pass rate by source and core attribute",
+              "Color only: PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute, red low to "
+              "sage high (hover for the value); an empty cell has no "
+              "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3.",
+              0, 19, 6, 7, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
+                                    f"`quality_attribute` IN ({core_list})"]),
         # 3. What needs attention: which sources hold the WARNs and FAILs now.
-        status_bar("not_pass_by_source", "ds_current", "source_id", "3. What needs attention: WARN and FAIL by source",
-                   "Only what is not PASS: current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
-                   "most first. Open issues on Pipeline health lists each check.",
-                   6, 12, 6, 7, [NOT_PASS], ("WARN", "FAIL")),
+        chart("not_pass_by_source", "bar", "ds_current", [_field("source_id"), _field("status"), COUNT],
+              {"x": _axis("count(*)", "quantitative", "Results"), "y": _axis("source_id", "categorical", "Source id"),
+               "color": _status_color(("WARN", "FAIL"))},
+              "3. What needs attention: WARN and FAIL by source",
+              "Only what is not PASS: current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
+              "most first. Open issues on Pipeline health lists each check.",
+              6, 12, 6, 7, filters=[NOT_PASS]),
         # 4. Trend.
-        trend("history_by_day", 6, 19, 6, 7),
+        chart("history_by_day", "line", "ds_trend",
+              [_field("checked_on_utc"), _field("status"), _field("sum(result_events)", "SUM(`result_events`)")],
+              {"x": _axis("checked_on_utc", "temporal", "Day (UTC)"),
+               "y": _axis("sum(result_events)", "quantitative", "Result events"), "color": _status_color()},
+              "4. Trend: check-result events per day, last 7 days (UTC)",
+              "Every recorded result per day over the last seven days, 0 on days nothing ran. A check "
+              "that ran in three runs is three events: activity and direction, not the number of "
+              "checks. Always the last week; follows the layer filter, not date or source.",
+              6, 19, 6, 7),
         text("definitions", [
             "### Definitions\n", "\n",
             "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (rows quarantined within the "
