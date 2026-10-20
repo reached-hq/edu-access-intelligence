@@ -967,7 +967,7 @@ The workbook repeats `deped_enrollment` for its schools. This was checked school
 - Names and place names are the same apart from spacing, case, and quote marks.
 - `school_subclassification`, `school_type` and `modified_coc` relabel `school_management`, `annex_status` and the three `offers_*` flags.
 
-So Silver carries 15 value columns (the key, the codes, their flags, and the coordinates) plus lineage, out of the 88 in Bronze. The [data dictionary](../data/silver/deped-psgc-coordinates-clean.md#not-carried-from-bronze) lists every column not carried, with its reason. They all stay in Bronze.
+So of the 88 workbook columns Silver carries 7 (`school_id`, the four codes, `longitude`, `latitude`), plus 8 derived from them (`school_year`, the flags, the null reasons, the published coordinate text) and lineage; the other 81 stay in Bronze. The [data dictionary](../data/silver/deped-psgc-coordinates-clean.md#not-carried-from-bronze) lists every column not carried, with its reason. They all stay in Bronze.
 
 ### Cleaning rules (public-school locations)
 

@@ -39,7 +39,7 @@ Every Bronze column stays in `deped_psgc_coordinates_raw`. These are not carried
 | `school_name`, `region`, `division`, `district`, `province`, `municipality`, `legislative_district`, `barangay`, `street_address` | The same values as `deped_enrollment` for the same schools, apart from spacing, case, quote marks, and `-` or `n/a` where the CSV is blank; `deped_enrollment_clean` cleans them |
 | `sector` | `Public` on every row; checked here by the scope rule, then not carried |
 | `school_subclassification`, `school_type` | Relabels of `school_management` and `annex_status` in `deped_enrollment` (`DepED Managed` = `DepEd`, `School with no Annexes` = `Standalone School`, …) |
-| `curricular_offering_classification`, `modified_coc` | `modified_coc` maps one to one to `offers_es`, `offers_jhs`, `offers_shs` in `deped_enrollment` for every school |
+| `modified_coc`, `curricular_offering_classification` | `modified_coc` maps one to one to `offers_es`, `offers_jhs`, `offers_shs` in `deped_enrollment` for every school; each of the 14 `curricular_offering_classification` labels rolls up to one `modified_coc` (0 exceptions), and its finer detail (e.g. Kindergarten offered) stays in Bronze |
 | `psgc_region_name`, `psgc_province_name`, `psgc_city_municipality_name`, `psgc_barangay_name` | Names come from `psa_psgc` through the code |
 | `urban_rural`, `income_class`, `income_class_long` | PSA and DOF classifications, carried by `psa_psgc` and Gold's geography dimensions through the code |
 | `urp`, `implementing_unit` | Undocumented or unused by AP1 to AP4, and in no other source; kept in Bronze if they are ever needed |

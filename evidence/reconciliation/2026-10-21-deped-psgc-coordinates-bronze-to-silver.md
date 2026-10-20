@@ -4,7 +4,7 @@ Issue #217 · local run (DuckDB) only; nothing has run on Databricks · 2026-10-
 
 ## The claim
 
-On the real public-only workbook, `deped_psgc_coordinates_clean` has one row per public school, 47,818, with 0 quarantined. Every row reconciles to its Bronze row. All 35 gate checks pass, and a second build gives identical content. It keeps 15 value columns: the key, the four PSGC codes and their flags, and the coordinates. The 73 other workbook columns stay in Bronze; each one is shown below to repeat another source or to be unused. Every PSGC code it keeps is in the PSGC 2Q 2026 master.
+On the real public-only workbook, `deped_psgc_coordinates_clean` has one row per public school, 47,818, with 0 quarantined. Every row reconciles to its Bronze row. All 35 gate checks pass, and a second build gives identical content. Of the workbook's 88 columns it carries 7 (`school_id`, the four PSGC codes, `longitude`, `latitude`), with 8 columns derived from them (`school_year` from provenance, the flags, the null reasons, the published coordinate text); the other 81 stay in Bronze, each shown below to repeat another source or to be unused. Every PSGC code it keeps is in the PSGC 2Q 2026 master.
 
 **Not claimed:** anything on Databricks, and anything about whether a coordinate is the right place (profile S-1).
 
@@ -76,9 +76,9 @@ All 47,818 schools are in `enrollment_2023-24.csv` (0 missing).
 | `school_name`, `district`, `province`, `municipality`, `barangay` | same columns (`district` = `school_district`) | equal ignoring case and spacing for all but 12 names (quote marks: `"Cory"` vs `'Cory'`) |
 | `street_address` | same column | equal, except `-`, `n/a` and `N/A` where the CSV is blank |
 | `school_subclassification`, `school_type` | `school_management`, `annex_status` | relabels: `DepED Managed`/`DepEd` 47,802, `School with no Annexes`/`Standalone School` 45,611, … |
-| `modified_coc` | `offers_es`, `offers_jhs`, `offers_shs` | one to one for every school (e.g. `Purely ES` = True/False/False, 36,999) |
+| `modified_coc`, `curricular_offering_classification` | `offers_es`, `offers_jhs`, `offers_shs` | `modified_coc` maps one to one to the three flags for every school (e.g. `Purely ES` = True/False/False, 36,999); each of the 14 `curricular_offering_classification` labels rolls up to exactly one `modified_coc` (0 exceptions). Its finer detail (e.g. whether Kindergarten is offered) stays in Bronze |
 | `psgc_*_name`, `urban_rural`, `income_class`, `income_class_long` | `psa_psgc` through the code | reference data, already in Silver and Gold |
-| `urp`, `implementing_unit`, `curricular_offering_classification` | none | unused by AP1 to AP4 |
+| `urp`, `implementing_unit` | none | unused by AP1 to AP4 |
 
 ## Same issues in other Silver tables
 
