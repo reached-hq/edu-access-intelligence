@@ -5,4 +5,5 @@ development workflow. Add job setup, deployment, monitoring, validation, and rec
 runbooks only as those capabilities are implemented and verified.
 
 - [Integration](integration.md)
+- [Failure recovery](runbook.md)
 - [Validation: totals from source to Gold](validation.md)

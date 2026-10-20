@@ -286,6 +286,51 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     store.close()
 
 
+def test_a_gate_code_bug_is_fixed_and_recovered_by_rerun(repo, tmp_path):
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    first = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None))
+    assert set(first.values()) == {"succeeded"}
+    store = DuckDBStore(db)
+    silver_query = ("SELECT * EXCLUDE (run_id, cleaned_at_utc, code_revision) FROM "
+                    "edu_access.`03-silver`.deped_enrollment_clean ORDER BY school_year, school_id")
+    gold_query = ("SELECT * FROM edu_access.`05-gold`.fact_school_enrollment "
+                  "ORDER BY school_year, school_id, education_level_code")
+    good_silver, good_gold = store.query(silver_query), store.query(gold_query)
+    store.close()
+
+    gate = repo / "etl" / "02_bronze" / "90_validate_deped_enrollment_raw.sql"
+    good_gate = gate.read_text(encoding="utf-8")
+    marker = "-- Stop here if anything failed in this run."
+    injected_failure = """INSERT INTO edu_access.`01-control`.data_quality_results
+  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
+VALUES (:run_id, NULL, 'deped_enrollment', 'bronze', 'edu_access.02-bronze.deped_enrollment_raw',
+        'made_up_code_bug', 'FAIL', 'working gate', 'broken gate', current_timestamp(), :code_revision);
+
+"""
+    gate.write_text(good_gate.replace(marker, injected_failure + marker), encoding="utf-8")
+    failed = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
+    assert failed["90_validate_deped_enrollment_raw"] == "failed"
+    assert failed["01_clean_deped_enrollment"] == "upstream_failed"
+    store = DuckDBStore(db)
+    assert store.query(silver_query) == good_silver
+    assert store.query(gold_query) == good_gold
+    assert store.query(f"SELECT status FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
+                       "AND check_name = 'made_up_code_bug'") == [("FAIL",)]
+    store.close()
+
+    gate.write_text(good_gate, encoding="utf-8")
+    recovered = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-3", log=lambda *_: None))
+    assert set(recovered.values()) == {"succeeded"}
+    store = DuckDBStore(db)
+    assert store.query(silver_query) == good_silver
+    assert store.query(gold_query) == good_gold
+    assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-3' "
+                       "AND status = 'FAIL'") == [(0,)]
+    store.close()
+
+
 def test_a_failed_lane_stops_only_the_tasks_that_read_it(repo, tmp_path):
     """The annex map reads enrollment only, so a failed poverty lane does not stop it; the fan-in
     still records the failed lane and fails the run (D-051)."""
