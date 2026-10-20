@@ -49,7 +49,10 @@ QUALIFIER = "(/.*|_[0-9]{4}(-[0-9]{2})?(_[a-z_]+)?|_household|_total)$"
 # A leading "<sheet>: " a Bronze gate adds when it checks a workbook sheet by sheet.
 SHEET_PREFIX = "^[^:]+: "
 
-STATUS_COLORS = {"PASS": "#009E73", "WARN": "#E69F00", "FAIL": "#D55E00"}
+# The team's palette: orange, cream, sage, light sage; plus red for FAIL.
+ORANGE, CREAM, SAGE, LIGHT_SAGE, RED = "#DB9558", "#FCF9EA", "#97A87A", "#A8BBA3", "#C0392B"
+DARK_SAGE = "#5F7046"   # sage darkened for text-weight accents (selection, tab underline)
+STATUS_COLORS = {"PASS": SAGE, "WARN": ORANGE, "FAIL": RED}
 HISTORY_DAYS = 90
 
 
@@ -473,7 +476,7 @@ def donut(name, attribute, means, x, y, width, height):
              "encoding": {
                  "theta": {"field": "share", "type": "quantitative", "stack": True},
                  "color": {"field": "part", "type": "nominal", "legend": None,
-                           "scale": {"domain": ["PASS", "Not PASS"], "range": [STATUS_COLORS["PASS"], "#D9D9D9"]}},
+                           "scale": {"domain": ["PASS", "Not PASS"], "range": [STATUS_COLORS["PASS"], "#E6E1CF"]}},
                  "order": {"field": "part", "sort": "descending"},
                  "tooltip": [{"field": "passed", "type": "quantitative", "title": "PASS tests"},
                              {"field": "tests", "type": "quantitative", "title": "Current tests"}]}},
@@ -726,13 +729,12 @@ def dashboard(repo_root=REPO_ROOT):
         "datasets": datasets(rows),
         "pages": pages,
         "uiSettings": {"theme": {
-            "canvasBackgroundColor": {"light": "#F7F8FA", "dark": "#1F272D"},
+            "canvasBackgroundColor": {"light": CREAM, "dark": "#1F272D"},
             "widgetBackgroundColor": {"light": "#FFFFFF", "dark": "#11171C"},
             "widgetBorderColor": {"light": "#FFFFFF", "dark": "#11171C"},
-            "fontColor": {"light": "#11171C", "dark": "#E8ECF0"},
-            "selectionColor": {"light": "#2272B4", "dark": "#8ACAFF"},
-            "visualizationColors": ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#D55E00", "#56B4E9",
-                                    "#999999", "#F0E442"],
+            "fontColor": {"light": "#2B2B24", "dark": "#E8ECF0"},
+            "selectionColor": {"light": DARK_SAGE, "dark": LIGHT_SAGE},
+            "visualizationColors": [SAGE, ORANGE, LIGHT_SAGE, DARK_SAGE, "#B8703A", "#C9D6C4", "#8C8A78"],
             "widgetHeaderAlignment": "LEFT",
         }},
     }

@@ -525,7 +525,7 @@
               "widgetType": "custom-vega-viz",
               "jsonSpec": {
                 "type": "vega-lite",
-                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#97A87A\", \"#E6E1CF\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
               },
               "encodings": {
                 "fields": [
@@ -587,7 +587,7 @@
               "widgetType": "custom-vega-viz",
               "jsonSpec": {
                 "type": "vega-lite",
-                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#97A87A\", \"#E6E1CF\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
               },
               "encodings": {
                 "fields": [
@@ -649,7 +649,7 @@
               "widgetType": "custom-vega-viz",
               "jsonSpec": {
                 "type": "vega-lite",
-                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#97A87A\", \"#E6E1CF\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
               },
               "encodings": {
                 "fields": [
@@ -711,7 +711,7 @@
               "widgetType": "custom-vega-viz",
               "jsonSpec": {
                 "type": "vega-lite",
-                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#97A87A\", \"#E6E1CF\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
               },
               "encodings": {
                 "fields": [
@@ -773,7 +773,7 @@
               "widgetType": "custom-vega-viz",
               "jsonSpec": {
                 "type": "vega-lite",
-                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#97A87A\", \"#E6E1CF\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
               },
               "encodings": {
                 "fields": [
@@ -835,7 +835,7 @@
               "widgetType": "custom-vega-viz",
               "jsonSpec": {
                 "type": "vega-lite",
-                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#97A87A\", \"#E6E1CF\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
               },
               "encodings": {
                 "fields": [
@@ -927,15 +927,15 @@
                     "mappings": [
                       {
                         "value": "PASS",
-                        "color": "#009E73"
+                        "color": "#97A87A"
                       },
                       {
                         "value": "WARN",
-                        "color": "#E69F00"
+                        "color": "#DB9558"
                       },
                       {
                         "value": "FAIL",
-                        "color": "#D55E00"
+                        "color": "#C0392B"
                       }
                     ]
                   },
@@ -1023,8 +1023,8 @@
                     "colorRamp": {
                       "mode": "custom-sequential",
                       "colors": {
-                        "start": "#D55E00",
-                        "end": "#009E73"
+                        "start": "#C0392B",
+                        "end": "#97A87A"
                       }
                     }
                   },
@@ -1114,15 +1114,15 @@
                     "mappings": [
                       {
                         "value": "PASS",
-                        "color": "#009E73"
+                        "color": "#97A87A"
                       },
                       {
                         "value": "WARN",
-                        "color": "#E69F00"
+                        "color": "#DB9558"
                       },
                       {
                         "value": "FAIL",
-                        "color": "#D55E00"
+                        "color": "#C0392B"
                       }
                     ]
                   },
@@ -1198,15 +1198,15 @@
                     "mappings": [
                       {
                         "value": "PASS",
-                        "color": "#009E73"
+                        "color": "#97A87A"
                       },
                       {
                         "value": "WARN",
-                        "color": "#E69F00"
+                        "color": "#DB9558"
                       },
                       {
                         "value": "FAIL",
-                        "color": "#D55E00"
+                        "color": "#C0392B"
                       }
                     ]
                   },
@@ -2664,7 +2664,7 @@
   "uiSettings": {
     "theme": {
       "canvasBackgroundColor": {
-        "light": "#F7F8FA",
+        "light": "#FCF9EA",
         "dark": "#1F272D"
       },
       "widgetBackgroundColor": {
@@ -2676,22 +2676,21 @@
         "dark": "#11171C"
       },
       "fontColor": {
-        "light": "#11171C",
+        "light": "#2B2B24",
         "dark": "#E8ECF0"
       },
       "selectionColor": {
-        "light": "#2272B4",
-        "dark": "#8ACAFF"
+        "light": "#5F7046",
+        "dark": "#A8BBA3"
       },
       "visualizationColors": [
-        "#0072B2",
-        "#E69F00",
-        "#009E73",
-        "#CC79A7",
-        "#D55E00",
-        "#56B4E9",
-        "#999999",
-        "#F0E442"
+        "#97A87A",
+        "#DB9558",
+        "#A8BBA3",
+        "#5F7046",
+        "#B8703A",
+        "#C9D6C4",
+        "#8C8A78"
       ],
       "widgetHeaderAlignment": "LEFT"
     }
