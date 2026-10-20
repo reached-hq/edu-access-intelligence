@@ -155,9 +155,8 @@ source_tables:
       workbook: xlsx (Public only), requested from PSA
       sheet: DB
       note: >-
-        A separate workbook: the 47,818 public schools of deped_enrollment_psgc's main block, with the same
-        codes and counts and different coordinates. Bronze keeps every row as received (D-015). Silver is a
-        disabled placeholder until its rules are reviewed.
+        One workbook of 47,818 public schools with PSGC codes and coordinates. Bronze keeps every row as
+        received (D-015). Silver is a disabled placeholder until its rules are reviewed.
     bronze:
       table: deped_psgc_coordinates_raw
       create_file: 09_create_deped_psgc_coordinates_raw.sql

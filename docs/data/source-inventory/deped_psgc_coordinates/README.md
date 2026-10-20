@@ -48,7 +48,7 @@ Summary only; evidence in [profile.md](profile.md).
 
 - **Observed:** 28,811 PSGC codes lost their leading zero; 204 schools have `#N/A` codes (O-3).
 - **Observed:** 679 schools have `#N/A` coordinates, 5 are at (0, 0), and 54 others are outside the Philippines (O-4).
-- **Observed:** 40,046 of 47,080 located schools (85%) are within 10 km of the median point of their own city or municipality; 260 are over 100 km away (X-2).
+- **Observed:** 40,046 of 47,080 located schools (85%) are within 10 km of the median point of their own city or municipality; 260 are over 100 km away (O-6).
 
 ## Ingestion
 

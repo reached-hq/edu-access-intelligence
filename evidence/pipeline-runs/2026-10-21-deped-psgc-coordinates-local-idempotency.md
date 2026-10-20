@@ -36,7 +36,7 @@ python -m src.ingestion.cli ingest --source deped_psgc_coordinates --db <scratch
 | `psgc_barangay` 9 digits / 10 digits / `#N/A` | 28,811 / 18,803 / 204 (O-3) | 28,811 / 18,803 / 204 (not padded) |
 | `longitude` = `#N/A` | 679 (O-4) | 679 |
 | Blank count cells (58 columns) | none | 0 |
-| Learners, summed over the 58 counts | equal to deped_enrollment_psgc's public main block (X-1) | 23,225,427, equal to `deped_enrollment` SY 2023-24 public learners ([its profile O-3](../../docs/data/source-inventory/deped_enrollment/profile.md)) |
+| Learners, summed over the 58 counts | | 23,225,427, equal to `deped_enrollment` SY 2023-24 public learners ([its profile O-3](../../docs/data/source-inventory/deped_enrollment/profile.md)) |
 | Repeated `(source_sha256, source_row_number)` | | 0 |
 | NULL in any of the 16 provenance columns | | 0 |
 
