@@ -286,19 +286,35 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     store.close()
 
 
+PUBLISHED_SCHEMAS = ("03-silver", "04-integration", "05-gold", "06-analytics")
+
+
+def published(store):
+    """Every published Silver, Integration, Gold and Analytics table, without the columns that name the run
+    that built it (run_id, code_revision, *_at_utc). Candidates are left out: a gate publishes them."""
+    tables = store.query("SELECT table_schema, table_name FROM information_schema.tables "
+                         f"WHERE table_catalog = 'edu_access' AND table_schema IN {PUBLISHED_SCHEMAS} ORDER BY 1, 2")
+    content = {}
+    for schema, table in (t for t in tables if not t[1].endswith("_candidate")):
+        kept = [f"`{name}`" for name, _ in store.columns(schema, table)
+                if name not in ("run_id", "code_revision") and not name.endswith("_at_utc")]
+        content[f"{schema}.{table}"] = store.query(f"SELECT {', '.join(kept)} FROM edu_access.`{schema}`.{table} "
+                                                   "ORDER BY ALL")
+    return content
+
+
 def test_a_gate_code_bug_is_fixed_and_recovered_by_rerun(repo, tmp_path):
+    """The rehearsal in docs/operations/runbook.md: a code bug fails one gate, the last good tables stay
+    published, and a new run of the fixed code rebuilds every published table exactly as before (#101)."""
     landing = tmp_path / "landing"
     deliver(repo, landing)
     db = tmp_path / "job.duckdb"
     first = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None))
     assert set(first.values()) == {"succeeded"}
     store = DuckDBStore(db)
-    silver_query = ("SELECT * EXCLUDE (run_id, cleaned_at_utc, code_revision) FROM "
-                    "edu_access.`03-silver`.deped_enrollment_clean ORDER BY school_year, school_id")
-    gold_query = ("SELECT * FROM edu_access.`05-gold`.fact_school_enrollment "
-                  "ORDER BY school_year, school_id, education_level_code")
-    good_silver, good_gold = store.query(silver_query), store.query(gold_query)
+    good = published(store)
     store.close()
+    assert "05-gold.fact_school_enrollment" in good and "06-analytics.lgu_priority_matrix" in good
 
     gate = repo / "etl" / "02_bronze" / "90_validate_deped_enrollment_raw.sql"
     good_gate = gate.read_text(encoding="utf-8")
@@ -313,21 +329,25 @@ VALUES (:run_id, NULL, 'deped_enrollment', 'bronze', 'edu_access.02-bronze.deped
     failed = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
     assert failed["90_validate_deped_enrollment_raw"] == "failed"
     assert failed["01_clean_deped_enrollment"] == "upstream_failed"
+    assert failed["10_build_fact_school_enrollment"] == "upstream_failed"
+    assert failed["90_validate_psa_psgc_clean"] == "succeeded"   # an independent lane still runs (D-051)
     store = DuckDBStore(db)
-    assert store.query(silver_query) == good_silver
-    assert store.query(gold_query) == good_gold
+    assert published(store) == good
     assert store.query(f"SELECT status FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
                        "AND check_name = 'made_up_code_bug'") == [("FAIL",)]
     store.close()
 
+    # The fix is a new commit, run as a new job run: a repaired run keeps its run_id and so its FAIL (D-020).
+    fixed = "e" * 40
     gate.write_text(good_gate, encoding="utf-8")
-    recovered = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-3", log=lambda *_: None))
+    recovered = statuses(run_job(repo, landing, db, fixed, run_id="job-run-3", log=lambda *_: None))
     assert set(recovered.values()) == {"succeeded"}
     store = DuckDBStore(db)
-    assert store.query(silver_query) == good_silver
-    assert store.query(gold_query) == good_gold
+    assert published(store) == good
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-3' "
                        "AND status = 'FAIL'") == [(0,)]
+    assert store.query(f"SELECT DISTINCT code_revision FROM {CONTROL}.data_quality_results "
+                       "WHERE run_id = 'job-run-3'") == [(fixed,)]
     store.close()
 
 
