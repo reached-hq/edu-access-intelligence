@@ -1044,7 +1044,7 @@
                 "showTitle": true,
                 "title": "2. Which source: pass rate by source and core attribute",
                 "showDescription": true,
-                "description": "PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute; an empty cell has no test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 5."
+                "description": "PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute; an empty cell has no test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3."
               },
               "data": {
                 "queryName": "main_query"
@@ -1133,7 +1133,7 @@
                 "showTitle": true,
                 "title": "3. What needs attention: WARN and FAIL by source",
                 "showDescription": true,
-                "description": "Current WARN and FAIL results per source (a Gold or Analytics table is its own source), most first. Table 5 lists each check."
+                "description": "Current WARN and FAIL results per source (a Gold or Analytics table is its own source), most first. Open issues on Pipeline health lists each check."
               },
               "data": {
                 "queryName": "main_query"
@@ -1233,156 +1233,6 @@
         },
         {
           "widget": {
-            "name": "open_issues",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "ds_current",
-                  "fields": [
-                    {
-                      "name": "status",
-                      "expression": "`status`"
-                    },
-                    {
-                      "name": "layer",
-                      "expression": "`layer`"
-                    },
-                    {
-                      "name": "source_id",
-                      "expression": "`source_id`"
-                    },
-                    {
-                      "name": "table_name",
-                      "expression": "`table_name`"
-                    },
-                    {
-                      "name": "check_name",
-                      "expression": "`check_name`"
-                    },
-                    {
-                      "name": "expected",
-                      "expression": "`expected`"
-                    },
-                    {
-                      "name": "actual",
-                      "expression": "`actual`"
-                    },
-                    {
-                      "name": "quality_attribute",
-                      "expression": "`quality_attribute`"
-                    },
-                    {
-                      "name": "batch_period",
-                      "expression": "`batch_period`"
-                    },
-                    {
-                      "name": "run_id",
-                      "expression": "`run_id`"
-                    },
-                    {
-                      "name": "code_revision",
-                      "expression": "`code_revision`"
-                    },
-                    {
-                      "name": "last_checked_at_utc",
-                      "expression": "`last_checked_at_utc`"
-                    }
-                  ],
-                  "disaggregated": true,
-                  "filters": [
-                    {
-                      "expression": "`status` IN ('WARN', 'FAIL')"
-                    }
-                  ],
-                  "orders": [
-                    {
-                      "direction": "ASC",
-                      "expression": "`status`"
-                    },
-                    {
-                      "direction": "ASC",
-                      "expression": "`layer`"
-                    }
-                  ]
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "table",
-              "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "status",
-                    "displayName": "Status"
-                  },
-                  {
-                    "fieldName": "layer",
-                    "displayName": "Layer"
-                  },
-                  {
-                    "fieldName": "source_id",
-                    "displayName": "Source"
-                  },
-                  {
-                    "fieldName": "table_name",
-                    "displayName": "Table"
-                  },
-                  {
-                    "fieldName": "check_name",
-                    "displayName": "Check"
-                  },
-                  {
-                    "fieldName": "expected",
-                    "displayName": "Expected"
-                  },
-                  {
-                    "fieldName": "actual",
-                    "displayName": "Actual"
-                  },
-                  {
-                    "fieldName": "quality_attribute",
-                    "displayName": "Attribute"
-                  },
-                  {
-                    "fieldName": "batch_period",
-                    "displayName": "Period"
-                  },
-                  {
-                    "fieldName": "run_id",
-                    "displayName": "Job run"
-                  },
-                  {
-                    "fieldName": "code_revision",
-                    "displayName": "Code revision"
-                  },
-                  {
-                    "fieldName": "last_checked_at_utc",
-                    "displayName": "Last checked (UTC)"
-                  }
-                ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "5. Open issues: current WARN and FAIL",
-                "showDescription": true,
-                "description": "Newest result of each check that is not PASS, FAIL first. Expected and actual as recorded."
-              },
-              "data": {
-                "queryName": "main_query"
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 25,
-            "width": 12,
-            "height": 7
-          }
-        },
-        {
-          "widget": {
             "name": "definitions",
             "multilineTextboxSpec": {
               "lines": [
@@ -1400,7 +1250,7 @@
           },
           "position": {
             "x": 0,
-            "y": 32,
+            "y": 25,
             "width": 12,
             "height": 4
           }
@@ -1420,7 +1270,7 @@
               "lines": [
                 "## Pipeline health\n",
                 "\n",
-                "Freshness and runs, then the checks #97 asks to see on their own. All current except job runs, which follow the date range. Times are UTC."
+                "What to fix first (open issues), freshness and runs, then the checks #97 asks to see on their own. All current except job runs, which follow the date range. Times are UTC."
               ]
             }
           },
@@ -1573,6 +1423,156 @@
         },
         {
           "widget": {
+            "name": "open_issues",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "status",
+                      "expression": "`status`"
+                    },
+                    {
+                      "name": "layer",
+                      "expression": "`layer`"
+                    },
+                    {
+                      "name": "source_id",
+                      "expression": "`source_id`"
+                    },
+                    {
+                      "name": "table_name",
+                      "expression": "`table_name`"
+                    },
+                    {
+                      "name": "check_name",
+                      "expression": "`check_name`"
+                    },
+                    {
+                      "name": "expected",
+                      "expression": "`expected`"
+                    },
+                    {
+                      "name": "actual",
+                      "expression": "`actual`"
+                    },
+                    {
+                      "name": "quality_attribute",
+                      "expression": "`quality_attribute`"
+                    },
+                    {
+                      "name": "batch_period",
+                      "expression": "`batch_period`"
+                    },
+                    {
+                      "name": "run_id",
+                      "expression": "`run_id`"
+                    },
+                    {
+                      "name": "code_revision",
+                      "expression": "`code_revision`"
+                    },
+                    {
+                      "name": "last_checked_at_utc",
+                      "expression": "`last_checked_at_utc`"
+                    }
+                  ],
+                  "disaggregated": true,
+                  "filters": [
+                    {
+                      "expression": "`status` IN ('WARN', 'FAIL')"
+                    }
+                  ],
+                  "orders": [
+                    {
+                      "direction": "ASC",
+                      "expression": "`status`"
+                    },
+                    {
+                      "direction": "ASC",
+                      "expression": "`layer`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "status",
+                    "displayName": "Status"
+                  },
+                  {
+                    "fieldName": "layer",
+                    "displayName": "Layer"
+                  },
+                  {
+                    "fieldName": "source_id",
+                    "displayName": "Source"
+                  },
+                  {
+                    "fieldName": "table_name",
+                    "displayName": "Table"
+                  },
+                  {
+                    "fieldName": "check_name",
+                    "displayName": "Check"
+                  },
+                  {
+                    "fieldName": "expected",
+                    "displayName": "Expected"
+                  },
+                  {
+                    "fieldName": "actual",
+                    "displayName": "Actual"
+                  },
+                  {
+                    "fieldName": "quality_attribute",
+                    "displayName": "Attribute"
+                  },
+                  {
+                    "fieldName": "batch_period",
+                    "displayName": "Period"
+                  },
+                  {
+                    "fieldName": "run_id",
+                    "displayName": "Job run"
+                  },
+                  {
+                    "fieldName": "code_revision",
+                    "displayName": "Code revision"
+                  },
+                  {
+                    "fieldName": "last_checked_at_utc",
+                    "displayName": "Last checked (UTC)"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Open issues: current WARN and FAIL",
+                "showDescription": true,
+                "description": "Newest result of each check that is not PASS, FAIL first. Expected and actual as recorded."
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 12,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
             "name": "freshness",
             "queries": [
               {
@@ -1661,7 +1661,7 @@
           },
           "position": {
             "x": 0,
-            "y": 5,
+            "y": 13,
             "width": 6,
             "height": 7
           }
@@ -1804,7 +1804,7 @@
           },
           "position": {
             "x": 6,
-            "y": 5,
+            "y": 13,
             "width": 6,
             "height": 7
           }
@@ -1912,7 +1912,7 @@
           },
           "position": {
             "x": 0,
-            "y": 12,
+            "y": 20,
             "width": 6,
             "height": 6
           }
@@ -2012,7 +2012,7 @@
           },
           "position": {
             "x": 6,
-            "y": 12,
+            "y": 20,
             "width": 6,
             "height": 6
           }
@@ -2104,7 +2104,7 @@
           },
           "position": {
             "x": 0,
-            "y": 18,
+            "y": 26,
             "width": 12,
             "height": 7
           }

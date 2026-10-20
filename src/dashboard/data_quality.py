@@ -564,8 +564,7 @@ NOT_PASS = "`status` IN ('WARN', 'FAIL')"
 
 
 def overview_page(attributes, core):
-    """Counters, one donut per core attribute, then five graphs: where, which source, what, trend, and
-    what to fix."""
+    """Counters, one donut per core attribute, then four graphs: where, which source, what, and the trend."""
     core_list = ", ".join(f"'{name}'" for name, _ in core)
     layout = [
         text("overview_title", [
@@ -592,25 +591,16 @@ def overview_page(attributes, core):
                 "MEASURE(`Pass rate (tests)`)", "Pass rate (tests)", (STATUS_COLORS["FAIL"], STATUS_COLORS["PASS"]),
                 "2. Which source: pass rate by source and core attribute",
                 "PASS / (PASS + WARN + FAIL) of each source's current tests of that attribute; an empty cell has no "
-                "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 5.",
+                "test, which is not a pass. Sources only: Gold and Analytics are tables, see 1 and 3.",
                 6, 11, 6, 6, PERCENT, filters=["`layer` IN ('control', 'bronze', 'silver', 'integration')",
                                                f"`quality_attribute` IN ({core_list})"]),
         # 3. What needs attention: which sources hold the WARNs and FAILs now.
         status_bar("not_pass_by_source", "ds_current", "source_id", "3. What needs attention: WARN and FAIL by source",
                    "Current WARN and FAIL results per source (a Gold or Analytics table is its own source), "
-                   "most first. Table 5 lists each check.",
+                   "most first. Open issues on Pipeline health lists each check.",
                    0, 17, 6, 7, filters=[NOT_PASS]),
         # 4. Trend.
         trend("history_by_day", 6, 17, 6, 7),
-        # 5. What to fix, traced to its run and batch.
-        table("open_issues", "ds_current", [
-            ("status", "Status"), ("layer", "Layer"), ("source_id", "Source"), ("table_name", "Table"),
-            ("check_name", "Check"), ("expected", "Expected"), ("actual", "Actual"),
-            ("quality_attribute", "Attribute"), ("batch_period", "Period"), ("run_id", "Job run"),
-            ("code_revision", "Code revision"), ("last_checked_at_utc", "Last checked (UTC)")],
-              "5. Open issues: current WARN and FAIL",
-              "Newest result of each check that is not PASS, FAIL first. Expected and actual as recorded.",
-              0, 24, 12, 7, filters=[NOT_PASS], orders=[("status", "ASC"), ("layer", "ASC")]),
         text("definitions", [
             "### Definitions\n", "\n",
             "**PASS** as expected. **WARN** worth knowing, not necessarily wrong (rows quarantined within the "
@@ -623,7 +613,7 @@ def overview_page(attributes, core):
             "changed, matches per method, LGUs per tier) are always PASS and left out.\n", "\n",
             "**Quality attributes**: " + ", ".join(attributes) + ", from config/quality_attributes.yml. A check "
             "it does not list is **Unclassified**, shown, and covers no attribute.",
-        ], 0, 31, 12, 4),
+        ], 0, 24, 12, 4),
     ]
     # Counters take rows 2-4; the core attributes' donuts go under them, and the graphs move down one row.
     for item in layout:
@@ -637,44 +627,52 @@ def overview_page(attributes, core):
 
 
 def health_page():
-    """The #97 detail tables: freshness, runs, quarantine, match rates, Gold lineage. Tables only."""
+    """Open issues and the #97 detail tables: freshness, runs, quarantine, match rates, Gold lineage. Tables only."""
     layout = [
         text("health_title", [
             "## Pipeline health\n", "\n",
-            "Freshness and runs, then the checks #97 asks to see on their own. All current except job runs, "
+            "What to fix first (open issues), freshness and runs, then the checks #97 asks to see on their own. All current except job runs, "
             "which follow the date range. Times are UTC.",
         ], 0, 0, 12, 2),
         table("latest_run", "ds_runs", RUN_COLUMNS[:12], "Latest job run",
               "The run that started last, rolled up from pipeline_runs. Result counts are that run's events.",
               0, 2, 12, 3, filters=["`run_recency` = 1"]),
+        table("open_issues", "ds_current", [
+            ("status", "Status"), ("layer", "Layer"), ("source_id", "Source"), ("table_name", "Table"),
+            ("check_name", "Check"), ("expected", "Expected"), ("actual", "Actual"),
+            ("quality_attribute", "Attribute"), ("batch_period", "Period"), ("run_id", "Job run"),
+            ("code_revision", "Code revision"), ("last_checked_at_utc", "Last checked (UTC)")],
+              "Open issues: current WARN and FAIL",
+              "Newest result of each check that is not PASS, FAIL first. Expected and actual as recorded.",
+              0, 5, 12, 8, filters=[NOT_PASS], orders=[("status", "ASC"), ("layer", "ASC")]),
         table("freshness", "ds_freshness", [
             ("source_id", "Source"), ("freshness_status", "Status"), ("freshness_limit", "Limit"),
             ("freshness_observed", "Observed"), ("last_succeeded_at_utc", "Last succeeded delivery (UTC)"),
             ("current_batches", "Current batches"), ("freshness_checked_at_utc", "Checked (UTC)")],
               "Source freshness", "Latest source_fresh check, as the stale_sources alert reads it; limits from "
-              "config/freshness.yml. A WARN means check the publisher, not that data is wrong.", 0, 5, 6, 7),
+              "config/freshness.yml. A WARN means check the publisher, not that data is wrong.", 0, 13, 6, 7),
         table("recent_runs", "ds_runs", RUN_COLUMNS, "Job runs in the date range",
               "A Bronze load's own run is rolled up to its job run. 'no pipeline_runs row': results under a run "
-              "id with no run record.", 6, 5, 6, 7),
+              "id with no run record.", 6, 13, 6, 7),
         table("quarantine", "ds_current", [
             ("source_id", "Source"), ("batch_period", "School year or dataset"), ("table_name", "Table"),
             ("check_name", "Check"), ("status", "Status"), ("expected", "Expected"),
             ("actual", "Quarantined rows"), ("last_checked_at_utc", "Checked (UTC)")],
               "Quarantine against the 1% limit", "Silver quarantine_rate per delivery: WARN above 0, FAIL above "
-              "1% of that year's Bronze rows.", 0, 12, 6, 6, filters=["`check_name` LIKE 'quarantine_rate%'"]),
+              "1% of that year's Bronze rows.", 0, 20, 6, 6, filters=["`check_name` LIKE 'quarantine_rate%'"]),
         table("match_rates", "ds_current", [
             ("source_id", "Source"), ("table_name", "Map"), ("check_name", "Check (school year, level)"),
             ("status", "Status"), ("expected", "Expected"), ("actual", "Match rate (%)"),
             ("last_checked_at_utc", "Checked (UTC)")],
               "PSGC match rates", "The DepEd school map checks each school year and level and FAILs below 99%; "
-              "the other maps record their rate.", 6, 12, 6, 6, filters=["`check_name` LIKE 'match_rate%'"]),
+              "the other maps record their rate.", 6, 20, 6, 6, filters=["`check_name` LIKE 'match_rate%'"]),
         table("gold_lineage", "ds_current", [
             ("table_name", "Gold table"), ("check_name", "Reads"), ("status", "Status"),
             ("expected", "Expected"), ("actual", "Job run read"), ("last_checked_at_utc", "Checked (UTC)")],
               "Gold lineage: the upstream builds each Gold table read",
               "One upstream_run_<table> check per Silver or Integration table a Gold gate reads "
               "(docs/architecture/data-model.md): PASS when that build succeeded in the same job run.",
-              0, 18, 12, 7, filters=["`check_name` LIKE 'upstream_run_%'"]),
+              0, 26, 12, 7, filters=["`check_name` LIKE 'upstream_run_%'"]),
     ]
     return {"name": "health", "displayName": "Pipeline health", "pageType": "PAGE_TYPE_CANVAS",
             "layoutVersion": "GRID_V1", "layout": layout}
