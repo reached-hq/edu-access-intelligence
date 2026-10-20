@@ -491,6 +491,378 @@
         },
         {
           "widget": {
+            "name": "donut_completeness",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "passed",
+                      "expression": "SUM(`is_test_pass`)"
+                    },
+                    {
+                      "name": "tests",
+                      "expression": "SUM(`is_test`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`quality_attribute` = 'Completeness'"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "custom-vega-viz",
+              "jsonSpec": {
+                "type": "vega-lite",
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "passed"
+                  },
+                  {
+                    "fieldName": "tests"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Completeness",
+                "showDescription": true,
+                "description": "The presence of all required records, fields, and values without missing or null data"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "donut_uniqueness",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "passed",
+                      "expression": "SUM(`is_test_pass`)"
+                    },
+                    {
+                      "name": "tests",
+                      "expression": "SUM(`is_test`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`quality_attribute` = 'Uniqueness'"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "custom-vega-viz",
+              "jsonSpec": {
+                "type": "vega-lite",
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "passed"
+                  },
+                  {
+                    "fieldName": "tests"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Uniqueness",
+                "showDescription": true,
+                "description": "Each entity, transaction, or record appears only once in a dataset, free from duplication"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 6,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "donut_validity",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "passed",
+                      "expression": "SUM(`is_test_pass`)"
+                    },
+                    {
+                      "name": "tests",
+                      "expression": "SUM(`is_test`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`quality_attribute` = 'Validity'"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "custom-vega-viz",
+              "jsonSpec": {
+                "type": "vega-lite",
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "passed"
+                  },
+                  {
+                    "fieldName": "tests"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Validity",
+                "showDescription": true,
+                "description": "Data values conform to pre-established formats, syntax, value ranges, and business rules"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 6,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "donut_accuracy",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "passed",
+                      "expression": "SUM(`is_test_pass`)"
+                    },
+                    {
+                      "name": "tests",
+                      "expression": "SUM(`is_test`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`quality_attribute` = 'Accuracy'"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "custom-vega-viz",
+              "jsonSpec": {
+                "type": "vega-lite",
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "passed"
+                  },
+                  {
+                    "fieldName": "tests"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Accuracy",
+                "showDescription": true,
+                "description": "The degree to which data correctly reflects the real-world object, event, or condition it represents; here, agreement with the published source or a reviewed reference"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 6,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "donut_consistency",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "passed",
+                      "expression": "SUM(`is_test_pass`)"
+                    },
+                    {
+                      "name": "tests",
+                      "expression": "SUM(`is_test`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`quality_attribute` = 'Consistency'"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "custom-vega-viz",
+              "jsonSpec": {
+                "type": "vega-lite",
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "passed"
+                  },
+                  {
+                    "fieldName": "tests"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Consistency",
+                "showDescription": true,
+                "description": "No contradictions or conflicts when the same data appears across different systems, tables, or fields"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 6,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
+            "name": "donut_timeliness",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_current",
+                  "fields": [
+                    {
+                      "name": "passed",
+                      "expression": "SUM(`is_test_pass`)"
+                    },
+                    {
+                      "name": "tests",
+                      "expression": "SUM(`is_test`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`quality_attribute` = 'Timeliness'"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "custom-vega-viz",
+              "jsonSpec": {
+                "type": "vega-lite",
+                "spec": "{\"$schema\": \"https://vega.github.io/schema/vega-lite/v6.json\", \"data\": {\"name\": \"databricks_query\"}, \"width\": \"container\", \"height\": \"container\", \"config\": {\"autosize\": {\"type\": \"fit\", \"contains\": \"padding\"}, \"view\": {\"stroke\": null}}, \"transform\": [{\"calculate\": \"datum.tests > 0 ? datum.passed / datum.tests : null\", \"as\": \"rate\"}, {\"calculate\": \"datum.rate == null ? 'No checks' : format(datum.rate, '.0%')\", \"as\": \"label\"}, {\"calculate\": \"datum.rate == null ? 0 : datum.rate\", \"as\": \"PASS\"}, {\"calculate\": \"datum.rate == null ? 1 : 1 - datum.rate\", \"as\": \"Not PASS\"}, {\"fold\": [\"PASS\", \"Not PASS\"], \"as\": [\"part\", \"share\"]}], \"layer\": [{\"mark\": {\"type\": \"arc\", \"innerRadius\": {\"expr\": \"min(width, height) * 0.3\"}, \"outerRadius\": {\"expr\": \"min(width, height) * 0.48\"}}, \"encoding\": {\"theta\": {\"field\": \"share\", \"type\": \"quantitative\", \"stack\": true}, \"color\": {\"field\": \"part\", \"type\": \"nominal\", \"legend\": null, \"scale\": {\"domain\": [\"PASS\", \"Not PASS\"], \"range\": [\"#009E73\", \"#D9D9D9\"]}}, \"order\": {\"field\": \"part\", \"sort\": \"descending\"}, \"tooltip\": [{\"field\": \"passed\", \"type\": \"quantitative\", \"title\": \"PASS tests\"}, {\"field\": \"tests\", \"type\": \"quantitative\", \"title\": \"Current tests\"}]}}, {\"transform\": [{\"filter\": \"datum.part == 'PASS'\"}], \"mark\": {\"type\": \"text\", \"fontSize\": 18, \"fontWeight\": \"bold\", \"color\": {\"expr\": \"colors.textPrimary.default\"}}, \"encoding\": {\"text\": {\"field\": \"label\", \"type\": \"nominal\"}}}]}"
+              },
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "passed"
+                  },
+                  {
+                    "fieldName": "tests"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Timeliness",
+                "showDescription": true,
+                "description": "How up to date the data is and whether it is available when needed; here, the latest succeeded delivery is within its limit in config/freshness.yml"
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 6,
+            "width": 2,
+            "height": 4
+          }
+        },
+        {
+          "widget": {
             "name": "latest_run",
             "queries": [
               {
@@ -621,7 +993,7 @@
           },
           "position": {
             "x": 0,
-            "y": 6,
+            "y": 10,
             "width": 12,
             "height": 3
           }
@@ -702,7 +1074,7 @@
           },
           "position": {
             "x": 0,
-            "y": 9,
+            "y": 13,
             "width": 6,
             "height": 6
           }
@@ -786,7 +1158,7 @@
           },
           "position": {
             "x": 6,
-            "y": 9,
+            "y": 13,
             "width": 6,
             "height": 6
           }
@@ -867,7 +1239,7 @@
           },
           "position": {
             "x": 0,
-            "y": 15,
+            "y": 19,
             "width": 6,
             "height": 7
           }
@@ -948,7 +1320,7 @@
           },
           "position": {
             "x": 6,
-            "y": 15,
+            "y": 19,
             "width": 6,
             "height": 7
           }
@@ -1034,7 +1406,7 @@
           },
           "position": {
             "x": 0,
-            "y": 22,
+            "y": 26,
             "width": 6,
             "height": 7
           }
@@ -1123,7 +1495,7 @@
           },
           "position": {
             "x": 6,
-            "y": 22,
+            "y": 26,
             "width": 6,
             "height": 7
           }
@@ -1204,7 +1576,7 @@
           },
           "position": {
             "x": 0,
-            "y": 29,
+            "y": 33,
             "width": 12,
             "height": 6
           }
@@ -1296,7 +1668,7 @@
           },
           "position": {
             "x": 0,
-            "y": 35,
+            "y": 39,
             "width": 6,
             "height": 7
           }
@@ -1436,7 +1808,7 @@
           },
           "position": {
             "x": 6,
-            "y": 35,
+            "y": 39,
             "width": 6,
             "height": 7
           }
@@ -1541,7 +1913,7 @@
           },
           "position": {
             "x": 0,
-            "y": 42,
+            "y": 46,
             "width": 6,
             "height": 6
           }
@@ -1638,7 +2010,7 @@
           },
           "position": {
             "x": 6,
-            "y": 42,
+            "y": 46,
             "width": 6,
             "height": 6
           }
@@ -1654,7 +2026,7 @@
                 "\n",
                 "**Current** is one row per (layer, source, table, check, batch): its newest result. Results of a delivery replaced by a newer version are left out; a failed or blocked delivery stays until it is retried. A check no gate runs any more keeps its last result, with its date.\n",
                 "\n",
-                "**Pass rate (tests)** = PASS / (PASS + WARN + FAIL) over current tests. *Recorded counts* (how many rows a cleaning rule changed, matches per method, row kinds) are always PASS and left out. It is empty, not 0% or 100%, when there is no test result.\n",
+                "**Pass rate (tests)** = PASS / (PASS + WARN + FAIL) over current tests; each donut is the same rate for one core attribute. *Recorded counts* (how many rows a cleaning rule changed, matches per method, row kinds) are always PASS and left out. It is empty, not 0% or 100%, when there is no test result.\n",
                 "\n",
                 "**Quality attributes**: Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness, Referential integrity, Reconciliation, Lineage. Assigned in config/quality_attributes.yml; a check it does not list is **Unclassified**, shown, and covers no attribute."
               ]
@@ -1662,7 +2034,7 @@
           },
           "position": {
             "x": 0,
-            "y": 48,
+            "y": 52,
             "width": 12,
             "height": 5
           }

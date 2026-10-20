@@ -20,7 +20,9 @@ from test_local_job import REVISION, deliver, repo  # noqa: F401  (repo is that 
 
 CONTROL = "edu_access.`01-control`"
 T0 = datetime(2026, 10, 13, 1, 0)
-WIDGET_VERSIONS = {"counter": 2, "table": 2, "bar": 3, "filter-multi-select": 2, "filter-date-range-picker": 2}
+WIDGET_VERSIONS = {"counter": 2, "table": 2, "bar": 3, "filter-multi-select": 2, "filter-date-range-picker": 2,
+                   "custom-vega-viz": 1}
+CORE = ["Completeness", "Uniqueness", "Validity", "Accuracy", "Consistency", "Timeliness"]
 
 
 @pytest.fixture(scope="module")
@@ -139,8 +141,14 @@ def test_every_widget_binds_to_fields_its_dataset_has(board):
             continue
         selected = {f["name"] for f in queries["main_query"]["fields"]}
         encodings = spec["encodings"]
-        used = ({c["fieldName"] for c in encodings["columns"]} if "columns" in encodings
-                else {e["fieldName"] for e in encodings.values()})
+        if spec["widgetType"] == "custom-vega-viz":
+            used = {f["fieldName"] for f in encodings["fields"]}
+            assert spec["data"]["queryName"] == "main_query"
+            assert json.loads(spec["jsonSpec"]["spec"])["data"] == {"name": "databricks_query"}
+        elif "columns" in encodings:
+            used = {c["fieldName"] for c in encodings["columns"]}
+        else:
+            used = {e["fieldName"] for e in encodings.values()}
         assert used == selected, f"{widget['name']}: encodings must name exactly the selected fields"
 
 
@@ -169,6 +177,30 @@ def test_the_bundle_deploys_the_committed_file_without_a_schedule():
     assert resource["file_path"] == data_quality.PATH
     assert resource["warehouse_id"] == "${var.warehouse_id}"
     assert "schedule" not in resource and "schedules" not in resource
+
+
+def test_one_donut_per_core_attribute(board):
+    """Six donuts in one row, each the pass rate of one core attribute's current tests."""
+    donuts = [(w, p) for _, w, p in widgets(board) if w.get("spec", {}).get("widgetType") == "custom-vega-viz"]
+    assert [w["spec"]["frame"]["title"] for w, _ in donuts] == CORE
+    assert sum(p["width"] for _, p in donuts) == 12 and len({p["y"] for _, p in donuts}) == 1
+    for widget, _ in donuts:
+        query = widget["queries"][0]["query"]
+        assert query["filters"] == [{"expression": f"`quality_attribute` = '{widget['spec']['frame']['title']}'"}]
+        assert widget["spec"]["frame"]["description"]                      # the attribute's definition
+
+
+def test_a_donut_with_no_tests_is_no_checks_not_zero(store, board):
+    """The donut query aggregates with no GROUP BY: one row, NULL when the attribute has no test."""
+    result(store, "run-1", "rows_reconcile", "FAIL", 0)
+    result(store, "run-1", "key_unique", "PASS", 0)
+    result(store, "run-1", "rule_blank_text_to_null", "PASS", 0)       # a recorded count, not a test
+    sql = dataset_sql(board, "ds_current")
+    def rate(attribute):
+        return store.query(f"SELECT SUM(is_test_pass), SUM(is_test) FROM ({sql}) AS d "
+                           f"WHERE quality_attribute = '{attribute}'")[0]
+    assert rate("Uniqueness") == (1, 1)
+    assert rate("Timeliness") == (None, None)                           # the donut says "No checks"
 
 
 # ---------------------------------------------------------------- the quality-attribute catalog

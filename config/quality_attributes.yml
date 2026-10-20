@@ -28,20 +28,27 @@
 
 version: 1
 
-# Display order. Each attribute says what its checks look at.
+# Display order. Each attribute says what its checks look at. The first six are the core
+# data-quality attributes, each shown as a donut on the dashboard; the last three stay in its bar chart.
 attributes:
   - name: Completeness
-    means: Expected rows, batches, years, or required values are present
+    core: true
+    means: The presence of all required records, fields, and values without missing or null data
   - name: Uniqueness
-    means: No duplicate key, duplicate row, or second current version
+    core: true
+    means: Each entity, transaction, or record appears only once in a dataset, free from duplication
   - name: Validity
-    means: Formats, types, allowed values, ranges, file layout, and labels in the reviewed mapping
+    core: true
+    means: Data values conform to pre-established formats, syntax, value ranges, and business rules
   - name: Accuracy
-    means: Values agree with the published source or a reviewed reference
+    core: true
+    means: The degree to which data correctly reflects the real-world object, event, or condition it represents; here, agreement with the published source or a reviewed reference
   - name: Consistency
-    means: Related fields, rows, flags, versions, and profiled counts agree with each other
+    core: true
+    means: No contradictions or conflicts when the same data appears across different systems, tables, or fields
   - name: Timeliness
-    means: The latest succeeded delivery is within its limit in config/freshness.yml
+    core: true
+    means: How up to date the data is and whether it is available when needed; here, the latest succeeded delivery is within its limit in config/freshness.yml
   - name: Referential integrity
     means: Rows resolve to a known batch, parent unit, or PSGC unit; match outcomes of the maps
   - name: Reconciliation

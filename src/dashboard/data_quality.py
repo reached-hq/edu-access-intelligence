@@ -65,6 +65,7 @@ def load_catalog(repo_root=REPO_ROOT):
     """[(match_kind, check_key, quality_attribute, check_kind, note)] from the reviewed file, checked."""
     config = yaml.safe_load((Path(repo_root) / CONFIG).read_text(encoding="utf-8"))
     attributes = [a["name"] for a in config["attributes"]]
+    core = [(a["name"], " ".join(a["means"].split())) for a in config["attributes"] if a.get("core")]
     rows = []
     for attribute, names in config["checks"].items():
         if attribute not in attributes:
@@ -90,7 +91,7 @@ def load_catalog(repo_root=REPO_ROOT):
     overlapping = sorted((a, b) for a in prefixes for b in prefixes if a != b and b.startswith(a))
     if overlapping:
         raise CatalogError(f"{CONFIG}: families overlap: {overlapping}.")
-    return attributes, rows
+    return attributes, core, rows
 
 
 def _sql_text(value):
@@ -409,6 +410,54 @@ def trend(name, x, y, width, height):
     }, x, y, width, height)
 
 
+def donut(name, attribute, means, x, y, width, height):
+    """One core attribute's pass rate of current tests, as a donut (Vega-Lite; standard pies have no hole).
+
+    Aggregated with no GROUP BY, the query returns one row even when the attribute has no test, with
+    NULLs, which the donut shows as "No checks", never as 0% or 100%."""
+    vega = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+        "data": {"name": "databricks_query"},
+        "width": "container", "height": "container",
+        "config": {"autosize": {"type": "fit", "contains": "padding"}, "view": {"stroke": None}},
+        "transform": [
+            {"calculate": "datum.tests > 0 ? datum.passed / datum.tests : null", "as": "rate"},
+            {"calculate": "datum.rate == null ? 'No checks' : format(datum.rate, '.0%')", "as": "label"},
+            {"calculate": "datum.rate == null ? 0 : datum.rate", "as": "PASS"},
+            {"calculate": "datum.rate == null ? 1 : 1 - datum.rate", "as": "Not PASS"},
+            {"fold": ["PASS", "Not PASS"], "as": ["part", "share"]},
+        ],
+        "layer": [
+            {"mark": {"type": "arc", "innerRadius": {"expr": "min(width, height) * 0.3"},
+                      "outerRadius": {"expr": "min(width, height) * 0.48"}},
+             "encoding": {
+                 "theta": {"field": "share", "type": "quantitative", "stack": True},
+                 "color": {"field": "part", "type": "nominal", "legend": None,
+                           "scale": {"domain": ["PASS", "Not PASS"], "range": [STATUS_COLORS["PASS"], "#D9D9D9"]}},
+                 "order": {"field": "part", "sort": "descending"},
+                 "tooltip": [{"field": "passed", "type": "quantitative", "title": "PASS tests"},
+                             {"field": "tests", "type": "quantitative", "title": "Current tests"}]}},
+            {"transform": [{"filter": "datum.part == 'PASS'"}],
+             "mark": {"type": "text", "fontSize": 18, "fontWeight": "bold",
+                      "color": {"expr": "colors.textPrimary.default"}},
+             "encoding": {"text": {"field": "label", "type": "nominal"}}},
+        ],
+    }
+    return _place({
+        "name": name,
+        "queries": [{"name": "main_query", "query": {
+            "datasetName": "ds_current",
+            "fields": [_field("passed", "SUM(`is_test_pass`)"), _field("tests", "SUM(`is_test`)")],
+            "filters": [{"expression": f"`quality_attribute` = '{attribute}'"}],
+            "disaggregated": False}}],
+        "spec": {"version": 1, "widgetType": "custom-vega-viz",
+                 "jsonSpec": {"type": "vega-lite", "spec": json.dumps(vega)},
+                 "encodings": {"fields": [{"fieldName": "passed"}, {"fieldName": "tests"}]},
+                 "data": {"queryName": "main_query"},
+                 "frame": _frame(attribute, means)},
+    }, x, y, width, height)
+
+
 def table(name, dataset, columns, title, description, x, y, width, height, filters=None):
     query = {"datasetName": dataset, "fields": [_field(field) for field, _ in columns], "disaggregated": True}
     if filters:
@@ -463,7 +512,7 @@ CURRENT_SCOPE = ("Current results: the newest result of each check, from whichev
                  "Counts are check results, not data rows.")
 
 
-def overview_page(attributes):
+def overview_page(attributes, core):
     run_columns = [("run_id", "Job run"), ("run_status", "Run status"), ("environment", "Environment"),
                    ("run_started_at_utc", "Started (UTC)"), ("run_finished_at_utc", "Finished (UTC)"),
                    ("duration_minutes", "Minutes"), ("steps_not_succeeded", "Steps not succeeded"),
@@ -553,13 +602,22 @@ def overview_page(attributes):
             "**Current** is one row per (layer, source, table, check, batch): its newest result. Results of a "
             "delivery replaced by a newer version are left out; a failed or blocked delivery stays until it is "
             "retried. A check no gate runs any more keeps its last result, with its date.\n", "\n",
-            "**Pass rate (tests)** = PASS / (PASS + WARN + FAIL) over current tests. *Recorded counts* (how many "
+            "**Pass rate (tests)** = PASS / (PASS + WARN + FAIL) over current tests; each donut is the same rate for "
+            "one core attribute. *Recorded counts* (how many "
             "rows a cleaning rule changed, matches per method, row kinds) are always PASS and left out. It is "
             "empty, not 0% or 100%, when there is no test result.\n", "\n",
             "**Quality attributes**: " + ", ".join(attributes) + ". Assigned in config/quality_attributes.yml; "
             "a check it does not list is **Unclassified**, shown, and covers no attribute.",
         ], 0, 48, 12, 5),
     ]
+    # The core attributes' donuts go under the counters; everything after them moves down.
+    donut_height, top = 4, 6
+    for item in layout:
+        if item["position"]["y"] >= top:
+            item["position"]["y"] += donut_height
+    width = 12 // len(core)
+    layout[7:7] = [donut(f"donut_{name.lower()}", name, means, i * width, top, width, donut_height)
+                   for i, (name, means) in enumerate(core)]
     return {"name": "overview", "displayName": "Quality overview", "pageType": "PAGE_TYPE_CANVAS",
             "layoutVersion": "GRID_V1", "layout": layout}
 
@@ -609,10 +667,10 @@ def filters_page():
 
 
 def dashboard(repo_root=REPO_ROOT):
-    attributes, rows = load_catalog(repo_root)
+    attributes, core, rows = load_catalog(repo_root)
     return {
         "datasets": datasets(rows),
-        "pages": [overview_page(attributes), explorer_page(), filters_page()],
+        "pages": [overview_page(attributes, core), explorer_page(), filters_page()],
         "uiSettings": {"theme": {
             "canvasBackgroundColor": {"light": "#F7F8FA", "dark": "#1F272D"},
             "widgetBackgroundColor": {"light": "#FFFFFF", "dark": "#11171C"},

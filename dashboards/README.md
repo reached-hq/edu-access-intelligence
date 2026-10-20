@@ -12,7 +12,7 @@ Deployed with the bundle: `resources.dashboards.data_quality` in `databricks.yml
 
 For data engineers and reviewers: what every gate recorded, and whether anything needs attention. It reads only the control tables in `` edu_access.`01-control` `` (`data_quality_results`, `pipeline_runs`, `ingestion_batches`, `current_batches`), never a data table, so it shows each layer, Gold included, only through what its gates recorded. All times are UTC. Counts are **check results, never data rows**; results hold counts and rules, never row values.
 
-**Pages.** *Quality overview*: counters, latest job run, current results by layer, source, and quality attribute, layer coverage, Gold and Analytics results by table with the upstream builds each Gold table read, the daily trend, source freshness, job runs, quarantine against the 1% limit, and PSGC match rates. *Check explorer*: every result event and the current result of each check, filterable by status (starts at WARN and FAIL), attribute, table, check, and job run. *Filters* (global): date range, layer, source.
+**Pages.** *Quality overview*: counters, one donut per core attribute (Completeness, Uniqueness, Validity, Accuracy, Consistency, Timeliness: the pass rate of its current tests, or *No checks*), latest job run, current results by layer, source, and quality attribute, layer coverage, Gold and Analytics results by table with the upstream builds each Gold table read, the daily trend, source freshness, job runs, quarantine against the 1% limit, and PSGC match rates. *Check explorer*: every result event and the current result of each check, filterable by status (starts at WARN and FAIL), attribute, table, check, and job run. *Filters* (global): date range, layer, source.
 
 ### Current and history
 
@@ -38,6 +38,7 @@ Other datasets: `ds_runs` (one row per job run; a Bronze load's own `run_id` is 
 |---|---|
 | Current checks, PASS, WARN, FAIL | Sums over the current view. Empty, not 0, when nothing is recorded |
 | Pass rate (tests) | PASS / (PASS + WARN + FAIL) over current results that are tests. Recorded counts are left out. Empty when there is no test result. Not a data-quality score |
+| Attribute donut | The same pass rate for one core attribute's current tests; *No checks* when the attribute has none. A custom Vega-Lite widget, since standard pies have no hole |
 | Stale-source WARNs | `source_fresh` WARNs in the latest freshness check (`config/freshness.yml` limits) |
 | Result events | History only: how many results were recorded, so activity, not checks |
 
