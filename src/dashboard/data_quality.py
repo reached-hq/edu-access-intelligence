@@ -52,7 +52,7 @@ SHEET_PREFIX = "^[^:]+: "
 # The team's palette: orange, cream, sage, light sage; plus red for FAIL.
 ORANGE, CREAM, SAGE, LIGHT_SAGE, RED = "#DB9558", "#FCF9EA", "#97A87A", "#A8BBA3", "#C0392B"
 DARK_SAGE = "#5F7046"   # sage darkened for text-weight accents (selection, tab underline)
-CANVAS = "#FEFDF8"      # the cream, lightened for the page background
+CANVAS = "#F5F3DC"      # page background, chosen by the team
 STATUS_COLORS = {"PASS": SAGE, "WARN": ORANGE, "FAIL": RED}
 HISTORY_DAYS = 90
 
