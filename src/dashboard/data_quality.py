@@ -369,6 +369,33 @@ def status_bar(name, dataset, dimension, title, description, x, y, width, height
     }, x, y, width, height)
 
 
+LAYER_ORDER = ["control", "bronze", "silver", "integration", "gold", "analytics"]
+
+
+def layer_bar(name, title, description, x, y, width, height):
+    """Current results per layer, in pipeline order, stacked by status."""
+    return _place({
+        "name": name,
+        "queries": [{"name": "main_query", "query": {
+            "datasetName": "ds_current",
+            "fields": [_field("layer"), _field("status"), _field("count(*)", "COUNT(`*`)")],
+            "disaggregated": False}}],
+        "spec": {
+            "version": 3, "widgetType": "bar",
+            "encodings": {
+                "x": {"fieldName": "layer", "displayName": "Layer",
+                      "scale": {"type": "categorical", "sort": {"by": "custom-order", "orderedValues": LAYER_ORDER}}},
+                "y": {"fieldName": "count(*)", "scale": {"type": "quantitative"}, "displayName": "Results"},
+                "color": {"fieldName": "status", "scale": {"type": "categorical", "mappings": [
+                    {"value": status, "color": color} for status, color in STATUS_COLORS.items()]},
+                          "displayName": "Status"},
+                "label": {"show": True},
+            },
+            "frame": _frame(title, description),
+        },
+    }, x, y, width, height)
+
+
 def heatmap(name, x_field, y_field, value_name, value_expression, value_label, ramp, title, description,
             x, y, width, height, value_format=None, filters=None):
     """A grid of x by y on the current dataset, colored by one aggregate, with the value in each cell."""
@@ -558,8 +585,7 @@ def overview_page(attributes, core):
         counter("kpi_stale", "ds_freshness", "sum(is_stale)", "SUM(`is_stale`)", "Stale sources",
                 "source_fresh WARNs, as the stale_sources alert emails", 10, 2),
         # 1. Where: which layer holds the WARNs and FAILs.
-        heatmap("current_by_layer", "status", "layer", "count(*)", "COUNT(`*`)", "Results", ("#E8F1FA", "#0072B2"),
-                "1. Where: current results by layer and status",
+        layer_bar("current_by_layer", "1. Where: current results by layer and status",
                 CURRENT_SCOPE + " A layer with no results is absent: no gate of that layer has run, which is not a pass.", 0, 11, 6, 6),
         # 2. Which source is weak on which attribute.
         heatmap("current_by_source", "quality_attribute", "source_id", "measure(Pass rate (tests))",

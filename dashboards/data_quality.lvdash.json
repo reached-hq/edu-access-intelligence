@@ -875,12 +875,12 @@
                   "datasetName": "ds_current",
                   "fields": [
                     {
-                      "name": "status",
-                      "expression": "`status`"
-                    },
-                    {
                       "name": "layer",
                       "expression": "`layer`"
+                    },
+                    {
+                      "name": "status",
+                      "expression": "`status`"
                     },
                     {
                       "name": "count(*)",
@@ -893,35 +893,53 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "heatmap",
+              "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "status",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "Status"
-                },
-                "y": {
                   "fieldName": "layer",
+                  "displayName": "Layer",
                   "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "Layer"
-                },
-                "color": {
-                  "fieldName": "count(*)",
-                  "displayName": "Results",
-                  "scale": {
-                    "type": "quantitative",
-                    "colorRamp": {
-                      "mode": "custom-sequential",
-                      "colors": {
-                        "start": "#E8F1FA",
-                        "end": "#0072B2"
-                      }
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "control",
+                        "bronze",
+                        "silver",
+                        "integration",
+                        "gold",
+                        "analytics"
+                      ]
                     }
                   }
+                },
+                "y": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Results"
+                },
+                "color": {
+                  "fieldName": "status",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "PASS",
+                        "color": "#009E73"
+                      },
+                      {
+                        "value": "WARN",
+                        "color": "#E69F00"
+                      },
+                      {
+                        "value": "FAIL",
+                        "color": "#D55E00"
+                      }
+                    ]
+                  },
+                  "displayName": "Status"
                 },
                 "label": {
                   "show": true
