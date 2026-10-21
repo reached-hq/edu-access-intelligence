@@ -110,6 +110,8 @@ Use this when a run passed every gate but a published result is wrong, for examp
   RESTORE TABLE edu_access.`06-analytics`.lgu_priority_matrix TO VERSION AS OF <version>;
   ```
 
+  A restore works only while the old version's files are still kept (Delta's default retention is 7 days once a `VACUUM` runs); past that, rerun the reverted code instead. Restore a table together with the tables built from it, to the versions of the same run (for example all of `06-analytics`), or the restored table disagrees with them until the fixed run; say which tables you restored when you announce it.
+
   A restore changes a published table outside the job, so announce it, record it in [`evidence/pipeline-runs/`](../../evidence/pipeline-runs/) with the table, the version, and why, and follow it with a new run of the fixed code. Never restore a Bronze or control table: they are append-only records.
 
 ## Verify recovery
