@@ -361,6 +361,24 @@ def test_ap1_gate_rejects_a_wrong_benchmark_status(store):
         run(store, "90_validate_ap1.sql")
 
 
+def test_ap1_is_not_assessed_below_90_percent_enrollment_coverage(store):
+    # S1's only offered count is blank: not active, but missing data, so City One's coverage is 1 of 2 schools
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET learner_count = NULL
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'ES'""")
+    run_all(store, STEPS[:1])
+    assert store.query(f"""SELECT coverage_pct, is_assessed, not_assessed_reason
+        FROM {ANALYTICS}.ap1_school_provision WHERE city_mun_psgc_code = 'C1'""") == [
+        (50.0, False, "coverage below 90%")]
+
+
+def test_ap1_presence_is_not_assessed_without_a_regular_barangay(store):
+    store.sql(f"DELETE FROM {GOLD}.dim_barangay WHERE city_mun_psgc_code = 'M1' AND member_type = 'regular'")
+    run_all(store, STEPS[:1])
+    assert store.query(f"""SELECT regular_barangay_count, barangays_without_public_es_pct, es_benchmark_status,
+        benchmark_status FROM {ANALYTICS}.ap1_school_provision WHERE city_mun_psgc_code = 'M1'""") == [
+        (0, None, "not assessed", "not assessed")]
+
+
 def test_ap1_gate_records_the_d061_checks_under_catalog_names(store):
     # existing names in config/quality_attributes.yml, so the data-quality dashboard file is not regenerated
     run_all(store, STEPS[:1])
