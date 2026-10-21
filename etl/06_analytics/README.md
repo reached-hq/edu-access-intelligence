@@ -27,6 +27,8 @@ flowchart LR
 
 ## D-061 planning-priority method
 
+Every column of these outputs is in [analytics outputs](../../docs/data/analytics-outputs.md).
+
 AP2 evaluates each usable school first. A school passes the illustrative screen when its complete all-level enrollment divided by its reported total NSBI instructional rooms is at least 50. The LGU row reports the number of screened schools, affected learners, and affected-learner share.
 
 AP2 flags classroom pressure when at least one school passes and learner coverage is at least 90%. If coverage is below 90% or the ratio is unavailable, the LGU proceeds to Data review rather than being treated as having no pressure.
