@@ -12,7 +12,7 @@ expected_joined AS (
   SELECT l.city_mun_psgc_code, COALESCE(b.is_assessed, FALSE) AS ap2_assessed,
     COALESCE(c.is_assessed, FALSE) AS ap3_assessed,
     CAST(CASE WHEN b.is_assessed AND b.congested_school_count > 0 THEN 1 ELSE 0 END AS INT) AS classroom_pressure_flag,
-    CAST(CASE WHEN c.is_assessed AND (c.es_benchmark_status = 'above historical study reference'
+    CAST(CASE WHEN (c.es_benchmark_status = 'above historical study reference'
       OR c.jhs_benchmark_status = 'above derived deployment comparison'
       OR c.shs_benchmark_status = 'above derived deployment comparison') THEN 1 ELSE 0 END AS INT) AS teacher_pressure_flag,
     COALESCE(b.learners_in_congested_schools, 0) AS ap2_affected_learners,
@@ -26,7 +26,8 @@ expected_joined AS (
       AS ap3_pressured_level_count,
     d.public_enrollment_change_first_to_latest AS ap4_public_enrollment_change,
     100 * d.public_enrollment_change_pct_first_to_latest AS ap4_public_enrollment_change_pct,
-    CASE WHEN d.public_enrollment_trend = 'increasing' THEN TRUE
+    CASE WHEN NOT COALESCE(d.is_2020_2024_geography_comparable, FALSE) THEN NULL
+         WHEN d.public_enrollment_trend = 'increasing' THEN TRUE
          WHEN d.public_enrollment_trend IN ('decreasing', 'no change') THEN FALSE END AS growing_enrollment
   FROM regular AS l
   LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS b USING (city_mun_psgc_code)
@@ -36,7 +37,9 @@ expected_joined AS (
 ), expected_grouped AS (
   SELECT *, classroom_pressure_flag + teacher_pressure_flag AS current_pressure_count,
     GREATEST(ap2_affected_learners, ap3_affected_learners) AS priority_affected_learners,
-    CASE WHEN NOT ap2_assessed OR NOT ap3_assessed OR growing_enrollment IS NULL THEN 'Data review'
+    CASE WHEN growing_enrollment IS NULL
+           OR (classroom_pressure_flag + teacher_pressure_flag = 0 AND (NOT ap2_assessed OR NOT ap3_assessed))
+           THEN 'Data review'
          WHEN classroom_pressure_flag + teacher_pressure_flag = 2 AND growing_enrollment THEN 'Priority 1'
          WHEN classroom_pressure_flag + teacher_pressure_flag = 2
            OR (classroom_pressure_flag + teacher_pressure_flag = 1 AND growing_enrollment) THEN 'Priority 2'
@@ -61,8 +64,9 @@ SELECT
       OR classroom_pressure_flag NOT IN (0, 1) OR teacher_pressure_flag NOT IN (0, 1)
       OR priority_affected_learners <> GREATEST(COALESCE(ap2_affected_learners, 0), COALESCE(ap3_affected_learners, 0))
       OR priority_category IS DISTINCT FROM
-        CASE WHEN NOT COALESCE(ap2_assessed, FALSE) OR NOT COALESCE(ap3_assessed, FALSE)
-               OR growing_enrollment IS NULL THEN 'Data review'
+        CASE WHEN growing_enrollment IS NULL
+               OR (current_pressure_count = 0
+                   AND (NOT COALESCE(ap2_assessed, FALSE) OR NOT COALESCE(ap3_assessed, FALSE))) THEN 'Data review'
              WHEN current_pressure_count = 2 AND growing_enrollment THEN 'Priority 1'
              WHEN current_pressure_count = 2 OR (current_pressure_count = 1 AND growing_enrollment) THEN 'Priority 2'
              WHEN current_pressure_count = 1 THEN 'Priority 3'

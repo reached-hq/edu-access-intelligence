@@ -1,6 +1,10 @@
 -- lgu planning-priority matrix under D-061.
 -- AP2 and AP3 provide separate current-pressure flags. AP4 supplies public-school enrollment growth.
 -- AP1 and the population-enrollment gap remain context and never change the priority category.
+-- A published pressure signal always counts: AP3's teacher flag comes from any level above its reference (that
+-- level passed its own coverage gate), even when another offered level is incomplete. Data review is used only
+-- when growth cannot be assessed, or when no measure shows pressure and a coverage gate failed. Growth is not
+-- assessed where the 2020-to-2024 geography is not comparable (boundary changes such as Makati/Taguig and the SGA).
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
@@ -35,6 +39,7 @@ WITH joined AS (
     100 * d.public_enrollment_change_pct_first_to_latest AS ap4_public_enrollment_change_pct,
     d.public_enrollment_trend AS ap4_public_enrollment_trend,
     d.public_enrollment_endpoints_complete AS ap4_public_enrollment_endpoints_complete,
+    d.is_2020_2024_geography_comparable AS ap4_geography_comparable,
     g.population_enrollment_gap AS ap4_gap_2024, 100 * g.gap_share AS ap4_gap_rate_2024_pct
   FROM edu_access.`05-gold`.dim_city_municipality AS l
   LEFT JOIN edu_access.`06-analytics`.ap1_school_provision AS a USING (city_mun_psgc_code)
@@ -48,15 +53,17 @@ WITH joined AS (
 ), classified AS (
   SELECT *,
     CAST(CASE WHEN ap2_assessed AND ap2_affected_school_count > 0 THEN 1 ELSE 0 END AS INT) AS classroom_pressure_flag,
-    CAST(CASE WHEN ap3_assessed AND ap3_pressured_level_count > 0 THEN 1 ELSE 0 END AS INT) AS teacher_pressure_flag,
-    CASE WHEN ap4_public_enrollment_trend = 'increasing' THEN TRUE
+    CAST(CASE WHEN ap3_pressured_level_count > 0 THEN 1 ELSE 0 END AS INT) AS teacher_pressure_flag,
+    CASE WHEN NOT COALESCE(ap4_geography_comparable, FALSE) THEN NULL
+         WHEN ap4_public_enrollment_trend = 'increasing' THEN TRUE
          WHEN ap4_public_enrollment_trend IN ('decreasing', 'no change') THEN FALSE END AS growing_enrollment
   FROM joined
 ), grouped AS (
   SELECT *, classroom_pressure_flag + teacher_pressure_flag AS current_pressure_count,
     GREATEST(COALESCE(ap2_affected_learners, 0), COALESCE(ap3_affected_learners, 0)) AS priority_affected_learners,
-    CASE WHEN NOT COALESCE(ap2_assessed, FALSE) OR NOT COALESCE(ap3_assessed, FALSE)
-           OR growing_enrollment IS NULL THEN 'Data review'
+    CASE WHEN growing_enrollment IS NULL
+           OR (classroom_pressure_flag + teacher_pressure_flag = 0
+               AND (NOT COALESCE(ap2_assessed, FALSE) OR NOT COALESCE(ap3_assessed, FALSE))) THEN 'Data review'
          WHEN classroom_pressure_flag + teacher_pressure_flag = 2 AND growing_enrollment THEN 'Priority 1'
          WHEN classroom_pressure_flag + teacher_pressure_flag = 2
            OR (classroom_pressure_flag + teacher_pressure_flag = 1 AND growing_enrollment) THEN 'Priority 2'
