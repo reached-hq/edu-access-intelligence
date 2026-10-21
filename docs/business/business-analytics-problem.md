@@ -42,15 +42,18 @@ In this question, “cities” means cities and municipalities, the same unit th
 
 ```mermaid
 flowchart LR
-    AP1["AP1 · School provision"] --> X["Separate planning context"]
-    AP2["AP2 · School-level room screen"] --> P["Classroom review queue<br/>affected learners · affected schools"]
-    AP3["AP3 · Teacher context"] --> X
-    AP4["AP4 · Enrollment-need context"] --> X["Context<br/>official benchmark · Similar LGUs · poverty"]
-    P --> R["Planner validation and response decision"]
+    AP1["AP1 · school-age population per school<br/>gap vs same-type median"] --> S["0–100 percentile score per AP"]
+    AP2["AP2 · learners per room<br/>gap vs 50"] --> S
+    AP3["AP3 · learners per teacher<br/>gap vs ES 35 · JHS 36 · SHS 80/3"] --> S
+    S --> C["Equal-weight composite<br/>BQ priority rank (D-062)"]
+    AP2 --> Q["Classroom drill-down queue (D-060)"]
+    AP4["AP4 · Enrollment-need context"] --> X["Context<br/>poverty · Similar LGUs"]
+    C --> R["Planner validation and response decision"]
+    Q --> R
     X --> R
 ```
 
-Schools, classrooms, and teachers are measured and shown separately. D-060 ranks only LGUs with one or more schools passing the classroom review screen; it does not combine unlike measures. A teacher rank or weighted combined score requires compatible current requirements data and a later approved decision.
+D-062 answers the BQ: each AP becomes a gap against its baseline, the gaps become 0–100 percentile scores, and their equal-weight mean ranks the LGUs that pass all three coverage gates. The rank is relative review priority, not a shortage or an allocation. Each AP is still shown separately, and D-060's classroom queue remains the AP2 drill-down.
 
 ## Analytical boundaries
 

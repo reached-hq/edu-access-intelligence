@@ -275,6 +275,6 @@ analytics_tables:
   - table: lgu_priority_matrix
     build_file: 05_build_priority_matrix.sql
     validate_file: 90_validate_priority_matrix.sql
-    grain: One regular city or municipality, SY 2023-24 (D-060 evidence table and classroom review queue).
+    grain: One regular city or municipality, SY 2023-24 (D-062 BQ composite and rank, with the D-060 classroom queue as AP2 drill-down).
 
 deferred_layers: []

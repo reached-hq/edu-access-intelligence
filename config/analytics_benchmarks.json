@@ -51,7 +51,95 @@
     "jhs_derivation": "45 maximum learners per class * 4 classes / 5 teachers",
     "shs_max_learners_per_teacher": 26.666666666666668,
     "shs_derivation": "40 maximum learners per class * 6 classes / 9 teachers",
-    "priority_use": "none",
+    "priority_use": "D-062 BQ composite: the gap of reference teachers over reported teachers, scored as a percentile; never a shortage or entitlement",
     "caveat": "ES 35 is historical context. The memorandum directly publishes JHS 45 and SHS 40 as learners per class, not per teacher. JHS 36 and SHS 80/3 are derived comparisons using the same table's teacher-to-class factors. DepEd applies the staffing process by grade and specialization, so none of these aggregate LGU comparisons is a current national shortage formula, staffing entitlement, or teacher priority rank."
+  },
+  "bq": {
+    "decision": "D-062",
+    "label": "Relative review priority against published references, not a shortage",
+    "ap1_baseline": "median school-age population (5-17, 2024) per public school among assessed LGUs of the same type (city or municipality); no published ratio exists (D-061)",
+    "ap2_baseline": 50.0,
+    "ap3_baselines": {
+      "es": 35.0,
+      "jhs": 36.0,
+      "shs": 26.666666666666668
+    },
+    "weights": {
+      "ap1": 1,
+      "ap2": 1,
+      "ap3": 1
+    },
+    "steps": [
+      {
+        "step": "gap",
+        "formula": "GREATEST(0, ratio / baseline - 1)",
+        "detail": "AP1 school-age population per public school against its same-type median; AP2 pooled learners per reported room against 50; AP3 reference teachers (sum of eligible learners / level reference) against reported teachers",
+        "references": [
+          "oecd_jrc_2008",
+          "fgt_1984"
+        ]
+      },
+      {
+        "step": "score",
+        "formula": "100 * PERCENT_RANK() over the gap, among LGUs with all three gaps",
+        "detail": "a zero gap scores 0; min-max scores are kept only as a sensitivity check because one extreme value compresses the rest",
+        "references": [
+          "oecd_jrc_2008",
+          "cdc_atsdr_svi_2022"
+        ]
+      },
+      {
+        "step": "composite",
+        "formula": "(ap1_score + ap2_score + ap3_score) / 3",
+        "references": [
+          "oecd_jrc_2008"
+        ]
+      },
+      {
+        "step": "rank",
+        "formula": "DENSE_RANK() OVER (ORDER BY composite_score DESC)",
+        "references": [
+          "cdc_atsdr_svi_2022"
+        ]
+      },
+      {
+        "step": "robustness",
+        "formula": "rank correlation and top-50 overlap without each AP and with min-max scores",
+        "references": [
+          "oecd_jrc_2008"
+        ]
+      }
+    ],
+    "references": {
+      "oecd_jrc_2008": {
+        "citation": "OECD and European Commission Joint Research Centre (2008). Handbook on Constructing Composite Indicators: Methodology and User Guide. OECD Publishing, Paris.",
+        "doi": "https://doi.org/10.1787/9789264043466-en",
+        "used_for": "Step 5 normalisation (distance to a reference; ranking/percentile; min-max), Step 6 weighting and aggregation (equal weights, linear aggregation), Step 7 uncertainty and sensitivity analysis (excluding one indicator at a time, alternative normalisation)"
+      },
+      "fgt_1984": {
+        "citation": "Foster, J., Greer, J. and Thorbecke, E. (1984). A Class of Decomposable Poverty Measures. Econometrica, 52(3), 761-766.",
+        "doi": "https://doi.org/10.2307/1913475",
+        "used_for": "the one-sided normalised gap: a value counts only by how far it is past the line, and 0 at or below it"
+      },
+      "cdc_atsdr_svi_2022": {
+        "citation": "Centers for Disease Control and Prevention / Agency for Toxic Substances and Disease Registry (2024). CDC/ATSDR Social Vulnerability Index 2022 Database US: Documentation.",
+        "url": "https://www.atsdr.cdc.gov/place-health/media/pdfs/2024/10/SVI2022Documentation.pdf",
+        "used_for": "percentile rank = (rank - 1) / (N - 1), higher means more vulnerable; theme scores are summed and the areas ranked on the result"
+      },
+      "yoo_choi_2022": {
+      "citation": "Yoo, Y. and Choi, S. (2022). Effects of Top-Down Balanced Development Strategies on Regional Balance: Evidence from Public Big Data in Korea. Sustainability, 14(23), 16221.",
+      "doi": "https://doi.org/10.3390/su142316221",
+      "used_for": "AP1 indicator: one of the paper's educational indicators is the number of schools per 1,000 school-age population, compared across Korean regions (Table 8); AP1's school-age population per public school is its inverse. The paper sets no cutoff, so it backs the measure but not a baseline",
+      "verification": "title, authors, journal and the indicator definition confirmed from the indexed text; Table 8's values not checked"
+    },
+      "jica_2025": {
+      "citation": "Hirota, K., Dartanto, T. and Ishizuka, F. (eds.) (2025). Addressing Social Infrastructure Needs in Asia: Towards a Pandemic Resilient Society. JICA Ogata Sadako Research Institute for Peace and Development, Tokyo and Jakarta. ISBN 978-4-86357-117-4.",
+      "url": "https://www.jica.go.jp/english/jica_ri/publication/booksandreports/1573036_24204.html",
+      "used_for": "supporting context for AP1: the project estimates school infrastructure demand from school-age population projections",
+      "verification": "title, editors, year and ISBN confirmed from the publisher's listing; the chapter and page that support AP1 were not checked when this entry was written"
+    }
+    },
+    "coverage_rule": "an LGU missing any of AP1 to AP3 (90% coverage gate or a NULL ratio) is data_review with no score; missing is never scored as 0",
+    "caveat": "AP2's 50 is PIDS's illustrative school line applied to the pooled LGU ratio, and AP3's references are historical or derived comparisons (D-059). The composite ranks LGUs for review; it does not estimate a classroom, teacher or school shortage, and AP1 is relative to similar LGUs, not to a standard."
   }
 }

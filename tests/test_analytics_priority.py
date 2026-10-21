@@ -1,4 +1,4 @@
-"""AP1 to AP4 evidence and the separate classroom-screening queue under D-060."""
+"""AP1 to AP4 evidence, the D-062 BQ composite, and the D-060 classroom drill-down queue."""
 
 from pathlib import Path
 
@@ -10,6 +10,7 @@ from src.ingestion.store import DuckDBStore
 ROOT = Path(__file__).parents[1]
 GOLD = "edu_access.`05-gold`"
 ANALYTICS = "edu_access.`06-analytics`"
+CONTROL = "edu_access.`01-control`"
 
 
 @pytest.fixture()
@@ -124,12 +125,15 @@ def add_public_school(store, school_id, code, learners, rooms, teachers=None):
         store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('{school_id}','2023-24','ES',{teachers})")
 
 
-def test_no_percentile_or_composite_tier_is_published(store):
+def test_ap_outputs_stay_descriptive_and_no_d057_tier_is_published(store):
+    # D-062 scores only in lgu_priority_matrix; the AP outputs themselves publish no percentile or tier
     run_all(store)
     for table in ["ap1_school_provision", "ap2_classroom_pressure", "ap3_teacher_pressure", "lgu_priority_matrix"]:
         columns = {c[0] for c in store.query(
             f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'")}
-        assert not {c for c in columns if "percentile" in c or c in {"is_high", "tier", "national_tier"}}
+        assert not {c for c in columns if c in {"is_high", "tier", "national_tier"} or c.endswith("_percentile")}
+        if table != "lgu_priority_matrix":
+            assert not {c for c in columns if "percentile" in c or "score" in c}
 
 
 def test_ap1_is_descriptive_only(store):
@@ -252,10 +256,12 @@ def test_ap2_publishes_no_45_to_1_line(store):
 
 
 def test_no_d057_or_d058_logic_remains():
-    sql = "\n".join((ROOT / "etl/06_analytics" / name).read_text(encoding="utf-8")
-                    for name in ["01_answer_ap1.sql", "02_answer_ap2.sql", "03_answer_ap3.sql",
-                                 "04_answer_ap4.sql", "05_build_priority_matrix.sql"])
-    for gone in ["PERCENT_RANK", "national_same_type_ratio", "relative_pressure", "Priority 1", "Lower Priority",
+    read = lambda name: (ROOT / "etl/06_analytics" / name).read_text(encoding="utf-8")
+    answers = "\n".join(read(name) for name in ["01_answer_ap1.sql", "02_answer_ap2.sql", "03_answer_ap3.sql",
+                                                "04_answer_ap4.sql"])
+    assert "PERCENT_RANK" not in answers          # D-062 scores LGUs only in the priority matrix
+    sql = answers + read("05_build_priority_matrix.sql")
+    for gone in ["national_same_type_ratio", "relative_pressure", "Priority 1", "Lower Priority",
                  "Critical", "D-057", "D-058"]:
         assert gone not in sql
 
@@ -451,3 +457,97 @@ def test_ap1_spacing_registry_matches_published_values(store):
     run_all(store, STEPS[:1])
     assert store.query(f"""SELECT DISTINCT spacing_km_rural_reference, spacing_km_urban_reference
         FROM {ANALYTICS}.ap1_school_provision""") == [(criteria["spacing_km_rural"], criteria["spacing_km_urban"])]
+
+
+def bq_rows(store):
+    return {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap1_gap, ap2_gap, ap3_gap,
+        ap1_score, ap2_score, ap3_score, composite_score, bq_priority_group, bq_priority_rank
+        FROM {ANALYTICS}.lgu_priority_matrix""")}
+
+
+def add_bq_pressure(store):
+    # City Two: 330 learners in 5 rooms (66 per room); Town One: 150 ES learners for 3 teachers (50 against ES 35)
+    store.sql(f"UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 5 WHERE school_id = 'S3'")
+    store.sql(f"UPDATE {GOLD}.fact_school_teacher_capacity SET teacher_count = 3 WHERE school_id = 'S4'")
+
+
+def test_bq_gaps_follow_d062_formulas(store):
+    add_bq_pressure(store)
+    run_all(store)
+    rows = bq_rows(store)
+    # AP1: school-age population per school against the median of its own type (cities 494 and 1976: 1235)
+    assert rows["C2"][0] == pytest.approx(1976 / 1235 - 1)
+    assert rows["C1"][0] == 0.0
+    # AP2: pooled learners per reported room against PIDS 50
+    assert rows["C2"][1] == pytest.approx(66 / 50 - 1)
+    # AP3: reference teachers (150 / 35) against reported teachers (3)
+    assert rows["M1"][2] == pytest.approx(150 / 35 / 3 - 1)
+    assert {r[2] for code, r in rows.items() if code != "M1"} == {0.0}
+
+
+def test_bq_scores_are_percentile_ranks_and_the_composite_is_an_equal_weight_mean(store):
+    add_bq_pressure(store)
+    run_all(store)
+    rows = bq_rows(store)
+    for code, (_, _, _, s1, s2, s3, composite, group, _) in rows.items():
+        assert group == "ranked"
+        assert composite == pytest.approx((s1 + s2 + s3) / 3)
+    # a zero gap scores 0; with four LGUs the only positive AP2 gap scores (4 - 1) / (4 - 1) = 100
+    assert rows["C1"][3:6] == (0.0, 0.0, 0.0)
+    assert rows["C2"][4] == 100.0
+    # City Two fails AP1 and AP2, so it is first; ties share a rank
+    assert rows["C2"][8] == 1
+    assert rows["C1"][8] == max(r[8] for r in rows.values())
+
+
+def test_bq_missing_ap_is_data_review_and_never_scored_as_zero(store):
+    add_bq_pressure(store)
+    store.sql(f"DELETE FROM {GOLD}.fact_school_classroom_capacity WHERE school_id = 'S1'")
+    run_all(store)
+    rows = bq_rows(store)
+    assert rows["C1"][1] is None and rows["C1"][3:] == (None, None, None, None, "data_review", None)
+    # the other three are ranked among themselves: City Two's AP2 gap is the only positive one
+    assert rows["C2"][4] == 100.0
+    assert sorted(r[7] for code, r in rows.items() if code != "C1") == ["ranked"] * 3
+
+
+def test_bq_gate_rejects_a_changed_score_and_a_score_on_data_review(store):
+    add_bq_pressure(store)
+    store.sql(f"DELETE FROM {GOLD}.fact_school_classroom_capacity WHERE school_id = 'S1'")
+    run_all(store)
+    before = store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code")
+    for change in ["composite_score = composite_score + 1 WHERE city_mun_psgc_code = 'C2'",
+                   "ap2_score = 0 WHERE city_mun_psgc_code = 'C1'"]:
+        run(store, "05_build_priority_matrix.sql")
+        store.sql(f"UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET {change}")
+        with pytest.raises(Exception, match="Analytics gate failed"):
+            run(store, "90_validate_priority_matrix.sql")
+    assert store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code") == before
+
+
+def test_bq_sensitivity_reports_each_variant(store):
+    add_bq_pressure(store)
+    run_all(store)
+    rows = {r[0]: r[1:] for r in store.query(f"""SELECT variant, ranked_lgus, top_50_overlap, top_50_lgus
+        FROM {ANALYTICS}.bq_priority_sensitivity""")}
+    assert set(rows) == {"without_ap1", "without_ap2", "without_ap3", "min_max_scores"}
+    assert {r for r in rows.values()} == {(4, 4, 4)}
+    recorded = {r[0] for r in store.query(f"""SELECT check_name FROM {CONTROL}.data_quality_results
+        WHERE source_id = 'lgu_priority_matrix' AND status = 'PASS'""")}
+    assert {"derived_values_reconcile", "counts_reconcile"} <= recorded
+
+
+def test_bq_registry_matches_the_composite_inputs():
+    import json
+
+    registry = json.loads((ROOT / "config/analytics_benchmarks.json").read_text(encoding="utf-8"))
+    bq = registry["bq"]
+    assert bq["decision"] == "D-062"
+    assert bq["weights"] == {"ap1": 1, "ap2": 1, "ap3": 1}
+    assert bq["ap2_baseline"] == registry["ap2"]["threshold"]
+    assert bq["ap3_baselines"] == {"es": registry["ap3"]["es_max_learners_per_teacher"],
+                                   "jhs": registry["ap3"]["jhs_max_learners_per_teacher"],
+                                   "shs": registry["ap3"]["shs_max_learners_per_teacher"]}
+    sql = (ROOT / "etl/06_analytics/05_build_priority_matrix.sql").read_text(encoding="utf-8")
+    assert "/ 50.0 - 1" in sql and "/ 35.0" in sql and "/ 36.0" in sql and "/ (80.0 / 3)" in sql
+    assert all(step["references"] for step in bq["steps"])

@@ -25,9 +25,13 @@ flowchart LR
 | `02_answer_ap2.sql` | `90_validate_ap2.sql` | `ap2_classroom_pressure` | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to the LGU |
 | `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | Descriptive ES, JHS and SHS learner-per-teacher comparisons; not a teacher-shortage rank |
 | `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Enrollment trend and census-year population context |
-| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-060 evidence table and classroom review queue; no composite score, percentile tier, or teacher rank |
+| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix`, `bq_priority_sensitivity` | D-062 BQ composite and rank (relative review priority, not a shortage), its robustness summary, and the D-060 classroom queue as AP2 drill-down |
 
-## D-060 classroom review queue
+## D-062 BQ composite
+
+Each LGU gets a gap per AP, `GREATEST(0, ratio / baseline - 1)`: AP1 school-age population per public school against the same-type median, AP2 pooled learners per reported room against 50, AP3 reference teachers against reported teachers. Each gap becomes `100 * PERCENT_RANK()` among LGUs with all three gaps, the composite is their mean, and `bq_priority_rank` is `DENSE_RANK()` on it, highest first. An LGU missing any AP is `data_review` with no score. `bq_priority_sensitivity` gives the rank correlation and top-50 overlap when one AP is dropped or min-max replaces percentile scores. References are in `config/analytics_benchmarks.json` under `bq` ([D-062](../../docs/governance/decisions.md#d-062-bq-prioritization-equal-weight-composite-of-ap-gaps)).
+
+## D-060 classroom review queue (AP2 drill-down)
 
 AP2 evaluates each usable school first. A school passes the illustrative screen when its complete all-level enrollment divided by its reported total NSBI instructional rooms is at least 50. The LGU row reports the number of screened schools, affected learners, and affected-learner share.
 

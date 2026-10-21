@@ -337,9 +337,26 @@ Similar LGUs replaces the proposed peer groups. For each city or municipality, t
 
 If distribution summaries are shown, they are descriptive only and must not be used as a need threshold or priority rule.
 
-### Planning-priority rule
+### BQ prioritization rule (D-062)
 
-D-060 replaces the percentile and composite-tier design. It creates one bounded classroom review queue and keeps school and teacher measures as separate evidence.
+Each LGU gets one gap per AP, `GREATEST(0, ratio / baseline - 1)`, then a 0–100 score per gap, then the equal-weight mean of the three scores, ranked highest first. Formulas and references are in [D-062](../governance/decisions.md#d-062-bq-prioritization-equal-weight-composite-of-ap-gaps) and under `bq` in `config/analytics_benchmarks.json`.
+
+| Step | Computation | Reference |
+|---|---|---|
+| AP1 gap | school-age population (5–17, 2024) per active public school ÷ median of assessed LGUs of the same type − 1, floored at 0 | Yoo & Choi (2022); JICA (2025); no published ratio (D-061) |
+| AP2 gap | pooled learners per reported room ÷ 50 − 1, floored at 0 | PIDS DP 2025-10 (D-059) |
+| AP3 gap | reference teachers (Σ eligible learners ÷ ES 35 / JHS 36 / SHS 80/3) ÷ reported teachers − 1, floored at 0 | D-059 references |
+| Gap form | distance to a reference, 0 at or below it | OECD/JRC (2008) Step 5; Foster, Greer & Thorbecke (1984) |
+| Score | `100 × PERCENT_RANK()` of each gap among LGUs with all three | OECD/JRC (2008) Step 5; CDC/ATSDR SVI 2022 |
+| Composite | (AP1 + AP2 + AP3 score) ÷ 3 | OECD/JRC (2008) Step 6 |
+| Rank | `DENSE_RANK()` on the composite, highest first | CDC/ATSDR SVI 2022 |
+| Robustness | ranks without each AP and with min–max scores; rank correlation and top-50 overlap in `bq_priority_sensitivity` | OECD/JRC (2008) Step 7 |
+
+An LGU that fails any AP's 90% coverage gate is `data_review` and has no score; missing data never count as 0. The result is relative review priority, not a shortage.
+
+### Classroom drill-down queue (D-060)
+
+D-060's classroom queue stays as AP2's school-level drill-down. It shows which LGUs have schools at or above 50 learners per reported room; the BQ ranking is D-062's.
 
 1. **School-level screen.** For each active public school with complete enrollment and more than zero reported NSBI instructional rooms, compute `school_learners / school_reported_rooms`. The school passes at `>= 50`. A school with learners but 0 reported rooms has no ratio and cannot pass, although it is the most congested case; it lowers learner coverage and is counted in AP2's `zero_room_school_count`, which the dashboard should show beside the queue.
 2. **LGU evidence.** Aggregate the passing-school count, learners in passing schools, and their share of the LGU's public-school enrollment. Keep the pooled LGU reported-room ratio as descriptive context; do not use it alone to decide whether any school passes.
@@ -381,7 +398,8 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **AP4 context** | enrollment in all sectors by school year, change from the previous year, change and trend from the first to the latest year, public-school share; on SY 2020-21 and 2024-25, population aged 5–17, gap and gap share; change in gap from 2020 to 2024 | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Built in `ap4_enrollment_trend` (#208); context only |
 | **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | `dim_city_poverty` built (#174); the dashboard view is in #96 |
 | **Comparisons** | applicable bounded reference and status, national same-type summary, Similar LGUs | citation/version, comparison-group count, spread, Similar LGUs inputs | References built; Similar LGUs method planned in #96 |
-| **Classroom review queue** | queue status, classroom priority rank, affected schools and learners | D-060 rule version, AP2 coverage, denominator caveats, missingness and quality warnings | Built in `lgu_priority_matrix`; no composite tier or teacher rank |
+| **BQ priority** | BQ priority rank, composite score, AP1 to AP3 scores and gaps | D-062 rule version, `data_review` list, ranks without each AP and with min–max, `bq_priority_sensitivity` | Built in `lgu_priority_matrix` (D-062) |
+| **Classroom review queue** | queue status, classroom priority rank, affected schools and learners | AP2 coverage, denominator caveats, missingness and quality warnings | Built in `lgu_priority_matrix`; AP2 drill-down under D-062 |
 
 ## Separate follow-on decisions
 

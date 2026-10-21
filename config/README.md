@@ -22,7 +22,7 @@ Every generated file has a test that fails when the committed file differs from 
 | `tables.yml` | The name, files, and grain of every table, Bronze to Analytics | Fan-in generator, naming tests, [ETL table registry](../docs/standards/tables.md) |
 | `freshness.yml` | How old each source's latest batch may get, and why | `src/job/freshness.py` |
 | `quality_attributes.yml` | Which quality attribute each check tests | `src/dashboard/data_quality.py` |
-| `analytics_benchmarks.json` | The AP1 reference (DO 40, s. 2014 presence criteria, 2 km / 1 km spacing, and their statuses; no published ratio; D-061) and the AP2 and AP3 reference values, their sources, derivations, and caveats (D-060) | `tests/test_analytics_priority.py`, which checks that the Analytics SQL writes the same values |
+| `analytics_benchmarks.json` | The AP1 reference (DO 40, s. 2014 presence criteria, 2 km / 1 km spacing, and their statuses; no published ratio; D-061) the AP2 and AP3 reference values, their sources, derivations, and caveats (D-060), and the BQ composite's steps, weights and references (D-062) | `tests/test_analytics_priority.py`, which checks that the Analytics SQL writes the same values |
 | `sources.json` | The source registry: every candidate source and its status | `src/ingestion/contract.py`, `tests/test_config.py` |
 | `naming.yml` | Machine-readable naming patterns | `tests/test_naming.py` |
 | `project.json` | Workspace, catalog, schema, and storage settings | `tests/test_bundle.py` |
