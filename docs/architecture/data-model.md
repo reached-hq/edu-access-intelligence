@@ -275,6 +275,8 @@ It carries **no PSGC code**. A school's city and barangay come only from `deped_
 | `no_matched_city` | The map has no matched city for the school in SY 2023-24 (`ambiguous`, `excluded`) | 18 |
 | `no_boundary` | The city is matched but has no HDX boundary: the 8 Special Geographic Area municipalities | 97 |
 
+Counts from the [real-data local run](../../evidence/reconciliation/2026-10-21-dim-school-location-gold.md).
+
 The status is a check, never a correction: nothing is moved, geocoded, or dropped. The test is at city level only; the barangay boundaries (HDX ADM4) are not in Silver.
 
 Built by `07_build_dim_school_location.sql`; the gate `90_validate_dim_school_location.sql` fails on a repeated or NULL key, a row count other than Silver's, a school not in `dim_school`, a value that differs from Silver, a status outside the five or one that does not follow its inputs, and an upstream run that did not succeed, and records the count per status. The gate checks the statuses against the map and the boundaries without redoing the geometry, so the spatial work runs once per refresh; `tests/test_gold_dim_school_location.py` checks the geometry on known shapes. Nothing waits for it.
