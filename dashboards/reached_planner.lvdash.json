@@ -1454,7 +1454,7 @@
         "         || format_number(COALESCE(zero_room_school_count, 0), 0) || ' with 0 rooms (left out of the screen)'\n",
         "FROM p\n",
         "UNION ALL SELECT 3, 'Teachers (AP3)', COALESCE(format_number(ap3_coverage_pct, 0) || '%', 'n/a'),\n",
-        "       CASE WHEN ap3_fully_assessed THEN 'Assessed' ELSE 'Not fully assessed' END,\n",
+        "       CASE WHEN ap3_assessed THEN 'Assessed' ELSE 'Not fully assessed' END,\n",
         "       format_number(zero_teacher_annex_schools, 0)\n",
         "         || CASE WHEN zero_teacher_annex_schools = 1 THEN ' annex school level' ELSE ' annex school levels' END\n",
         "         || ' with 0 teachers reported'\n",

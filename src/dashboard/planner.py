@@ -269,7 +269,7 @@ UNION ALL SELECT 2, '{MEASURES[1]}', {cov('ap2_learner_coverage_pct')},
          || format_number(COALESCE(zero_room_school_count, 0), 0) || ' with 0 rooms (left out of the screen)'
 FROM p
 UNION ALL SELECT 3, '{MEASURES[2]}', {cov('ap3_coverage_pct')},
-       CASE WHEN ap3_fully_assessed THEN 'Assessed' ELSE 'Not fully assessed' END,
+       CASE WHEN ap3_assessed THEN 'Assessed' ELSE 'Not fully assessed' END,
        format_number(zero_teacher_annex_schools, 0)
          || CASE WHEN zero_teacher_annex_schools = 1 THEN ' annex school level' ELSE ' annex school levels' END
          || ' with 0 teachers reported'
