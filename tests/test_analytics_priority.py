@@ -1,4 +1,4 @@
-"""AP1 to AP4 evidence and the separate classroom-screening queue under D-060."""
+"""AP1 to AP4 evidence and the D-061 planning-priority method."""
 
 from pathlib import Path
 
@@ -133,29 +133,40 @@ def test_ap2_threshold_is_inclusive_at_50(store):
         FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [(1, 100)]
 
 
-def test_ap2_coverage_failure_goes_to_classroom_data_review(store):
+def test_ap2_coverage_failure_goes_to_data_review(store):
     # S1 loses its room count: City One keeps half its learners in the ratio, below the 90% gate
     store.sql(f"DELETE FROM {GOLD}.fact_school_classroom_capacity WHERE school_id = 'S1'")
     run_all(store)
     assert store.query(f"""SELECT learner_coverage_pct, is_assessed, not_assessed_reason
         FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [
         (50.0, False, "learner coverage below 90%")]
-    assert store.query(f"""SELECT ap2_assessed, classroom_priority_group, classroom_priority_rank
+    assert store.query(f"""SELECT ap2_assessed, priority_category
         FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'C1'""") == [
-        (False, "data_review", None)]
+        (False, "Data review")]
 
 
-def test_classroom_queue_orders_by_affected_learners_and_preserves_ties(store):
-    add_public_school(store, "X1", "M1", 60, 1)
-    add_public_school(store, "X2", "M2", 60, 1)
+def test_classroom_pressure_and_growth_feed_priority(store):
+    add_public_school(store, "X1", "M1", 60, 1, 2)
+    add_public_school(store, "X2", "M2", 60, 1, 2)
     store.sql(f"""UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 8
         WHERE school_id = 'S5'""")
     run_all(store)
     rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap2_affected_learners,
-        ap2_screened_congested_school_count, classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix
-        WHERE classroom_priority_group = 'reported_congestion_screen'""")}
-    assert rows["M1"] == (60, 1, 1)
-    assert rows["M2"] == (60, 1, 1)
+        ap2_affected_school_count, classroom_pressure_flag, growing_enrollment, priority_category
+        FROM {ANALYTICS}.lgu_priority_matrix WHERE classroom_pressure_flag = 1""")}
+    assert rows["M1"] == (60, 1, 1, True, "Priority 2")
+    assert rows["M2"] == (60, 1, 1, True, "Priority 2")
+
+
+def test_two_current_pressures_and_growth_are_priority_1(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 2
+        WHERE school_id = 'S3'""")
+    store.sql(f"""UPDATE {GOLD}.fact_school_teacher_capacity SET teacher_count = 5
+        WHERE school_id = 'S3' AND education_level_code = 'ES'""")
+    run_all(store)
+    assert store.query(f"""SELECT classroom_pressure_flag, teacher_pressure_flag, current_pressure_count,
+        growing_enrollment, priority_category FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'C2'""") == [(1, 1, 2, True, "Priority 1")]
 
 
 def test_ap3_pressure_signal_precedes_incomplete_level(store):
@@ -194,12 +205,11 @@ def test_ap4_gives_the_gap_at_both_censuses_and_never_enters_the_classroom_queue
     assert rows[("C1", "2020-21")] == (884, 200, 684, "available")
     assert rows[("C1", "2024-25")] == (988, 280, 708, "available")
     assert rows[("C1", "2023-24")] == (None, 260, None, "not available: no census in this school year")
-    gaps = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap4_gap_2020, ap4_gap_2024, ap4_gap_change,
-        ap4_enrollment_trend, classroom_priority_group, classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix""")}
-    assert gaps["C1"][:4] == (684, 708, 24, "increasing")
-    assert gaps["M2"][2] is None                      # geography not comparable: no change in gap
-    # AP4 is context: a large gap never puts an LGU in the classroom queue (no school here reaches 50 per room)
-    assert {g[4:] for g in gaps.values()} == {("no_reported_congestion_screen", None)}
+    priorities = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap4_gap_2024,
+        ap4_public_enrollment_change, ap4_public_enrollment_trend, growing_enrollment, priority_category
+        FROM {ANALYTICS}.lgu_priority_matrix""")}
+    assert priorities["C1"] == (708, 100, "increasing", True, "Monitor")
+    assert {p[4] for p in priorities.values()} == {"Monitor"}
 
 
 def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
@@ -214,8 +224,8 @@ def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
     assert store.query(f"""SELECT jhs_offered_school_count, jhs_incomplete_school_count, jhs_passes_gate,
         offered_level_count, passing_level_count, is_assessed, benchmark_status FROM {ANALYTICS}.ap3_teacher_pressure
         WHERE city_mun_psgc_code = 'C1'""") == [(1, 1, False, 2, 1, False, "not fully assessed")]
-    assert store.query(f"""SELECT ap3_fully_assessed, ap3_review_status FROM {ANALYTICS}.lgu_priority_matrix
-        WHERE city_mun_psgc_code = 'C1'""") == [(False, "not fully assessed")]
+    assert store.query(f"""SELECT ap3_assessed, ap3_review_status, priority_category FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'C1'""") == [(False, "not fully assessed", "Data review")]
 
 
 def test_ap2_publishes_no_45_to_1_line(store):
@@ -231,16 +241,16 @@ def test_no_d057_or_d058_logic_remains():
     sql = "\n".join((ROOT / "etl/06_analytics" / name).read_text(encoding="utf-8")
                     for name in ["01_answer_ap1.sql", "02_answer_ap2.sql", "03_answer_ap3.sql",
                                  "04_answer_ap4.sql", "05_build_priority_matrix.sql"])
-    for gone in ["PERCENT_RANK", "national_same_type_ratio", "relative_pressure", "Priority 1", "Lower Priority",
+    for gone in ["PERCENT_RANK", "national_same_type_ratio", "relative_pressure", "Lower Priority",
                  "Critical", "D-057", "D-058"]:
         assert gone not in sql
 
 
-def test_priority_gate_rejects_a_wrong_classroom_rank(store):
+def test_priority_gate_rejects_a_wrong_category(store):
     add_public_school(store, "X1", "M1", 60, 1)
     run_all(store)
     before = store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code")
-    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET classroom_priority_rank = 99
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET priority_category = 'wrong'
         WHERE city_mun_psgc_code = 'M1'""")
     with pytest.raises(Exception, match="Analytics gate failed"):
         run(store, "90_validate_priority_matrix.sql")
