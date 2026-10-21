@@ -4,17 +4,17 @@ Issue #217 · local run (DuckDB) only; nothing has run on Databricks · 2026-10-
 
 ## The claim
 
-On the real public-only workbook, `deped_psgc_coordinates_clean` has one row per public school, 47,818, with 0 quarantined. Every row reconciles to its Bronze row. All 35 gate checks pass, and a second build gives identical content. Of the workbook's 88 columns it carries 7 (`school_id`, the four PSGC codes, `longitude`, `latitude`), with 8 columns derived from them (`school_year` from provenance, the flags, the null reasons, the published coordinate text); the other 81 stay in Bronze, each shown below to repeat another source or to be unused. Every PSGC code it keeps is in the PSGC 2Q 2026 master.
+On the real public-only workbook, `deped_psgc_coordinates_clean` has one row per public school, 47,818, with 0 quarantined. Every row reconciles to its Bronze row. All 36 gate checks pass, and a second build gives identical content. Of the workbook's 88 columns it carries 7 (`school_id`, the four PSGC codes, `longitude`, `latitude`), with 5 columns derived from them (`school_year` from provenance, `psgc_recoded`, `psgc_null_reason`, `barangay_outside_city`, `coordinate_flag`); no code or number column holds `#N/A`, and the other 81 columns stay in Bronze, each shown below to repeat another source or to be unused. Every PSGC code it keeps is in the PSGC 2Q 2026 master.
 
 **Not claimed:** anything on Databricks, and anything about whether a coordinate is the right place (profile S-1).
 
 ## What was run
 
-Commit `6b31e5e51d9982f61e0f09c171e851392c2f0536` on `feat/217-deped-psgc-coordinates-silver`, clean worktree. macOS 26.4.1, Python 3.12.14, DuckDB 1.4.5. A new, empty DuckDB file in a scratch folder.
+Commit `544ceaf670115fea6119d4fdebe0a5c0fa62a752` on `feat/217-deped-psgc-coordinates-silver`, clean worktree. (First run at `6b31e5e`, with 15 value columns; the kept values are identical for all 47,818 schools in both builds, so only the two published-text coordinate columns and the second null-reason column were removed.) macOS 26.4.1, Python 3.12.14, DuckDB 1.4.5. A new, empty DuckDB file in a scratch folder.
 
 1. Bronze, the real workbook (SHA-256 `edf7ba68…fc8a1`, checked by the loader): `python -m src.ingestion.cli ingest --source deped_psgc_coordinates`. Result: `load initial succeeded`, 47,818 rows inserted, all of kind `unit`.
 2. PSGC master, for the reference check only: `python -m src.ingestion.cli ingest --source psa_psgc`. Result: `2026-Q2`, 43,768 rows.
-3. Silver, twice, with `run_id` `silver-ev-1` then `silver-ev-2` and `code_revision` = the commit: `etl/03_silver/09_clean_deped_psgc_coordinates.sql`, then `etl/03_silver/90_validate_deped_psgc_coordinates_clean.sql`.
+3. Silver, twice, with `run_id` `silver-ev2-1` then `silver-ev2-2` and `code_revision` = the commit: `etl/03_silver/09_clean_deped_psgc_coordinates.sql`, then `etl/03_silver/90_validate_deped_psgc_coordinates_clean.sql`.
 
 ## Results
 
@@ -24,15 +24,15 @@ Commit `6b31e5e51d9982f61e0f09c171e851392c2f0536` on `feat/217-deped-psgc-coordi
 |---|---|---|
 | Bronze unit rows | 47,818 | 47,818 |
 | Clean / quarantine | 47,818 / 0 | 47,818 / 0 |
-| Gate checks | 35 PASS | 35 PASS |
+| Gate checks | 36 PASS | 36 PASS |
 | `pipeline_runs` | `succeeded` | `succeeded` |
-| Content hash (all columns except the run stamp) | `a477eb4d576a…` | `a477eb4d576a…` (identical) |
+| Content hash (all columns except the run stamp) | `a3032e08ddba…` | `a3032e08ddba…` (identical) |
 
 The FAIL checks that passed:
 - `rows_reconcile`: Bronze unit rows = clean + quarantine.
 - `rows_resolve_to_current_bronze`.
 - `values_reconcile`: every value recomputed from its Bronze row.
-- `coordinates_reconcile`, `school_id_unique`, `school_id_format`, `codes_ten_digits`, `code_values_recognized`, `region_province_values_recognized`, `null_reason_matches_code`, `levels_null_together`, `coordinates_in_pairs`, `coordinate_values_recognized`.
+- `coordinates_reconcile`, `school_id_unique`, `school_id_format`, `codes_ten_digits`, `code_values_recognized`, `region_province_values_recognized`, `null_reason_matches_code`, `null_reasons_agree` (the city and barangay codes are never NULL for different reasons, so one `psgc_null_reason` loses nothing), `levels_null_together`, `coordinates_in_pairs`, `coordinate_values_recognized`.
 - `rows_in_scope`: no clean row outside SY 2023-24 or `Public`.
 - `lineage_complete`, `rows_built_by_this_run`, `current_batch_present`, `quarantine_rate`.
 

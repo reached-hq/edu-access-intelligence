@@ -939,7 +939,7 @@ What only Databricks can show for school-age: Spark's running-sum windows and th
 
 `deped_psgc_coordinates` (#217) reads the public-only DepEd workbook's Bronze rows and keeps each school's location: its four PSGC codes and its published coordinates, one row per school. Its build and gate are the crosswalk's generator (`src/silver/deped_enrollment_psgc.py`, D-049) given a **scope**, and `src/silver/deped_psgc_coordinates.py` writes its dictionary. Rules: [config/mappings/deped_psgc_coordinates.json](../../config/mappings/deped_psgc_coordinates.json); columns: [data dictionary](../data/silver/deped-psgc-coordinates-clean.md).
 
-**Status:** tested locally on made-up workbooks (`tests/test_silver_deped_psgc_coordinates.py`), and run locally on the real SY 2023-24 batch: 47,818 clean rows, 0 quarantined, 35 of 35 checks PASS, identical on a rebuild ([evidence](../../evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)). Not yet run by the job on Databricks.
+**Status:** tested locally on made-up workbooks (`tests/test_silver_deped_psgc_coordinates.py`), and run locally on the real SY 2023-24 batch: 47,818 clean rows, 0 quarantined, 36 of 36 checks PASS, identical on a rebuild ([evidence](../../evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)). Not yet run by the job on Databricks.
 
 ### The flow (public-school locations)
 
@@ -953,7 +953,7 @@ bronze_deped_psgc_coordinates               Python: check and load the workbook 
    │                                             deped_psgc_coordinates_clean_candidate       one row per public school
    │                                             deped_psgc_coordinates_quarantine_candidate  rows not carried, with reasons
    ▼
-90_validate_deped_psgc_coordinates_clean    SQL: 35 checks; any FAIL: 'failed', stop, nothing published;
+90_validate_deped_psgc_coordinates_clean    SQL: 36 checks; any FAIL: 'failed', stop, nothing published;
                                                  else publish quarantine, then clean, then 'succeeded'
 ```
 
@@ -967,7 +967,7 @@ The workbook repeats `deped_enrollment` for its schools. This was checked school
 - Names and place names are the same apart from spacing, case, and quote marks.
 - `school_subclassification`, `school_type` and `modified_coc` relabel `school_management`, `annex_status` and the three `offers_*` flags.
 
-So of the 88 workbook columns Silver carries 7 (`school_id`, the four codes, `longitude`, `latitude`), plus 8 derived from them (`school_year`, the flags, the null reasons, the published coordinate text) and lineage; the other 81 stay in Bronze. The [data dictionary](../data/silver/deped-psgc-coordinates-clean.md#not-carried-from-bronze) lists every column not carried, with its reason. They all stay in Bronze.
+So of the 88 workbook columns Silver carries 7 (`school_id`, the four codes, `longitude`, `latitude`), plus 5 derived from them (`school_year`, `psgc_recoded`, `psgc_null_reason`, `barangay_outside_city`, `coordinate_flag`) and lineage: 12 value columns. The other 81 stay in Bronze, and so does the exact text of every value (`#N/A` included): no code or number column in Silver holds `#N/A`. The [data dictionary](../data/silver/deped-psgc-coordinates-clean.md#not-carried-from-bronze) lists every column not carried, with its reason. They all stay in Bronze.
 
 ### Cleaning rules (public-school locations)
 
@@ -978,9 +978,9 @@ So of the 88 workbook columns Silver carries 7 (`school_id`, the four codes, `lo
 | `sector` not `Public` | quarantine `sector_not_public` | Scope: public schools only. The file says so in A6, and Bronze warns on another sector | 0 |
 | `school_id` not 6 digits; repeated `school_id` | quarantine, as the crosswalk | D-049 | 0 |
 | PSGC codes stored as 9 or 10 digits | left-pad to 10, as text | Profile O-3 | 28,811 |
-| `#N/A` or blank code | NULL with `source_na` or `not_in_workbook`; any other value **fails** | Profile O-3; D-023 | 204 / 0 |
+| `#N/A` or blank code | NULL, with one `psgc_null_reason` per row (`source_na` or `not_in_workbook`); any other value **fails**, and so do codes NULL for different reasons in one row (`null_reasons_agree`) | Profile O-3; D-023 | 204 / 0 |
 | Province code `19066…` (Sulu, Q4 2024) | recoded to `09066…`, region to `0900000000`; `psgc_recoded` | D-049 | 446 |
-| Coordinates | typed `DOUBLE`, published text kept; `coordinate_flag` | Profile O-4; never corrected | missing 679, zero 5, outside 54 |
+| Coordinates | typed `DOUBLE`; `#N/A` and blank to NULL; `coordinate_flag`. The exact text stays in Bronze only, as `psa_psgc` leaves its unpadded IDs there; the gate recomputes every number from Bronze | Profile O-4; never corrected | missing 679, zero 5, outside 54 |
 
 More than 1% of unit rows in quarantine fails the gate, so a file that is no longer public-only, or another year delivered under this contract, cannot pass unseen. `rows_in_scope` fails if any clean row is outside the scope.
 
