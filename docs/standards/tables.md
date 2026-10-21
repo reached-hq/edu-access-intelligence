@@ -71,6 +71,9 @@ to PSGC and the estimate carried unchanged (D-054).
 Implemented: `psa_school_age_population_psgc_map` (`05_map_psa_school_age_population_psgc.sql`),
 one row per census year and city or municipality of the PSA school-age population, with its
 reviewed PSGC match, the PSGC parent it was searched in, review status, and reason (D-055).
+Implemented: `deped_school_boundary_map` (`06_map_deped_school_boundary.sql`), one row per public
+school of `deped_psgc_coordinates_clean`, with its point, the city the school map assigns it, and the
+boundary test S-1 against that city's HDX boundaries (#217).
 Implemented: `deped_school_psgc_map` (`01_map_deped_school_psgc.sql`), one row per enrollment
 school, school year, and geographic level (`city_mun`, `bgy`), with its EMISD-code or reviewed
 name match, including explicit unmatched, ambiguous, and excluded rows (#91, D-049).

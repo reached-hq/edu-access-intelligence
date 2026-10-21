@@ -265,7 +265,7 @@ One row per school in `deped_psgc_coordinates_clean`: the 47,818 public schools 
 
 It carries **no PSGC code**. A school's city and barangay come only from `deped_school_psgc_map` through the facts (D-049), so there is one path from a school to its LGU; a map of schools takes the LGU from `fact_school_enrollment` and the point from here.
 
-`longitude`, `latitude` and `coordinate_flag` are Silver's, unchanged: NULL for `#N/A` or blank, with the flag `missing`, `zero` or `outside_philippines`. `boundary_status` is the boundary test S-1 at city or municipality level, the point against the HDX ADM3 boundary of the city the reviewed map assigns the school for SY 2023-24 (latest HDX release, matched and valid features, any of a city's features):
+All four values are copied from the Integration map `deped_school_boundary_map` (`06_map_deped_school_boundary.sql`), which keeps one row per school of `deped_psgc_coordinates_clean`. `longitude`, `latitude` and `coordinate_flag` are Silver's, unchanged: NULL for `#N/A` or blank, with the flag `missing`, `zero` or `outside_philippines`. `boundary_status` is the map's boundary test S-1 at city or municipality level, the point against the HDX ADM3 boundary of the city the school PSGC map assigns the school for SY 2023-24 (latest HDX release, matched and valid features, any of a city's features):
 
 | `boundary_status` | Meaning | Real batch (2026-10-21, local) |
 |---|---|---:|
@@ -279,7 +279,7 @@ Counts from the [real-data local run](../../evidence/reconciliation/2026-10-21-d
 
 The status is a check, never a correction: nothing is moved, geocoded, or dropped. The test is at city level only; the barangay boundaries (HDX ADM4) are not in Silver.
 
-Built by `07_build_dim_school_location.sql`; the gate `90_validate_dim_school_location.sql` fails on a repeated or NULL key, a row count other than Silver's, a school not in `dim_school`, a value that differs from Silver, a status outside the five or one that does not follow its inputs, and an upstream run that did not succeed, and records the count per status. The gate checks the statuses against the map and the boundaries without redoing the geometry, so the spatial work runs once per refresh; `tests/test_gold_dim_school_location.py` checks the geometry on known shapes. Nothing waits for it.
+Built by `07_build_dim_school_location.sql`, a projection of the map; the gate `90_validate_dim_school_location.sql` fails on a repeated or NULL key, a row count other than the map's, a school not in `dim_school`, a value that differs from the map, a status outside the five, and a map run that did not succeed. The spatial work and the status rules are Integration's: the map's gate checks each status against its inputs without redoing the geometry, warns on `outside`, and records the count per status; `tests/test_integration_school_boundary.py` checks the geometry on known shapes. Nothing waits for the dimension.
 
 ### `fact_school_enrollment`
 

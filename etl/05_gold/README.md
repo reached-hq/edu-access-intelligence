@@ -16,8 +16,7 @@ flowchart LR
         psgc[(psa_psgc_clean)]
         maps[(PSGC maps)]
         age[(psa_school_age_population_clean)]
-        coords[(deped_psgc_coordinates_clean)]
-        hdx[(hdx_adm3_clean)]
+        bmap[(deped_school_boundary_map)]
     end
     subgraph dims[Dimensions]
         dim_school[dim_school]
@@ -42,7 +41,7 @@ flowchart LR
     fac --> f_class
     pers --> f_teach
     age --> f_age
-    coords & maps & hdx --> dim_loc
+    bmap --> dim_loc
     dim_school -.- dim_loc
     enroll & fac & pers --> f_avail
     dims --> facts

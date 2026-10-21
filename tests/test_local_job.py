@@ -250,7 +250,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 9), ("integration_build", 4), ("silver_build", 9)]   # one filter, both layers; the DepEd school, HDX, poverty and school-age maps write their own runs
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 9), ("integration_build", 5), ("silver_build", 9)]   # one filter, both layers; the DepEd school, HDX, poverty, school-age and school-boundary maps write their own runs
     store.close()
 
 
