@@ -163,15 +163,18 @@ def test_every_planning_status_has_a_plain_label_and_basis():
         assert label in text and basis in text
 
 
-def test_the_map_draws_geometry_not_a_named_built_in_map():
-    # review of the 2026-10-21 export: a `custom` region exported as a map of Japan
+def test_the_map_draws_each_boundary_not_a_named_built_in_map():
+    # review of the 2026-10-21 export: a region on FIRST(boundary) exported as a map of Japan, and a `geometry`
+    # region did not render; the editor's fix is a `custom` region on each row's own boundary
     maps = [w for p in load()["pages"] for w in widgets(p) if w.get("spec", {}).get("widgetType") == "choropleth-map"]
     assert maps
     for widget in maps:
         region = widget["spec"]["encodings"]["region"]
-        assert region["regionType"] == "geometry", region
-        fields = {f["name"]: f["expression"] for f in widget["queries"][0]["query"]["fields"]}
-        assert fields[region["geometry"]["fieldName"]] == "ST_ASGEOJSON(`boundary`)"
+        assert region == {"regionType": "custom", "fieldName": "geo(boundary)"}, region
+        query = widget["queries"][0]["query"]
+        assert query["disaggregated"] is True
+        fields = {f["name"]: f["expression"] for f in query["fields"]}
+        assert fields[region["fieldName"]] == "ST_ASGEOJSON(`boundary`)"
 
 
 def test_every_view_shows_the_scope_line():
