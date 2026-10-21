@@ -20,20 +20,20 @@ flowchart LR
 | Build | Gate | Output | Approved use |
 |---|---|---|---|
 | `01_answer_ap1.sql` | `90_validate_ap1.sql` | `ap1_school_provision` | Descriptive school-provision context; not a school-establishment or priority measure |
-| `02_answer_ap2.sql` | `90_validate_ap2.sql` | `ap2_classroom_pressure` | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to the LGU |
+| `02_answer_ap2.sql` | `90_validate_ap2.sql` | `ap2_school_classroom_pressure`, `ap2_classroom_pressure` | Raw school classroom pressure, national percentile and top-decile review flag, plus the separate PIDS-style >=50 screen, aggregated to the LGU |
 | `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | Descriptive ES, JHS and SHS learner-per-teacher comparisons; not a teacher-shortage rank |
 | `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Enrollment trend and census-year population context |
-| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-060 evidence table and classroom review queue; no composite score, percentile tier, or teacher rank |
+| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-061 top-decile classroom review queue; no composite multi-domain tier or teacher rank |
 
-## D-060 classroom review queue
+## D-061 classroom review queue
 
-AP2 evaluates each usable school first. A school passes the illustrative screen when its complete all-level enrollment divided by its reported total NSBI instructional rooms is at least 50. The LGU row reports the number of screened schools, affected learners, and affected-learner share.
+AP2 evaluates each usable school first. `ap2_school_classroom_pressure` publishes its complete all-level enrollment divided by reported total NSBI instructional rooms, its `PERCENT_RANK()` among all denominator-usable public schools nationally in SY 2023-24, and a top-decile review flag at `>=0.90`. It also preserves the independent PIDS-style illustrative screen at `>=50`.
 
-An LGU is queued as `reported_congestion_screen` when at least one school passes and AP2 learner coverage is at least 90%. It is `no_reported_congestion_screen` when assessed with no passing school, and `data_review` when coverage is below 90% or the ratio is unavailable.
+An LGU is queued as `top_decile_relative_pressure` when at least one usable school is in the national top decile and AP2 learner coverage is at least 90%. It is `below_top_decile_relative_pressure` when assessed with no flagged school, and `data_review` when coverage is below 90% or the ratio is unavailable.
 
-Only LGUs in `reported_congestion_screen` receive `classroom_priority_rank`. `DENSE_RANK()` orders them by affected learners, affected schools, then pooled reported-room ratio, all descending. Exact ties share a rank. These are triage ranks for validating classroom conditions, not official shortage or construction-entitlement ranks.
+Only LGUs in `top_decile_relative_pressure` receive `classroom_priority_rank`. `DENSE_RANK()` orders them by learners in top-decile schools, top-decile school count, affected-learner share, then pooled reported-room ratio, all descending. Exact ties share a rank. These are triage ranks for validating classroom conditions, not official shortage or construction-entitlement ranks.
 
-The PIDS paper defines its 1:50 line for illustration and analyzes congestion at school and education-level grain. The current Gold facilities data provide a broader all-level NSBI instructional-room total, including room types outside a K–12-classroom-only denominator. The implementation is therefore labelled **PIDS-style illustrative reported-room screen** and does not claim to reproduce the paper or DepEd's official classroom–learner indicator.
+The percentile is a relative review position adapted from CDC/ATSDR SVI and governed by OECD/JRC guidance: its comparison population, raw value, missing-data exclusions, and limitations stay visible. The PIDS paper defines its 1:50 line for illustration and analyzes congestion at school and education-level grain. The current Gold facilities data provide a broader all-level NSBI instructional-room total, so neither flag is an official DepEd classroom–learner indicator or shortage estimate.
 
 ## Teacher context
 

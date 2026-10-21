@@ -1,5 +1,6 @@
 -- AP2 publication gate; a failure leaves the last valid output unchanged.
--- Recomputes the school-level illustrative screen and LGU affected-learner aggregation independently from Gold.
+-- Recomputes the school-level PIDS screen, national percentile, top-decile flag, and LGU aggregation independently
+-- from Gold. Missing or zero-room schools never enter the percentile population and remain visible through coverage.
 -- the one-row summary is written once to a table named for this run and dropped after the checks are recorded:
 -- read many times as a temporary view, the same pattern made Databricks SQL fail with INTERNAL_ERROR (c64e949, #202).
 -- FAIL: rows, keys or LGUs that differ from dim_city_municipality, school counts, learners or rooms that differ
@@ -15,6 +16,8 @@ DECLARE OR REPLACE VARIABLE analytics_gate_owner_sql STRING;
 CREATE OR REPLACE TABLE IDENTIFIER(session.analytics_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one ap2 gate.' AS
 WITH c AS (
   SELECT * FROM edu_access.`06-analytics`.ap2_classroom_pressure_candidate
+), sc AS (
+  SELECT * FROM edu_access.`06-analytics`.ap2_school_classroom_pressure_candidate
 ), regular AS (
   SELECT * FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'
 ), enrollment AS (
@@ -34,8 +37,24 @@ WITH c AS (
   LEFT JOIN edu_access.`05-gold`.fact_school_classroom_capacity k
     ON k.school_id = e.school_id AND k.school_year = '2023-24'
   WHERE e.psgc_match_status = 'matched'
-), expected AS (
+), usable AS (
+  SELECT school_id, city_mun_psgc_code, learners, rooms,
+         CAST(learners AS DOUBLE) / rooms AS school_ratio
+  FROM schools
+  WHERE in_ratio
+), expected_school AS (
+  SELECT u.*,
+         CAST(PERCENT_RANK() OVER (ORDER BY school_ratio) AS DOUBLE) AS pressure_percentile,
+         COUNT(*) OVER () AS comparison_count
+  FROM usable AS u
+), expected_relative_lgu AS (
   SELECT city_mun_psgc_code,
+         COUNT_IF(pressure_percentile >= 0.90) AS top_decile_schools,
+         SUM(CASE WHEN pressure_percentile >= 0.90 THEN learners ELSE 0 END) AS top_decile_learners
+  FROM expected_school
+  GROUP BY city_mun_psgc_code
+), expected AS (
+  SELECT s.city_mun_psgc_code,
          COUNT_IF(active = 1) AS active_schools,
          COUNT_IF(active = 1 AND rooms > 0) AS usable_room_schools,
          COUNT_IF(in_ratio) AS ratio_schools,
@@ -48,14 +67,33 @@ WITH c AS (
          SUM(CASE WHEN in_ratio THEN rooms ELSE 0 END) AS rooms,
          COUNT_IF(in_ratio AND CAST(learners AS DOUBLE) / rooms >= 50) AS congested_schools,
          SUM(CASE WHEN in_ratio AND CAST(learners AS DOUBLE) / rooms >= 50 THEN learners ELSE 0 END)
-           AS congested_learners
-  FROM schools GROUP BY city_mun_psgc_code
+           AS congested_learners,
+         COALESCE(MAX(r.top_decile_schools), 0) AS top_decile_schools,
+         COALESCE(MAX(r.top_decile_learners), 0) AS top_decile_learners
+  FROM schools AS s
+  LEFT JOIN expected_relative_lgu AS r USING (city_mun_psgc_code)
+  GROUP BY s.city_mun_psgc_code
 )
 SELECT
   (SELECT COUNT(*) FROM c) AS rows, (SELECT COUNT(*) FROM regular) AS expected_rows,
   (SELECT COUNT(*) - COUNT(DISTINCT city_mun_psgc_code) FROM c) AS duplicate_keys,
   (SELECT COUNT(*) FROM c FULL OUTER JOIN regular USING (city_mun_psgc_code)
     WHERE c.city_mun_psgc_code IS NULL OR regular.city_mun_psgc_code IS NULL) AS lgu_mismatch,
+  (SELECT COUNT(*) FROM sc) AS school_rows,
+  (SELECT COUNT(*) FROM expected_school) AS expected_school_rows,
+  (SELECT COUNT(*) FROM sc FULL OUTER JOIN expected_school e USING (school_id)
+    WHERE sc.school_id IS NULL OR e.school_id IS NULL
+       OR sc.city_mun_psgc_code IS DISTINCT FROM e.city_mun_psgc_code
+       OR sc.total_learners IS DISTINCT FROM CAST(e.learners AS BIGINT)
+       OR sc.reported_instructional_rooms IS DISTINCT FROM CAST(e.rooms AS BIGINT)
+       OR ABS(sc.learners_per_reported_room - e.school_ratio) > 1e-9
+       OR ABS(sc.classroom_pressure_percentile - e.pressure_percentile) > 1e-9
+       OR sc.percentile_comparison_school_count IS DISTINCT FROM e.comparison_count
+       OR sc.passes_pids_style_screen IS DISTINCT FROM (e.school_ratio >= 50)
+       OR sc.is_top_decile_relative_pressure IS DISTINCT FROM (e.pressure_percentile >= 0.90)
+       OR sc.relative_pressure_cutoff_percentile IS DISTINCT FROM 0.90
+       OR sc.percentile_comparison_scope IS DISTINCT FROM 'national denominator-usable public schools, SY 2023-24')
+    AS school_percentile_mismatch,
   (SELECT COUNT(*) FROM c LEFT JOIN expected e USING (city_mun_psgc_code)
     WHERE c.active_public_school_count IS DISTINCT FROM COALESCE(e.active_schools, 0)
        OR c.usable_room_school_count IS DISTINCT FROM COALESCE(e.usable_room_schools, 0)
@@ -68,7 +106,10 @@ SELECT
        OR c.eligible_learners IS DISTINCT FROM CAST(COALESCE(e.eligible_learners, 0) AS BIGINT)
        OR c.reported_instructional_classrooms IS DISTINCT FROM CAST(COALESCE(e.rooms, 0) AS BIGINT)
        OR c.congested_school_count IS DISTINCT FROM COALESCE(e.congested_schools, 0)
-       OR c.learners_in_congested_schools IS DISTINCT FROM CAST(COALESCE(e.congested_learners, 0) AS BIGINT))
+       OR c.learners_in_congested_schools IS DISTINCT FROM CAST(COALESCE(e.congested_learners, 0) AS BIGINT)
+       OR c.top_decile_school_count IS DISTINCT FROM COALESCE(e.top_decile_schools, 0)
+       OR c.learners_in_top_decile_schools IS DISTINCT FROM CAST(COALESCE(e.top_decile_learners, 0) AS BIGINT)
+       OR c.percentile_comparison_school_count IS DISTINCT FROM (SELECT COUNT(*) FROM expected_school))
     AS gold_mismatch,
   (SELECT COALESCE(COUNT_IF(
        (reported_instructional_classrooms = 0 AND learners_per_classroom IS NOT NULL)
@@ -76,6 +117,8 @@ SELECT
       AND ABS(learners_per_classroom - eligible_learners * 1.0 / reported_instructional_classrooms) > 1e-9)
     OR (eligible_learners > 0
       AND ABS(congested_learner_share_pct - 100.0 * learners_in_congested_schools / public_school_enrollment) > 1e-9)
+    OR (eligible_learners > 0
+      AND ABS(top_decile_learner_share_pct - 100.0 * learners_in_top_decile_schools / public_school_enrollment) > 1e-9)
     OR (public_school_enrollment > 0
       AND ABS(learner_coverage_pct - 100.0 * eligible_learners / public_school_enrollment) > 1e-9)
     OR (active_public_school_count + blank_enrollment_school_count > 0
@@ -85,14 +128,21 @@ SELECT
     OR is_assessed IS DISTINCT FROM COALESCE(active_public_school_count > 0 AND learners_per_classroom IS NOT NULL
       AND learner_coverage_pct >= 90, FALSE)), 0) FROM c) AS assessment_mismatch,
   (SELECT COALESCE(COUNT_IF(congestion_benchmark IS DISTINCT FROM 50.0
+    OR relative_pressure_cutoff_percentile IS DISTINCT FROM 0.90
+    OR percentile_comparison_scope IS DISTINCT FROM 'national denominator-usable public schools, SY 2023-24'
     OR benchmark_status IS DISTINCT FROM CASE WHEN NOT is_assessed THEN 'not assessed'
       WHEN congested_school_count > 0 THEN 'reported congestion identified'
-      ELSE 'no reported congestion identified' END), 0) FROM c) AS benchmark_mismatch,
+      ELSE 'no reported congestion identified' END
+    OR relative_pressure_status IS DISTINCT FROM CASE WHEN NOT is_assessed THEN 'not assessed'
+      WHEN top_decile_school_count > 0 THEN 'top-decile relative pressure identified'
+      ELSE 'no top-decile relative pressure identified' END), 0) FROM c) AS benchmark_mismatch,
   (SELECT COUNT(*) FROM enrollment WHERE active = 1 AND psgc_match_status <> 'matched') AS unplaced_active_schools,
   (SELECT COALESCE(SUM(learners), 0) FROM enrollment WHERE active = 1 AND psgc_match_status <> 'matched')
     AS unplaced_public_learners,
   (SELECT COALESCE(SUM(congested_school_count), 0) FROM c) AS screened_congested_schools,
-  (SELECT COALESCE(SUM(learners_in_congested_schools), 0) FROM c) AS screened_affected_learners;
+  (SELECT COALESCE(SUM(learners_in_congested_schools), 0) FROM c) AS screened_affected_learners,
+  (SELECT COALESCE(SUM(top_decile_school_count), 0) FROM c) AS top_decile_schools,
+  (SELECT COALESCE(SUM(learners_in_top_decile_schools), 0) FROM c) AS top_decile_affected_learners;
 SET VARIABLE analytics_gate_owner_sql = 'ALTER TABLE ' || session.analytics_gate_summary || ' OWNER TO `reached-hq`';
 EXECUTE IMMEDIATE analytics_gate_owner_sql;
 
@@ -105,6 +155,8 @@ FROM (
          CAST(expected_rows AS STRING) AS expected, CAST(rows AS STRING) AS actual FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'lgu_membership_reconciles', CASE WHEN lgu_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(lgu_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'school_percentile_rows_reconcile', CASE WHEN school_rows = expected_school_rows THEN 'PASS' ELSE 'FAIL' END, CAST(expected_school_rows AS STRING), CAST(school_rows AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'classroom_school_percentile_valid', CASE WHEN school_percentile_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(school_percentile_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'schools_learners_rooms_reconcile', CASE WHEN gold_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(gold_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'ratio_and_coverage_arithmetic', CASE WHEN arithmetic_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(arithmetic_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'coverage_gate_valid', CASE WHEN assessment_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(assessment_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
@@ -113,6 +165,8 @@ FROM (
   UNION ALL SELECT 'unplaced_public_learners', CASE WHEN unplaced_public_learners = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_public_learners AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'screened_congested_schools', 'PASS', CAST(NULL AS STRING), CAST(screened_congested_schools AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'screened_affected_learners', 'PASS', CAST(NULL AS STRING), CAST(screened_affected_learners AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'top_decile_classroom_schools', 'PASS', CAST(NULL AS STRING), CAST(top_decile_schools AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'top_decile_classroom_affected_learners', 'PASS', CAST(NULL AS STRING), CAST(top_decile_affected_learners AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
 ) AS checks;
 
 DROP TABLE IF EXISTS IDENTIFIER(session.analytics_gate_summary);
@@ -124,5 +178,10 @@ WHERE run_id = :run_id AND source_id = 'ap2_classroom_pressure' AND layer = 'ana
 
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.ap2_classroom_pressure USING DELTA AS
 SELECT * FROM edu_access.`06-analytics`.ap2_classroom_pressure_candidate;
-COMMENT ON TABLE edu_access.`06-analytics`.ap2_classroom_pressure IS 'AP2 PIDS-style illustrative school congestion screen aggregated to affected learners by regular LGU, SY 2023-24, not an official shortage.';
+COMMENT ON TABLE edu_access.`06-analytics`.ap2_classroom_pressure IS 'AP2 school-level PIDS screen and top-decile relative-pressure review aggregation by regular LGU, SY 2023-24, not an official shortage.';
 ALTER TABLE edu_access.`06-analytics`.ap2_classroom_pressure OWNER TO `reached-hq`;
+
+CREATE OR REPLACE TABLE edu_access.`06-analytics`.ap2_school_classroom_pressure USING DELTA AS
+SELECT * FROM edu_access.`06-analytics`.ap2_school_classroom_pressure_candidate;
+COMMENT ON TABLE edu_access.`06-analytics`.ap2_school_classroom_pressure IS 'School-level learners per reported NSBI instructional room with national percentile and top-decile review flag, SY 2023-24, not an official shortage or DepEd priority.';
+ALTER TABLE edu_access.`06-analytics`.ap2_school_classroom_pressure OWNER TO `reached-hq`;

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "ap2": {
     "benchmark_id": "pids_dp_2025_10_illustrative_congestion_screen",
     "authority": "PIDS Discussion Paper 2025-10, supported by the EDCOM 2 summary",
@@ -12,6 +12,26 @@
     "label": "PIDS-style illustrative reported-room screen",
     "source_note": "The paper is preliminary and unedited/unreviewed, and states that the 1:50 definition is for illustration purposes only.",
     "caveat": "The project uses an all-level school total and a broader NSBI instructional-room field, while the paper analyzes congestion by school and education level using BEIS classroom data. This is a transparent review screen, not an exact reproduction, an official DepEd ratio, an RA 7880 shortage calculation, or a construction entitlement."
+  },
+  "ap2_relative_priority": {
+    "method_id": "national_school_percent_rank_top_decile_review",
+    "oecd_source_url": "https://www.oecd.org/content/dam/oecd/en/publications/reports/2008/08/handbook-on-constructing-composite-indicators-methodology-and-user-guide_g1gh9301/9789264043466-en.pdf",
+    "cdc_svi_source_url": "https://www.atsdr.cdc.gov/place-health/media/pdfs/2024/10/SVI2022Documentation.pdf",
+    "jica_future_gap_source_url": "https://www.jica.go.jp/english/jica_ri/publication/booksandreports/__icsFiles/afieldfile/2025/08/28/Addressing_Social_Infrastructure_Needs_in_Asia.pdf",
+    "formula": "PERCENT_RANK() OVER (ORDER BY learners_per_reported_room), equivalent to (RANK - 1) / (N - 1)",
+    "comparison_scope": "National public schools with complete all-level enrollment and more than zero reported NSBI instructional rooms, SY 2023-24",
+    "cutoff": 0.9,
+    "cutoff_label": "top-decile relative classroom-pressure review",
+    "tie_rule": "Tied ratios share the lowest rank assigned to the tie, following SQL PERCENT_RANK",
+    "missing_rule": "Schools with incomplete enrollment, missing rooms, or zero rooms are excluded from the percentile population and remain visible in LGU coverage and missingness fields",
+    "approved_use": "Relative classroom-pressure review and LGU triage only",
+    "prohibited_claims": [
+      "official DepEd priority",
+      "confirmed classroom shortage",
+      "number of classrooms required",
+      "construction or funding entitlement"
+    ],
+    "caveat": "OECD supports ranking as a normalization method but warns that it loses absolute-level information. CDC/ATSDR SVI supplies the transparent top-decile relative-review precedent, but its 0.90 threshold is adapted from US social vulnerability and is not a Philippine education standard. JICA supports a future absolute classroom-gap model only after compatible projected students, a Philippine service standard, usable classroom stock, condition, and cost data are available."
   },
   "ap3": {
     "benchmark_id": "deped_dm_ouhrod_2025_1226_planning_context",

@@ -104,10 +104,10 @@ model. `psgc_match_status` preserves whether the source row was `matched`,
 erase that reason.
 
 References remain in reviewed Analytics configuration, the national benchmark
-register, and the metric specification, not in the Gold model. Under D-060, AP2
-applies a PIDS-style illustrative >=50 screen to each usable school's reported
-instructional-room ratio, then aggregates affected schools and learners to the
-LGU classroom review queue. AP3 publishes a historical ES comparison at 35 and
+register, and the metric specification, not in the Gold model. Under D-061, AP2
+publishes each usable school's raw reported-room ratio and national percentile,
+uses the top decile for relative review, retains the separate PIDS-style >=50
+screen, and aggregates each signal to the LGU. AP3 publishes a historical ES comparison at 35 and
 derived JHS and SHS comparisons at 36 and 80/3, but no teacher rank. The current NSBI classroom field still cannot use
 Republic Act No. 7880's 45:1 shortage rule, and the 2009 teacher deployment bands
 remain historical context only.

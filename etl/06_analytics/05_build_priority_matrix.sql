@@ -1,8 +1,9 @@
--- LGU evidence table under D-060, from the published AP1 to AP3 outputs, with AP4 as context.
+-- LGU evidence table under D-061, from the published AP1 to AP3 outputs, with AP4 as context.
 -- grain: one regular city or municipality, SY 2023-24.
--- there is no composite score, percentile tier, or overall LGU rank.
--- the only ranked queue in this version is the classroom-screening queue: LGUs with school-level reported-room
--- congestion are ordered by affected learners, then affected schools, then the descriptive pooled room ratio.
+-- there is no composite score, multi-domain tier, or teacher/new-school priority rank.
+-- the only ranked queue is the classroom relative-pressure review queue: schools at or above the national 90th
+-- percentile are aggregated to LGUs, which are ordered by affected learners, affected schools, affected-learner
+-- share, then the descriptive pooled room ratio.
 -- DENSE_RANK uses only those substantive measures, so exact ties receive the same rank. AP1 is access context and
 -- AP3 is teacher-pressure review context; neither is allowed to decide a resource allocation.
 
@@ -27,6 +28,13 @@ WITH joined AS (
     b.learners_in_congested_schools AS ap2_affected_learners,
     b.congested_learner_share_pct AS ap2_affected_learner_share_pct,
     b.benchmark_status AS ap2_screen_status,
+    b.top_decile_school_count AS ap2_top_decile_school_count,
+    b.learners_in_top_decile_schools AS ap2_top_decile_affected_learners,
+    b.top_decile_learner_share_pct AS ap2_top_decile_affected_learner_share_pct,
+    b.relative_pressure_cutoff_percentile AS ap2_relative_pressure_cutoff_percentile,
+    b.percentile_comparison_school_count AS ap2_percentile_comparison_school_count,
+    b.percentile_comparison_scope AS ap2_percentile_comparison_scope,
+    b.relative_pressure_status AS ap2_relative_pressure_status,
     c.es_learners_per_teacher AS ap3_es_learners_per_teacher,
     c.jhs_learners_per_teacher AS ap3_jhs_learners_per_teacher,
     c.shs_learners_per_teacher AS ap3_shs_learners_per_teacher,
@@ -56,27 +64,28 @@ WITH joined AS (
   WHERE l.member_type = 'regular'
 ), classroom_ranked AS (
   SELECT city_mun_psgc_code,
-         DENSE_RANK() OVER (ORDER BY ap2_affected_learners DESC,
-           ap2_screened_congested_school_count DESC,
+         DENSE_RANK() OVER (ORDER BY ap2_top_decile_affected_learners DESC,
+           ap2_top_decile_school_count DESC,
+           ap2_top_decile_affected_learner_share_pct DESC,
            ap2_learners_per_reported_room DESC) AS classroom_priority_rank
   FROM joined
-  WHERE ap2_assessed AND ap2_affected_learners > 0
+  WHERE ap2_assessed AND ap2_top_decile_affected_learners > 0
 )
 SELECT j.*,
        CASE WHEN NOT COALESCE(j.ap2_assessed, FALSE) THEN 'data_review'
-            WHEN j.ap2_affected_learners > 0 THEN 'reported_congestion_screen'
-            ELSE 'no_reported_congestion_screen' END AS classroom_priority_group,
+            WHEN j.ap2_top_decile_affected_learners > 0 THEN 'top_decile_relative_pressure'
+            ELSE 'below_top_decile_relative_pressure' END AS classroom_priority_group,
        r.classroom_priority_rank,
        CASE WHEN NOT COALESCE(j.ap2_assessed, FALSE)
               THEN 'Classroom data do not pass the coverage gate, no classroom priority is assigned'
-            WHEN j.ap2_affected_learners > 0
-              THEN 'PIDS-style illustrative school screen, ordered by affected learners, affected schools, then pooled reported-room ratio'
-            ELSE 'No school crosses the illustrative reported-room screen, this is not proof of classroom adequacy'
+            WHEN j.ap2_top_decile_affected_learners > 0
+              THEN 'CDC-SVI-style top-decile relative review flag, ordered by affected learners, affected schools, affected-learner share, then pooled reported-room ratio'
+            ELSE 'No usable school is in the national top decile, this is not proof of classroom adequacy'
        END AS classroom_priority_basis,
-       'D-060' AS rule_version,
+       'D-061' AS rule_version,
        :code_revision AS code_revision
 FROM joined AS j
 LEFT JOIN classroom_ranked AS r USING (city_mun_psgc_code);
 
-COMMENT ON TABLE edu_access.`06-analytics`.lgu_priority_matrix_candidate IS 'Unpublished LGU evidence and classroom-screening queue under D-060. Do not read: use lgu_priority_matrix.';
+COMMENT ON TABLE edu_access.`06-analytics`.lgu_priority_matrix_candidate IS 'Unpublished LGU evidence and top-decile classroom relative-pressure review queue under D-061. Do not read: use lgu_priority_matrix.';
 ALTER TABLE edu_access.`06-analytics`.lgu_priority_matrix_candidate OWNER TO `reached-hq`;

@@ -1,8 +1,8 @@
--- D-060 LGU evidence-table publication gate; validates source reconciliation and the classroom queue.
+-- D-061 LGU evidence-table publication gate; validates source reconciliation and the classroom queue.
 -- the one-row summary is written once to a table named for this run and dropped after the checks are recorded:
 -- read many times as a temporary view, the same pattern made Databricks SQL fail with INTERNAL_ERROR (c64e949, #202).
 -- FAIL: rows, keys or LGUs that differ from dim_city_municipality, AP1 to AP3 values that differ from the published
--- outputs, or a classroom group, rank or rule version that does not follow D-060. Counts only (PASS): queued and
+-- outputs, or a classroom group, rank or rule version that does not follow D-061. Counts only (PASS): queued and
 -- data-review LGUs.
 DECLARE OR REPLACE VARIABLE analytics_gate_started_at_utc TIMESTAMP;
 SET VARIABLE analytics_gate_started_at_utc = current_timestamp();
@@ -10,7 +10,7 @@ DECLARE OR REPLACE VARIABLE analytics_gate_summary STRING;
 SET VARIABLE analytics_gate_summary = '`edu_access`.`06-analytics`.`lgu_priority_matrix_gate_summary_r_' || sha2(:run_id, 256) || '`';
 DECLARE OR REPLACE VARIABLE analytics_gate_owner_sql STRING;
 
-CREATE OR REPLACE TABLE IDENTIFIER(session.analytics_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one D-060 gate.' AS
+CREATE OR REPLACE TABLE IDENTIFIER(session.analytics_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one D-061 gate.' AS
 WITH c AS (
   SELECT * FROM edu_access.`06-analytics`.lgu_priority_matrix_candidate
 ), regular AS (
@@ -22,6 +22,13 @@ WITH c AS (
          b.is_assessed AS ap2_assessed, b.congested_school_count AS affected_schools,
          b.learners_in_congested_schools AS affected_learners,
          b.congested_learner_share_pct AS affected_share, b.benchmark_status AS screen_status,
+         b.top_decile_school_count AS top_decile_schools,
+         b.learners_in_top_decile_schools AS top_decile_learners,
+         b.top_decile_learner_share_pct AS top_decile_share,
+         b.relative_pressure_cutoff_percentile AS percentile_cutoff,
+         b.percentile_comparison_school_count AS comparison_schools,
+         b.percentile_comparison_scope AS comparison_scope,
+         b.relative_pressure_status AS relative_status,
          t.es_learners_per_teacher AS es_ratio, t.jhs_learners_per_teacher AS jhs_ratio,
          t.shs_learners_per_teacher AS shs_ratio, t.is_assessed AS teacher_assessed,
          t.benchmark_status AS teacher_status
@@ -31,8 +38,9 @@ WITH c AS (
   LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure t USING (city_mun_psgc_code)
 ), expected_rank AS (
   SELECT city_mun_psgc_code,
-         DENSE_RANK() OVER (ORDER BY affected_learners DESC, affected_schools DESC, ap2_ratio DESC) AS queue_rank
-  FROM expected WHERE ap2_assessed AND affected_learners > 0
+         DENSE_RANK() OVER (ORDER BY top_decile_learners DESC, top_decile_schools DESC,
+           top_decile_share DESC, ap2_ratio DESC) AS queue_rank
+  FROM expected WHERE ap2_assessed AND top_decile_learners > 0
 )
 SELECT
   (SELECT COUNT(*) FROM c) AS rows, (SELECT COUNT(*) FROM regular) AS expected_rows,
@@ -50,6 +58,13 @@ SELECT
        OR c.ap2_affected_learners IS DISTINCT FROM e.affected_learners
        OR c.ap2_affected_learner_share_pct IS DISTINCT FROM e.affected_share
        OR c.ap2_screen_status IS DISTINCT FROM e.screen_status
+       OR c.ap2_top_decile_school_count IS DISTINCT FROM e.top_decile_schools
+       OR c.ap2_top_decile_affected_learners IS DISTINCT FROM e.top_decile_learners
+       OR c.ap2_top_decile_affected_learner_share_pct IS DISTINCT FROM e.top_decile_share
+       OR c.ap2_relative_pressure_cutoff_percentile IS DISTINCT FROM e.percentile_cutoff
+       OR c.ap2_percentile_comparison_school_count IS DISTINCT FROM e.comparison_schools
+       OR c.ap2_percentile_comparison_scope IS DISTINCT FROM e.comparison_scope
+       OR c.ap2_relative_pressure_status IS DISTINCT FROM e.relative_status
        OR c.ap3_es_learners_per_teacher IS DISTINCT FROM e.es_ratio
        OR c.ap3_jhs_learners_per_teacher IS DISTINCT FROM e.jhs_ratio
        OR c.ap3_shs_learners_per_teacher IS DISTINCT FROM e.shs_ratio
@@ -58,11 +73,11 @@ SELECT
   (SELECT COUNT(*) FROM c JOIN expected e USING (city_mun_psgc_code)
     LEFT JOIN expected_rank q USING (city_mun_psgc_code)
     WHERE c.classroom_priority_group IS DISTINCT FROM CASE WHEN NOT COALESCE(e.ap2_assessed, FALSE) THEN 'data_review'
-            WHEN e.affected_learners > 0 THEN 'reported_congestion_screen'
-            ELSE 'no_reported_congestion_screen' END
+            WHEN e.top_decile_learners > 0 THEN 'top_decile_relative_pressure'
+            ELSE 'below_top_decile_relative_pressure' END
        OR c.classroom_priority_rank IS DISTINCT FROM q.queue_rank
-       OR c.rule_version IS DISTINCT FROM 'D-060') AS queue_mismatch,
-  (SELECT COALESCE(COUNT_IF(classroom_priority_group = 'reported_congestion_screen'), 0) FROM c) AS queued_lgus,
+       OR c.rule_version IS DISTINCT FROM 'D-061') AS queue_mismatch,
+  (SELECT COALESCE(COUNT_IF(classroom_priority_group = 'top_decile_relative_pressure'), 0) FROM c) AS queued_lgus,
   (SELECT COALESCE(COUNT_IF(classroom_priority_group = 'data_review'), 0) FROM c) AS data_review_lgus;
 SET VARIABLE analytics_gate_owner_sql = 'ALTER TABLE ' || session.analytics_gate_summary || ' OWNER TO `reached-hq`';
 EXECUTE IMMEDIATE analytics_gate_owner_sql;
@@ -77,7 +92,7 @@ FROM (
   UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'lgu_membership_reconciles', CASE WHEN lgu_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(lgu_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'inputs_match_ap_outputs', CASE WHEN input_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(input_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'classroom_queue_follows_d060', CASE WHEN queue_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(queue_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'classroom_queue_follows_d061', CASE WHEN queue_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(queue_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'classroom_queue_lgus', 'PASS', CAST(NULL AS STRING), CAST(queued_lgus AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'classroom_data_review_lgus', 'PASS', CAST(NULL AS STRING), CAST(data_review_lgus AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
 ) AS checks;
@@ -91,5 +106,5 @@ WHERE run_id = :run_id AND source_id = 'lgu_priority_matrix' AND layer = 'analyt
 
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.lgu_priority_matrix USING DELTA AS
 SELECT * FROM edu_access.`06-analytics`.lgu_priority_matrix_candidate;
-COMMENT ON TABLE edu_access.`06-analytics`.lgu_priority_matrix IS 'LGU evidence table under D-060 with a separate classroom-screening queue, no composite score or percentile tier.';
+COMMENT ON TABLE edu_access.`06-analytics`.lgu_priority_matrix IS 'LGU evidence table under D-061 with a top-decile classroom relative-pressure review queue and no composite multi-domain tier.';
 ALTER TABLE edu_access.`06-analytics`.lgu_priority_matrix OWNER TO `reached-hq`;

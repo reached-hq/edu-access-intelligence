@@ -2,7 +2,7 @@
 
 **Status:** Research register, verified against official sources on 2026-10-14. An entry in this document is not automatically approved for dashboard use. The metric must still match the source definition, education level, geographic grain, and period.
 
-> **Current use under D-060 (2026-10-21):** percentiles and composite tiers are not used. AP2 supplies a bounded classroom review queue; AP1, AP3, national distributions, and Similar LGUs remain separate context.
+> **Current use under D-061 (2026-10-21):** AP2 uses a classroom-only national school percentile and top-decile review flag, with the PIDS-style `>=50` screen shown separately. Composite AP1–AP3 tiers are not used; AP1, AP3, AP4, and Similar LGUs remain context.
 
 ## Purpose and document boundary
 
@@ -61,7 +61,23 @@ Those questions are not interchangeable. An official formula may have no officia
 
 [PIDS Discussion Paper 2025-10](https://pidswebs.pids.gov.ph/CDN/document/pidsdps2510.pdf), also summarized by [EDCOM 2](https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/), defines a school as congested at at least 1:50 **for illustration purposes**. The paper is marked preliminary and unedited/unreviewed, and its analysis is by school and education level. AP2 applies the line to each usable school's all-level reported NSBI instructional-room ratio, then aggregates passing schools and affected learners to the LGU.
 
-This is a **PIDS-style illustrative reported-room screen**, not a validated official benchmark or a claim that the project reproduces the paper or DepEd's published classroom-learner indicator. The denominator is the broader NSBI reported-instructional-room field. It supports a review queue under D-060 but does not estimate a classroom shortage or construction entitlement.
+This is a **PIDS-style illustrative reported-room screen**, not a validated official benchmark or a claim that the project reproduces the paper or DepEd's published classroom-learner indicator. The denominator is the broader NSBI reported-instructional-room field. It remains absolute context under D-061 but does not estimate a classroom shortage or construction entitlement.
+
+### Relative classroom-pressure review
+
+The [OECD/JRC composite-indicator handbook](https://www.oecd.org/content/dam/oecd/en/publications/reports/2008/08/handbook-on-constructing-composite-indicators-methodology-and-user-guide_g1gh9301/9789264043466-en.pdf) recognizes ranking as a normalization method while warning that rank loses absolute-level information. The [CDC/ATSDR SVI 2022 documentation](https://www.atsdr.cdc.gov/place-health/media/pdfs/2024/10/SVI2022Documentation.pdf) provides a transparent operational precedent: rank comparable units from 0 to 1, flag the top 10%, exclude no-data units, and declare the comparison geography.
+
+D-061 adapts only that relative-review structure. For denominator-usable public schools nationally in SY 2023-24:
+
+```text
+classroom_pressure = complete_all_level_enrollment / reported_NSBI_instructional_rooms
+classroom_pressure_percentile = (rank - 1) / (comparison_school_count - 1)
+top_decile_review = classroom_pressure_percentile >= 0.90
+```
+
+The implementation uses SQL `PERCENT_RANK()`, so tied ratios share the lowest rank assigned to the tie. Every result retains the raw ratio, national comparison scope, comparison-school count, and separate PIDS-style screen. **Top-decile relative classroom-pressure review** is permitted wording. “Critical,” “confirmed shortage,” “official DepEd priority,” and classroom counts required are not permitted.
+
+The [JICA 2025 social-infrastructure report](https://www.jica.go.jp/english/jica_ri/publication/booksandreports/__icsFiles/afieldfile/2025/08/28/Addressing_Social_Infrastructure_Needs_in_Asia.pdf) is the reference for a future absolute gap: expected students divided by a country-specific students-per-classroom standard gives required rooms, which can then be compared with usable stock and multiplied by local unit cost. The current project lacks all compatible inputs required to activate that formula.
 
 ### Official computation
 

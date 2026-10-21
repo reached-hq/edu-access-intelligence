@@ -258,7 +258,11 @@ analytics_tables:
   - table: ap2_classroom_pressure
     build_file: 02_answer_ap2.sql
     validate_file: 90_validate_ap2.sql
-    grain: One regular city or municipality for SY 2023-24.
+    grain: One regular city or municipality for SY 2023-24, aggregating both the PIDS-style screen and top-decile relative-pressure review flag.
+  - table: ap2_school_classroom_pressure
+    build_file: 02_answer_ap2.sql
+    validate_file: 90_validate_ap2.sql
+    grain: One denominator-usable public school for SY 2023-24, with raw classroom pressure, national percentile, and review flags.
   - table: ap3_teacher_pressure
     build_file: 03_answer_ap3.sql
     validate_file: 90_validate_ap3.sql
@@ -270,6 +274,6 @@ analytics_tables:
   - table: lgu_priority_matrix
     build_file: 05_build_priority_matrix.sql
     validate_file: 90_validate_priority_matrix.sql
-    grain: One regular city or municipality, SY 2023-24 (D-060 evidence table and classroom review queue).
+    grain: One regular city or municipality, SY 2023-24 (D-061 evidence table and top-decile classroom review queue).
 
 deferred_layers: []

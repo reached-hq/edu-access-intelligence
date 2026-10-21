@@ -1,6 +1,6 @@
 # Business and analytical questions
 
-**Status:** The question wording below was approved through mentor review on 2026-10-14. D-060 replaces the earlier percentile-tier rule with a bounded classroom review queue; the calculations are in the separate [metric specification](metric-specification.md).
+**Status:** The question wording below was approved through mentor review on 2026-10-14. D-061 replaces the earlier composite percentile-tier rule with a classroom-only school percentile and LGU review queue; the calculations are in the separate [metric specification](metric-specification.md).
 
 | | |
 |---|---|
@@ -36,7 +36,7 @@ In this question, “cities” means cities and municipalities, the same unit th
 | Question | Role in the business decision | Primary output |
 |---|---|---|
 | **AP1 · Schools** | Descriptive school-provision and access-screen context; it is not ranked and does not by itself recommend construction | Learners per public school, school-age population (5–17, 2024) per public school, and barangays without a public elementary school |
-| **AP2 · Classrooms** | Bounded classroom review prioritization under D-060 | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to affected schools and learners with coverage |
+| **AP2 · Classrooms** | Referenced relative classroom review prioritization under D-061 | School-level raw pressure and national percentile, top-decile review flag, and separate PIDS-style >=50 screen, aggregated to affected schools and learners with coverage |
 | **AP3 · Teachers** | Teacher-planning context pending compatible current DepEd requirements data | Public-school enrollment relative to reported teaching personnel, with coverage; ES uses a historical 35:1 study reference, while JHS and SHS use derived deployment comparisons |
 | **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Enrollment in all sectors for every school year and whether it goes up or down (`increasing`, `decreasing`, `no change`); on SY 2020-21 and 2024-25, population aged 5–17, the gap and the gap rate, and the change in gap between them; the public-school share beside it |
 
@@ -50,7 +50,7 @@ flowchart LR
     X --> R
 ```
 
-Schools, classrooms, and teachers are measured and shown separately. D-060 ranks only LGUs with one or more schools passing the classroom review screen; it does not combine unlike measures. A teacher rank or weighted combined score requires compatible current requirements data and a later approved decision.
+Schools, classrooms, and teachers are measured and shown separately. D-061 ranks only LGUs with one or more schools in the national top-decile classroom-pressure review group; it does not combine unlike measures. A teacher rank or weighted combined score requires compatible current requirements data and a later approved decision.
 
 ## Analytical boundaries
 

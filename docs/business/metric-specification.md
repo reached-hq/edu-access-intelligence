@@ -151,10 +151,23 @@ school_screen =
     "passes" when a usable school's learners / reported rooms >= 50
     "does not pass" otherwise
 
+school_classroom_pressure_percentile =
+    PERCENT_RANK() over all denominator-usable public schools nationally
+    ordered by learners_per_reported_instructional_room
+    = (rank - 1) / (comparison_school_count - 1)
+
+top_decile_relative_pressure =
+    true when school_classroom_pressure_percentile >= 0.90
+
 lgu_benchmark_status =
     "not assessed" when learner coverage is below 90% or the LGU ratio is unavailable
     "reported congestion identified" when one or more usable schools pass
     "no reported congestion identified" otherwise
+
+lgu_relative_pressure_status =
+    "not assessed" when the LGU fails the AP2 coverage gate
+    "top-decile relative pressure identified" when at least one usable school is in the national top decile
+    "no top-decile relative pressure identified" otherwise
 ```
 
 The ratio uses each active public school's total learners and total instructional rooms across all levels, per school year, and then sums to the city or municipality (D-047). Its numerator and denominator use the same set of schools. This follows the form of the Technical Notes classroom–learner formula (p. 8), total learners over total classrooms; the room definition still differs, as explained below. A school is denominator-usable when its total rooms are above 0. When all three room counts are blank the total is missing, not zero (608 public schools in SY 2023-24), and its school and learner counts are reported separately. A reported total of 0 is also excluded from both ratio sums and gets a separate zero-denominator school and learner count. If an LGU has no denominator-usable school, its ratio is NULL, never 0.
@@ -163,7 +176,7 @@ Levels are combined because rooms are shared across levels: 768 public schools h
 
 The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator. PIDS Discussion Paper 2025-10 uses at least 50 learners per classroom as an illustrative school-level congestion definition. The project applies the line to each usable school's all-level reported-room ratio, then aggregates passing schools, affected learners, and the affected-learner share to the LGU. Because the paper analyzes school-and-level BEIS classroom data while the project has a broader all-level NSBI room total, the output is labelled **PIDS-style illustrative reported-room screen**. It is not an exact reproduction, official ratio, shortage count, or construction entitlement.
 
-**Validation status:** built for SY 2023-24 in `ap2_classroom_pressure` (#208), gated at 90% learner coverage under D-060. The output includes `congestion_benchmark = 50`, affected schools and learners, affected-learner share, and a validated `benchmark_status`. Outlier schools are counted and never change a result. School coverage is published beside it, counting a school as covered only with both a complete enrollment total and a usable room count, over active plus blank-enrollment schools. A project-defined screening measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication.
+**Validation status:** built for SY 2023-24 in `ap2_school_classroom_pressure` and `ap2_classroom_pressure`, gated at 90% LGU learner coverage under D-061. The school output includes the raw ratio, national percentile, comparison population, `>=0.90` review flag, and separate PIDS-style `>=50` screen. The LGU output aggregates both screens to affected schools, learners, and learner shares. Missing, zero-room, and incomplete-enrollment schools never enter the percentile population and remain visible in coverage fields. This is relative review priority, not an official shortage, construction requirement, or DepEd priority. Levels remain combined because rooms are shared across levels (D-047).
 
 ### AP3 · Teacher pressure
 
@@ -323,22 +336,24 @@ The dashboard may show four distinct evidence types without treating them as int
 
 ### Similar LGUs (context)
 
-Similar LGUs replaces the proposed peer groups. For each city or municipality, the LGU profile may list the most similar LGUs of the same type. The planned inputs are income class, population density (Population 2024 ÷ `hdx_boundaries.area_sqkm`; see the [dataset use map](dataset-use-map.md)), poverty incidence 2023 (D-046), and Population 2024. The method is not yet defined: how inputs are standardized, how income class is encoded, the distance measure, how many LGUs are listed, the rule for a missing input, and the tie-break are set and recorded in #96 before the view is built. The list describes the place; it never changes the D-060 classroom queue.
+Similar LGUs replaces the proposed peer groups. For each city or municipality, the LGU profile may list the most similar LGUs of the same type. The planned inputs are income class, population density (Population 2024 ÷ `hdx_boundaries.area_sqkm`; see the [dataset use map](dataset-use-map.md)), poverty incidence 2023 (D-046), and Population 2024. The method is not yet defined: how inputs are standardized, how income class is encoded, the distance measure, how many LGUs are listed, the rule for a missing input, and the tie-break are set and recorded in #96 before the view is built. The list describes the place; it never changes the D-061 classroom queue.
 
 If distribution summaries are shown, they are descriptive only and must not be used as a need threshold or priority rule.
 
 ### Planning-priority rule
 
-D-060 replaces the percentile and composite-tier design. It creates one bounded classroom review queue and keeps school and teacher measures as separate evidence.
+D-061 preserves D-060's rejection of the AP1–AP3 composite tier, but adds one referenced classroom-only percentile review method. It creates a school-level output and one LGU classroom review queue; school-access and teacher measures remain separate evidence.
 
 1. **School-level screen.** For each active public school with complete enrollment and more than zero reported NSBI instructional rooms, compute `school_learners / school_reported_rooms`. The school passes at `>= 50`. A school with learners but 0 reported rooms has no ratio and cannot pass, although it is the most congested case; it lowers learner coverage and is counted in AP2's `zero_room_school_count`, which the dashboard should show beside the queue.
-2. **LGU evidence.** Aggregate the passing-school count, learners in passing schools, and their share of the LGU's public-school enrollment. Keep the pooled LGU reported-room ratio as descriptive context; do not use it alone to decide whether any school passes.
-3. **Coverage gate.** An LGU is assessed only when AP2 learner coverage is at least 90% and its pooled ratio is available. Otherwise its queue status is `data_review` and it has no priority rank.
-4. **Queue.** An assessed LGU with at least one passing school is `reported_congestion_screen`; an assessed LGU with none is `no_reported_congestion_screen`.
-5. **Rank.** Only `reported_congestion_screen` LGUs receive `classroom_priority_rank`. Use `DENSE_RANK()` ordered by affected learners descending, affected schools descending, and pooled reported-room ratio descending. Exact ties receive the same rank.
-6. **Bounded interpretation.** The rank orders review effort. It is not a classroom-shortage total, construction entitlement, funding allocation, or proof that every reported room is a K–12 classroom.
+2. **Relative school position.** Among all denominator-usable public schools nationally in SY 2023-24, calculate `PERCENT_RANK()` on the raw learners-per-reported-room ratio. Store the national comparison scope and school count. Tied ratios share the lowest rank assigned to the tie.
+3. **Review flag.** A school at or above `0.90` is `is_top_decile_relative_pressure`. The threshold is adapted from CDC/ATSDR SVI as a review flag and is not a Philippine classroom standard. The PIDS-style `>=50` screen remains separate absolute context.
+4. **LGU evidence.** Aggregate the top-decile school count, learners in those schools, and their share of the LGU's public-school enrollment. Retain the equivalent PIDS-screen fields and pooled ratio beside them.
+5. **Coverage gate.** An LGU is assessed only when AP2 learner coverage is at least 90% and its pooled ratio is available. Otherwise its queue status is `data_review` and it has no priority rank.
+6. **Queue.** An assessed LGU with at least one top-decile school is `top_decile_relative_pressure`; an assessed LGU with none is `below_top_decile_relative_pressure`.
+7. **Rank.** Only `top_decile_relative_pressure` LGUs receive `classroom_priority_rank`. Use `DENSE_RANK()` ordered by learners in top-decile schools, top-decile school count, affected-learner share, and pooled reported-room ratio, all descending. Exact ties receive the same rank.
+8. **Bounded interpretation.** The rank orders review effort. It is not a classroom-shortage total, construction entitlement, funding allocation, or proof that every reported room is a K–12 classroom.
 
-AP1, AP3, AP4, poverty, Similar LGUs, and national distribution summaries remain visible context and never change the classroom queue. AP3 has no teacher-priority rank because the current data do not contain authorized positions, vacancies, STRIDE/TDA requirements, or a current national aggregate learner-per-teacher entitlement compatible with the metric.
+AP1, AP3, AP4, poverty, and Similar LGUs remain visible context and never change the classroom queue. AP3 has no teacher-priority rank because the current data do not contain authorized positions, vacancies, STRIDE/TDA requirements, or a current national aggregate learner-per-teacher entitlement compatible with the metric.
 
 Before acting, users validate passing schools against actual K–12 classroom counts, building condition, shifts and utilization, enrolment projections, accessibility, and planned or funded projects. Those data are not all present in the current project.
 
@@ -347,14 +362,16 @@ Before acting, users validate passing schools against actual K–12 classroom co
 The following equations are arithmetically coherent but **not validated for dashboard use**:
 
 ```text
-candidate_required_classrooms = ceiling(aligned_enrollment / 45)
-candidate_classroom_gap = max(candidate_required_classrooms - aligned_existing_classrooms, 0)
+expected_students = projected_school_age_population * validated_attendance_or_enrolment_rate
+candidate_required_classrooms = ceiling(expected_students / Philippine_approved_students_per_classroom_standard)
+candidate_classroom_gap = max(candidate_required_classrooms - usable_compatible_classrooms, 0)
+candidate_capital_cost = candidate_classroom_gap * local_classroom_unit_cost
 
 candidate_required_teachers = ceiling(aligned_enrollment / approved_student_teacher_norm)
 candidate_teacher_gap = max(candidate_required_teachers - approved_existing_teacher_count, 0)
 ```
 
-The 45 is the PSIP III classroom configuration: 45 individual learners' tables and chairs per new classroom ([PSIP III Project Information Memorandum](https://www.deped.gov.ph/wp-content/uploads/PSIP-III_Project-Information-Memorandum.pdf), p. 12; see the [benchmark register](national-benchmarks-and-indicators.md#psip-iii-classroom-configuration)). The result is a candidate planning estimate. It must not be called an official classroom shortage, construction requirement, or allocation order unless the team confirms that the classroom count is compatible with that use. The current NSBI instructional-room count includes laboratories and other rooms that are not classrooms, so it would understate the gap.
+This bottom-up form follows [JICA's 2025 social-infrastructure report](https://www.jica.go.jp/english/jica_ri/publication/booksandreports/__icsFiles/afieldfile/2025/08/28/Addressing_Social_Infrastructure_Needs_in_Asia.pdf), which estimates users from population projections and attendance, divides expected students by a students-per-classroom facility standard, and multiplies required facilities by unit cost. JICA also says service standards are country-specific. The placeholders therefore cannot be replaced with PSIP furniture capacity, a foreign standard, or the current broad NSBI instructional-room total without a separate Philippine authority and compatibility review.
 
 In every equation, the enrollment and the classroom or teacher counts must cover the same schools, education level, geography, and school year. The equations may be activated only if the cited norm is intended for this conversion and matches the observed denominator. Validation must also address education level, shifts, room utilization and condition, temporary spaces, multi-grade classes, annexes, teacher roles, funding source, and whether reallocation is feasible. Even after validation, the result is a planning estimate—not a construction order, staffing item, or budget request.
 
@@ -366,12 +383,12 @@ The dashboard should expose concise decision fields while keeping audit fields a
 |---|---|---|---|
 | **Common identity** | LGU PSGC code, LGU name, LGU type, province/region, education level, school year | source availability by school year, geography-match version, unmatched/excluded school counts, source versions | Required |
 | **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, school-age population 2024 (5–17), school-age population 2024 per public school, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Built in `ap1_school_provision` (#208); barangay measures not built |
-| **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Built in `ap2_classroom_pressure` for SY 2023-24 (#208) |
+| **Classroom priority** | school raw learners per reported instructional room, national percentile, top-decile review flag; LGU affected schools, learners, share, and queue rank | declared national comparison population/count, separate PIDS-style `>=50` screen, school and learner coverage, missing-room and zero-room schools; source displayed as DepEd School Facilities (NSBI) | Built in `ap2_school_classroom_pressure`, `ap2_classroom_pressure`, and `lgu_priority_matrix` under D-061 |
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Built in `ap3_teacher_pressure` for SY 2023-24 (#208); project-defined |
 | **AP4 context** | enrollment in all sectors by school year, change from the previous year, change and trend from the first to the latest year, public-school share; on SY 2020-21 and 2024-25, population aged 5–17, gap and gap share; change in gap from 2020 to 2024 | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Built in `ap4_enrollment_trend` (#208); context only |
 | **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | `dim_city_poverty` built (#174); the dashboard view is in #96 |
 | **Comparisons** | applicable bounded reference and status, national same-type summary, Similar LGUs | citation/version, comparison-group count, spread, Similar LGUs inputs | References built; Similar LGUs method planned in #96 |
-| **Classroom review queue** | queue status, classroom priority rank, affected schools and learners | D-060 rule version, AP2 coverage, denominator caveats, missingness and quality warnings | Built in `lgu_priority_matrix`; no composite tier or teacher rank |
+| **Classroom review queue** | top-decile queue status, classroom priority rank, affected schools, learners, and learner share | D-061 rule version, 0.90 cutoff, national comparison population/count, AP2 coverage, denominator caveats, missingness and quality warnings | Built in `lgu_priority_matrix`; no composite tier or teacher rank |
 
 ## Separate follow-on decisions
 

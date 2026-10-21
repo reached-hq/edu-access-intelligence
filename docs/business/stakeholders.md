@@ -8,7 +8,7 @@ Local education planners ask the question and make the planning decision. The pr
 
 | Role | Who | What they decide or need | What ReachED gives them |
 |---|---|---|---|
-| First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer classroom review or a request to DepEd | The D-060 classroom review queue plus separate school and teacher context, with enrollment and coverage |
+| First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer classroom review or a request to DepEd | The D-061 top-decile classroom review queue plus the raw ratio, PIDS-style screen, and separate school and teacher context, with enrollment and coverage |
 | Primary decision users | LGU Local School Boards (provincial, city, and municipal) | Special Education Fund spending, local validation, and requests to DepEd or another agency | A source-bounded classroom queue and separate AP1/AP3/AP4 evidence; no unsupported composite or teacher rank |
 | Other decision users | City and municipal LGU education planners | Their own local school board spending, including Special Education Fund support and locally funded teachers | Their LGU's measures, comparison position, data coverage, and school-level drill-down |
 | Sponsors and funding partners | UNICEF and ADB | Which places warrant further assessment for possible support or investment | Comparable indicators, the enrolled learners covered by each measure, and stated data limitations |

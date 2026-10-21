@@ -1,4 +1,4 @@
-"""AP1 to AP4 evidence and the separate classroom-screening queue under D-060."""
+"""AP1 to AP4 evidence and the classroom relative-pressure review queue under D-061."""
 
 from pathlib import Path
 
@@ -100,12 +100,18 @@ def add_public_school(store, school_id, code, learners, rooms, teachers=None):
         store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('{school_id}','2023-24','ES',{teachers})")
 
 
-def test_no_percentile_or_composite_tier_is_published(store):
+def test_percentile_is_limited_to_ap2_classroom_review_and_no_composite_tier_is_published(store):
     run_all(store)
-    for table in ["ap1_school_provision", "ap2_classroom_pressure", "ap3_teacher_pressure", "lgu_priority_matrix"]:
+    for table in ["ap1_school_provision", "ap3_teacher_pressure"]:
         columns = {c[0] for c in store.query(
             f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'")}
         assert not {c for c in columns if "percentile" in c or c in {"is_high", "tier", "national_tier"}}
+    school_columns = {c[0] for c in store.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'ap2_school_classroom_pressure'")}
+    assert {"classroom_pressure_percentile", "is_top_decile_relative_pressure"} <= school_columns
+    matrix_columns = {c[0] for c in store.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'lgu_priority_matrix'")}
+    assert not {c for c in matrix_columns if c in {"is_high", "tier", "national_tier"}}
 
 
 def test_ap1_is_descriptive_only(store):
@@ -122,6 +128,21 @@ def test_ap2_flags_schools_then_aggregates_affected_learners(store):
         congested_learner_share_pct, benchmark_status FROM {ANALYTICS}.ap2_classroom_pressure
         WHERE city_mun_psgc_code = 'M1'""") == [
         (1, 60, pytest.approx(60 / 210 * 100), "reported congestion identified")]
+
+
+def test_ap2_school_percentile_uses_only_denominator_usable_schools(store):
+    add_public_school(store, "X1", "M1", 60, 1)
+    # This active school has no room row and must not enter the percentile comparison population.
+    store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
+        ('MISS','2023-24','ES','M1','Public','matched','Mother School',TRUE,100),
+        ('MISS','2023-24','JHS','M1','Public','matched','Mother School',FALSE,0),
+        ('MISS','2023-24','SHS','M1','Public','matched','Mother School',FALSE,0)""")
+    run_all(store, STEPS[:2])
+    assert store.query(f"""SELECT school_id, learners_per_reported_room, classroom_pressure_percentile,
+        is_top_decile_relative_pressure, percentile_comparison_school_count
+        FROM {ANALYTICS}.ap2_school_classroom_pressure ORDER BY classroom_pressure_percentile DESC LIMIT 1""") == [
+        ("X1", 60.0, 1.0, True, 6)]
+    assert store.query(f"SELECT COUNT(*) FROM {ANALYTICS}.ap2_school_classroom_pressure WHERE school_id = 'MISS'") == [(0,)]
 
 
 def test_ap2_threshold_is_inclusive_at_50(store):
@@ -145,17 +166,21 @@ def test_ap2_coverage_failure_goes_to_classroom_data_review(store):
         (False, "data_review", None)]
 
 
-def test_classroom_queue_orders_by_affected_learners_and_preserves_ties(store):
+def test_classroom_queue_orders_top_decile_impact_and_uses_share_as_tiebreak(store):
     add_public_school(store, "X1", "M1", 60, 1)
     add_public_school(store, "X2", "M2", 60, 1)
+    for index in range(5):
+        add_public_school(store, f"L{index}", "C2", 10, 1)
     store.sql(f"""UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 8
         WHERE school_id = 'S5'""")
     run_all(store)
-    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap2_affected_learners,
-        ap2_screened_congested_school_count, classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix
-        WHERE classroom_priority_group = 'reported_congestion_screen'""")}
-    assert rows["M1"] == (60, 1, 1)
-    assert rows["M2"] == (60, 1, 1)
+    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code,
+        ap2_top_decile_affected_learners, ap2_top_decile_school_count,
+        ap2_top_decile_affected_learner_share_pct, classroom_priority_rank
+        FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE classroom_priority_group = 'top_decile_relative_pressure'""")}
+    assert rows["M1"] == (60, 1, pytest.approx(60 / 210 * 100), 1)
+    assert rows["M2"] == (60, 1, pytest.approx(60 / 270 * 100), 2)
 
 
 def test_ap3_pressure_signal_precedes_incomplete_level(store):
@@ -199,7 +224,8 @@ def test_ap4_gives_the_gap_at_both_censuses_and_never_enters_the_classroom_queue
     assert gaps["C1"][:4] == (684, 708, 24, "increasing")
     assert gaps["M2"][2] is None                      # geography not comparable: no change in gap
     # AP4 is context: a large gap never puts an LGU in the classroom queue (no school here reaches 50 per room)
-    assert {g[4:] for g in gaps.values()} == {("no_reported_congestion_screen", None)}
+    assert {g[4:] for g in gaps.values()} == {("below_top_decile_relative_pressure", None),
+                                               ("top_decile_relative_pressure", 1)}
 
 
 def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
@@ -231,9 +257,9 @@ def test_no_d057_or_d058_logic_remains():
     sql = "\n".join((ROOT / "etl/06_analytics" / name).read_text(encoding="utf-8")
                     for name in ["01_answer_ap1.sql", "02_answer_ap2.sql", "03_answer_ap3.sql",
                                  "04_answer_ap4.sql", "05_build_priority_matrix.sql"])
-    for gone in ["PERCENT_RANK", "national_same_type_ratio", "relative_pressure", "Priority 1", "Lower Priority",
-                 "Critical", "D-057", "D-058"]:
+    for gone in ["national_same_type_ratio", "Priority 1", "Lower Priority", "Critical", "D-057", "D-058"]:
         assert gone not in sql
+    assert "PERCENT_RANK" in (ROOT / "etl/06_analytics/02_answer_ap2.sql").read_text(encoding="utf-8")
 
 
 def test_priority_gate_rejects_a_wrong_classroom_rank(store):
@@ -269,6 +295,9 @@ def test_benchmark_registry_matches_published_values(store):
     run_all(store, STEPS[:3])
     assert store.query(f"SELECT DISTINCT congestion_benchmark FROM {ANALYTICS}.ap2_classroom_pressure") == [
         (registry["ap2"]["threshold"],)]
+    assert store.query(f"""SELECT DISTINCT relative_pressure_cutoff_percentile
+        FROM {ANALYTICS}.ap2_school_classroom_pressure""") == [
+        (registry["ap2_relative_priority"]["cutoff"],)]
     assert store.query(f"""SELECT DISTINCT es_benchmark_max_learners_per_teacher,
         jhs_benchmark_max_learners_per_teacher, shs_benchmark_max_learners_per_teacher
         FROM {ANALYTICS}.ap3_teacher_pressure""") == [

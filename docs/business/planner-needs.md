@@ -2,7 +2,7 @@
 
 **Status:** Draft for team review (#7), mapped to the approved [business and analytical questions](business-analytics-problem.md) (D-042, mentor review 2026-10-14).
 
-> **Current method under D-060 (2026-10-21):** percentiles and composite tiers are not used. AP2 supplies a bounded classroom review queue; AP1, AP3, national summaries, and Similar LGUs remain context.
+> **Current method under D-061 (2026-10-21):** AP2 uses one classroom-only national school percentile and a top-decile review flag, while the PIDS-style `>=50` screen remains separate absolute context. Composite AP1–AP3 tiers are not used; AP1, AP3, AP4, poverty, and Similar LGUs remain context.
 
 What LGU education planners need to decide, taken from published documents (D-001). The stakeholders are LGU planners, with students as the focus (D-013). Each need is tagged:
 
@@ -20,7 +20,7 @@ Question v1 is the approved business question (BP) and analytical questions AP1 
 | Comparison framework (official benchmark, peer, national) | 3 of those needs: N-05, N-06, N-22 | A-05, A-06 |
 | Primary users, planner roles, and first persona | 3 roles: R-01 to R-03 | A-07, A-08 |
 
-Most of what Question v1 measures is documented: student-to-teacher and classroom-to-student ratios, barangays with no school offering a level, population growth against school capacity, the city/municipal level, and comparison with broader averages. The parts that stay **assumed** include Population 2024 per public school and the inputs and method for Similar LGUs. D-060 removes percentiles as a priority statistic and bounds AP2's research-based line to a classroom review screen.
+Most of what Question v1 measures is documented: student-to-teacher and classroom-to-student ratios, barangays with no school offering a level, population growth against school capacity, the city/municipal level, and comparison with broader averages. The parts that stay **assumed** include Population 2024 per public school and the inputs and method for Similar LGUs. D-061 limits percentile priority to AP2 classroom pressure at school grain and keeps the research-based PIDS line separate.
 
 ## Documents read
 
@@ -100,7 +100,7 @@ No threshold, standard or ideal ratio is used here unless quoted from a cited do
 
 - **AP1:** DepEd Order No. 40, s. 2014 is active as the count of barangays without a public elementary school (N-01, N-09).
 - **AP2:** Republic Act No. 7880's 45 learners per classroom is not applied, because the reported instructional rooms include spaces the law excludes and the law allocates by legislative district.
-- **AP2:** applies the PIDS `>=50` illustrative line per usable school, then aggregates affected schools and learners for the D-060 classroom review queue. This is not an exact reproduction or RA No. 7880 shortage estimate.
+- **AP2:** calculates each usable school's national classroom-pressure percentile, flags the top decile for the D-061 review queue, and separately applies the PIDS `>=50` illustrative line. Neither is an exact official DepEd shortage or RA No. 7880 estimate.
 - **AP3:** shows the World Bank study's historical 35:1 ES comparison plus derived JHS and SHS deployment comparisons. It has no teacher-priority rank and estimates no shortage.
   RM 379's 45 JHS and 40 SHS figures are class-size maxima, not learner-to-teacher ratios. AP3 converts them with the same table's teacher-to-class factors to 36 and 26.67. Using 45 or 40 directly would mix denominators and under-flag teacher pressure.
 

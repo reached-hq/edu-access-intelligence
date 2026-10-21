@@ -345,9 +345,11 @@ checks:
     - manila_reason_match_pin
     - manila_reason_on_city_of_manila
     - congestion_screen_valid
+    - classroom_school_percentile_valid
+    - school_percentile_rows_reconcile
     - teacher_reference_context_valid
     - assessment_status_valid
-    - classroom_queue_follows_d060
+    - classroom_queue_follows_d061
     - ratio_and_coverage_arithmetic
     - arithmetic_holds
     - year_over_year_change_holds
@@ -607,6 +609,8 @@ recorded_counts:
     - members_no_change
     - screened_congested_schools
     - screened_affected_learners
+    - top_decile_classroom_schools
+    - top_decile_classroom_affected_learners
     - classroom_queue_lgus
     - classroom_data_review_lgus
     - no_estimate_rows
