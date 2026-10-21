@@ -42,4 +42,4 @@ Every source row is in its map, matched or kept with a reason.
 | Date | Source | Claim |
 |---|---|---|
 | 2026-10-16 | PSA poverty | [The 2023 poverty statuses behind D-046 recount from Silver](2026-10-16-psa-poverty-2023-city-recount.md) |
-| 2026-10-21 | DepEd PSGC coordinates | [dim_school_location reconciles to Silver on the real data, every school gets one boundary status, and a rebuild is identical](2026-10-21-dim-school-location-gold.md) |
+| 2026-10-21 | DepEd PSGC coordinates | [The school boundary map and dim_school_location reconcile to Silver on the real data, every school gets one boundary status, and a rebuild is identical](2026-10-21-dim-school-location-gold.md) |
