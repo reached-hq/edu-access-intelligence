@@ -902,7 +902,7 @@ def overview(b):
            (kpi(b, "ov_kpi", "Screened schools", "screened_schools", num(), desc="Public schools at or above the screen",
                 style=bold, card_style=KPI_CARD), 3),
            (kpi(b, "ov_kpi", "LGUs needing data review", "data_review_lgus", num(),
-                desc="Under 90% of learners have a room count", style=bold, card_style=KPI_CARD), 3)], 3)
+                desc="No known pressure, and coverage or growth could not be checked", style=bold, card_style=KPI_CARD), 3)], 3)
     queue_map = choropleth(
         b, "ov_lgu", "**Where are the planning priorities?**", "queue_status", "Priority category",
         [("lgu_label", "City or municipality"), ("queue_status", "Review status"),
@@ -1089,7 +1089,7 @@ def data_and_method(b):
     p.columns([(9, [(intro, 2)]), (3, [(measure, 2)])], 2)
     p.row([(kpi(b, "dm_kpi", "Assessed LGUs", "assessed", num(), "{{ @formatted }} of {{lgus}}",
                 "At least 90% of learners have a room count", extra=("lgus",), style=KPI_STYLE, card_style=KPI_CARD), 3),
-           (kpi(b, "dm_kpi", "LGUs requiring data review", "data_review", num(), desc="Classroom coverage below 90%",
+           (kpi(b, "dm_kpi", "LGUs requiring data review", "data_review", num(), desc="No known pressure, and coverage or growth could not be checked",
                 style=KPI_STYLE, card_style=KPI_CARD), 3),
            (kpi(b, "dm_kpi", "LGUs in Priority 1–3", "queue_lgus", num(), "{{ @formatted }} of {{assessed}}",
                 "Of the assessed LGUs", extra=("assessed",), style=KPI_STYLE, card_style=KPI_CARD), 3),
@@ -1102,13 +1102,15 @@ def data_and_method(b):
                  f"1. **School screen, SY 2023-24:** each active public school with complete enrollment and more than "
                  f"zero reported instructional rooms passes when it has at least {SCREEN} learners per reported room. A "
                  "PIDS-style illustrative screen, not an official DepEd ratio.\n",
-                 "2. **Coverage gate:** an LGU is assessed only when at least 90% of its learners are in schools with a "
-                 "room count. Otherwise it is **Data review**.\n",
+                 "2. **Coverage gate:** classroom pressure counts only when at least 90% of an LGU's learners are in "
+                 "schools with a room count; each teacher level has the same 90% rule. A known pressure always counts.\n",
                  "3. **Current pressures:** AP2 contributes classroom pressure and AP3 contributes teacher pressure.\n",
                  "4. **Growth:** AP4 contributes whether public-school enrollment increased from the first to latest "
                  "available school year.\n",
                  "5. **Priority:** the two current-pressure flags and growth assign Priority 1–3, Monitor, No current "
-                 "pressure identified, or Data review. The national order uses the published evidence fields. AP1, "
+                 "pressure identified, or Data review. Where growth cannot be checked, an LGU with a known pressure is "
+                 "placed as if it were not growing. **Data review** is for LGUs with no known pressure where coverage "
+                 "or growth could not be checked. The national order uses the published evidence fields. AP1, "
                  "school-age population and poverty remain context."), 6),
            (table(b, "dm_refs", "Published references", [
                ("measure", "Measure", None), ("unit", "Unit", None), ("reference", "Reference", None),

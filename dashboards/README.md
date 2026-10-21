@@ -112,7 +112,7 @@ It shows D-061's planning priorities. AP2 contributes a classroom-pressure flag,
 | Overview | LGUs in Priority 1–3 | `priority_category` is Priority 1, Priority 2, or Priority 3 |
 | | Learners in screened schools | `ap2_affected_learners`, with their share of public learners in view |
 | | Screened schools | Public schools at or above 50 learners per reported room |
-| | LGUs needing data review | Under 90% of learners have a room count |
+| | LGUs needing data review | No known pressure, and coverage or growth could not be checked |
 | LGU Profile | Public schools, Instructional classrooms, Teachers, Public learners | AP1's school count, AP2's reported rooms, AP3's teachers, AP1's public enrollment, SY 2023-24 |
 | School Action | Learners per reported room, Learners per teacher, Enrollment change, Temporary and makeshift rooms | The selected school, SY 2023-24 (enrollment change SY 2020-21 to 2025-26, when both years are complete) |
 | Data and Method | Assessed LGUs, LGUs requiring data review, LGUs in Priority 1–3, Screened schools | As on Overview, over Region, Province, and LGU type |
