@@ -5,10 +5,11 @@
 -- differ from a recount from Gold, wrong ratio or coverage arithmetic, an assessment that does not follow the 90%
 -- gate, barangay or JHS presence counts that differ from a recount from Gold and dim_barangay, or a reference value
 -- or DO 40 status that does not follow D-061, or spacing counts that differ from a recount on a coarser grid
--- (0.05 degrees, so the build's 0.02-degree pairing is checked by a different pairing). AP1 is descriptive and
+-- (0.05 degrees, so the build's 0.02-degree pairing is checked by a different pairing), or next-level (RA 12321 3 km)
+-- counts that differ from the same 0.05-degree recount (the build pairs on 0.03 degrees). AP1 is descriptive and
 -- publishes no percentile or priority flag. The D-061 checks use names already in config/quality_attributes.yml:
--- counts_reconcile (presence screen), derived_values_reconcile (spacing screen), assessment_status_valid (references
--- and statuses).
+-- counts_reconcile (presence screen), derived_values_reconcile (spacing and next-level screens),
+-- assessment_status_valid (references and statuses).
 -- WARN: active public schools, learners and school-age population not placed in a city or municipality.
 DECLARE OR REPLACE VARIABLE analytics_gate_started_at_utc TIMESTAMP;
 SET VARIABLE analytics_gate_started_at_utc = current_timestamp();
@@ -27,6 +28,9 @@ WITH c AS (
          MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS active,
          MAX(CASE WHEN education_level_code = 'ES' AND is_offered THEN 1 ELSE 0 END) AS es,
          MAX(CASE WHEN education_level_code = 'JHS' AND is_offered THEN 1 ELSE 0 END) AS jhs,
+         MAX(CASE WHEN education_level_code = 'SHS' AND is_offered THEN 1 ELSE 0 END) AS shs,
+         SUM(CASE WHEN education_level_code = 'ES' AND is_offered THEN COALESCE(learner_count, 0) ELSE 0 END) AS es_learners,
+         SUM(CASE WHEN education_level_code = 'JHS' AND is_offered THEN COALESCE(learner_count, 0) ELSE 0 END) AS jhs_learners,
          COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete,
          COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS blank,
          MAX(CASE WHEN annex_status = 'Annex/Extension School' THEN 1 ELSE 0 END) AS annex,
@@ -79,6 +83,39 @@ WITH c AS (
          COUNT_IF(p.km IS NOT NULL AND c.school_id IS NULL) AS isolated,
          SUM(CASE WHEN p.km IS NOT NULL AND c.school_id IS NULL THEN p.learners ELSE 0 END) AS isolated_learners
   FROM expected_points p LEFT JOIN expected_close c USING (school_id)
+  GROUP BY p.city_mun_psgc_code
+), expected_located AS (
+  SELECT s.school_id, s.city_mun_psgc_code, s.es, s.jhs, s.shs, s.es_learners, s.jhs_learners, l.latitude, l.longitude,
+         CAST(FLOOR(l.latitude / 0.05) AS BIGINT) AS gy, CAST(FLOOR(l.longitude / 0.05) AS BIGINT) AS gx
+  FROM school_rows s JOIN edu_access.`05-gold`.dim_school_location l USING (school_id)
+  WHERE s.psgc_match_status = 'matched' AND s.active = 1 AND l.is_location_usable
+), expected_jhs_near AS (
+  SELECT DISTINCT a.school_id
+  FROM expected_located a
+  CROSS JOIN (VALUES (-1), (0), (1)) AS dy(d)
+  CROSS JOIN (VALUES (-1), (0), (1)) AS dx(d)
+  JOIN expected_located b ON b.gy = a.gy + dy.d AND b.gx = a.gx + dx.d
+  WHERE b.jhs = 1 AND 6371.0088 * 2 * ASIN(SQRT(POWER(SIN(RADIANS(b.latitude - a.latitude) / 2), 2)
+      + COS(RADIANS(a.latitude)) * COS(RADIANS(b.latitude)) * POWER(SIN(RADIANS(b.longitude - a.longitude) / 2), 2))) <= 3.0
+), expected_shs_near AS (
+  SELECT DISTINCT a.school_id
+  FROM expected_located a
+  CROSS JOIN (VALUES (-1), (0), (1)) AS dy(d)
+  CROSS JOIN (VALUES (-1), (0), (1)) AS dx(d)
+  JOIN expected_located b ON b.gy = a.gy + dy.d AND b.gx = a.gx + dx.d
+  WHERE b.shs = 1 AND 6371.0088 * 2 * ASIN(SQRT(POWER(SIN(RADIANS(b.latitude - a.latitude) / 2), 2)
+      + COS(RADIANS(a.latitude)) * COS(RADIANS(b.latitude)) * POWER(SIN(RADIANS(b.longitude - a.longitude) / 2), 2))) <= 3.0
+), expected_next AS (
+  SELECT p.city_mun_psgc_code,
+         COUNT_IF(p.es = 1) AS es_tested,
+         COUNT_IF(p.es = 1 AND j.school_id IS NULL) AS es_without,
+         SUM(CASE WHEN p.es = 1 AND j.school_id IS NULL THEN p.es_learners ELSE 0 END) AS es_without_learners,
+         COUNT_IF(p.jhs = 1) AS jhs_tested,
+         COUNT_IF(p.jhs = 1 AND h.school_id IS NULL) AS jhs_without,
+         SUM(CASE WHEN p.jhs = 1 AND h.school_id IS NULL THEN p.jhs_learners ELSE 0 END) AS jhs_without_learners
+  FROM expected_located p
+  LEFT JOIN expected_jhs_near j USING (school_id)
+  LEFT JOIN expected_shs_near h USING (school_id)
   GROUP BY p.city_mun_psgc_code
 ), expected_population AS (
   SELECT city_mun_psgc_code, CAST(SUM(population) AS BIGINT) AS school_age_population
@@ -135,6 +172,19 @@ SELECT
        OR (c.active_public_es_school_count = 0 AND c.spacing_coverage_pct IS NOT NULL)
        OR (c.active_public_es_school_count > 0 AND ABS(c.spacing_coverage_pct
          - 100.0 * c.spacing_tested_es_school_count / c.active_public_es_school_count) > 1e-9)) AS spacing_mismatch,
+  (SELECT COUNT(*) FROM c LEFT JOIN expected_next x USING (city_mun_psgc_code)
+    WHERE c.next_level_tested_es_school_count IS DISTINCT FROM COALESCE(x.es_tested, 0)
+       OR c.es_schools_without_jhs_within_3km IS DISTINCT FROM COALESCE(x.es_without, 0)
+       OR c.es_learners_without_jhs_within_3km IS DISTINCT FROM CAST(COALESCE(x.es_without_learners, 0) AS BIGINT)
+       OR c.next_level_tested_jhs_school_count IS DISTINCT FROM COALESCE(x.jhs_tested, 0)
+       OR c.jhs_schools_without_shs_within_3km IS DISTINCT FROM COALESCE(x.jhs_without, 0)
+       OR c.jhs_learners_without_shs_within_3km IS DISTINCT FROM CAST(COALESCE(x.jhs_without_learners, 0) AS BIGINT)
+       OR (c.active_public_es_school_count = 0 AND c.es_to_jhs_coverage_pct IS NOT NULL)
+       OR (c.active_public_es_school_count > 0 AND ABS(c.es_to_jhs_coverage_pct
+         - 100.0 * c.next_level_tested_es_school_count / c.active_public_es_school_count) > 1e-9)
+       OR (c.public_jhs_school_count = 0 AND c.jhs_to_shs_coverage_pct IS NOT NULL)
+       OR (c.public_jhs_school_count > 0 AND ABS(c.jhs_to_shs_coverage_pct
+         - 100.0 * c.next_level_tested_jhs_school_count / c.public_jhs_school_count) > 1e-9)) AS next_level_mismatch,
   (SELECT COALESCE(COUNT_IF(reference_id IS DISTINCT FROM 'deped_do_2014_40'
     OR es_reference_min_schools_per_barangay IS DISTINCT FROM 1
     OR jhs_reference_min_schools_per_lgu IS DISTINCT FROM 1
@@ -151,7 +201,17 @@ SELECT
     OR spacing_benchmark_status IS DISTINCT FROM CASE
       WHEN active_public_es_school_count = 0 OR spacing_coverage_pct < 90 THEN 'not assessed'
       WHEN isolated_es_school_count > 0 THEN 'isolated public ES identified'
-      ELSE 'no isolated public ES' END), 0) FROM c) AS benchmark_mismatch,
+      ELSE 'no isolated public ES' END
+    OR access_reference_id IS DISTINCT FROM 'ra_12321_2026'
+    OR access_km_reference IS DISTINCT FROM 3.0
+    OR es_to_jhs_3km_status IS DISTINCT FROM CASE
+      WHEN active_public_es_school_count = 0 OR es_to_jhs_coverage_pct < 90 THEN 'not assessed'
+      WHEN es_schools_without_jhs_within_3km > 0 THEN 'ES without public JHS within 3 km'
+      ELSE 'every ES has a public JHS within 3 km' END
+    OR jhs_to_shs_3km_status IS DISTINCT FROM CASE
+      WHEN public_jhs_school_count = 0 OR jhs_to_shs_coverage_pct < 90 THEN 'not assessed'
+      WHEN jhs_schools_without_shs_within_3km > 0 THEN 'JHS without public SHS within 3 km'
+      ELSE 'every JHS has a public SHS within 3 km' END), 0) FROM c) AS benchmark_mismatch,
   (SELECT COUNT(*) FROM school_rows WHERE active = 1 AND psgc_match_status <> 'matched') AS unplaced_active_schools,
   (SELECT COALESCE(SUM(learners), 0) FROM school_rows WHERE active = 1 AND psgc_match_status <> 'matched')
     AS unplaced_public_learners,
@@ -175,7 +235,7 @@ FROM (
   UNION ALL SELECT 'ratio_and_coverage_arithmetic', CASE WHEN arithmetic_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(arithmetic_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'coverage_gate_valid', CASE WHEN assessment_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(assessment_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'counts_reconcile', CASE WHEN presence_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(presence_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'derived_values_reconcile', CASE WHEN spacing_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(spacing_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'derived_values_reconcile', CASE WHEN spacing_mismatch + next_level_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(spacing_mismatch + next_level_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'assessment_status_valid', CASE WHEN benchmark_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(benchmark_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_active_public_schools', CASE WHEN unplaced_active_schools = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_active_schools AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_public_learners', CASE WHEN unplaced_public_learners = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_public_learners AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)

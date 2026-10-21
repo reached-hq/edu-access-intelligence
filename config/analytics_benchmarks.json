@@ -19,9 +19,19 @@
       "spacing_km_rural": 2.0,
       "spacing_km_urban": 1.0
     },
+    "access_reference": {
+      "reference_id": "ra_12321_2026",
+      "authority": "Republic Act No. 12321 (Last Mile and GIDA Schools Act), signed 2026-07-22",
+      "provision": "Sec. 5(a): Students shall have access to a basic education school within a walkable distance of three (3) kilometers from their place of residence.",
+      "walkable_km": 3.0,
+      "coverage_min_pct": 90,
+      "es_to_jhs_statuses": ["ES without public JHS within 3 km", "every ES has a public JHS within 3 km", "not assessed"],
+      "jhs_to_shs_statuses": ["JHS without public SHS within 3 km", "every JHS has a public SHS within 3 km", "not assessed"],
+      "measure": "next-level proxy: each active public ES with a usable point is tested for an active public JHS with a usable point within walkable_km, the school itself included, and each such JHS for an active public SHS"
+    },
     "priority_use": "none",
-    "context_use": "The ES and JHS presence screens and the spacing screen are published as statuses beside AP1's ratios. The spacing screen counts active public ES schools with no other active public ES within spacing_km_rural (rural barangay) or spacing_km_urban (urban barangay), by straight-line distance, using only points that pass the boundary test S-1 in dim_school_location. None of these enters the classroom review queue",
-    "caveat": "The order sets criteria for establishing a school. A barangay without a matched public ES may still be served by a nearby school, and the order's prospective-learner and feasibility criteria cannot be tested with current data, so the screens are for review, not a school shortage or construction need. It gives no ratio of schools to learners or population, so learners per public school and school-age population per public school stay project-defined descriptive measures. The spacing screen uses straight-line distance, not road distance or travel time, and an isolated school is one where the order would allow a new school nearby, not one where a school is needed."
+    "context_use": "The ES and JHS presence screens and the spacing screen are published as statuses beside AP1's ratios. The spacing screen counts active public ES schools with no other active public ES within spacing_km_rural (rural barangay) or spacing_km_urban (urban barangay), by straight-line distance, using only points that pass the boundary test S-1 in dim_school_location. The next-level screens (access_reference) count active public ES schools with no active public JHS within 3 km, and JHS with no public SHS within 3 km, from the same points. None of these enters the classroom review queue",
+    "caveat": "The order sets criteria for establishing a school. A barangay without a matched public ES may still be served by a nearby school, and the order's prospective-learner and feasibility criteria cannot be tested with current data, so the screens are for review, not a school shortage or construction need. It gives no ratio of schools to learners or population, so learners per public school and school-age population per public school stay project-defined descriptive measures. The spacing screen uses straight-line distance, not road distance or travel time, and an isolated school is one where the order would allow a new school nearby, not one where a school is needed. RA 12321 measures 3 km from the learner's residence, and no residence data exist, so the next-level screens measure from the school the learner finishes at. Straight-line distance is never longer than the walk, so only 'over 3 km' is certain. Sec. 3(b) counts any DepEd-accredited school, private included, but only public points exist, so a nearby private or SUC/LUC school, or a public one without a usable point, is not counted and the count can be too high. Where walking is not feasible, Sec. 5(c) has DepEd provide alternative delivery modes and LGUs transport, so a school over 3 km marks where that support applies, not a violation."
   },
   "ap2": {
     "benchmark_id": "pids_dp_2025_10_illustrative_congestion_screen",

@@ -124,7 +124,7 @@ erDiagram
 | `school` | `dim_school` | School | DepEd Silver |
 | `school_year` | `dim_school_year` | School year | DepEd Silver |
 | `education_level` | `dim_education_level` | Reporting level | Reviewed list ([D-047](../governance/decisions.md#d-047-question-v1-metric-counting-rules)) |
-| `school_location` | `fact_school_enrollment` (location, `sector`, and `annex_status` columns) | School and school year | `deped_enrollment` Silver; barangay from the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk), #91). The SY 2023-24 point and its boundary test are in `dim_school_location` ([D-061](../governance/decisions.md#d-061-ap1-school-presence-and-spacing-screens-and-school-points-after-the-boundary-test)) |
+| `school_location` | `fact_school_enrollment` (location, `sector`, and `annex_status` columns) | School and school year | `deped_enrollment` Silver; barangay from the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk), #91). The SY 2023-24 point and its boundary test are in `dim_school_location` ([D-061](../governance/decisions.md#d-061-ap1-school-presence-spacing-and-3-km-next-level-screens-and-school-points-after-the-boundary-test)) |
 | `enrollment_record` | `fact_school_enrollment` | School, school year, and education level | `deped_enrollment` Silver |
 | `classroom_record` | `fact_school_classroom_capacity` | School and school year | `deped_facilities` Silver ([D-038](../governance/decisions.md#d-038-deped-facilities-silver)) |
 | `personnel_record` | `fact_school_teacher_capacity` | School, school year, and education level | `deped_personnel` Silver ([D-041](../governance/decisions.md#d-041-deped-personnel-silver)) |

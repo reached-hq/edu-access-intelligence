@@ -405,6 +405,12 @@ def test_ap1_reference_registry_matches_published_values(store):
     assert {s[1] for s in statuses} <= set(registry["jhs_statuses"])
     spacing = {r[0] for r in store.query(f"SELECT DISTINCT spacing_benchmark_status FROM {ANALYTICS}.ap1_school_provision")}
     assert spacing <= set(registry["spacing_statuses"])
+    access = registry["access_reference"]
+    assert store.query(f"""SELECT DISTINCT access_reference_id, access_km_reference
+        FROM {ANALYTICS}.ap1_school_provision""") == [(access["reference_id"], access["walkable_km"])]
+    statuses = store.query(f"SELECT DISTINCT es_to_jhs_3km_status, jhs_to_shs_3km_status FROM {ANALYTICS}.ap1_school_provision")
+    assert {s[0] for s in statuses} <= set(access["es_to_jhs_statuses"])
+    assert {s[1] for s in statuses} <= set(access["jhs_to_shs_statuses"])
 
 
 def ap1_spacing(store):
@@ -441,6 +447,7 @@ def test_ap1_a_point_that_failed_the_boundary_test_is_not_used(store):
     run_all(store, STEPS[:1])
     # S2 is no longer a neighbour, and City One's coverage drops to 50%
     assert ap1_spacing(store)["C1"] == (2, 1, 1, 130, "not assessed")
+    assert ap1_next_level(store)["C1"][:2] == (1, "not assessed")
 
 
 def test_ap1_spacing_finds_a_neighbour_across_a_grid_cell_and_an_lgu_boundary(store):
@@ -469,3 +476,88 @@ def test_ap1_spacing_registry_matches_published_values(store):
     run_all(store, STEPS[:1])
     assert store.query(f"""SELECT DISTINCT spacing_km_rural_reference, spacing_km_urban_reference
         FROM {ANALYTICS}.ap1_school_provision""") == [(criteria["spacing_km_rural"], criteria["spacing_km_urban"])]
+
+
+def ap1_next_level(store):
+    return {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, next_level_tested_es_school_count,
+        es_to_jhs_3km_status, es_schools_without_jhs_within_3km, es_learners_without_jhs_within_3km,
+        next_level_tested_jhs_school_count, jhs_schools_without_shs_within_3km, jhs_learners_without_shs_within_3km,
+        jhs_to_shs_3km_status FROM {ANALYTICS}.ap1_school_provision""")}
+
+
+def add_jhs_only_school(store, school_id, code, learners, longitude, latitude):
+    store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
+        ('{school_id}','2023-24','ES','{code}','Public','matched','Mother School',FALSE,0,'{code}-B1'),
+        ('{school_id}','2023-24','JHS','{code}','Public','matched','Mother School',TRUE,{learners},'{code}-B1'),
+        ('{school_id}','2023-24','SHS','{code}','Public','matched','Mother School',FALSE,0,'{code}-B1')""")
+    store.sql(f"""INSERT INTO {GOLD}.dim_school_location VALUES
+        ('{school_id}','2023-24','{code}','{code}-B1','R',{longitude},{latitude},NULL,'inside',TRUE,
+         'deped_psgc_coordinates')""")
+
+
+def test_ap1_flags_a_public_es_with_no_public_jhs_within_3_km(store):
+    run_all(store, STEPS[:1])
+    rows = ap1_next_level(store)
+    without = "ES without public JHS within 3 km"
+    # no school offers JHS, so every tested ES is without one, and no LGU has a JHS to test for SHS
+    assert rows["C1"] == (2, without, 2, 260, 0, 0, 0, "not assessed")
+    assert rows["C2"] == (1, without, 1, 330, 0, 0, 0, "not assessed")
+    assert rows["M1"] == (1, without, 1, 150, 0, 0, 0, "not assessed")
+    # S5 has no urban or rural class, so no spacing test, but its point is usable, so it is tested for 3 km
+    assert rows["M2"] == (1, without, 1, 210, 0, 0, 0, "not assessed")
+
+
+def test_ap1_a_school_offering_the_next_level_counts_for_itself_and_its_neighbours(store):
+    # S2 also offers JHS: it serves itself and S1, 0.5 km away; S2's JHS then has no SHS within 3 km
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 40
+        WHERE school_id = 'S2' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
+    run_all(store, STEPS[:1])
+    assert ap1_next_level(store)["C1"] == (
+        2, "every ES has a public JHS within 3 km", 0, 0, 1, 1, 40, "JHS without public SHS within 3 km")
+    # S1 also offers SHS, so S2's JHS has a public SHS 0.5 km away
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 30
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'SHS'""")
+    run_all(store, STEPS[:1])
+    assert ap1_next_level(store)["C1"][4:] == (1, 0, 0, "every JHS has a public SHS within 3 km")
+
+
+def test_ap1_3_km_finds_a_jhs_across_a_grid_cell_and_an_lgu_boundary_and_stops_at_3_km(store):
+    # X3 is a JHS in Town One, 2.89 km north of S3 in City Two and in the next 0.03-degree cell
+    add_jhs_only_school(store, "X3", "M1", 50, 124.0, 10.026)
+    run_all(store, STEPS[:1])
+    rows = ap1_next_level(store)
+    assert rows["C2"][:4] == (1, "every ES has a public JHS within 3 km", 0, 0)
+    assert rows["M1"][4:] == (1, 1, 50, "JHS without public SHS within 3 km")
+    # 3.06 km is over the walkable distance
+    store.sql(f"UPDATE {GOLD}.dim_school_location SET latitude = 10.0275 WHERE school_id = 'X3'")
+    run_all(store, STEPS[:1])
+    assert ap1_next_level(store)["C2"][:4] == (1, "ES without public JHS within 3 km", 1, 330)
+
+
+def test_ap1_gate_rejects_a_wrong_3_km_count_or_status(store):
+    def failed_checks():
+        return {r[0] for r in store.query("""SELECT check_name FROM edu_access.`01-control`.data_quality_results
+            WHERE source_id = 'ap1_school_provision' AND status = 'FAIL'""")}
+
+    run(store, "01_answer_ap1.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.ap1_school_provision_candidate
+        SET es_schools_without_jhs_within_3km = 0 WHERE city_mun_psgc_code = 'C2'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap1.sql")
+    assert "derived_values_reconcile" in failed_checks()
+    store.sql("DELETE FROM edu_access.`01-control`.data_quality_results")
+    run(store, "01_answer_ap1.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.ap1_school_provision_candidate
+        SET es_to_jhs_3km_status = 'every ES has a public JHS within 3 km' WHERE city_mun_psgc_code = 'C2'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap1.sql")
+    assert failed_checks() == {"assessment_status_valid"}
+
+
+def test_ap1_3_km_screen_is_matrix_context_only(store):
+    run_all(store)
+    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap1_es_schools_without_jhs_within_3km,
+        ap1_es_to_jhs_3km_status, ap1_jhs_schools_without_shs_within_3km, ap1_jhs_to_shs_3km_status,
+        classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix""")}
+    assert rows["C1"] == (2, "ES without public JHS within 3 km", 0, "not assessed", None)
+    assert {r[4] for r in rows.values()} == {None}

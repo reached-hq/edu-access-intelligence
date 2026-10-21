@@ -74,7 +74,8 @@ workbook for SY 2023-24 with its point as published, its PSGC city or
 municipality, barangay and urban or rural class, and the boundary test S-1: the
 point is tested with `st_contains` against its own city or municipality in the
 latest HDX ADM3 release, and only an `inside` point is usable. It holds no
-distance; AP1 applies DO 40's 2 km / 1 km spacing in Analytics.
+distance; AP1 applies DO 40's 2 km / 1 km spacing and RA 12321's 3 km in
+Analytics.
 
 Enrollment and `dim_school_year` cover SY 2020-21 through SY 2025-26. Classroom
 and teacher capacity currently cover SY 2023-24 only.
