@@ -1,4 +1,4 @@
-"""Revised AP1 to AP4 outputs and the downstream LGU priority matrix."""
+"""AP1 to AP4 evidence and the separate classroom-screening queue under D-060."""
 
 from pathlib import Path
 
@@ -75,47 +75,6 @@ def run(store, file_name):
         "run_id": "priority-test", "code_revision": "a" * 40, "environment": "local"})
 
 
-def test_revised_outputs_and_priority_matrix(store):
-    for build, gate in [
-        ("01_answer_ap1.sql", "90_validate_ap1.sql"),
-        ("02_answer_ap2.sql", "90_validate_ap2.sql"),
-        ("03_answer_ap3.sql", "90_validate_ap3.sql"),
-        ("04_answer_ap4.sql", "90_validate_ap4.sql"),
-        ("05_build_priority_matrix.sql", "90_validate_priority_matrix.sql"),
-    ]:
-        run(store, build)
-        run(store, gate)
-
-    assert store.query(f"SELECT COUNT(*) FROM {ANALYTICS}.lgu_priority_matrix") == [(4,)]
-    c2 = store.query(f"""SELECT ap1_classification, ap1_national_same_type_ratio,
-        current_pressure_count, enrollment_trend, priority
-        FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'C2'""")[0]
-    assert c2[0] == "Above Reference"
-    assert c2[1] == pytest.approx((988 + 1976) / 3)
-    assert c2[2] in (0, 1, 2, 3)
-    assert c2[3] == "Growing"
-    assert c2[4] in ("Priority 1", "Priority 3", "Monitor")
-
-
-def test_no_percentile_priority_logic():
-    sql = "\n".join((ROOT / "etl/06_analytics" / name).read_text(encoding="utf-8")
-                    for name in ["01_answer_ap1.sql", "02_answer_ap2.sql", "03_answer_ap3.sql",
-                                 "04_answer_ap4.sql", "05_build_priority_matrix.sql"])
-    assert "PERCENT_RANK" not in sql.upper()
-    assert "national_same_type_ratio" in sql
-    assert "Data Review" in sql
-    assert "PERCENTILE_CONT" in sql  # retained only for the school-level outlier review fence
-
-
-def test_priority_gate_rejects_wrong_priority(store):
-    test_revised_outputs_and_priority_matrix(store)
-    before = store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code")
-    store.sql(f"UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET priority = 'Priority 1'")
-    with pytest.raises(Exception, match="Analytics gate failed"):
-        run(store, "90_validate_priority_matrix.sql")
-    assert store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code") == before
-
-
 STEPS = [
     ("01_answer_ap1.sql", "90_validate_ap1.sql"),
     ("02_answer_ap2.sql", "90_validate_ap2.sql"),
@@ -125,105 +84,193 @@ STEPS = [
 ]
 
 
-def run_all(store):
-    for build, gate in STEPS:
+def run_all(store, steps=STEPS):
+    for build, gate in steps:
         run(store, build)
         run(store, gate)
 
 
-def add_public_school(store, school_id, code, year, learners, rooms):
+def add_public_school(store, school_id, code, learners, rooms, teachers=None):
     store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
-        ('{school_id}','{year}','ES','{code}','Public','matched','Mother School',TRUE,{learners}),
-        ('{school_id}','{year}','JHS','{code}','Public','matched','Mother School',FALSE,0),
-        ('{school_id}','{year}','SHS','{code}','Public','matched','Mother School',FALSE,0)""")
-    store.sql(f"INSERT INTO {GOLD}.fact_school_classroom_capacity VALUES ('{school_id}','{year}',{rooms})")
+        ('{school_id}','2023-24','ES','{code}','Public','matched','Mother School',TRUE,{learners}),
+        ('{school_id}','2023-24','JHS','{code}','Public','matched','Mother School',FALSE,0),
+        ('{school_id}','2023-24','SHS','{code}','Public','matched','Mother School',FALSE,0)""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_classroom_capacity VALUES ('{school_id}','2023-24',{rooms})")
+    if teachers is not None:
+        store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('{school_id}','2023-24','ES',{teachers})")
 
 
-def test_reference_pools_only_lgus_without_an_input_issue(store):
-    # S1 loses its room count, so City One's room coverage is 50% and it must not move the city line.
+def test_no_percentile_or_composite_tier_is_published(store):
+    run_all(store)
+    for table in ["ap1_school_provision", "ap2_classroom_pressure", "ap3_teacher_pressure", "lgu_priority_matrix"]:
+        columns = {c[0] for c in store.query(
+            f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'")}
+        assert not {c for c in columns if "percentile" in c or c in {"is_high", "tier", "national_tier"}}
+
+
+def test_ap1_is_descriptive_only(store):
+    run_all(store, STEPS[:1])
+    assert store.query(f"""SELECT learners_per_public_school, school_age_population_per_public_school, is_assessed
+        FROM {ANALYTICS}.ap1_school_provision WHERE city_mun_psgc_code = 'C2'""") == [
+        (330.0, pytest.approx(1976.0), True)]
+
+
+def test_ap2_flags_schools_then_aggregates_affected_learners(store):
+    add_public_school(store, "X1", "M1", 60, 1)
+    run_all(store, STEPS[:2])
+    assert store.query(f"""SELECT congested_school_count, learners_in_congested_schools,
+        congested_learner_share_pct, benchmark_status FROM {ANALYTICS}.ap2_classroom_pressure
+        WHERE city_mun_psgc_code = 'M1'""") == [
+        (1, 60, pytest.approx(60 / 210 * 100), "reported congestion identified")]
+
+
+def test_ap2_threshold_is_inclusive_at_50(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET learner_count = 100
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'ES'""")
+    store.sql(f"UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 2 WHERE school_id = 'S1'")
+    run_all(store, STEPS[1:2])
+    assert store.query(f"""SELECT congested_school_count, learners_in_congested_schools
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [(1, 100)]
+
+
+def test_ap2_coverage_failure_goes_to_classroom_data_review(store):
+    # S1 loses its room count: City One keeps half its learners in the ratio, below the 90% gate
     store.sql(f"DELETE FROM {GOLD}.fact_school_classroom_capacity WHERE school_id = 'S1'")
     run_all(store)
-    rows = dict(store.query(f"""SELECT city_mun_psgc_code, national_same_type_ratio
-        FROM {ANALYTICS}.ap2_classroom_pressure WHERE lgu_type = 'City'"""))
-    assert rows["C2"] == pytest.approx(330 / 10)
-    assert store.query(f"""SELECT input_issue_reason, classification FROM {ANALYTICS}.ap2_classroom_pressure
-        WHERE city_mun_psgc_code = 'C1'""") == [("coverage below 90%", "Data Review")]
+    assert store.query(f"""SELECT learner_coverage_pct, is_assessed, not_assessed_reason
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [
+        (50.0, False, "learner coverage below 90%")]
+    assert store.query(f"""SELECT ap2_assessed, classroom_priority_group, classroom_priority_rank
+        FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'C1'""") == [
+        (False, "data_review", None)]
 
 
-@pytest.mark.parametrize("learners, rooms, expected", [
-    (60, 1, "Above Reference"),   # without the outlier, Town One is still above the line
-    (600, 10, "Data Review"),     # without the outlier, Town One drops below the line
-])
-def test_an_outlier_school_decides_data_review_only_when_it_flips_the_result(store, learners, rooms, expected):
-    for n in range(5):
-        add_public_school(store, f"T{n}", "M2", "2023-24", 210, 9)
-    add_public_school(store, "X1", "M1", "2023-24", learners, rooms)
+def test_classroom_queue_orders_by_affected_learners_and_preserves_ties(store):
+    add_public_school(store, "X1", "M1", 60, 1)
+    add_public_school(store, "X2", "M2", 60, 1)
+    store.sql(f"""UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 8
+        WHERE school_id = 'S5'""")
     run_all(store)
-    flag, count, classification = store.query(f"""SELECT outlier_flag, outlier_school_count, classification
-        FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'M1'""")[0]
-    assert flag and count == 1
-    assert classification == expected
+    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap2_affected_learners,
+        ap2_screened_congested_school_count, classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE classroom_priority_group = 'reported_congestion_screen'""")}
+    assert rows["M1"] == (60, 1, 1)
+    assert rows["M2"] == (60, 1, 1)
 
 
-def test_ap4_applies_the_stable_band(store):
-    # Town Two moves from 180 to 185 learners (+2.8%), inside the ±5% band; City One grows by 50%.
-    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET learner_count = 185
-        WHERE school_id = 'S5' AND school_year = '2025-26' AND education_level_code = 'ES'""")
+def test_ap3_pressure_signal_precedes_incomplete_level(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 200
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S1','2023-24','JHS',4)")
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 50
+        WHERE school_id = 'S2' AND school_year = '2023-24' AND education_level_code = 'SHS'""")
+    run_all(store, STEPS[:3])
+    assert store.query(f"""SELECT is_assessed, jhs_benchmark_status, shs_benchmark_status, benchmark_status
+        FROM {ANALYTICS}.ap3_teacher_pressure WHERE city_mun_psgc_code = 'C1'""") == [
+        (False, "above derived deployment comparison", "not assessed", "pressure signal identified")]
+
+
+def test_teacher_context_never_assigns_a_teacher_priority_rank(store):
     run_all(store)
-    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, enrollment_2020_21, enrollment_2025_26,
-        trend_direction, trend_status FROM {ANALYTICS}.ap4_enrollment_trend""")}
-    assert rows["C1"] == (200, 300, "Growing", "Complete")
-    assert rows["M2"] == (180, 185, "Stable", "Complete")
-    assert store.query(f"""SELECT growing_enrollment_flag FROM {ANALYTICS}.lgu_priority_matrix
-        WHERE city_mun_psgc_code = 'C1'""") == [(True,)]
+    columns = {c[0] for c in store.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'lgu_priority_matrix'")}
+    assert "ap3_review_status" in columns
+    assert not {c for c in columns if "teacher_priority" in c}
 
 
-def test_growth_needs_a_complete_trend(store):
-    # a large unplaced school in the latest year moves the matched-learner share by more than 2 points
+def test_ap4_gives_the_gap_at_both_censuses_and_never_enters_the_classroom_queue(store):
+    for code, population in [("C1", 900), ("C2", 1800), ("M1", 800), ("M2", 1000)]:
+        for age in range(5, 18):
+            value = population // 26
+            store.sql(f"INSERT INTO {GOLD}.fact_city_school_age_population VALUES "
+                      f"('{code}',2020,{age},'male',{value},'matched',TRUE),"
+                      f"('{code}',2020,{age},'female',{value},'matched',TRUE)")
+    store.sql(f"""UPDATE {GOLD}.fact_city_school_age_population SET is_2020_2024_geography_comparable = FALSE
+        WHERE city_mun_psgc_code = 'M2'""")
+    run_all(store)
+    rows = {(r[0], r[1]): r[2:] for r in store.query(f"""SELECT city_mun_psgc_code, school_year, school_age_population,
+        enrollment_all_sectors, population_enrollment_gap, census_context FROM {ANALYTICS}.ap4_enrollment_trend""")}
+    # City One: 2020 population 34 x 26 = 884 against SY 2020-21 enrollment 200; 2024: 988 against 280
+    assert rows[("C1", "2020-21")] == (884, 200, 684, "available")
+    assert rows[("C1", "2024-25")] == (988, 280, 708, "available")
+    assert rows[("C1", "2023-24")] == (None, 260, None, "not available: no census in this school year")
+    gaps = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap4_gap_2020, ap4_gap_2024, ap4_gap_change,
+        ap4_enrollment_trend, classroom_priority_group, classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix""")}
+    assert gaps["C1"][:4] == (684, 708, 24, "increasing")
+    assert gaps["M2"][2] is None                      # geography not comparable: no change in gap
+    # AP4 is context: a large gap never puts an LGU in the classroom queue (no school here reaches 50 per room)
+    assert {g[4:] for g in gaps.values()} == {("no_reported_congestion_screen", None)}
+
+
+def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
+    # review on #210: S7 offers JHS in City One with a blank count. It is not active, but the JHS level must stay
+    # offered and incomplete, so AP3 is not fully assessed instead of reading as no pressure.
     store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
-        ('U1','2025-26','ES','UNKNOWN','Private','unmatched','Mother School',TRUE,500)""")
+        ('S7','2023-24','ES','C1','Public','matched','Mother School',FALSE,0),
+        ('S7','2023-24','JHS','C1','Public','matched','Mother School',TRUE,NULL),
+        ('S7','2023-24','SHS','C1','Public','matched','Mother School',FALSE,0)""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S7','2023-24','JHS',3)")
     run_all(store)
-    assert store.query(f"""SELECT DISTINCT enrollment_trend, enrollment_trend_status, growing_enrollment_flag
-        FROM {ANALYTICS}.lgu_priority_matrix""") == [
-        ("Growing", "Data Review: matched-learner share moved more than 2 points", False)]
+    assert store.query(f"""SELECT jhs_offered_school_count, jhs_incomplete_school_count, jhs_passes_gate,
+        offered_level_count, passing_level_count, is_assessed, benchmark_status FROM {ANALYTICS}.ap3_teacher_pressure
+        WHERE city_mun_psgc_code = 'C1'""") == [(1, 1, False, 2, 1, False, "not fully assessed")]
+    assert store.query(f"""SELECT ap3_fully_assessed, ap3_review_status FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'C1'""") == [(False, "not fully assessed")]
 
 
-def test_gates_record_tier_counts_and_drop_their_summaries(store):
+def test_ap2_publishes_no_45_to_1_line(store):
+    # review on #210: RA 7880's 45:1 does not apply to the NSBI room count (D-045), so no column may invite a target line
+    run_all(store, STEPS[1:2])
+    columns = [c[0] for c in store.query(f"""SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'ap2_classroom_pressure'""")]
+    assert "learners_per_classroom" in columns
+    assert not [c for c in columns if "45" in c]
+
+
+def test_no_d057_or_d058_logic_remains():
+    sql = "\n".join((ROOT / "etl/06_analytics" / name).read_text(encoding="utf-8")
+                    for name in ["01_answer_ap1.sql", "02_answer_ap2.sql", "03_answer_ap3.sql",
+                                 "04_answer_ap4.sql", "05_build_priority_matrix.sql"])
+    for gone in ["PERCENT_RANK", "national_same_type_ratio", "relative_pressure", "Priority 1", "Lower Priority",
+                 "Critical", "D-057", "D-058"]:
+        assert gone not in sql
+
+
+def test_priority_gate_rejects_a_wrong_classroom_rank(store):
+    add_public_school(store, "X1", "M1", 60, 1)
     run_all(store)
-    tiers = store.query("""SELECT SUM(CAST(actual AS BIGINT)) FROM edu_access."01-control".data_quality_results
-        WHERE source_id = 'lgu_priority_matrix' AND check_name LIKE 'lgus_%'""")
-    assert tiers == [(4,)]
+    before = store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code")
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET classroom_priority_rank = 99
+        WHERE city_mun_psgc_code = 'M1'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_priority_matrix.sql")
+    assert store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code") == before
+
+
+def test_ap3_gate_rejects_a_wrong_reference_status(store):
+    run_all(store, STEPS[:2])
+    run(store, "03_answer_ap3.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.ap3_teacher_pressure_candidate
+        SET es_benchmark_status = 'official shortage' WHERE city_mun_psgc_code = 'C2'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap3.sql")
+
+
+def test_gate_summaries_are_dropped(store):
+    run_all(store)
     leftovers = "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%gate_summary_r_%'"
     assert store.query(leftovers) == []
-    run(store, "02_answer_ap2.sql")
-    store.sql(f"UPDATE {ANALYTICS}.ap2_classroom_pressure_candidate SET outlier_changes_classification = TRUE")
-    with pytest.raises(Exception, match="Analytics gate failed"):
-        run(store, "90_validate_ap2.sql")
-    assert store.query(leftovers) == []
 
 
-def test_ap2_counts_a_school_with_blank_enrollment_as_not_covered(store):
-    # S1 is active (ES has learners) but its offered JHS count is blank: it must lower City One's school coverage,
-    # not vanish from both learner sums and leave coverage at 100% (review on #203).
-    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = NULL
-        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
-    run_all(store)
-    assert store.query(f"""SELECT active_public_school_count, incomplete_enrollment_school_count, school_coverage_pct,
-        input_issue_reason, classification FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [
-        (2, 1, 50.0, "coverage below 90%", "Data Review")]
-    # City One is left out of the city reference, which is now City Two's own ratio
-    assert store.query(f"""SELECT national_same_type_ratio FROM {ANALYTICS}.ap2_classroom_pressure
-        WHERE city_mun_psgc_code = 'C2'""") == [(pytest.approx(33.0),)]
+def test_benchmark_registry_matches_published_values(store):
+    import json
 
-
-def test_ap2_gate_rejects_coverage_that_hides_blank_enrollment(store):
-    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = NULL
-        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
-    for build, gate in STEPS[:1]:
-        run(store, build)
-        run(store, gate)
-    run(store, "02_answer_ap2.sql")
-    store.sql(f"""UPDATE {ANALYTICS}.ap2_classroom_pressure_candidate
-        SET school_coverage_pct = 100.0, ratio_school_count = active_public_school_count""")
-    with pytest.raises(Exception, match="Analytics gate failed"):
-        run(store, "90_validate_ap2.sql")
+    registry = json.loads((ROOT / "config/analytics_benchmarks.json").read_text(encoding="utf-8"))
+    run_all(store, STEPS[:3])
+    assert store.query(f"SELECT DISTINCT congestion_benchmark FROM {ANALYTICS}.ap2_classroom_pressure") == [
+        (registry["ap2"]["threshold"],)]
+    assert store.query(f"""SELECT DISTINCT es_benchmark_max_learners_per_teacher,
+        jhs_benchmark_max_learners_per_teacher, shs_benchmark_max_learners_per_teacher
+        FROM {ANALYTICS}.ap3_teacher_pressure""") == [
+        (registry["ap3"]["es_max_learners_per_teacher"], registry["ap3"]["jhs_max_learners_per_teacher"],
+         pytest.approx(registry["ap3"]["shs_max_learners_per_teacher"]))]

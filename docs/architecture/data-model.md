@@ -16,10 +16,10 @@ in Analytics views, not in these facts or in individual dashboard charts.
 
 | Analytical question | Gold inputs | Analytics rule |
 |---|---|---|
-| Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_population`, geography dimensions | Follow D-047: count a public school only when its enrollment for that school year is above 0; show zero-enrollment schools separately and do not count them as serving a barangay. Count annexes as schools, label the result "public schools (including annexes)", and show the annex count. Count only `member_type = 'regular'` barangays when identifying barangays without a public elementary school. If an LGU has a school assigned to its unknown-barangay member, label the unserved-barangay result "at most" and show the unmatched-school count. Report learners per public school and population per public school separately. Use 2024 population for every enrollment school year and label it "Population 2024". Use barangays for LGU-level context and drill-down, not as the ranking grain. |
+| Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population? | `fact_school_enrollment`, `fact_city_school_age_population` (2024, ages 5–17, per the team's BP and AP metrics), geography dimensions | Follow D-047: count a public school only when its enrollment for that school year is above 0; show zero-enrollment schools separately and do not count them as serving a barangay. Count annexes as schools, label the result "public schools (including annexes)", and show the annex count. Count only `member_type = 'regular'` barangays when identifying barangays without a public elementary school. If an LGU has a school assigned to its unknown-barangay member, label the unserved-barangay result "at most" and show the unmatched-school count. Report learners per public school and population per public school separately. Use 2024 population for every enrollment school year and label it "Population 2024". Use barangays for LGU-level context and drill-down, not as the ranking grain. |
 | Which cities and municipalities have the most public-school students per classroom? | `fact_school_enrollment`, `fact_school_classroom_capacity` | Aggregate public-school learners across levels to school x school year before joining whole-school instructional rooms. Divide summed learners by summed rooms by city or municipality and show denominator coverage. Do not create level ratios because integrated schools share rooms across levels. |
 | Which cities and municipalities have the most public-school students per teacher? | `fact_school_enrollment`, `fact_school_teacher_capacity` | Sum public-school learners and the approved teacher roles by city or municipality, school year, and education level. Include learners only from schools with `teacher_count > 0` at that level, except that annex learners remain when the annex reports zero teachers. Exclude other zero-teacher schools from the ratio and show their school and learner counts in coverage. Divide the LGU totals and label the result project-defined because mother-school links are unavailable. |
-| Which cities and municipalities have the largest gap between school-age population and student enrollment over time? | `fact_school_enrollment` | Retain annual all-sector enrollment from SY 2020-21 through SY 2025-26, excluding Philippine Schools Overseas, and compare the endpoints. |
+| Which cities and municipalities have the largest gap between school-age population and student enrollment over time? | `fact_school_enrollment`, `fact_city_school_age_population` | Compare ages 5–17 with enrollment from all sectors except Philippine Schools Overseas for 2020 with SY 2020-21 and 2024 with SY 2024-25. One row per city member and school year: every school year shows all-sector enrollment and its trend, and only SY 2020-21 and 2024-25 carry the population and gap. Use enrollment geography for each school year and disclose the residence-versus-school-location limitation. |
 
 Poverty is contextual. `dim_city_poverty` carries the selected 2023 estimate
 and availability status, but Analytics must not use poverty for priority scoring
@@ -62,7 +62,7 @@ the same way: `UNKNOWN` for geography not yet resolved (pending or ambiguous),
 | `fact_school_classroom_capacity` | School x school year | (`school_id`, `school_year`) | Total reported instructional rooms plus all four published temporary-learning-space and makeshift measures |
 | `fact_school_teacher_capacity` | School x school year x education level | (`school_id`, `school_year`, `education_level_code`) | Approved teaching roles by level, including head teachers, with the four published local-funding categories kept separately |
 | `fact_city_population` | City or municipality x reference year | (`city_mun_psgc_code`, `reference_year`) | PSGC total population and its availability status |
-| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | (`city_mun_psgc_code`, `reference_year`, `age`, `sex`) | PSA single-year-age population for AP1; Analytics selects 2024, ages 5–17, male and female |
+| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | (`city_mun_psgc_code`, `reference_year`, `age`, `sex`) | PSA single-year-age population for AP1 (2024, context) and AP4 (2020 and 2024); Analytics selects ages 5–17 |
 | `fact_school_year_source_availability` | School year x DepEd source | (`school_year`, `source_id`) | Whether the reviewed enrollment, facilities, or personnel source has data for the school year, for dashboard `not available` states. Added by D-051, which revises D-048 |
 
 `fact_school_enrollment` has exactly one row for each school, school year, and
@@ -103,13 +103,14 @@ model. `psgc_match_status` preserves whether the source row was `matched`,
 `unmatched`, `ambiguous`, or `excluded`; technical geography members do not
 erase that reason.
 
-Benchmarks remain in the national benchmark register and metric specification,
-not in the Gold model. Analytics may use a reference only after the team approves
-it for a compatible project metric, including the same numerator, denominator,
-education level, geography, period, and intended use. Incompatible and legacy
-references remain documentation only. In particular, the current NSBI classroom
-field cannot use Republic Act No. 7880's 45:1 rule, and the 2009 teacher
-deployment bands are not an active current benchmark.
+References remain in reviewed Analytics configuration, the national benchmark
+register, and the metric specification, not in the Gold model. Under D-060, AP2
+applies a PIDS-style illustrative >=50 screen to each usable school's reported
+instructional-room ratio, then aggregates affected schools and learners to the
+LGU classroom review queue. AP3 publishes a historical ES comparison at 35 and
+derived JHS and SHS comparisons at 36 and 80/3, but no teacher rank. The current NSBI classroom field still cannot use
+Republic Act No. 7880's 45:1 shortage rule, and the 2009 teacher deployment bands
+remain historical context only.
 
 ## Columns
 
