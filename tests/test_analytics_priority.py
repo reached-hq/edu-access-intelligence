@@ -224,9 +224,45 @@ def test_ap4_gives_the_gap_at_both_censuses_and_never_enters_the_classroom_queue
         ap4_public_enrollment_change, ap4_public_enrollment_trend, growing_enrollment, priority_category
         FROM {ANALYTICS}.lgu_priority_matrix""")}
     assert priorities["C1"] == (708, 100, "increasing", True, "Monitor")
-    # Town Two's geography is not comparable, so its growth is not assessed and it goes to Data review.
+    # Town Two's geography is not comparable and it shows no pressure, so with growth unknown it goes to Data review.
     assert priorities["M2"][2:] == ("increasing", None, "Data review")
+    assert store.query(f"""SELECT growth_not_assessed_reason FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'M2'""") == [("boundary changed 2020-2024",)]
     assert {k: p[4] for k, p in priorities.items() if k != "M2"} == {"C1": "Monitor", "C2": "Monitor", "M1": "Monitor"}
+
+
+def test_a_known_pressure_places_the_lgu_when_growth_is_not_assessed(store):
+    # review on #232: Town Two's boundary changed, so its growth is unknown, but a crowded school is a known
+    # classroom pressure. It is placed as one pressure without growth, not sent to Data review at the bottom.
+    add_public_school(store, "X2", "M2", 60, 1)
+    store.sql(f"""UPDATE {GOLD}.fact_city_school_age_population SET is_2020_2024_geography_comparable = FALSE
+        WHERE city_mun_psgc_code = 'M2'""")
+    run_all(store)
+    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, current_pressure_count, growing_enrollment,
+        growth_not_assessed_reason, priority_category, priority_order FROM {ANALYTICS}.lgu_priority_matrix""")}
+    assert rows["M2"][:4] == (1, None, "boundary changed 2020-2024", "Priority 3")
+    assert rows["C1"][2:4] == (None, "Monitor")
+    assert rows["M2"][4] < min(r[4] for k, r in rows.items() if r[3] in ("Monitor", "Data review"))
+
+
+def test_incomplete_public_enrollment_is_named_as_the_reason_growth_is_not_assessed(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET learner_count = NULL
+        WHERE school_id = 'S4' AND school_year = '2025-26' AND education_level_code = 'ES'""")
+    run_all(store)
+    assert store.query(f"""SELECT growing_enrollment, growth_not_assessed_reason, priority_category
+        FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'M1'""") == [
+        (None, "public enrollment incomplete in first or latest school year", "Data review")]
+
+
+def test_priority_gate_rejects_a_wrong_copied_input(store):
+    # review on #232: a copied AP value that no longer matches its AP table fails inputs_match_ap_outputs
+    run_all(store)
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET ap2_learner_coverage_pct = 1
+        WHERE city_mun_psgc_code = 'C1'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_priority_matrix.sql")
+    assert store.query(f"""SELECT status FROM edu_access.`01-control`.data_quality_results
+        WHERE check_name = 'inputs_match_ap_outputs' ORDER BY checked_at_utc DESC LIMIT 1""") == [("FAIL",)]
 
 
 def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):

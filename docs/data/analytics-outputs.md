@@ -193,12 +193,13 @@ Built by `05_build_priority_matrix.sql` from the published AP1 to AP4 tables. St
 | `ap4_geography_comparable` | BOOLEAN | Whether the city or municipality's territory is comparable from 2020 to 2024; growth is not assessed where it is not |
 | `ap4_gap_2024` | BIGINT | AP4 `population_enrollment_gap` on SY 2024-25 |
 | `ap4_gap_rate_2024_pct` | DOUBLE | 100 × AP4 `gap_share` on SY 2024-25 |
+| `growth_not_assessed_reason` | STRING | Why growth is not assessed: `no AP4 enrollment row`, `no 2024 census population row`, `boundary changed 2020-2024`, `public enrollment incomplete in first or latest school year`, or `no public enrollment in first school year`; NULL when growth is assessed |
 | `classroom_pressure_flag` | INT | 1 when AP2 is assessed and has at least one affected school, otherwise 0 |
 | `teacher_pressure_flag` | INT | 1 when AP3 is assessed and at least one level is above its reference, otherwise 0 |
-| `growing_enrollment` | BOOLEAN | TRUE when public-school enrollment increased from the first to latest year, FALSE for decreasing or no change, and NULL when unavailable |
+| `growing_enrollment` | BOOLEAN | TRUE when public-school enrollment increased from the first to latest year, FALSE for decreasing or no change, and NULL when not assessed (see `growth_not_assessed_reason`) |
 | `current_pressure_count` | INT | Sum of the classroom and teacher pressure flags |
 | `priority_affected_learners` | BIGINT | Greater of AP2 and AP3 affected learners, avoiding double counting across pressures |
-| `priority_category` | STRING | D-061 category: `Priority 1`, `Priority 2`, `Priority 3`, `Monitor`, `No current pressure identified`, or `Data review` |
+| `priority_category` | STRING | D-061 category: `Priority 1`, `Priority 2`, `Priority 3`, `Monitor`, `No current pressure identified`, or `Data review`. Unassessed growth never raises a category: an LGU with a known pressure is placed as if it were not growing |
 | `priority_order` | BIGINT | Deterministic national planning order across the D-061 categories and evidence fields |
 | `rule_version` | STRING | `D-061` |
 | `code_revision` | STRING | Commit that built the row |
