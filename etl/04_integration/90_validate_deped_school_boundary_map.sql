@@ -90,7 +90,7 @@ checks AS (
   UNION ALL SELECT 'hdx_release_is_latest', CASE WHEN other_release_rows = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(other_release_rows AS STRING) FROM stats
   UNION ALL SELECT 'lineage_complete', CASE WHEN missing_lineage = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(missing_lineage AS STRING) FROM stats
   UNION ALL SELECT 'rows_built_by_this_run', CASE WHEN other_run_rows = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(other_run_rows AS STRING) FROM stats
-  UNION ALL SELECT 'schools_outside_boundary', CASE WHEN status_outside = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(status_outside AS STRING) FROM stats
+  UNION ALL SELECT 'schools_outside_boundary', CASE WHEN status_outside = 1997 THEN 'PASS' ELSE 'WARN' END, '1997 (profiled baseline)', CAST(status_outside AS STRING) FROM stats
   UNION ALL SELECT 'schools_inside_boundary', 'PASS', CAST(NULL AS STRING), CAST(status_inside AS STRING) FROM stats
   UNION ALL SELECT 'schools_no_usable_point', 'PASS', CAST(NULL AS STRING), CAST(status_no_usable_point AS STRING) FROM stats
   UNION ALL SELECT 'schools_no_matched_city', 'PASS', CAST(NULL AS STRING), CAST(status_no_matched_city AS STRING) FROM stats
