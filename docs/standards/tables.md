@@ -88,6 +88,7 @@ No Integration working names remain. A new map follows the shape of `hdx_adm3_ps
 | `dim_school_year` | One school year |
 | `dim_education_level` | One education reporting level: ES, JHS, or SHS |
 | `dim_city_poverty` | One regular city or municipality with its selected 2023 poverty context; none for technical members |
+| `dim_school_location` | One public school in the public-only DepEd workbook, SY 2023-24, with its point and boundary test S-1; added by D-061 |
 | `fact_school_enrollment` | School x school year x education level |
 | `fact_school_classroom_capacity` | School x school year |
 | `fact_school_teacher_capacity` | School x school year x education level |
@@ -95,7 +96,7 @@ No Integration working names remain. A new map follows the shape of `hdx_adm3_ps
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
 | `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |
 
-All twelve are implemented and enabled in the job. Each build writes a
+All thirteen are implemented and enabled in the job. Each build writes a
 candidate and its gate publishes only after validation. Columns, keys, and the
 ERD are in the [data model](../architecture/data-model.md).
 

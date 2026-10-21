@@ -11,6 +11,8 @@ flowchart LR
     rooms[(fact_school_classroom_capacity)] --> ap2
     teachers[(fact_school_teacher_capacity)] --> ap3
     city[(dim_city_municipality)] --> ap1 & ap2 & ap3 & matrix
+    bgy[(dim_barangay)] --> ap1
+    loc[(dim_school_location)] -->|DO 40 spacing| ap1
     ap1[ap1_school_provision] --> matrix
     ap2[ap2_classroom_pressure] --> matrix
     ap3[ap3_teacher_pressure] --> matrix
@@ -19,7 +21,7 @@ flowchart LR
 
 | Build | Gate | Output | Approved use |
 |---|---|---|---|
-| `01_answer_ap1.sql` | `90_validate_ap1.sql` | `ap1_school_provision` | Descriptive school-provision context; not a school-establishment or priority measure |
+| `01_answer_ap1.sql` | `90_validate_ap1.sql` | `ap1_school_provision` | Descriptive school-provision context; not a school-establishment or priority measure. DO 40, s. 2014 school-presence screen (barangays without a public ES, LGUs without a public JHS) and spacing screen (public ES schools with no other within 2 km rural / 1 km urban, on points that pass S-1), as review statuses, never ranked (D-061) |
 | `02_answer_ap2.sql` | `90_validate_ap2.sql` | `ap2_classroom_pressure` | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to the LGU |
 | `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | Descriptive ES, JHS and SHS learner-per-teacher comparisons; not a teacher-shortage rank |
 | `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Enrollment trend and census-year population context |

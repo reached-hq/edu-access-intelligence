@@ -35,6 +35,7 @@ without a separate decision.
 | `dim_school_year` | One school year | `school_year` | Start and end calendar years of each enrollment school year |
 | `dim_education_level` | One reporting level | `education_level_code` | `ES`, `JHS`, or `SHS`, with the included grades documented below |
 | `dim_city_poverty` | One regular city or municipality; none for technical members | `city_mun_psgc_code` | Selected 2023 poverty estimate, uncertainty, and availability status for dashboard context |
+| `dim_school_location` | One public school in the public-only DepEd workbook, SY 2023-24 | `school_id` | The school's published point, PSGC geography and urban or rural class, and the boundary test S-1 (D-061) |
 
 `member_type` on both geography dimensions is one of `regular`, `unknown`, or
 `excluded`. Each regular city or municipality has its own unknown-barangay
@@ -250,6 +251,39 @@ Special Geographic Area parent towns, Makati and Taguig after EMBO), which D-054
 leaves for Gold. D-046 defers it to #174; until then the value describes the
 2023 territory, as the limitations log says.
 
+### `dim_school_location`
+
+| Column | Type |
+|---|---|
+| `school_id` | STRING |
+| `school_year` | STRING |
+| `city_mun_psgc_code` | STRING |
+| `barangay_psgc_code` | STRING |
+| `urban_rural` | STRING |
+| `longitude` | DOUBLE |
+| `latitude` | DOUBLE |
+| `coordinate_flag` | STRING |
+| `boundary_test_status` | STRING |
+| `is_location_usable` | BOOLEAN |
+| `location_source` | STRING |
+
+Added by D-061. One row per public school in the public-only DepEd workbook
+for SY 2023-24 (`deped_psgc_coordinates_clean`, #218), with its point and
+`coordinate_flag` exactly as Silver has them. The city or municipality and
+barangay come from `fact_school_enrollment` (SY 2023-24, public, `matched`),
+so a school is placed by the same reviewed match as its learners (D-049), and
+`urban_rural` is that barangay's PSGC class from `dim_barangay`.
+`boundary_test_status` is the boundary test S-1: `no_point`, `no_city_match`,
+`no_boundary` (the city or municipality has no matched feature in the latest
+HDX ADM3 release), `inside` or `outside` (`st_contains` against the matched
+feature). `is_location_usable` is `boundary_test_status = 'inside'`. Built by
+`07_build_dim_school_location.sql`; `90_validate_dim_school_location.sql`
+recomputes every column and the test and fails on any difference. It records
+the points outside their own city or municipality (`outlier_schools`) and warns
+on schools with no matched city (`schools_city_unknown`) and on cities without a
+matched HDX feature (`psgc_units_without_feature`). Points are not published in
+Analytics or the dashboard until the source's terms are confirmed (D-049).
+
 ### `fact_school_enrollment`
 
 | Column | Type |
@@ -445,6 +479,7 @@ erDiagram
   dim_city_municipality ||--o{ fact_school_enrollment : locates
   dim_city_municipality ||--o{ fact_city_population : has
   dim_city_municipality ||--o| dim_city_poverty : describes
+  dim_city_municipality ||--o{ dim_school_location : contains
   dim_city_municipality ||--o{ fact_city_school_age_population : has
   dim_barangay ||--o{ fact_school_enrollment : locates
   dim_school ||--o{ fact_school_enrollment : enrolls
@@ -504,6 +539,19 @@ erDiagram
     boolean cv_over_20
     string poverty_status
     string status_reason
+  }
+  dim_school_location {
+    string school_id PK
+    string school_year
+    string city_mun_psgc_code FK
+    string barangay_psgc_code FK
+    string urban_rural
+    double longitude
+    double latitude
+    string coordinate_flag
+    string boundary_test_status
+    boolean is_location_usable
+    string location_source
   }
   fact_school_enrollment {
     string school_id PK,FK

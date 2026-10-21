@@ -1,5 +1,28 @@
 {
   "version": 2,
+  "ap1": {
+    "reference_id": "deped_do_2014_40",
+    "authority": "DepEd Order No. 40, s. 2014 (school-establishment criteria)",
+    "source_url": "https://www.deped.gov.ph/wp-content/uploads/2014/08/DO_s2014_040.pdf",
+    "source_pages": "printed pp. 14-15",
+    "es_reference_min_schools_per_barangay": 1,
+    "jhs_reference_min_schools_per_lgu": 1,
+    "es_statuses": ["barangay without public ES", "every barangay has a public ES", "not assessed"],
+    "jhs_statuses": ["no public JHS", "public JHS present"],
+    "spacing_statuses": ["isolated public ES identified", "no isolated public ES", "not assessed"],
+    "spacing_coverage_min_pct": 90,
+    "ratio_reference": null,
+    "establishment_criteria": {
+      "es_schools_per_barangay_min": 1,
+      "jhs_schools_per_city_municipality_min": 1,
+      "prospective_learners_min": 100,
+      "spacing_km_rural": 2.0,
+      "spacing_km_urban": 1.0
+    },
+    "priority_use": "none",
+    "context_use": "The ES and JHS presence screens and the spacing screen are published as statuses beside AP1's ratios. The spacing screen counts active public ES schools with no other active public ES within spacing_km_rural (rural barangay) or spacing_km_urban (urban barangay), by straight-line distance, using only points that pass the boundary test S-1 in dim_school_location. None of these enters the classroom review queue",
+    "caveat": "The order sets criteria for establishing a school. A barangay without a matched public ES may still be served by a nearby school, and the order's prospective-learner and feasibility criteria cannot be tested with current data, so the screens are for review, not a school shortage or construction need. It gives no ratio of schools to learners or population, so learners per public school and school-age population per public school stay project-defined descriptive measures. The spacing screen uses straight-line distance, not road distance or travel time, and an isolated school is one where the order would allow a new school nearby, not one where a school is needed."
+  },
   "ap2": {
     "benchmark_id": "pids_dp_2025_10_illustrative_congestion_screen",
     "authority": "PIDS Discussion Paper 2025-10, supported by the EDCOM 2 summary",

@@ -18,6 +18,9 @@ WITH c AS (
 ), expected AS (
   SELECT r.city_mun_psgc_code,
          a.learners_per_public_school AS ap1_ratio, a.coverage_pct AS ap1_coverage, a.is_assessed AS ap1_assessed,
+         a.barangays_without_public_es AS ap1_bgys_without_es, a.barangays_without_public_es_pct AS ap1_bgys_pct,
+         a.es_count_is_upper_bound AS ap1_upper_bound, a.benchmark_status AS ap1_presence_status,
+         a.isolated_es_school_count AS ap1_isolated, a.spacing_benchmark_status AS ap1_spacing_status,
          b.learners_per_classroom AS ap2_ratio, b.learner_coverage_pct AS ap2_coverage,
          b.is_assessed AS ap2_assessed, b.congested_school_count AS affected_schools,
          b.learners_in_congested_schools AS affected_learners,
@@ -43,6 +46,12 @@ SELECT
     WHERE c.ap1_learners_per_public_school IS DISTINCT FROM e.ap1_ratio
        OR c.ap1_coverage_pct IS DISTINCT FROM e.ap1_coverage
        OR c.ap1_assessed IS DISTINCT FROM e.ap1_assessed
+       OR c.ap1_barangays_without_public_es IS DISTINCT FROM e.ap1_bgys_without_es
+       OR c.ap1_barangays_without_public_es_pct IS DISTINCT FROM e.ap1_bgys_pct
+       OR c.ap1_es_count_is_upper_bound IS DISTINCT FROM e.ap1_upper_bound
+       OR c.ap1_school_presence_status IS DISTINCT FROM e.ap1_presence_status
+       OR c.ap1_isolated_es_school_count IS DISTINCT FROM e.ap1_isolated
+       OR c.ap1_spacing_status IS DISTINCT FROM e.ap1_spacing_status
        OR c.ap2_learners_per_reported_room IS DISTINCT FROM e.ap2_ratio
        OR c.ap2_learner_coverage_pct IS DISTINCT FROM e.ap2_coverage
        OR c.ap2_assessed IS DISTINCT FROM e.ap2_assessed

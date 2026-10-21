@@ -30,17 +30,41 @@ def store(tmp_path):
     value.sql(f"""CREATE TABLE {GOLD}.fact_school_enrollment (
         school_id STRING, school_year STRING, education_level_code STRING,
         city_mun_psgc_code STRING, sector STRING, psgc_match_status STRING,
-        annex_status STRING, is_offered BOOLEAN, learner_count BIGINT)""")
+        annex_status STRING, is_offered BOOLEAN, learner_count BIGINT, barangay_psgc_code STRING)""")
     years = ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25", "2025-26"]
-    schools = [("S1", "C1", 100), ("S2", "C1", 100), ("S3", "C2", 300),
-               ("S4", "M1", 120), ("S5", "M2", 180)]
+    # S5 is matched to Town Two but to no single barangay, so Town Two's barangay count is an upper bound
+    schools = [("S1", "C1", 100, "C1-B1"), ("S2", "C1", 100, "C1-B2"), ("S3", "C2", 300, "C2-B1"),
+               ("S4", "M1", 120, "M1-B1"), ("S5", "M2", 180, "M2-UNKNOWN")]
     for year_index, year in enumerate(years):
-        for school_id, code, base in schools:
+        for school_id, code, base, barangay in schools:
             learners = base + year_index * 10
             value.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
-                ('{school_id}','{year}','ES','{code}','Public','matched','Mother School',TRUE,{learners}),
-                ('{school_id}','{year}','JHS','{code}','Public','matched','Mother School',FALSE,0),
-                ('{school_id}','{year}','SHS','{code}','Public','matched','Mother School',FALSE,0)""")
+                ('{school_id}','{year}','ES','{code}','Public','matched','Mother School',TRUE,{learners},'{barangay}'),
+                ('{school_id}','{year}','JHS','{code}','Public','matched','Mother School',FALSE,0,'{barangay}'),
+                ('{school_id}','{year}','SHS','{code}','Public','matched','Mother School',FALSE,0,'{barangay}')""")
+    value.sql(f"""CREATE TABLE {GOLD}.dim_barangay (
+        barangay_psgc_code STRING, barangay_name STRING, city_mun_psgc_code STRING, urban_rural STRING,
+        member_type STRING)""")
+    value.sql(f"""INSERT INTO {GOLD}.dim_barangay VALUES
+        ('C1-B1','One','C1','U','regular'),('C1-B2','Two','C1','U','regular'),
+        ('C2-B1','One','C2','U','regular'),('C2-B2','Two','C2','R','regular'),
+        ('M1-B1','One','M1','R','regular'),('M2-B1','One','M2','R','regular'),
+        ('C1-UNKNOWN','Unknown barangay in City One','C1',NULL,'unknown'),
+        ('C2-UNKNOWN','Unknown barangay in City Two','C2',NULL,'unknown'),
+        ('M1-UNKNOWN','Unknown barangay in Town One','M1',NULL,'unknown'),
+        ('M2-UNKNOWN','Unknown barangay in Town Two','M2',NULL,'unknown')""")
+    # S1 and S2 are 0.5 km apart in urban City One; S3 and S4 stand alone; S5 has no barangay, so no urban or
+    # rural class, and is not tested
+    value.sql(f"""CREATE TABLE {GOLD}.dim_school_location (
+        school_id STRING, school_year STRING, city_mun_psgc_code STRING, barangay_psgc_code STRING,
+        urban_rural STRING, longitude DOUBLE, latitude DOUBLE, coordinate_flag STRING,
+        boundary_test_status STRING, is_location_usable BOOLEAN, location_source STRING)""")
+    value.sql(f"""INSERT INTO {GOLD}.dim_school_location VALUES
+        ('S1','2023-24','C1','C1-B1','U',121.0,14.0,NULL,'inside',TRUE,'deped_psgc_coordinates'),
+        ('S2','2023-24','C1','C1-B2','U',121.0,14.0045,NULL,'inside',TRUE,'deped_psgc_coordinates'),
+        ('S3','2023-24','C2','C2-B1','U',124.0,10.0,NULL,'inside',TRUE,'deped_psgc_coordinates'),
+        ('S4','2023-24','M1','M1-B1','R',125.0,8.0,NULL,'inside',TRUE,'deped_psgc_coordinates'),
+        ('S5','2023-24','M2','M2-UNKNOWN',NULL,120.0,16.0,NULL,'inside',TRUE,'deped_psgc_coordinates')""")
     value.sql(f"""CREATE TABLE {GOLD}.fact_city_school_age_population (
         city_mun_psgc_code STRING, reference_year INT, age INT, sex STRING,
         population BIGINT, psgc_match_status STRING, is_2020_2024_geography_comparable BOOLEAN)""")
@@ -92,9 +116,9 @@ def run_all(store, steps=STEPS):
 
 def add_public_school(store, school_id, code, learners, rooms, teachers=None):
     store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
-        ('{school_id}','2023-24','ES','{code}','Public','matched','Mother School',TRUE,{learners}),
-        ('{school_id}','2023-24','JHS','{code}','Public','matched','Mother School',FALSE,0),
-        ('{school_id}','2023-24','SHS','{code}','Public','matched','Mother School',FALSE,0)""")
+        ('{school_id}','2023-24','ES','{code}','Public','matched','Mother School',TRUE,{learners},'{code}-B1'),
+        ('{school_id}','2023-24','JHS','{code}','Public','matched','Mother School',FALSE,0,'{code}-B1'),
+        ('{school_id}','2023-24','SHS','{code}','Public','matched','Mother School',FALSE,0,'{code}-B1')""")
     store.sql(f"INSERT INTO {GOLD}.fact_school_classroom_capacity VALUES ('{school_id}','2023-24',{rooms})")
     if teachers is not None:
         store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('{school_id}','2023-24','ES',{teachers})")
@@ -206,9 +230,9 @@ def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
     # review on #210: S7 offers JHS in City One with a blank count. It is not active, but the JHS level must stay
     # offered and incomplete, so AP3 is not fully assessed instead of reading as no pressure.
     store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
-        ('S7','2023-24','ES','C1','Public','matched','Mother School',FALSE,0),
-        ('S7','2023-24','JHS','C1','Public','matched','Mother School',TRUE,NULL),
-        ('S7','2023-24','SHS','C1','Public','matched','Mother School',FALSE,0)""")
+        ('S7','2023-24','ES','C1','Public','matched','Mother School',FALSE,0,'C1-B1'),
+        ('S7','2023-24','JHS','C1','Public','matched','Mother School',TRUE,NULL,'C1-B1'),
+        ('S7','2023-24','SHS','C1','Public','matched','Mother School',FALSE,0,'C1-B1')""")
     store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S7','2023-24','JHS',3)")
     run_all(store)
     assert store.query(f"""SELECT jhs_offered_school_count, jhs_incomplete_school_count, jhs_passes_gate,
@@ -274,3 +298,156 @@ def test_benchmark_registry_matches_published_values(store):
         FROM {ANALYTICS}.ap3_teacher_pressure""") == [
         (registry["ap3"]["es_max_learners_per_teacher"], registry["ap3"]["jhs_max_learners_per_teacher"],
          pytest.approx(registry["ap3"]["shs_max_learners_per_teacher"]))]
+
+
+
+def ap1_presence(store):
+    return {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, regular_barangay_count,
+        barangays_with_public_es, barangays_without_public_es, barangays_without_public_es_pct,
+        es_count_is_upper_bound, es_benchmark_status, public_jhs_school_count, jhs_benchmark_status,
+        benchmark_status FROM {ANALYTICS}.ap1_school_provision""")}
+
+
+def test_ap1_screens_every_barangay_for_a_public_es_under_do_40(store):
+    run_all(store, STEPS[:1])
+    rows = ap1_presence(store)
+    gap = "school-presence gap identified"
+    assert rows["C1"] == (2, 2, 0, 0.0, False, "every barangay has a public ES", 0, "no public JHS", gap)
+    assert rows["C2"] == (2, 1, 1, 50.0, False, "barangay without public ES", 0, "no public JHS", gap)
+    # Town Two's only school has no barangay match, so "1 barangay without" is at most 1
+    assert rows["M2"] == (1, 0, 1, 100.0, True, "barangay without public ES", 0, "no public JHS", gap)
+
+
+def test_ap1_needs_a_public_es_and_a_public_jhs_for_no_gap(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 40
+        WHERE school_id = 'S1' AND education_level_code = 'JHS'""")
+    run_all(store, STEPS[:1])
+    assert ap1_presence(store)["C1"][-3:] == (1, "public JHS present", "no school-presence gap identified")
+
+
+def test_ap1_an_inactive_or_non_es_school_does_not_serve_a_barangay(store):
+    # S2 stops offering ES and offers JHS only: it no longer serves its barangay, but it is City One's public JHS
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = (education_level_code = 'JHS'),
+        learner_count = CASE WHEN education_level_code = 'JHS' THEN 90 ELSE 0 END
+        WHERE school_id = 'S2' AND school_year = '2023-24'""")
+    run_all(store, STEPS[:1])
+    assert ap1_presence(store)["C1"][:3] == (2, 1, 1)
+    assert ap1_presence(store)["C1"][6:8] == (1, "public JHS present")
+
+
+def test_ap1_screen_never_enters_the_classroom_queue(store):
+    run_all(store)
+    rows = store.query(f"""SELECT city_mun_psgc_code, ap1_school_presence_status, ap1_barangays_without_public_es,
+        classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code""")
+    # every LGU has a presence gap here and none has 50 learners per room, so the gap is shown but nothing is ranked
+    assert [(r[0], r[1], r[3]) for r in rows] == [
+        (code, "school-presence gap identified", None) for code in ["C1", "C2", "M1", "M2"]]
+    assert [r[2] for r in rows] == [0, 1, 0, 1]
+
+
+def test_ap1_gate_rejects_a_wrong_barangay_count(store):
+    run(store, "01_answer_ap1.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.ap1_school_provision_candidate
+        SET barangays_without_public_es = 0 WHERE city_mun_psgc_code = 'C2'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap1.sql")
+
+
+def test_ap1_gate_rejects_a_wrong_benchmark_status(store):
+    run(store, "01_answer_ap1.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.ap1_school_provision_candidate
+        SET es_benchmark_status = 'school shortage' WHERE city_mun_psgc_code = 'C2'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap1.sql")
+
+
+def test_ap1_gate_records_the_d061_checks_under_catalog_names(store):
+    # existing names in config/quality_attributes.yml, so the data-quality dashboard file is not regenerated
+    run_all(store, STEPS[:1])
+    checks = dict(store.query("""SELECT check_name, status FROM edu_access.`01-control`.data_quality_results
+        WHERE source_id = 'ap1_school_provision' AND check_name IN ('counts_reconcile', 'derived_values_reconcile',
+        'assessment_status_valid')"""))
+    assert checks == {"counts_reconcile": "PASS", "derived_values_reconcile": "PASS", "assessment_status_valid": "PASS"}
+    assert store.query(f"""SELECT COUNT_IF(barangays_without_public_es > 0), SUM(barangays_without_public_es),
+        COUNT_IF(public_jhs_school_count = 0) FROM {ANALYTICS}.ap1_school_provision""") == [(2, 2, 4)]
+
+
+def test_ap1_reference_registry_matches_published_values(store):
+    import json
+
+    registry = json.loads((ROOT / "config/analytics_benchmarks.json").read_text(encoding="utf-8"))["ap1"]
+    run_all(store, STEPS[:1])
+    assert registry["priority_use"] == "none" and registry["ratio_reference"] is None
+    assert store.query(f"""SELECT DISTINCT reference_id, es_reference_min_schools_per_barangay,
+        jhs_reference_min_schools_per_lgu FROM {ANALYTICS}.ap1_school_provision""") == [
+        (registry["reference_id"], registry["es_reference_min_schools_per_barangay"],
+         registry["jhs_reference_min_schools_per_lgu"])]
+    statuses = store.query(f"SELECT DISTINCT es_benchmark_status, jhs_benchmark_status FROM {ANALYTICS}.ap1_school_provision")
+    assert {s[0] for s in statuses} <= set(registry["es_statuses"])
+    assert {s[1] for s in statuses} <= set(registry["jhs_statuses"])
+    spacing = {r[0] for r in store.query(f"SELECT DISTINCT spacing_benchmark_status FROM {ANALYTICS}.ap1_school_provision")}
+    assert spacing <= set(registry["spacing_statuses"])
+
+
+def ap1_spacing(store):
+    return {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, active_public_es_school_count,
+        spacing_tested_es_school_count, isolated_es_school_count, learners_in_isolated_es_schools,
+        spacing_benchmark_status FROM {ANALYTICS}.ap1_school_provision""")}
+
+
+def test_ap1_flags_a_public_es_with_no_other_within_do_40_spacing(store):
+    run_all(store, STEPS[:1])
+    rows = ap1_spacing(store)
+    assert rows["C1"] == (2, 2, 0, 0, "no isolated public ES")              # 0.5 km apart, within 1 km
+    assert rows["C2"] == (1, 1, 1, 330, "isolated public ES identified")
+    assert rows["M1"] == (1, 1, 1, 150, "isolated public ES identified")
+    assert rows["M2"] == (1, 0, 0, 0, "not assessed")                       # no urban or rural class
+
+
+def test_ap1_spacing_is_2_km_in_a_rural_barangay_and_1_km_in_an_urban_one(store):
+    # a new ES school 1.5 km north of S4 (rural): within 2 km, so neither is isolated
+    add_public_school(store, "X1", "M1", 90, 3)
+    store.sql(f"""INSERT INTO {GOLD}.dim_school_location VALUES
+        ('X1','2023-24','M1','M1-B1','R',125.0,8.0135,NULL,'inside',TRUE,'deped_psgc_coordinates')""")
+    run_all(store, STEPS[:1])
+    assert ap1_spacing(store)["M1"][2:] == (0, 0, "no isolated public ES")
+    # the same 1.5 km in an urban barangay is beyond 1 km, so both are isolated
+    store.sql(f"UPDATE {GOLD}.dim_school_location SET urban_rural = 'U' WHERE school_id IN ('S4', 'X1')")
+    run_all(store, STEPS[:1])
+    assert ap1_spacing(store)["M1"][2:] == (2, 240, "isolated public ES identified")
+
+
+def test_ap1_a_point_that_failed_the_boundary_test_is_not_used(store):
+    store.sql(f"""UPDATE {GOLD}.dim_school_location SET boundary_test_status = 'outside', is_location_usable = FALSE
+        WHERE school_id = 'S2'""")
+    run_all(store, STEPS[:1])
+    # S2 is no longer a neighbour, and City One's coverage drops to 50%
+    assert ap1_spacing(store)["C1"] == (2, 1, 1, 130, "not assessed")
+
+
+def test_ap1_spacing_finds_a_neighbour_across_a_grid_cell_and_an_lgu_boundary(store):
+    # X2 in City Two is 0.3 km from S3 but in the next 0.02-degree cell
+    add_public_school(store, "X2", "C2", 80, 2)
+    store.sql(f"""UPDATE {GOLD}.dim_school_location SET latitude = 10.0199 WHERE school_id = 'S3'""")
+    store.sql(f"""INSERT INTO {GOLD}.dim_school_location VALUES
+        ('X2','2023-24','C2','C2-B1','U',124.0,10.0226,NULL,'inside',TRUE,'deped_psgc_coordinates')""")
+    run_all(store, STEPS[:1])
+    assert ap1_spacing(store)["C2"][2:] == (0, 0, "no isolated public ES")
+
+
+def test_ap1_gate_rejects_a_wrong_isolated_count(store):
+    run(store, "01_answer_ap1.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.ap1_school_provision_candidate
+        SET isolated_es_school_count = 0 WHERE city_mun_psgc_code = 'C2'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_ap1.sql")
+
+
+def test_ap1_spacing_registry_matches_published_values(store):
+    import json
+
+    criteria = json.loads((ROOT / "config/analytics_benchmarks.json").read_text(encoding="utf-8"))[
+        "ap1"]["establishment_criteria"]
+    run_all(store, STEPS[:1])
+    assert store.query(f"""SELECT DISTINCT spacing_km_rural_reference, spacing_km_urban_reference
+        FROM {ANALYTICS}.ap1_school_provision""") == [(criteria["spacing_km_rural"], criteria["spacing_km_urban"])]
