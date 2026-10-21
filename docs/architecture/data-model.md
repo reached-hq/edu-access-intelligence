@@ -35,6 +35,7 @@ without a separate decision.
 | `dim_school_year` | One school year | `school_year` | Start and end calendar years of each enrollment school year |
 | `dim_education_level` | One reporting level | `education_level_code` | `ES`, `JHS`, or `SHS`, with the included grades documented below |
 | `dim_city_poverty` | One regular city or municipality; none for technical members | `city_mun_psgc_code` | Selected 2023 poverty estimate, uncertainty, and availability status for dashboard context |
+| `dim_school_location` | One public school with a published location, SY 2023-24 | `school_id` | The school's point, its quality flag, and the boundary test against the city the reviewed map assigns it; for maps only (#217) |
 
 `member_type` on both geography dimensions is one of `regular`, `unknown`, or
 `excluded`. Each regular city or municipality has its own unknown-barangay
@@ -250,6 +251,34 @@ Special Geographic Area parent towns, Makati and Taguig after EMBO), which D-054
 leaves for Gold. D-046 defers it to #174; until then the value describes the
 2023 territory, as the limitations log says.
 
+### `dim_school_location`
+
+| Column | Type |
+|---|---|
+| `school_id` | STRING |
+| `longitude` | DOUBLE |
+| `latitude` | DOUBLE |
+| `coordinate_flag` | STRING |
+| `boundary_status` | STRING |
+
+One row per school in `deped_psgc_coordinates_clean`: the 47,818 public schools of the public-only DepEd workbook, SY 2023-24, with coordinates from the National School Building Inventory as of 2025-07-07. It joins `dim_school` on `school_id`, one to zero or one: `dim_school` has every school of every year and sector, and only these have a published location. It is a separate table, not columns on `dim_school`, so a problem in the coordinates lane can never stop `dim_school` or the facts that gate against it.
+
+It carries **no PSGC code**. A school's city and barangay come only from `deped_school_psgc_map` through the facts (D-049), so there is one path from a school to its LGU; a map of schools takes the LGU from `fact_school_enrollment` and the point from here.
+
+`longitude`, `latitude` and `coordinate_flag` are Silver's, unchanged: NULL for `#N/A` or blank, with the flag `missing`, `zero` or `outside_philippines`. `boundary_status` is the boundary test S-1 at city or municipality level, the point against the HDX ADM3 boundary of the city the reviewed map assigns the school for SY 2023-24 (latest HDX release, matched and valid features, any of a city's features):
+
+| `boundary_status` | Meaning | Real batch (2026-10-21, local) |
+|---|---|---:|
+| `inside` | Inside its city's boundary. The only status fit for a map (D-061, proposed) | 44,968 |
+| `outside` | A boundary exists and the point is not inside it; a point on the edge counts as outside | 1,997 |
+| `no_usable_point` | `coordinate_flag` is set, so there is nothing to test | 738 |
+| `no_matched_city` | The map has no matched city for the school in SY 2023-24 (`ambiguous`, `excluded`) | 18 |
+| `no_boundary` | The city is matched but has no HDX boundary: the 8 Special Geographic Area municipalities | 97 |
+
+The status is a check, never a correction: nothing is moved, geocoded, or dropped. The test is at city level only; the barangay boundaries (HDX ADM4) are not in Silver.
+
+Built by `07_build_dim_school_location.sql`; the gate `90_validate_dim_school_location.sql` fails on a repeated or NULL key, a row count other than Silver's, a school not in `dim_school`, a value that differs from Silver, a status outside the five or one that does not follow its inputs, and an upstream run that did not succeed, and records the count per status. The gate checks the statuses against the map and the boundaries without redoing the geometry, so the spatial work runs once per refresh; `tests/test_gold_dim_school_location.py` checks the geometry on known shapes. Nothing waits for it.
+
 ### `fact_school_enrollment`
 
 | Column | Type |
@@ -448,6 +477,7 @@ erDiagram
   dim_city_municipality ||--o{ fact_city_school_age_population : has
   dim_barangay ||--o{ fact_school_enrollment : locates
   dim_school ||--o{ fact_school_enrollment : enrolls
+  dim_school ||--o| dim_school_location : located_at
   dim_school ||--o{ fact_school_classroom_capacity : has
   dim_school ||--o{ fact_school_teacher_capacity : has
   dim_school_year ||--o{ fact_school_enrollment : dates
@@ -484,6 +514,13 @@ erDiagram
   dim_school {
     string school_id PK
     string school_name
+  }
+  dim_school_location {
+    string school_id PK,FK
+    double longitude
+    double latitude
+    string coordinate_flag
+    string boundary_status
   }
   dim_school_year {
     string school_year PK

@@ -180,6 +180,8 @@ DOWNSTREAM = {
     "05_build_dim_barangay": {"90_validate_psa_psgc_clean"},
     "06_build_dim_city_poverty": {"90_validate_psa_poverty_psgc_map", "90_validate_psa_poverty_stat_clean",
                                   "90_validate_dim_city_municipality"},
+    "07_build_dim_school_location": {"90_validate_deped_psgc_coordinates_clean", "90_validate_deped_school_psgc_map",
+                                     "90_validate_hdx_adm3_psgc_map", "90_validate_dim_school"},
     "10_build_fact_school_enrollment": {
         "90_validate_deped_school_psgc_map", "90_validate_dim_school", "90_validate_dim_school_year",
         "90_validate_dim_education_level", "90_validate_dim_city_municipality", "90_validate_dim_barangay"},

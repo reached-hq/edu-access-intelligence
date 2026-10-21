@@ -88,6 +88,7 @@ No Integration working names remain. A new map follows the shape of `hdx_adm3_ps
 | `dim_school_year` | One school year |
 | `dim_education_level` | One education reporting level: ES, JHS, or SHS |
 | `dim_city_poverty` | One regular city or municipality with its selected 2023 poverty context; none for technical members |
+| `dim_school_location` | One public school with a published location (SY 2023-24); joins `dim_school` on `school_id` |
 | `fact_school_enrollment` | School x school year x education level |
 | `fact_school_classroom_capacity` | School x school year |
 | `fact_school_teacher_capacity` | School x school year x education level |
