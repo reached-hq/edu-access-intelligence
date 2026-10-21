@@ -258,6 +258,26 @@ def test_priority_gate_rejects_a_wrong_category(store):
     assert store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code") == before
 
 
+def test_priority_gate_reconciles_flags_to_the_ap_outputs(store):
+    run_all(store)
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate
+        SET classroom_pressure_flag = 1, current_pressure_count = teacher_pressure_flag + 1,
+            priority_category = CASE WHEN growing_enrollment THEN 'Priority 2' ELSE 'Priority 3' END
+        WHERE city_mun_psgc_code = 'C1'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_priority_matrix.sql")
+
+
+def test_priority_gate_recomputes_the_full_order(store):
+    run_all(store)
+    first, second = store.query(f"""SELECT city_mun_psgc_code FROM {ANALYTICS}.lgu_priority_matrix_candidate
+        ORDER BY priority_order LIMIT 2""")
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate
+        SET priority_order = CASE city_mun_psgc_code WHEN '{first[0]}' THEN 2 WHEN '{second[0]}' THEN 1 ELSE priority_order END""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_priority_matrix.sql")
+
+
 def test_ap3_gate_rejects_a_wrong_reference_status(store):
     run_all(store, STEPS[:2])
     run(store, "03_answer_ap3.sql")

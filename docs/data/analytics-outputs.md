@@ -129,6 +129,8 @@ Built by `04_answer_ap4.sql`. Key: `city_mun_psgc_code`, `school_year`. Unlike t
 | `public_school_share` | DOUBLE | `public_school_enrollment` / `enrollment_all_sectors`, a fraction |
 | `schools_counted` | BIGINT | Schools in `enrollment_all_sectors` |
 | `schools_incomplete` | BIGINT | Schools left out because a level they offer is blank |
+| `public_schools_counted` | BIGINT | Public schools with complete enrollment in that school year |
+| `public_schools_incomplete` | BIGINT | Public schools left out because an offered level is blank |
 | `enrollment_change_from_previous_year` | BIGINT | Against the school year just before; NULL for the first year or when that year is missing |
 | `enrollment_change_pct_from_previous_year` | DOUBLE | The same change as a fraction of the previous year |
 | `first_school_year` | STRING | First school year in the data (`2020-21`) |
@@ -140,6 +142,7 @@ Built by `04_answer_ap4.sql`. Key: `city_mun_psgc_code`, `school_year`. Unlike t
 | `enrollment_trend` | STRING | `increasing`, `decreasing`, or `no change`, by the sign of the change, with no threshold; NULL for technical members |
 | `public_enrollment_first_school_year` | BIGINT | Public-school enrollment in the first school year |
 | `public_enrollment_latest_school_year` | BIGINT | Public-school enrollment in the latest school year |
+| `public_enrollment_endpoints_complete` | BOOLEAN | TRUE only when both endpoint years have at least one complete public school and no incomplete public school |
 | `public_enrollment_change_first_to_latest` | BIGINT | Latest minus first public-school enrollment |
 | `public_enrollment_change_pct_first_to_latest` | DOUBLE | Public-school enrollment change as a fraction of the first year; NULL when the first year is 0 |
 | `public_enrollment_trend` | STRING | `increasing`, `decreasing`, or `no change`, based on public-school enrollment from the first to latest year |
@@ -186,6 +189,7 @@ Built by `05_build_priority_matrix.sql` from the published AP1 to AP4 tables. St
 | `ap4_public_enrollment_change` | BIGINT | Latest minus first public-school enrollment |
 | `ap4_public_enrollment_change_pct` | DOUBLE | Public-school enrollment change as a fraction of the first year |
 | `ap4_public_enrollment_trend` | STRING | AP4 public-school enrollment trend |
+| `ap4_public_enrollment_endpoints_complete` | BOOLEAN | Whether AP4 has complete public-school enrollment at both endpoints used for growth |
 | `ap4_gap_2024` | BIGINT | AP4 `population_enrollment_gap` on SY 2024-25 |
 | `ap4_gap_rate_2024_pct` | DOUBLE | 100 × AP4 `gap_share` on SY 2024-25 |
 | `classroom_pressure_flag` | INT | 1 when AP2 is assessed and has at least one affected school, otherwise 0 |
