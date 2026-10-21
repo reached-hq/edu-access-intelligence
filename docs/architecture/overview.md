@@ -182,8 +182,17 @@ A job that succeeds has only run; it has not shown the data is right. So the job
 
 ## Environments and deployment
 
-<!-- TODO(Phase 6): prod target, CD workflow, secrets handling. -->
+Production readiness is tracked by #95. The parts that can be completed before a production target exists are already in place, but the pipeline must not be described or operated as production-ready until both remaining prerequisites are closed:
 
-- `dev` is the only bundle target so far (`mode: development`); `prod` is not defined yet. `dev` and `prod` are deploy targets, not branches (D-005).
+| Capability | Status | Evidence or remaining work |
+|---|---|---|
+| Controlled `dev` deployment | Available | The bundle pins the deployed commit and records it as `code_revision`. #47 remains open until the complete enabled job, including Analytics, is run twice on Databricks with stable keyed rows and totals recorded in `evidence/pipeline-runs/` |
+| Monitoring and alerts | Complete | Failure, duration, timeout, quality-failure, and stale-source signals were tested under #100 |
+| Failure recovery | Complete | The [failure-recovery runbook](../operations/runbook.md) and its local rehearsal were completed under #101 |
+| Controlled `prod` deployment | Waiting | #99 must add an isolated `prod` target, restrict deployment to a clean pushed `main`, keep credentials out of Git, and record one production deploy and run |
+
+Issue #95 is the parent. Close it manually only after #47 and #99 are complete, every sub-issue is closed, and this section describes the verified production path rather than the waiting state.
+
+- `dev` is the only bundle target (`mode: development`); `prod` is not defined yet. `dev` and `prod` are deploy targets, not branches (D-005).
 - The job runs the commit it was deployed from (`git_source.git_commit: ${bundle.git.commit}`), and records the same value as `code_revision` on every row it writes. New code needs a deploy from a clean, pushed `main`.
 - Only `accepted` sources may load into `prod`; `profiled` sources load into `local` and `dev` only.

@@ -246,13 +246,13 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 
 ## Part 6: Databricks
 
-**Status:** workspace, catalog, and CLI profile ready. Git folders and deploying still pending.
+**Status:** the workspace, catalog, CLI profile, and controlled `dev` deployment are ready. Production readiness is still waiting for the complete Databricks rerun evidence in #47 and the isolated `prod` deployment path in #99. Monitoring (#100) and the [failure-recovery runbook](runbook.md) (#101) are complete. Until #47 and #99 close, use `dev` only and do not describe a `dev` run as a production deployment.
 
 | What | Where |
 |---|---|
 | Workspace | https://dbc-2b6bf1c5-7bc3.cloud.databricks.com (details in [architecture.md](../architecture/overview.md#workspace)) |
 | Catalog | `edu_access`, owned by the `reached-hq` group |
-| Schemas so far | `` `00-source` ``, `` `01-control` ``, `` `02-bronze` ``; later stages are created when they start |
+| Schemas | `` `00-source` `` through `` `06-analytics` ``; each later stage is created when its first task starts |
 | Raw files | `/Volumes/edu_access/00-source/raw/<publisher>/` |
 
 - Write every table reference in full, with backticks around the schema: ``edu_access.`02-bronze`.deped_enrollment_raw``.
