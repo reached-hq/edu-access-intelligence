@@ -31,8 +31,7 @@ ORDINARY = 700   # enough ordinary schools that the 5 quarantined rows stay unde
 SULU = (1900000000, 1906600000, 1906601000, 1906601018)
 CODED = (100000000, 102800000, 102802000, 102802013)
 KEPT = ["school_year", "school_id", "psgc_region", "psgc_province", "psgc_city_municipality", "psgc_barangay",
-        "psgc_recoded", "psgc_city_municipality_null_reason", "psgc_barangay_null_reason", "barangay_outside_city",
-        "longitude", "latitude", "longitude_published", "latitude_published", "coordinate_flag",
+        "psgc_recoded", "psgc_null_reason", "barangay_outside_city", "longitude", "latitude", "coordinate_flag",
         "batch_id", "delivery_version", "schema_version", "source_sha256", "source_row_number",
         "run_id", "cleaned_at_utc", "code_revision"]
 
@@ -153,15 +152,16 @@ def test_sulu_is_recoded_and_missing_codes_keep_their_reason(lane):
     built(lane)
     assert lane.row("300101", "psgc_region, psgc_province, psgc_city_municipality, psgc_barangay, psgc_recoded") == [
         ("0900000000", "0906600000", "0906601000", "0906601018", True)]
-    assert lane.row("300102", "psgc_city_municipality, psgc_city_municipality_null_reason, psgc_barangay_null_reason") == [
-        (None, "source_na", "source_na")]
+    assert lane.row("300102", "psgc_city_municipality, psgc_barangay, psgc_null_reason") == [(None, None, "source_na")]
+    assert lane.row("200000", "psgc_null_reason") == [(None,)]
     assert lane.row("300106", "barangay_outside_city") == [(True,)]
 
 
-def test_coordinates_are_typed_kept_as_published_and_flagged(lane):
+def test_coordinates_are_typed_and_flagged(lane):
     built(lane)
-    assert lane.row("200000", "longitude, latitude, longitude_published, coordinate_flag") == [(120.5, 16.25, "120.5", None)]
-    assert lane.row("300102", "longitude, longitude_published, coordinate_flag") == [(None, "#N/A", "missing")]
+    assert lane.row("200000", "longitude, latitude, coordinate_flag") == [(120.5, 16.25, None)]
+    assert lane.row("300102", "longitude, latitude, coordinate_flag") == [(None, None, "missing")]   # #N/A is NULL in Silver
+    assert lane.q(f"SELECT longitude FROM {BRONZE} WHERE school_id = '300102'") == [("#N/A",)]     # and stays as text in Bronze
     assert lane.row("300104", "coordinate_flag") == [("zero",)]
     assert lane.row("300105", "longitude, coordinate_flag") == [(112.1, "outside_philippines")]
     # A point shared with other schools is kept for each of them, unchanged and unflagged.
@@ -232,3 +232,27 @@ def test_the_crosswalk_generator_is_shared_and_its_output_unchanged():
     crosswalk = generator("deped_enrollment_psgc", REPO_ROOT)
     spec = crosswalk.load_spec(REPO_ROOT, "deped_enrollment_psgc")
     assert spec.scope == [] and "scope_" not in crosswalk.build_sql(spec) and "rows_in_scope" not in crosswalk.gate_sql(spec)
+
+
+def test_no_code_or_number_column_holds_na_text(lane):
+    built(lane)
+    text = " OR ".join(f"CAST({c} AS VARCHAR) IN ('#N/A', '')" for c in
+                       ("psgc_region", "psgc_province", "psgc_city_municipality", "psgc_barangay", "longitude", "latitude"))
+    assert lane.q(f"SELECT COUNT(*) FROM {CLEAN} WHERE {text}") == [(0,)]
+
+
+def test_city_known_and_barangay_missing_keeps_the_city_and_gives_the_barangay_reason(lane):
+    lane.store.sql(f"UPDATE {BRONZE} SET psgc_barangay = '#N/A' WHERE school_id = '200001'")
+    params = built(lane)
+    assert lane.row("200001", "psgc_city_municipality, psgc_barangay, psgc_null_reason") == [("0102802000", None, "source_na")]
+    assert lane.checks(params["run_id"])["null_reasons_agree"] == ("PASS", "0")
+
+
+def test_codes_missing_for_different_reasons_fail_the_gate(lane):
+    """City '#N/A' but barangay blank: one psgc_null_reason could not say both, so the gate stops."""
+    lane.store.sql(f"UPDATE {BRONZE} SET psgc_region = '#N/A', psgc_province = '#N/A', psgc_city_municipality = '#N/A', "
+                   f"psgc_barangay = '' WHERE school_id = '200001'")
+    params = lane.build()
+    with pytest.raises(Exception, match="FAIL result"):
+        lane.gate(params)
+    assert lane.checks(params["run_id"])["null_reasons_agree"] == ("FAIL", "1")

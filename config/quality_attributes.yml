@@ -366,6 +366,7 @@ checks:
     - null_reason_matches_code
     - facility_values_within_offered_levels
     - facility_data_public_only
+    - null_reasons_agree
     - sheets_are_concepts
     - status_combination_valid
     - one_psgc_version

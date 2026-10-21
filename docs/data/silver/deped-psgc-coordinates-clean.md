@@ -15,12 +15,10 @@ The coordinates are each school's own published point from the National School B
 | `psgc_province` | `STRING` | The workbook's province PSGC code for the school, left-padded to 10 digits; Sulu recoded to 2Q 2026 (see `psgc_recoded`). `NULL` when the workbook has none |
 | `psgc_city_municipality` | `STRING` | The workbook's city or municipality PSGC code for the school, left-padded to 10 digits; Sulu recoded to 2Q 2026 (see `psgc_recoded`). `NULL` when the workbook has none |
 | `psgc_barangay` | `STRING` | The workbook's barangay PSGC code for the school, left-padded to 10 digits; Sulu recoded to 2Q 2026 (see `psgc_recoded`). `NULL` when the workbook has none |
-| `psgc_recoded` | `BOOLEAN` | `TRUE` when the province is Sulu's Q4 2024 code (`19066…`): each code that starts with `19066` became `09066…`, and region `1900000000` became `0900000000` (D-049) |
-| `psgc_city_municipality_null_reason` | `STRING` | Why region, province, and city/municipality are `NULL`: `source_na` (`#N/A` in the workbook) or `not_in_workbook` (no value). `NULL` when the code is present |
-| `psgc_barangay_null_reason` | `STRING` | Why the barangay code is `NULL`, as above |
-| `barangay_outside_city` | `BOOLEAN` | The barangay code's first 7 digits differ from the city or municipality code. Kept as published |
-| `longitude`, `latitude` | `DOUBLE` | The school's published point as a number (NSBI, as of 2025-07-07, workbook note above column AC). `NULL` for `#N/A` or blank. Not corrected |
-| `longitude_published`, `latitude_published` | `STRING` | The exact Bronze text, including `#N/A` and blank. The gate fails unless it equals Bronze and the `DOUBLE` equals its cast |
+| `psgc_recoded` | `BOOLEAN` | `TRUE` when the province is Sulu's Q4 2024 code (`19066…`): each code that starts with `19066` became `09066…`, and region `1900000000` became `0900000000`, so the code exists in the master PSGC 2Q 2026 (D-049, D-012) |
+| `psgc_null_reason` | `STRING` | Why a code in the row is `NULL`: `source_na` (`#N/A` in the workbook) or `not_in_workbook` (blank). `NULL` when every code is present. Region, province and city are `NULL` together; the barangay may also be `NULL` alone, for the same reason (the gate fails if the reasons ever differ) |
+| `barangay_outside_city` | `BOOLEAN` | The barangay code's first 7 digits (region, province, city or municipality) differ from the city or municipality code, which breaks the PSGC hierarchy. Flagged, not corrected: which code is wrong is unknown |
+| `longitude`, `latitude` | `DOUBLE` | The school's published point as a number (NSBI, as of 2025-07-07, workbook note above column AC). `NULL` for `#N/A` or blank, with `coordinate_flag` `missing`; the exact text stays in Bronze. Not corrected |
 | `coordinate_flag` | `STRING` | `missing`, `zero` (0, 0), `outside_philippines` (outside lon 116-127, lat 4-21.5), or `NULL`. A `NULL` flag is not proof of the right place: 260 schools are over 100 km from their own city or municipality (profile O-6, S-1) |
 | `batch_id` | `STRING` | Bronze lineage |
 | `delivery_version` | `INT` | Bronze lineage |

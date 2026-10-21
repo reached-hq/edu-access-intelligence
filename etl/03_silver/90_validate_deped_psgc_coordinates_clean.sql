@@ -28,8 +28,6 @@ WITH cur AS (
     CASE WHEN r.psgc_barangay IS NULL THEN 'not_in_workbook' WHEN r.psgc_barangay = '#N/A' THEN 'source_na' WHEN r.psgc_barangay = '' THEN 'not_in_workbook' ELSE 'unrecognized' END AS barangay_reason_if_null,
     CASE WHEN regexp_like(r.longitude, '^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$') THEN TRY_CAST(r.longitude AS DOUBLE) END AS longitude,
     CASE WHEN regexp_like(r.latitude, '^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$') THEN TRY_CAST(r.latitude AS DOUBLE) END AS latitude,
-    r.longitude AS longitude_published,
-    r.latitude AS latitude_published,
     r.batch_id,
     r.source_sha256,
     r.source_row_number
@@ -45,13 +43,10 @@ WITH cur AS (
     CASE WHEN c.psgc_recoded AND substr(c.city_municipality_padded, 1, 5) = '19066' THEN concat('09066', substr(c.city_municipality_padded, 6)) ELSE c.city_municipality_padded END AS psgc_city_municipality,
     CASE WHEN c.psgc_recoded AND substr(c.barangay_padded, 1, 5) = '19066' THEN concat('09066', substr(c.barangay_padded, 6)) ELSE c.barangay_padded END AS psgc_barangay,
     c.psgc_recoded,
-    CASE WHEN c.city_municipality_padded IS NULL THEN c.city_reason_if_null END AS psgc_city_municipality_null_reason,
-    CASE WHEN c.barangay_padded IS NULL THEN c.barangay_reason_if_null END AS psgc_barangay_null_reason,
+    CASE WHEN c.city_municipality_padded IS NULL THEN c.city_reason_if_null WHEN c.barangay_padded IS NULL THEN c.barangay_reason_if_null END AS psgc_null_reason,
     COALESCE(substr(c.barangay_padded, 1, 7) <> substr(c.city_municipality_padded, 1, 7), FALSE) AS barangay_outside_city,
     c.longitude,
     c.latitude,
-    c.longitude_published,
-    c.latitude_published,
     CASE WHEN c.longitude IS NULL OR c.latitude IS NULL THEN 'missing' WHEN c.longitude = 0 AND c.latitude = 0 THEN 'zero' WHEN NOT (c.longitude BETWEEN 116 AND 127 AND c.latitude BETWEEN 4 AND 21.5) THEN 'outside_philippines' END AS coordinate_flag,
     c.batch_id,
     c.source_sha256,
@@ -67,8 +62,8 @@ WITH cur AS (
   SELECT
     (SELECT COUNT(*) FROM cur) AS current_batches,
     (SELECT COUNT(*) FROM s LEFT JOIN unit AS u ON u.batch_id = s.batch_id AND u.source_sha256 = s.source_sha256 AND u.source_row_number = s.source_row_number WHERE u.source_row_number IS NULL) + (SELECT COUNT(*) - COUNT(DISTINCT (source_sha256, source_row_number)) FROM s) AS unresolved_rows,
-    (SELECT COUNT(*) FROM c JOIN expected AS e ON e.source_sha256 = c.source_sha256 AND e.source_row_number = c.source_row_number WHERE c.school_year IS DISTINCT FROM e.school_year OR c.school_id IS DISTINCT FROM e.school_id OR c.psgc_region IS DISTINCT FROM e.psgc_region OR c.psgc_province IS DISTINCT FROM e.psgc_province OR c.psgc_city_municipality IS DISTINCT FROM e.psgc_city_municipality OR c.psgc_barangay IS DISTINCT FROM e.psgc_barangay OR c.psgc_recoded IS DISTINCT FROM e.psgc_recoded OR c.psgc_city_municipality_null_reason IS DISTINCT FROM e.psgc_city_municipality_null_reason OR c.psgc_barangay_null_reason IS DISTINCT FROM e.psgc_barangay_null_reason OR c.barangay_outside_city IS DISTINCT FROM e.barangay_outside_city OR c.longitude IS DISTINCT FROM e.longitude OR c.latitude IS DISTINCT FROM e.latitude OR c.longitude_published IS DISTINCT FROM e.longitude_published OR c.latitude_published IS DISTINCT FROM e.latitude_published OR c.coordinate_flag IS DISTINCT FROM e.coordinate_flag) AS value_mismatches,
-    (SELECT COUNT(*) FROM c JOIN unit AS b ON b.source_sha256 = c.source_sha256 AND b.source_row_number = c.source_row_number WHERE c.longitude_published IS DISTINCT FROM b.longitude OR c.latitude_published IS DISTINCT FROM b.latitude OR c.longitude IS DISTINCT FROM CASE WHEN regexp_like(b.longitude, '^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$') THEN TRY_CAST(b.longitude AS DOUBLE) END OR c.latitude IS DISTINCT FROM CASE WHEN regexp_like(b.latitude, '^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$') THEN TRY_CAST(b.latitude AS DOUBLE) END) AS coordinate_mismatches,
+    (SELECT COUNT(*) FROM c JOIN expected AS e ON e.source_sha256 = c.source_sha256 AND e.source_row_number = c.source_row_number WHERE c.school_year IS DISTINCT FROM e.school_year OR c.school_id IS DISTINCT FROM e.school_id OR c.psgc_region IS DISTINCT FROM e.psgc_region OR c.psgc_province IS DISTINCT FROM e.psgc_province OR c.psgc_city_municipality IS DISTINCT FROM e.psgc_city_municipality OR c.psgc_barangay IS DISTINCT FROM e.psgc_barangay OR c.psgc_recoded IS DISTINCT FROM e.psgc_recoded OR c.psgc_null_reason IS DISTINCT FROM e.psgc_null_reason OR c.barangay_outside_city IS DISTINCT FROM e.barangay_outside_city OR c.longitude IS DISTINCT FROM e.longitude OR c.latitude IS DISTINCT FROM e.latitude OR c.coordinate_flag IS DISTINCT FROM e.coordinate_flag) AS value_mismatches,
+    (SELECT COUNT(*) FROM c JOIN unit AS b ON b.source_sha256 = c.source_sha256 AND b.source_row_number = c.source_row_number WHERE c.longitude IS DISTINCT FROM CASE WHEN regexp_like(b.longitude, '^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$') THEN TRY_CAST(b.longitude AS DOUBLE) END OR c.latitude IS DISTINCT FROM CASE WHEN regexp_like(b.latitude, '^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$') THEN TRY_CAST(b.latitude AS DOUBLE) END) AS coordinate_mismatches,
     (SELECT COALESCE(COUNT_IF((u.psgc_region IS NOT NULL AND u.psgc_region NOT IN ('#N/A', '') AND NOT regexp_like(u.psgc_region, '^[0-9]{9,10}$')) OR (u.psgc_province IS NOT NULL AND u.psgc_province NOT IN ('#N/A', '') AND NOT regexp_like(u.psgc_province, '^[0-9]{9,10}$'))), 0) FROM unit AS u) AS unrecognized_region_province,
     (SELECT COALESCE(COUNT_IF(source_row_kind = 'unit'), 0) FROM bronze) AS bronze_unit_rows,
     (SELECT COALESCE(COUNT_IF(source_row_kind <> 'unit'), 0) FROM bronze) AS bronze_other_rows,
@@ -77,18 +72,19 @@ WITH cur AS (
     (SELECT COUNT(*) - COUNT(DISTINCT (school_year, school_id)) FROM c) AS duplicate_clean_ids,
     (SELECT COALESCE(COUNT_IF(NOT regexp_like(school_id, '^[0-9]{6}$')), 0) FROM c) AS malformed_clean_ids,
     (SELECT COALESCE(COUNT_IF((psgc_region IS NOT NULL AND NOT regexp_like(psgc_region, '^[0-9]{10}$')) OR (psgc_province IS NOT NULL AND NOT regexp_like(psgc_province, '^[0-9]{10}$')) OR (psgc_city_municipality IS NOT NULL AND NOT regexp_like(psgc_city_municipality, '^[0-9]{10}$')) OR (psgc_barangay IS NOT NULL AND NOT regexp_like(psgc_barangay, '^[0-9]{10}$'))), 0) FROM c) AS codes_not_ten_digits,
-    (SELECT COALESCE(COUNT_IF(psgc_city_municipality_null_reason = 'unrecognized' OR psgc_barangay_null_reason = 'unrecognized'), 0) FROM c) AS unrecognized_code_values,
-    (SELECT COALESCE(COUNT_IF((psgc_city_municipality IS NULL) <> (psgc_city_municipality_null_reason IS NOT NULL) OR (psgc_barangay IS NULL) <> (psgc_barangay_null_reason IS NOT NULL)), 0) FROM c) AS null_reason_mismatches,
+    (SELECT COALESCE(COUNT_IF(CASE WHEN psgc_city_municipality IS NULL THEN psgc_null_reason END = 'unrecognized' OR CASE WHEN psgc_barangay IS NULL THEN psgc_null_reason END = 'unrecognized'), 0) FROM c) AS unrecognized_code_values,
+    (SELECT COALESCE(COUNT_IF((psgc_city_municipality IS NULL OR psgc_barangay IS NULL) <> (psgc_null_reason IS NOT NULL)), 0) FROM c) AS null_reason_mismatches,
+    (SELECT COALESCE(COUNT_IF(CASE WHEN regexp_like(u.psgc_city_municipality, '^[0-9]{9,10}$') THEN lpad(u.psgc_city_municipality, 10, '0') END IS NULL AND CASE WHEN regexp_like(u.psgc_barangay, '^[0-9]{9,10}$') THEN lpad(u.psgc_barangay, 10, '0') END IS NULL AND CASE WHEN u.psgc_city_municipality IS NULL THEN 'not_in_workbook' WHEN u.psgc_city_municipality = '#N/A' THEN 'source_na' WHEN u.psgc_city_municipality = '' THEN 'not_in_workbook' ELSE 'unrecognized' END <> CASE WHEN u.psgc_barangay IS NULL THEN 'not_in_workbook' WHEN u.psgc_barangay = '#N/A' THEN 'source_na' WHEN u.psgc_barangay = '' THEN 'not_in_workbook' ELSE 'unrecognized' END), 0) FROM unit AS u) AS null_reasons_differ,
     (SELECT COALESCE(COUNT_IF((psgc_region IS NULL) <> (psgc_city_municipality IS NULL) OR (psgc_province IS NULL) <> (psgc_city_municipality IS NULL)), 0) FROM c) AS levels_not_null_together,
     (SELECT COALESCE(COUNT_IF((longitude IS NULL) <> (latitude IS NULL)), 0) FROM c) AS coordinates_not_in_pairs,
     (SELECT COALESCE(COUNT_IF(source_row_kind = 'unit' AND ((b.longitude NOT IN ('#N/A', '') AND NOT regexp_like(b.longitude, '^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$')) OR (b.latitude NOT IN ('#N/A', '') AND NOT regexp_like(b.latitude, '^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$')))), 0) FROM bronze AS b) AS unrecognized_coordinates,
     (SELECT COALESCE(COUNT_IF(x.batch_id IS NULL OR x.delivery_version IS NULL OR x.schema_version IS NULL OR x.source_sha256 IS NULL OR x.source_row_number IS NULL OR x.run_id IS NULL OR x.cleaned_at_utc IS NULL OR x.code_revision IS NULL), 0) FROM c AS x) + (SELECT COALESCE(COUNT_IF(x.batch_id IS NULL OR x.delivery_version IS NULL OR x.schema_version IS NULL OR x.source_sha256 IS NULL OR x.source_row_number IS NULL OR x.run_id IS NULL OR x.cleaned_at_utc IS NULL OR x.code_revision IS NULL), 0) FROM q AS x) AS missing_lineage,
     (SELECT COALESCE(COUNT_IF(run_id <> :run_id), 0) FROM c) + (SELECT COALESCE(COUNT_IF(run_id <> :run_id), 0) FROM q) AS other_run_rows,
     (SELECT COALESCE(COUNT_IF(source_row_kind = 'unit' AND regexp_like(b.psgc_barangay, '^[0-9]{9,10}$') AND length(b.psgc_barangay) < 10), 0) FROM bronze AS b) AS barangay_codes_padded,
-    (SELECT COALESCE(COUNT_IF(psgc_city_municipality_null_reason = 'source_na'), 0) FROM c) AS city_source_na,
-    (SELECT COALESCE(COUNT_IF(psgc_city_municipality_null_reason = 'not_in_workbook'), 0) FROM c) AS city_not_in_workbook,
-    (SELECT COALESCE(COUNT_IF(psgc_barangay_null_reason = 'source_na'), 0) FROM c) AS barangay_source_na,
-    (SELECT COALESCE(COUNT_IF(psgc_barangay_null_reason = 'not_in_workbook'), 0) FROM c) AS barangay_not_in_workbook,
+    (SELECT COALESCE(COUNT_IF(CASE WHEN psgc_city_municipality IS NULL THEN psgc_null_reason END = 'source_na'), 0) FROM c) AS city_source_na,
+    (SELECT COALESCE(COUNT_IF(CASE WHEN psgc_city_municipality IS NULL THEN psgc_null_reason END = 'not_in_workbook'), 0) FROM c) AS city_not_in_workbook,
+    (SELECT COALESCE(COUNT_IF(CASE WHEN psgc_barangay IS NULL THEN psgc_null_reason END = 'source_na'), 0) FROM c) AS barangay_source_na,
+    (SELECT COALESCE(COUNT_IF(CASE WHEN psgc_barangay IS NULL THEN psgc_null_reason END = 'not_in_workbook'), 0) FROM c) AS barangay_not_in_workbook,
     (SELECT COALESCE(COUNT_IF(psgc_recoded), 0) FROM c) AS recoded,
     (SELECT COALESCE(COUNT_IF(barangay_outside_city), 0) FROM c) AS barangay_outside_city,
     (SELECT COALESCE(COUNT_IF(coordinate_flag = 'missing'), 0) FROM c) AS coordinate_missing,
@@ -119,6 +115,7 @@ SELECT batch_id, 'edu_access.03-silver.deped_psgc_coordinates_clean_candidate' A
   UNION ALL SELECT batch_id, 'edu_access.03-silver.deped_psgc_coordinates_clean_candidate' AS table_name, 'code_values_recognized' AS check_name, CASE WHEN unrecognized_code_values = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '= 0' AS expected, CAST(unrecognized_code_values AS STRING) AS actual FROM edu_access.`03-silver`.deped_psgc_coordinates_gate_summary_candidate
   UNION ALL SELECT batch_id, 'edu_access.03-silver.deped_psgc_coordinates_clean_candidate' AS table_name, 'region_province_values_recognized' AS check_name, CASE WHEN unrecognized_region_province = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '= 0' AS expected, CAST(unrecognized_region_province AS STRING) AS actual FROM edu_access.`03-silver`.deped_psgc_coordinates_gate_summary_candidate
   UNION ALL SELECT batch_id, 'edu_access.03-silver.deped_psgc_coordinates_clean_candidate' AS table_name, 'null_reason_matches_code' AS check_name, CASE WHEN null_reason_mismatches = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '= 0' AS expected, CAST(null_reason_mismatches AS STRING) AS actual FROM edu_access.`03-silver`.deped_psgc_coordinates_gate_summary_candidate
+  UNION ALL SELECT batch_id, 'edu_access.03-silver.deped_psgc_coordinates_clean_candidate' AS table_name, 'null_reasons_agree' AS check_name, CASE WHEN null_reasons_differ = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '= 0' AS expected, CAST(null_reasons_differ AS STRING) AS actual FROM edu_access.`03-silver`.deped_psgc_coordinates_gate_summary_candidate
   UNION ALL SELECT batch_id, 'edu_access.03-silver.deped_psgc_coordinates_clean_candidate' AS table_name, 'levels_null_together' AS check_name, CASE WHEN levels_not_null_together = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '= 0' AS expected, CAST(levels_not_null_together AS STRING) AS actual FROM edu_access.`03-silver`.deped_psgc_coordinates_gate_summary_candidate
   UNION ALL SELECT batch_id, 'edu_access.03-silver.deped_psgc_coordinates_clean_candidate' AS table_name, 'coordinates_in_pairs' AS check_name, CASE WHEN coordinates_not_in_pairs = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '= 0' AS expected, CAST(coordinates_not_in_pairs AS STRING) AS actual FROM edu_access.`03-silver`.deped_psgc_coordinates_gate_summary_candidate
   UNION ALL SELECT batch_id, 'edu_access.03-silver.deped_psgc_coordinates_clean_candidate' AS table_name, 'coordinate_values_recognized' AS check_name, CASE WHEN unrecognized_coordinates = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '= 0' AS expected, CAST(unrecognized_coordinates AS STRING) AS actual FROM edu_access.`03-silver`.deped_psgc_coordinates_gate_summary_candidate
