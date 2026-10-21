@@ -1016,4 +1016,4 @@ python -m src.silver.cli dictionary --source deped_psgc_coordinates > docs/data/
 
 - Read only a `succeeded` run's rows. Join on `school_id` and `school_year`; there is one row per school.
 - Use the codes as Integration uses the crosswalk's, and the coordinates only where `coordinate_flag IS NULL`. Do not use them for distances until the boundary test (S-1).
-- Which coordinates Gold uses (this table's or the crosswalk's) is a team decision, not yet made.
+- Which coordinates Gold uses (this table's or the crosswalk's) is a team decision, not yet made. The PSGC codes are identical in both for every shared public school; the crosswalk's points appear in this table at other schools for 38,471 of 38,688 (PC-3, [evidence](../../evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)), which supports this table's.
