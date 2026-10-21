@@ -1,7 +1,7 @@
 -- Analytics output for AP4 (#147): enrollment by city or municipality and school year and whether it goes up
 -- or down, with the school-age population gap on the census school years. Implements the AP4 contract of
--- docs/business/metric-specification.md and the team's BP and AP metrics (D-042). AP4 is context under D-060
--- and never changes the classroom queue.
+-- docs/business/metric-specification.md and the team's BP and AP metrics (D-061). Public-school enrollment
+-- growth feeds planning priority; the all-sector trend and population gap remain context.
 --
 -- Grain: one row per city or municipality member and school year, key (city_mun_psgc_code,
 -- school_year), for every school year in fact_school_enrollment (SY 2020-21 to 2025-26 today).
@@ -122,7 +122,9 @@ trend AS (
          THEN LAG(g.enrollment_all_sectors) OVER (PARTITION BY g.city_mun_psgc_code ORDER BY g.school_year_start) END
       AS previous_enrollment,
     f.enrollment_all_sectors AS enrollment_first_school_year,
-    l.enrollment_all_sectors AS enrollment_latest_school_year
+    l.enrollment_all_sectors AS enrollment_latest_school_year,
+    f.public_school_enrollment AS public_enrollment_first_school_year,
+    l.public_school_enrollment AS public_enrollment_latest_school_year
   FROM grid AS g
   CROSS JOIN bounds AS b
   JOIN grid AS f ON f.city_mun_psgc_code = g.city_mun_psgc_code AND f.school_year = b.first_school_year
@@ -151,6 +153,15 @@ SELECT
        WHEN t.enrollment_latest_school_year > t.enrollment_first_school_year THEN 'increasing'
        WHEN t.enrollment_latest_school_year < t.enrollment_first_school_year THEN 'decreasing'
        ELSE 'no change' END AS enrollment_trend,
+  t.public_enrollment_first_school_year,
+  t.public_enrollment_latest_school_year,
+  t.public_enrollment_latest_school_year - t.public_enrollment_first_school_year AS public_enrollment_change_first_to_latest,
+  CAST(t.public_enrollment_latest_school_year - t.public_enrollment_first_school_year AS DOUBLE)
+    / NULLIF(t.public_enrollment_first_school_year, 0) AS public_enrollment_change_pct_first_to_latest,
+  CASE WHEN t.member_type <> 'regular' OR t.public_enrollment_first_school_year = 0 THEN NULL
+       WHEN t.public_enrollment_latest_school_year > t.public_enrollment_first_school_year THEN 'increasing'
+       WHEN t.public_enrollment_latest_school_year < t.public_enrollment_first_school_year THEN 'decreasing'
+       ELSE 'no change' END AS public_enrollment_trend,
   c.census_year,
   c.population_source,
   c.population_reference_date,

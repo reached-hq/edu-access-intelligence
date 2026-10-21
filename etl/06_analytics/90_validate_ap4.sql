@@ -78,6 +78,12 @@ SELECT
        WHEN l.enrollment_all_sectors > f.enrollment_all_sectors THEN 'increasing'
        WHEN l.enrollment_all_sectors < f.enrollment_all_sectors THEN 'decreasing'
        ELSE 'no change' END AS enrollment_trend,
+  CAST(f.public_school_enrollment AS BIGINT) AS public_enrollment_first_school_year,
+  CAST(l.public_school_enrollment AS BIGINT) AS public_enrollment_latest_school_year,
+  CASE WHEN c.city_mun_psgc_code IN ('UNKNOWN', 'EXCLUDED') OR f.public_school_enrollment = 0 THEN NULL
+       WHEN l.public_school_enrollment > f.public_school_enrollment THEN 'increasing'
+       WHEN l.public_school_enrollment < f.public_school_enrollment THEN 'decreasing'
+       ELSE 'no change' END AS public_enrollment_trend,
   CAST(p.school_age_population AS BIGINT) AS school_age_population,
   COALESCE(c.city_mun_psgc_code NOT IN ('UNKNOWN', 'EXCLUDED') AND k.comparable, FALSE) AS is_2020_2024_geography_comparable
 FROM cells AS c
@@ -94,6 +100,7 @@ SET VARIABLE analytics_ap4_rows_not_matching = (
   (SELECT COUNT(*) FROM (
      SELECT city_mun_psgc_code, school_year, enrollment_all_sectors, public_school_enrollment, schools_counted,
             schools_incomplete, enrollment_first_school_year, enrollment_latest_school_year, enrollment_trend,
+            public_enrollment_first_school_year, public_enrollment_latest_school_year, public_enrollment_trend,
             school_age_population, is_2020_2024_geography_comparable
      FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate
      EXCEPT ALL SELECT * FROM ap4_expected) AS x)
@@ -102,6 +109,7 @@ SET VARIABLE analytics_ap4_rows_not_matching = (
      EXCEPT ALL
      SELECT city_mun_psgc_code, school_year, enrollment_all_sectors, public_school_enrollment, schools_counted,
             schools_incomplete, enrollment_first_school_year, enrollment_latest_school_year, enrollment_trend,
+            public_enrollment_first_school_year, public_enrollment_latest_school_year, public_enrollment_trend,
             school_age_population, is_2020_2024_geography_comparable
      FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate) AS x));
 
@@ -166,6 +174,10 @@ SELECT
                 OR enrollment_change_first_to_latest IS DISTINCT FROM enrollment_latest_school_year - enrollment_first_school_year
                 OR enrollment_change_pct_first_to_latest IS DISTINCT FROM
                    CAST(enrollment_change_first_to_latest AS DOUBLE) / NULLIF(enrollment_first_school_year, 0)
+                OR public_enrollment_change_first_to_latest IS DISTINCT FROM
+                   public_enrollment_latest_school_year - public_enrollment_first_school_year
+                OR public_enrollment_change_pct_first_to_latest IS DISTINCT FROM
+                   CAST(public_enrollment_change_first_to_latest AS DOUBLE) / NULLIF(public_enrollment_first_school_year, 0)
                 OR (census_year IS NOT NULL AND (age_min <> 5 OR age_max <> 17))) FROM ap4) AS arithmetic_errors,
   (SELECT COUNT_IF(enrollment_change_from_previous_year IS DISTINCT FROM enrollment_all_sectors - previous_enrollment
                 OR enrollment_change_pct_from_previous_year IS DISTINCT FROM
