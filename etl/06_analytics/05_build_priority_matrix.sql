@@ -2,9 +2,10 @@
 -- AP2 and AP3 provide separate current-pressure flags. AP4 supplies public-school enrollment growth.
 -- AP1 and the population-enrollment gap remain context and never change the priority category.
 -- A published pressure signal always counts: AP3's teacher flag comes from any level above its reference (that
--- level passed its own coverage gate), even when another offered level is incomplete. Data review is used only
--- when growth cannot be assessed, or when no measure shows pressure and a coverage gate failed. Growth is not
--- assessed where the 2020-to-2024 geography is not comparable (boundary changes such as Makati/Taguig and the SGA).
+-- level passed its own coverage gate), even when another offered level is incomplete. Unassessed growth never
+-- raises a category, so an LGU with a known pressure is placed as if it were not growing. Data review is used only
+-- when no measure shows pressure and a coverage gate failed or growth cannot be assessed. Growth is not assessed
+-- where the 2020-to-2024 geography is not comparable (boundary changes such as Makati/Taguig and the SGA).
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
@@ -40,7 +41,16 @@ WITH joined AS (
     d.public_enrollment_trend AS ap4_public_enrollment_trend,
     d.public_enrollment_endpoints_complete AS ap4_public_enrollment_endpoints_complete,
     d.is_2020_2024_geography_comparable AS ap4_geography_comparable,
-    g.population_enrollment_gap AS ap4_gap_2024, 100 * g.gap_share AS ap4_gap_rate_2024_pct
+    g.population_enrollment_gap AS ap4_gap_2024, 100 * g.gap_share AS ap4_gap_rate_2024_pct,
+    -- why growth is not assessed; NULL exactly when growing_enrollment is assessed
+    CASE WHEN d.city_mun_psgc_code IS NULL THEN 'no AP4 enrollment row'
+         WHEN COALESCE(d.is_2020_2024_geography_comparable, FALSE) AND d.public_enrollment_trend IS NOT NULL THEN NULL
+         WHEN NOT COALESCE(d.is_2020_2024_geography_comparable, FALSE) AND g.school_age_population IS NULL
+           THEN 'no 2024 census population row'
+         WHEN NOT COALESCE(d.is_2020_2024_geography_comparable, FALSE) THEN 'boundary changed 2020-2024'
+         WHEN NOT COALESCE(d.public_enrollment_endpoints_complete, FALSE)
+           THEN 'public enrollment incomplete in first or latest school year'
+         ELSE 'no public enrollment in first school year' END AS growth_not_assessed_reason
   FROM edu_access.`05-gold`.dim_city_municipality AS l
   LEFT JOIN edu_access.`06-analytics`.ap1_school_provision AS a USING (city_mun_psgc_code)
   LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS b USING (city_mun_psgc_code)
@@ -61,12 +71,12 @@ WITH joined AS (
 ), grouped AS (
   SELECT *, classroom_pressure_flag + teacher_pressure_flag AS current_pressure_count,
     GREATEST(COALESCE(ap2_affected_learners, 0), COALESCE(ap3_affected_learners, 0)) AS priority_affected_learners,
-    CASE WHEN growing_enrollment IS NULL
-           OR (classroom_pressure_flag + teacher_pressure_flag = 0
-               AND (NOT COALESCE(ap2_assessed, FALSE) OR NOT COALESCE(ap3_assessed, FALSE))) THEN 'Data review'
-         WHEN classroom_pressure_flag + teacher_pressure_flag = 2 AND growing_enrollment THEN 'Priority 1'
+    CASE WHEN classroom_pressure_flag + teacher_pressure_flag = 0
+           AND (growing_enrollment IS NULL OR NOT COALESCE(ap2_assessed, FALSE) OR NOT COALESCE(ap3_assessed, FALSE))
+           THEN 'Data review'
+         WHEN classroom_pressure_flag + teacher_pressure_flag = 2 AND COALESCE(growing_enrollment, FALSE) THEN 'Priority 1'
          WHEN classroom_pressure_flag + teacher_pressure_flag = 2
-           OR (classroom_pressure_flag + teacher_pressure_flag = 1 AND growing_enrollment) THEN 'Priority 2'
+           OR (classroom_pressure_flag + teacher_pressure_flag = 1 AND COALESCE(growing_enrollment, FALSE)) THEN 'Priority 2'
          WHEN classroom_pressure_flag + teacher_pressure_flag = 1 THEN 'Priority 3'
          WHEN growing_enrollment THEN 'Monitor'
          ELSE 'No current pressure identified' END AS priority_category
