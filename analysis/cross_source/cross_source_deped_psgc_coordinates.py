@@ -6,7 +6,10 @@
 #
 #   RAW_DATA_DIR=~/Projects/reached-hq/raw-data python analysis/cross_source/cross_source_deped_psgc_coordinates.py
 #
-# RAW_DATA_DIR must hold both approved workbooks in deped/original/ (the loaders check their SHA-256).
+# RAW_DATA_DIR must hold both approved workbooks in deped/original/ (the loaders check their SHA-256):
+#   SY 2023-2024 School Level Data on Enrollment with PSGC, Longitude and Latitude.xlsx        (deped_enrollment_psgc)
+#   SY 2023-2024 School Level Data on Enrollment with PSGC Longitude & Latitude (Public only).xlsx  (deped_psgc_coordinates)
+# A missing one stops the script with its name.
 # The DuckDB file is written to local_state/ (git-ignored) and replaced on each run. No Databricks compute.
 
 import argparse
@@ -17,6 +20,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
+from src.ingestion.contract import load_source_config  # noqa: E402
 from src.ingestion.pipeline import IngestionRun  # noqa: E402
 from src.ingestion.revision import resolve_code_revision  # noqa: E402
 from src.ingestion.store import DuckDBStore  # noqa: E402
@@ -33,6 +37,15 @@ def load(store, landing, revision):
         summary = IngestionRun(store, REPO, source, landing, "local", revision).execute()
         if summary.status != "succeeded":
             sys.exit(f"{source}: Bronze load {summary.status}; check the workbook in deped/original/.")
+        # A missing workbook is only a WARN for a contract without require_approved_deliveries (#220): the load
+        # succeeds with 0 rows. Stop here with the file's name, before the Silver gate fails on no current batch.
+        config, _ = load_source_config(REPO, source)
+        rows = store.query(f"SELECT COUNT(*) FROM edu_access.`02-bronze`.{config['bronze_table']} AS r "
+                           f"JOIN edu_access.`01-control`.current_batches AS b ON r.batch_id = b.batch_id "
+                           f"WHERE b.source_id = '{source}'")[0][0]
+        if not rows:
+            files = ", ".join(d["workbook"] for d in config["deliveries"])
+            sys.exit(f"{source}: no Bronze rows. Put the approved workbook in {landing / config['landing_dir'] / 'original'}: {files}")
         params = {"run_id": f"cross-{uuid.uuid4().hex[:8]}", "code_revision": revision, "environment": "local"}
         store.run_file(REPO / "etl" / "03_silver" / f"{clean}.sql", params)
         store.run_file(REPO / "etl" / "03_silver" / f"90_validate_{source}_clean.sql", params)

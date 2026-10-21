@@ -93,6 +93,27 @@ These were checked on 2026-10-21 and **not changed in this PR**, because each ta
    - **PSGC codes agree completely (PC-1).** City or municipality: same code 47,614, different 0, a code in only one file 0, in neither 204. Barangay: the same counts. `psgc_recoded` agrees for all 47,818. So Integration's code match (D-049) is unaffected by which file supplies the codes.
    - **Coordinates (PC-2).** Usable (`coordinate_flag IS NULL`) in both files: 38,243 schools. Only here: 8,837. Only in the all-sector file: 445. In neither: 293. For the 38,243 usable in both, the distance between the two points is: under 100 m 1; 100 m-1 km 29; 1-10 km 2,446; 10-100 km 29,829; over 100 km 5,938. No point is identical. **35,767 of the 38,243 (93.5%) are over 10 km apart**, and every one of those 35,767 has the same barangay code in both files. (An earlier figure here, "47,536 differ, 35,866 over 10 km", counted schools with a missing or flagged point in one file; it is replaced by these counts.)
    - **The all-sector file's points belong to other schools (PC-3).** Of its 38,688 usable public-school points, 38,471 (99.4%) occur exactly, to 5 decimals, in this file. None of them is at the same school, and all 38,471 are at another school. The most common gap is 45 to 54 school IDs (e.g. `school_id` + 51: 750 schools). So the same points appear in both workbooks, matched to different schools. That is why the two files disagree for 93% of schools while each puts most points near some city.
+   - The PC-3 counts and the gap come from these two queries in the script (the `PC-3` block, which prints the line `school_id gap (public-only school minus all-sector school), most common`). Points are compared rounded to 5 decimals (about 1 m), on the Silver tables:
+
+     ```sql
+     WITH n AS (SELECT school_id, round(longitude, 5) AS lon, round(latitude, 5) AS lat
+                FROM edu_access.`03-silver`.deped_psgc_coordinates_clean WHERE coordinate_flag IS NULL),
+          o AS (SELECT school_id, round(longitude, 5) AS lon, round(latitude, 5) AS lat
+                FROM edu_access.`03-silver`.deped_enrollment_psgc_clean WHERE coordinate_flag IS NULL AND sector = 'Public'),
+          hit AS (SELECT o.school_id AS o_id, n.school_id AS n_id FROM o JOIN n ON n.lon = o.lon AND n.lat = o.lat)
+     SELECT (SELECT COUNT(*) FROM o)                                       AS all_sector_points,          -- 38,688
+            (SELECT COUNT(DISTINCT o_id) FROM hit)                         AS found_in_public_only_file,  -- 38,471
+            (SELECT COUNT(DISTINCT o_id) FROM hit WHERE o_id = n_id)       AS at_the_same_school,         -- 0
+            (SELECT COUNT(DISTINCT o_id) FROM hit WHERE o_id <> n_id)      AS at_another_school;          -- 38,471
+
+     -- The gap: public-only school_id minus all-sector school_id, for each shared point at another school.
+     SELECT CAST(n.school_id AS BIGINT) - CAST(o.school_id AS BIGINT) AS gap, COUNT(*) AS schools
+     FROM o JOIN n ON n.lon = o.lon AND n.lat = o.lat WHERE o.school_id <> n.school_id
+     GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 5;
+     -- (51, 750), (50, 702), (54, 683), (49, 655), (48, 627)
+     ```
+
+     The same `n` and `o` common table expressions open the gap query. Both run on Databricks too, against the published Silver tables.
    - **Suspected:** the all-sector workbook's coordinate columns are offset against its school rows. The profile of `deped_enrollment_psgc` tested a shift of one or two rows only (its O-11), not an offset by school ID. This file's points are consistent with their own PSGC places (85% within 10 km of their city or municipality, against 57% in the all-sector file; profile O-6).
    - Nothing downstream reads either set yet. Which one Gold uses is a team decision; these results support this file's.
 3. **A delivery missing from the landing folder only WARNs in 7 of 9 contracts.** Only `psa_psgc` and this source set `require_approved_deliveries`.
