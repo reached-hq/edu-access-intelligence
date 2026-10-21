@@ -48,6 +48,32 @@ It brings together official DepEd, PSA, and HDX files, matches every school to t
 
 The question wording and its limits are in [business and analytical questions](docs/business/business-analytics-problem.md); the formulas are in the [metric specification](docs/business/metric-specification.md).
 
+## How the planning priority is set
+
+The priority list answers the business question by putting each city and municipality in one category, so Local School Boards know where to look first. It uses three separate signals, each with a cited reference, and counts them. It does not add them into a weighted score, so every category can be traced to the measure behind it.
+
+| Signal | Comes from | Raised when |
+|---|---|---|
+| **Classroom pressure** | AP2 | At least 90% of public-school learners are in schools with a usable room count, and at least one school has **50 or more learners per reported instructional room** (the PIDS 2025-10 illustrative screen) |
+| **Teacher pressure** | AP3 | At least one offered level that passes its own 90% coverage check is above its reference: **ES 35, JHS 36, or SHS 80/3 learners per teacher** (World Bank study for ES; DepEd class-size and teacher-to-class planning parameters for JHS and SHS) |
+| **Growing enrollment** | AP4 | Public-school enrollment is higher in SY 2025-26 than in SY 2020-21. Not assessed where the place's boundaries changed between the 2020 and 2024 censuses |
+
+| Category | Rule |
+|---|---|
+| **Priority 1** | Classroom and teacher pressure, and growing enrollment |
+| **Priority 2** | Both pressures without growth, or one pressure with growth |
+| **Priority 3** | One pressure without growth |
+| **Monitor** | Growing enrollment, no current pressure |
+| **No current pressure identified** | Neither pressure nor growth |
+| **Data review** | No pressure shown, and a coverage check failed or growth could not be assessed |
+
+- **A known pressure is never hidden by missing data.** If one measure is incomplete, only the pressure that is known counts. If growth cannot be assessed, the place is ranked as not growing, and `growth_not_assessed_reason` says why.
+- **Within a category,** places are ordered by number of pressures, then learners affected, then classroom-affected learners, pressured teacher levels, enrollment growth (absolute, then percentage), and PSGC code. Classroom- and teacher-affected learners are not added together, because the same learners can be in both.
+- **AP1 (schools relative to learners and school-age population) and the census gap are context,** shown beside each place but not used to set the category.
+- **What it is not:** an estimate of classroom shortages, teacher vacancies, hiring, construction, or funding. It orders review; planners decide the response.
+
+Built in [`etl/06_analytics/05_build_priority_matrix.sql`](etl/06_analytics/05_build_priority_matrix.sql) and checked by its gate, which recomputes every category and compares each copied value with its AP table. Reference values: [`config/analytics_benchmarks.json`](config/analytics_benchmarks.json). Columns: [analytics outputs](docs/data/analytics-outputs.md). The full rule and its reasoning: [decision log, D-061](docs/governance/decisions.md#d-061-current-pressures-and-public-enrollment-growth-set-planning-priority) (provisional).
+
 ## Data sources
 
 Nine official sources are loaded. Fifteen more were profiled and kept as context or set aside, each with a [source card](docs/data/source-inventory/README.md) saying why.
