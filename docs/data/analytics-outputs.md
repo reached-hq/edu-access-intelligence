@@ -190,6 +190,7 @@ Built by `05_build_priority_matrix.sql` from the published AP1 to AP4 tables. St
 | `ap4_public_enrollment_change_pct` | DOUBLE | Public-school enrollment change as a fraction of the first year |
 | `ap4_public_enrollment_trend` | STRING | AP4 public-school enrollment trend |
 | `ap4_public_enrollment_endpoints_complete` | BOOLEAN | Whether AP4 has complete public-school enrollment at both endpoints used for growth |
+| `ap4_geography_comparable` | BOOLEAN | Whether the city or municipality's territory is comparable from 2020 to 2024; growth is not assessed where it is not |
 | `ap4_gap_2024` | BIGINT | AP4 `population_enrollment_gap` on SY 2024-25 |
 | `ap4_gap_rate_2024_pct` | DOUBLE | 100 × AP4 `gap_share` on SY 2024-25 |
 | `classroom_pressure_flag` | INT | 1 when AP2 is assessed and has at least one affected school, otherwise 0 |

@@ -182,6 +182,20 @@ def test_ap3_pressure_signal_precedes_incomplete_level(store):
         (False, "above derived deployment comparison", "not assessed", "pressure signal identified")]
 
 
+def test_a_teacher_level_above_its_reference_counts_when_another_level_is_incomplete(store):
+    # review on #232: AP3 is not fully assessed (SHS fails coverage) but JHS is above its reference,
+    # so the teacher pressure counts and City One is not sent to Data review.
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 200
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S1','2023-24','JHS',4)")
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 50
+        WHERE school_id = 'S2' AND school_year = '2023-24' AND education_level_code = 'SHS'""")
+    run_all(store)
+    assert store.query(f"""SELECT ap3_assessed, teacher_pressure_flag, current_pressure_count, priority_category
+        FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'C1'""") == [(False, 1, 2, "Priority 1")]
+    # The added JHS learners also put S1 at 66 learners per room (classroom pressure), and enrollment grows.
+
+
 def test_teacher_context_never_assigns_a_teacher_priority_rank(store):
     run_all(store)
     columns = {c[0] for c in store.query(
@@ -210,7 +224,9 @@ def test_ap4_gives_the_gap_at_both_censuses_and_never_enters_the_classroom_queue
         ap4_public_enrollment_change, ap4_public_enrollment_trend, growing_enrollment, priority_category
         FROM {ANALYTICS}.lgu_priority_matrix""")}
     assert priorities["C1"] == (708, 100, "increasing", True, "Monitor")
-    assert {p[4] for p in priorities.values()} == {"Monitor"}
+    # Town Two's geography is not comparable, so its growth is not assessed and it goes to Data review.
+    assert priorities["M2"][2:] == ("increasing", None, "Data review")
+    assert {k: p[4] for k, p in priorities.items() if k != "M2"} == {"C1": "Monitor", "C2": "Monitor", "M1": "Monitor"}
 
 
 def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
