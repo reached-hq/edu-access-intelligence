@@ -50,9 +50,12 @@ WITH location AS (
   FROM edu_access.`03-silver`.deped_psgc_coordinates_clean
 ),
 city AS (
+  -- Only the location's school years: the school map holds every enrollment year, and joining all of them to
+  -- the boundary shapes would carry each shape through hundreds of thousands of rows (out of memory locally).
   SELECT school_year, school_id, psgc_code AS city_mun_psgc_code
   FROM edu_access.`04-integration`.deped_school_psgc_map
   WHERE geographic_level = 'city_mun' AND match_status = 'matched'
+    AND school_year IN (SELECT DISTINCT school_year FROM location)
 ),
 hdx_release AS (
   SELECT MAX(source_reference_date) AS source_reference_date
@@ -67,16 +70,22 @@ boundary AS (
     ON h.adm3_pcode = m.adm3_pcode AND h.valid_on = m.source_reference_date
   WHERE m.match_status = 'matched' AND h.geometry_is_valid
 ),
-tested AS (
-  -- Unflagged points of schools with a matched city that has a parsed boundary: one row per school.
-  SELECT l.school_year, l.school_id,
-         MIN(CASE WHEN st_contains(b.shape, try_to_geometry(concat('{"type": "Point", "coordinates": [',
-                  CAST(l.longitude AS STRING), ', ', CAST(l.latitude AS STRING), ']}'))) THEN b.adm3_pcode END) AS adm3_pcode
+located AS (
+  -- Unflagged points with their matched city, before any shape is touched.
+  SELECT l.school_year, l.school_id, l.longitude, l.latitude, c.city_mun_psgc_code
   FROM location AS l
   JOIN city AS c ON c.school_year = l.school_year AND c.school_id = l.school_id
-  JOIN boundary AS b ON b.city_mun_psgc_code = c.city_mun_psgc_code
-  WHERE l.coordinate_flag IS NULL AND b.shape IS NOT NULL   -- an unparsed shape is no boundary, never 'outside'
-  GROUP BY l.school_year, l.school_id
+  WHERE l.coordinate_flag IS NULL
+),
+tested AS (
+  -- Points of a city that has a parsed boundary: one row per school, naming the feature that contains it.
+  SELECT x.school_year, x.school_id,
+         MIN(CASE WHEN st_contains(b.shape, try_to_geometry(concat('{"type": "Point", "coordinates": [',
+                  CAST(x.longitude AS STRING), ', ', CAST(x.latitude AS STRING), ']}'))) THEN b.adm3_pcode END) AS adm3_pcode
+  FROM located AS x
+  JOIN boundary AS b ON b.city_mun_psgc_code = x.city_mun_psgc_code
+  WHERE b.shape IS NOT NULL   -- an unparsed shape is no boundary, never 'outside'
+  GROUP BY x.school_year, x.school_id
 ),
 decided AS (
   SELECT l.*, c.city_mun_psgc_code, t.adm3_pcode,
