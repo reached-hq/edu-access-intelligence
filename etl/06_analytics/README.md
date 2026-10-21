@@ -33,7 +33,7 @@ AP2 evaluates each usable school first. A school passes the illustrative screen 
 
 AP2 flags classroom pressure when at least one school passes and learner coverage is at least 90%. If coverage is below 90% or the ratio is unavailable, the LGU proceeds to Data review rather than being treated as having no pressure.
 
-AP3 flags teacher pressure when any adequately covered offered level exceeds its reference: ES 35, JHS 36, or SHS 80/3 learners per eligible teacher. AP2 and AP3 remain separate current pressures. AP4 flags growth only when public-school enrollment increases from SY 2020-21 to SY 2025-26.
+AP3 flags teacher pressure when any adequately covered offered level exceeds its reference: ES 35, JHS 36, or SHS 80/3 learners per eligible teacher. AP2 and AP3 remain separate current pressures. AP4 flags growth only when public-school enrollment increases from SY 2020-21 to SY 2025-26 and both endpoint years have at least one complete public school and no public school with an incomplete enrollment total.
 
 `current_pressure_count` is the sum of the two Boolean pressure flags. Priority 1 means both current pressures and growth. Priority 2 means both pressures without growth, or one pressure with growth. Priority 3 means one pressure without growth. Monitor means growth without a current pressure. No current pressure identified means neither pressure nor growth. Any failed AP2 or AP3 coverage gate, or an unavailable public-enrollment trend, gives Data review.
 

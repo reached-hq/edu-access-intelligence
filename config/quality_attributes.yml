@@ -354,6 +354,8 @@ checks:
     - teacher_reference_context_valid
     - assessment_status_valid
     - priority_rule_follows_d061
+    - priority_inputs_reconcile_to_ap2_ap3_ap4
+    - priority_order_recomputed
     - priority_order_unique
     - ratio_and_coverage_arithmetic
     - arithmetic_holds

@@ -34,6 +34,7 @@ WITH joined AS (
     d.public_enrollment_change_first_to_latest AS ap4_public_enrollment_change,
     100 * d.public_enrollment_change_pct_first_to_latest AS ap4_public_enrollment_change_pct,
     d.public_enrollment_trend AS ap4_public_enrollment_trend,
+    d.public_enrollment_endpoints_complete AS ap4_public_enrollment_endpoints_complete,
     g.population_enrollment_gap AS ap4_gap_2024, 100 * g.gap_share AS ap4_gap_rate_2024_pct
   FROM edu_access.`05-gold`.dim_city_municipality AS l
   LEFT JOIN edu_access.`06-analytics`.ap1_school_provision AS a USING (city_mun_psgc_code)
