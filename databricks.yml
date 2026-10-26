@@ -1234,6 +1234,65 @@ resources:
               path: etl/06_analytics/90_validate_priority_matrix.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
+        # Outlier sensitivity (D-065): suspected extreme school ratios, then the priority recalculated without them.
+        # The flags read the same Gold facts as AP2 and AP3; the published matrix is never changed.
+        - task_key: 06_flag_school_outliers
+          depends_on:
+            - task_key: 90_validate_fact_school_enrollment
+            - task_key: 90_validate_fact_school_classroom_capacity
+            - task_key: 90_validate_fact_school_teacher_capacity
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/06_flag_school_outliers.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_school_outlier_flags
+          depends_on:
+            - task_key: 06_flag_school_outliers
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/90_validate_school_outlier_flags.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 07_build_priority_sensitivity
+          depends_on:
+            - task_key: 90_validate_school_outlier_flags
+            - task_key: 90_validate_priority_matrix
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/07_build_priority_sensitivity.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_priority_sensitivity
+          depends_on:
+            - task_key: 07_build_priority_sensitivity
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/90_validate_priority_sensitivity.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 08_build_priority_scenarios
+          depends_on:
+            - task_key: 90_validate_priority_sensitivity
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/08_build_priority_scenarios.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_priority_scenarios
+          depends_on:
+            - task_key: 08_build_priority_scenarios
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/90_validate_priority_scenarios.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
 
         # Which DepEd sources have data for each school year, for the dashboard only. Kept out of
         # dim_school_year so a facilities or personnel failure does not stop every fact (D-051).
@@ -1380,7 +1439,7 @@ resources:
         - group_name: reached-hq
           level: CAN_RUN
     reached_planner:
-      display_name: ReachED Education Access Review Dashboard
+      display_name: "ReachED: Education Access Priority Dashboard"
       file_path: dashboards/reached_planner.lvdash.json
       warehouse_id: ${var.warehouse_id}
       permissions:
