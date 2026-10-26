@@ -8,12 +8,19 @@ from pathlib import Path
 import yaml
 
 from src.dashboard import planner
-from test_analytics_priority import GOLD, add_public_school, run_all, store  # noqa: F401  (store is that file's made-up Gold fixture)
+import test_analytics_priority as priority
+from test_analytics_outliers import OUTLIER_STEPS, add_ordinary_schools
+from test_analytics_priority import GOLD, add_public_school, store  # noqa: F401  (store is that file's made-up Gold fixture)
 
 ROOT = Path(__file__).parents[1]
 DASHBOARD = ROOT / "dashboards" / "reached_planner.lvdash.json"
 PAGES = ["overview", "lgu_profile", "school_action", "data_and_method"]
 INTERNAL_CODE = re.compile(r"\bD-0\d\d\b|\bAP ?[1-4]\b")
+
+
+def run_all(store):
+    """The Analytics job up to the outlier sensitivity the planner reads."""
+    priority.run_all(store, OUTLIER_STEPS)
 
 
 def load():
@@ -126,6 +133,64 @@ def test_legends_axes_and_filters_use_the_review_status():
     assert all(f"('{q}')" in options for q in planner.QUEUE)
 
 
+def test_kpis_use_the_production_language():
+    titles = {w["spec"]["frame"]["title"] for p in load()["pages"][:4] for w in kpis(p)}
+    # the team's wording from the editor (975f004)
+    assert {"LGUs for immediate joint review", "LGUs with a current pressure signal", "LGUs needing data review",
+            "Figures to verify"} <= titles
+    assert not titles & {"Priority 1 LGUs", "LGUs with any pressure", "Data review LGUs"}
+
+
+def test_no_table_cell_is_coloured():
+    # badges were tried on 2026-10-22 and were unreadable: tables stay plain
+    for page in load()["pages"]:
+        for widget in widgets(page):
+            if widget.get("spec", {}).get("widgetType") == "table":
+                assert not any("style" in c for c in widget["spec"]["encodings"]["columns"]), widget["name"]
+
+
+def test_population_charts_are_bars_in_the_order_the_sql_gives():
+    # bubbles were tried on 2026-10-22 and were hard to read; both population charts are bars, largest first
+    dashboard = load()
+    datasets = {d["name"]: "".join(d["queryLines"]) for d in dashboard["datasets"]}
+    for name in ("ov_region_pairs", "pr_peers"):
+        chart = next(w for p in dashboard["pages"] for w in widgets(p) if w.get("queries")
+                     and w["queries"][0]["query"]["datasetName"] == name)
+        assert chart["spec"]["widgetType"] == "bar" and chart["queries"][0]["query"]["disaggregated"]
+        assert chart["spec"]["encodings"]["y"]["scale"]["sort"] == {"by": "natural-order"}
+    assert "ORDER BY size_order DESC" in datasets["ov_region_pairs"]
+    assert "ORDER BY a.priority_affected_learners DESC" in datasets["pr_peers"] and ":barangay" not in datasets["pr_peers"]
+    assert not any(w.get("spec", {}).get("widgetType") == "scatter" for p in dashboard["pages"][:2] for w in widgets(p))
+
+
+def test_the_selected_lgu_is_ranked_among_its_comparison_area(store):
+    add_public_school(store, "X1", "M1", 300, 4, 10)
+    run_all(store)
+    rows = _rows(store, "pr_peers", lgu="Town One, Province")
+    assert [r["lgu"] for r in rows if r["lgu"].endswith(planner.SELECTED_MARK)] == ["Town One" + planner.SELECTED_MARK]
+    assert [r["affected_learners"] for r in rows] == sorted((r["affected_learners"] for r in rows), reverse=True)
+    assert {r["queue_status"] for r in rows} <= set(planner.QUEUE)
+    note = _rows(store, "pr_peer_note", lgu="Town One, Province")[0]["peer_line"]
+    assert note == "Town One: Priority 2 · 300 affected learners · ranked 1 of 4 LGUs in its province"
+    pairs = _rows(store, "ov_region_pairs")
+    assert [r["series"] for r in pairs] == planner.REGION_SERIES
+
+def test_no_chart_legend_says_verification_needed():
+    # the review on 2026-10-22: schools are coloured by levels offered or school status, never by a data-check flag
+    for page in load()["pages"]:
+        for widget in widgets(page):
+            color = widget.get("spec", {}).get("encodings", {}).get("color", {})
+            values = [m["value"] for m in color.get("scale", {}).get("mappings", [])]
+            assert planner.VERIFY[0] not in values, widget["name"]
+
+
+def test_the_scatter_shows_pressure_and_the_location_map_shows_school_type():
+    charts = {w["queries"][0]["query"]["datasetName"]: w for p in load()["pages"] for w in widgets(p)
+              if w.get("queries") and w["queries"][0]["query"].get("datasetName") in ("sa_peers", "sa_location")}
+    mappings = {name: [m["value"] for m in w["spec"]["encodings"]["color"]["scale"]["mappings"]] for name, w in charts.items()}
+    assert mappings == {"sa_peers": planner.SCHOOL_PRESSURE, "sa_location": planner.SCHOOL_TYPE}
+
+
 def test_no_title_renders_markdown():
     # review of the 2026-10-21 export: asterisks in chart titles rendered literally
     for page in load()["pages"]:
@@ -163,24 +228,45 @@ def test_every_planning_status_has_a_plain_label_and_basis():
         assert label in text and basis in text
 
 
-def test_the_map_draws_each_boundary_not_a_named_built_in_map():
-    # review of the 2026-10-21 export: a region on FIRST(boundary) exported as a map of Japan, and a `geometry`
-    # region did not render; the editor's fix is a `custom` region on each row's own boundary
+def test_the_map_colours_each_lgu_by_its_priority_category():
+    # the reference map: one boundary per LGU from geo_first(boundary), a Review status legend in the published
+    # order, and City or municipality, Review status and Learners in screened schools in the tooltip
     maps = [w for p in load()["pages"] for w in widgets(p) if w.get("spec", {}).get("widgetType") == "choropleth-map"]
-    assert maps
-    for widget in maps:
-        region = widget["spec"]["encodings"]["region"]
-        assert region == {"regionType": "custom", "fieldName": "geo(boundary)"}, region
-        query = widget["queries"][0]["query"]
-        assert query["disaggregated"] is True
-        fields = {f["name"]: f["expression"] for f in query["fields"]}
-        assert fields[region["fieldName"]] == "ST_ASGEOJSON(`boundary`)"
+    assert len(maps) == 1
+    encodings, query = maps[0]["spec"]["encodings"], maps[0]["queries"][0]["query"]
+    assert encodings["region"] == {"regionType": "custom", "fieldName": "geo_first(boundary)"}
+    assert {f["name"]: f["expression"] for f in query["fields"]}["geo_first(boundary)"] == "ST_ASGEOJSON(FIRST(`boundary`))"
+    assert not query["disaggregated"]
+    color = encodings["color"]
+    assert (color["fieldName"], color["displayName"]) == ("queue_status", "Review status")
+    assert color["scale"]["sort"]["orderedValues"] == planner.QUEUE
+    assert [m["value"] for m in color["scale"]["mappings"]] == planner.QUEUE
+    assert [e["displayName"] for e in encodings["extra"]] == [
+        "City or municipality", "Review status", "Learners in screened schools"]
 
 
-def test_every_view_shows_the_scope_line():
-    for page in load()["pages"][:4]:
-        assert any(q["query"]["datasetName"] == "scope" for w in widgets(page) for q in w.get("queries", [])
-                   if "fields" in q["query"]), page["name"]
+def test_tables_show_counts_written_with_separators():
+    # review of the 2026-10-22 export: table counts showed as 171855; every table cell is text from the SQL instead
+    for page in load()["pages"]:
+        for widget in widgets(page):
+            if widget.get("spec", {}).get("widgetType") == "table":
+                for column in widget["spec"]["encodings"]["columns"]:
+                    assert "format" not in column, (page["name"], column["displayName"])
+
+
+def test_reasons_are_complete_capitalised_labels():
+    assert all(label[0].isupper() for label in planner.REASONS.values())
+    assert planner.REASONS["boundary changed 2020-2024"] == "Geographic boundaries changed"
+
+
+def test_region_rows_keep_the_order_the_sql_gives_them():
+    # sorted by the share of Priority 1 and 2 LGUs: the chart draws the rows unaggregated, in natural order
+    chart = next(w for p in load()["pages"] for w in widgets(p) if w.get("queries")
+                 and w["queries"][0]["query"]["datasetName"] == "ov_region")
+    assert chart["queries"][0]["query"]["disaggregated"]
+    assert chart["spec"]["encodings"]["y"]["scale"]["sort"] == {"by": "natural-order"}
+    sql = "".join(next(d for d in load()["datasets"] if d["name"] == "ov_region")["queryLines"])
+    assert "ORDER BY high_share DESC" in sql
 
 
 def test_barangay_and_measure_filters_sit_with_what_they_change():
@@ -250,7 +336,7 @@ def test_the_planner_shows_the_priority_as_published(store):
     assert (card["classroom_kpi"], card["teacher_kpi"], card["enrollment_kpi"], card["readiness_kpi"]) == (
         "1 of 2", "0 of 1", "+41.7%", "100%")
     assert (kpi["joint_kpi"], kpi["any_kpi"], kpi["learners_kpi"], kpi["data_review_kpi"]) == (
-        "0 (0.0%)", "1 of 4", "300 (24.0%)", "0 of 4")
+        "0 of 4", "1 of 4", "300 (24.0%)", "0 of 4")  # every count out of the same total
     screen = _rows(store, "pr_evidence", lgu="Town One, Province")[0]
     assert screen["this_lgu"] == "1 of 2 schools, 300 learners" and screen["status"] == "Signal present"
     decision = _rows(store, "pr_decision", lgu="Town One, Province")
@@ -291,9 +377,18 @@ def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
     assert ratio["Junior high"]["X1"] is None
     shown = {r["school_id"]: r for r in _rows(store, "sa_list", level="Junior high", lgu="Town One, Province")}
     assert shown["X1"]["per_teacher_txt"] == "Not assessable"  # a word, never null
-    # the comparison chart leaves it out at JHS rather than plotting the all-level ratio
+    # the bullet chart gives every level its own row and writes no number in a label
+    bullets = _rows(store, "sa_bullet", level="Junior high", lgu="Town One, Province", school="X1 · X1")
+    assert [(r["figure"], r["share_of_reference"], r["status"]) for r in bullets] == [
+        ("Learners per reported room", 1.7, planner.LEVEL_STATUS[0]),
+        ("Learners per elementary teacher", 30 / 35, planner.LEVEL_STATUS[1]),
+        ("Learners per junior high teacher", None, planner.LEVEL_STATUS[2]),
+        ("Learners per senior high teacher", 0, planner.NOT_OFFERED)]
+    # the comparison scatter leaves it out at JHS rather than plotting the all-level ratio
     assert "X1" in {r["school_name"] for r in _rows(store, "sa_peers", level=planner.ALL_LEVELS, lgu="Town One, Province")}
     assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="Junior high", lgu="Town One, Province")}
+    school = _rows(store, "sa_school", level="Elementary", lgu="Town One, Province", school="X1 · X1")[0]
+    assert school["teacher_kpi"] == "30.0 vs 35"
 
 
 def test_every_listed_school_says_why_and_what_to_verify(store):
@@ -306,15 +401,28 @@ def test_every_listed_school_says_why_and_what_to_verify(store):
     assert rows["X1"]["why_listed"] == "Above classroom screen" and rows["X1"]["verification_status"] == planner.VERIFY[0]
     assert rows["S4"]["why_listed"] == "Included by classroom-pressure order"
     school = _rows(store, "sa_school", lgu="Town One, Province")[0]
-    assert school["school_id"] == "X1" and school["verify_kpi"] == "1 to verify"
+    assert school["school_id"] == "X1" and school["verify_kpi"] == "1 verification item"
     assert (school["room_kpi"], school["teacher_kpi"], school["change_kpi"]) == ("75.0", "30.0", "Incomplete")
     assert school["verify_header"] == "Verify reported room count and enrollment"
     assert [r["item"] for r in _rows(store, "sa_verify", lgu="Town One, Province")] == ["Classroom pressure"]
 
 
+def test_schools_are_coloured_by_the_pressure_they_show(store):
+    # X1: 300 learners in 4 rooms (75, above the screen of 50) and 30 per elementary teacher (at or below 35): classroom
+    # pressure only. S4: 25 per room and 25 per teacher: neither. With S4 selected, X1 keeps its own category
+    add_public_school(store, "X1", "M1", 300, 4, 10)
+    run_all(store)
+    add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1", "S4"])})
+    series = {r["school_name"]: r["series"] for r in _rows(store, "sa_peers", lgu="Town One, Province", school="S4 · S4")}
+    assert series == {"X1": planner.SCHOOL_PRESSURE[2], "S4": planner.SCHOOL_PRESSURE[0]}
+    series = {r["school_name"]: r["series"] for r in _rows(store, "sa_peers", lgu="Town One, Province")}
+    assert series == {"X1": planner.SCHOOL_PRESSURE[0], "S4": planner.SCHOOL_PRESSURE[4]}
+
+
 def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(store):
     # review on #224: X1 has ES learners but no JHS count, so its all-level learners are unknown; it still gives
-    # its barangay a public elementary school. Two barangays share a name and are told apart by PSGC code
+    # its barangay a public elementary school. Two barangays share a name and are told apart by PSGC code: only the
+    # Poblacion with no school is listed, because the table lists barangays without a matched public elementary school
     add_public_school(store, "X1", "M1", 300, 4, 10)
     store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = NULL
         WHERE school_id = 'X1' AND education_level_code = 'JHS'""")
@@ -322,11 +430,50 @@ def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(
     add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1"]), "B2": ("Poblacion", "M1", []),
                               "B3": ("San Roque", "M1", ["S4"])})
     rows = _rows(store, "pr_barangays", lgu="Town One, Province")
-    assert sorted((r["barangay_name"], r["public_schools"], r["public_es"]) for r in rows) == [
-        ("Poblacion", 0, "No"), ("Poblacion", 1, "Yes"), ("San Roque", 1, "Yes")]
+    assert [(r["barangay_name"], r["public_schools"], r["public_es"]) for r in rows] == [("Poblacion", 0, "No")]
 
 
 def test_no_retired_tier_or_check_table_is_read():
     text = DASHBOARD.read_text(encoding="utf-8")
     for retired in ("lgu_priority_checks", "lgu_priority_outlier_schools", "order_in_tier", "is_stable", "_percentile"):
         assert retired not in text, retired
+
+
+def test_without_suspected_outliers_every_figure_is_recalculated_and_the_published_view_is_unchanged(store):
+    # X: 400 learners in one room, far above the municipal outer fence. It is Town Two's only school at or above the
+    # screen, so without it Town Two loses its classroom signal and its coverage falls below 90%: Data review
+    add_ordinary_schools(store)
+    add_public_school(store, "X", "M2", 400, 1, 4)
+    run_all(store)
+    without = {"outliers": planner.OUTLIER_OPTIONS[1]}
+    matrix = {r["city_mun_psgc_code"]: r for r in store.records(
+        "SELECT * FROM edu_access.`06-analytics`.lgu_priority_sensitivity")}
+    published = {r["city_mun_psgc_code"]: r for r in _rows(store, "ov_lgu")}
+    excluded = {r["city_mun_psgc_code"]: r for r in _rows(store, "ov_lgu", **without)}
+    for code, row in matrix.items():
+        assert (published[code]["queue_status"], published[code]["national_order"]) == (
+            row["priority_category"], row["priority_order"])
+        assert (excluded[code]["queue_status"], excluded[code]["national_order"]) == (
+            row["priority_category_without_suspected_outliers"], row["priority_order_without_suspected_outliers"])
+    assert published["M2"]["queue_status"] != "Data review" and excluded["M2"]["queue_status"] == "Data review"
+    # its category changes only because coverage falls below 90% without X: the check says to verify, not "less pressure"
+    assert published["M2"]["outlier_check"] == excluded["M2"]["outlier_check"] == planner.NEEDS_VERIFYING
+    assert published["C1"]["outlier_check"] == "No suspected outliers"
+    # the LGU Profile says which result it shows, and its classroom figures leave X out
+    card = _rows(store, "pr_card", lgu="Town Two, Province")[0]
+    card_without = _rows(store, "pr_card", lgu="Town Two, Province", **without)[0]
+    assert f"Outlier check: {planner.NEEDS_VERIFYING}" in card["details"]
+    assert "without suspected outliers" not in card["details"] and "Shown without suspected outliers" in card_without["details"]
+    screen = {r["measure"]: r for r in _rows(store, "pr_evidence", lgu="Town Two, Province", **without)}
+    assert screen["Classroom pressure · school screen"]["status"] != "Signal present"
+    kpi, kpi_without = _rows(store, "ov_kpi")[0], _rows(store, "ov_kpi", **without)[0]
+    assert kpi_without["learners_above"] == kpi["learners_above"] - 400
+    # School Action keeps X in the list, as a figure to verify; the comparison scatter leaves it out when excluded
+    add_school_detail(store, {"B2": ("Poblacion", "M2", ["X", "N1"])})
+    listed = {r["school_id"]: r for r in _rows(store, "sa_list", lgu="Town Two, Province", **without)}
+    assert "Suspected extreme figure" in listed["X"]["why_listed"]
+    assert [r["item"] for r in _rows(store, "sa_verify", lgu="Town Two, Province", school="X · X")] == [
+        "Classroom pressure", "Suspected extreme figure"]
+    scatter = {r["school_name"] for r in _rows(store, "sa_peers", lgu="Town Two, Province", school="N1 · N1", **without)}
+    assert "X" not in scatter and "N1" in scatter
+    assert "X" in {r["school_name"] for r in _rows(store, "sa_peers", lgu="Town Two, Province", school="N1 · N1")}
