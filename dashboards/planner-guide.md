@@ -9,6 +9,7 @@ A guide to **ReachED: Education Access Priority Dashboard** (`reached_planner`):
 - [What it is for](#what-it-is-for)
 - [How to use it: the five steps](#how-to-use-it-the-five-steps)
 - [How the review status is calculated](#how-the-review-status-is-calculated)
+- [Suspected outliers: does the result hold without extreme schools?](#suspected-outliers-does-the-result-hold-without-extreme-schools)
 - [Page 1: National Overview](#page-1-national-overview)
 - [Page 2: LGU Profile](#page-2-lgu-profile)
 - [Page 3: School Action](#page-3-school-action)
@@ -135,6 +136,55 @@ Within the statuses, LGUs are ordered by:
 
 The result is the **national review order**, 1 to 1,642. It is an order for checking, not a performance rank.
 
+## Suspected outliers: does the result hold without extreme schools?
+
+Some schools report figures far outside the rest, such as more than 300 learners per reported room. Most are probably reporting problems (rooms left out of the count), but some may be real (double shifts). The published result keeps every school. The dashboard also shows what changes without them, so planners know which results rest on a figure that should be checked first (rule **D-065**).
+
+### Which schools are flagged
+
+```text
+fence group       = comparable public schools, SY 2023-24
+                    classroom ratio: same LGU type (city or municipality)
+                    teacher ratio:   same LGU type and same level
+IQR               = Q3 - Q1 of the ratio in the fence group
+upper outer fence = Q3 + 3 x IQR
+lower outer fence = Q1 - 3 x IQR
+
+suspected outlier = classroom ratio above the upper fence
+                    or teacher ratio above the upper fence or below the lower fence
+```
+
+- **Why the outer fence (3 × IQR):** the usual 1.5 × IQR would flag schools that are genuinely under heavy pressure. Only extreme values pass 3 × IQR (Tukey's outer fence, NIST/SEMATECH e-Handbook 7.1.6).
+- **Why a classroom ratio is flagged only when high:** only a high ratio can put a school above the classroom screen.
+- **Why a teacher ratio is flagged both ways:** teacher pressure pools every school in the LGU, so taking out only the high schools would bias the result toward "no pressure".
+- A fence group of fewer than 10 schools has no fence and flags nothing.
+- A flag is a quality result, not a correction. The school stays in every published figure.
+
+### Two results for every LGU
+
+| Scenario | What it is | Where it is shown |
+|---|---|---|
+| **All schools (published result)** | The D-061 status and order, unchanged | The default view of the dashboard |
+| **Without suspected outliers** | AP2 and AP3 recalculated without the flagged schools, then the same D-061 rule and order | Choose it in the **Suspected outliers** filter |
+
+Without the flagged schools, each one is removed from both sides of its ratio. Learner coverage still counts every enrolled learner, so removing schools can push coverage below the 90% gate. Enrollment growth (AP4) is not a school ratio and is the same in both.
+
+### The outlier check
+
+Each LGU gets one outlier check, the most serious that applies:
+
+| Outlier check | Meaning |
+|---|---|
+| **Review status changes** | The LGU's review status is different without the flagged schools |
+| **A pressure signal changes** | The classroom or teacher signal changes, but the status does not |
+| **Coverage falls below 90%** | A coverage gate no longer passes without them |
+| **Affected learners change** | Affected learners change by more than 10% |
+| **Result holds without them** | Nothing above changes |
+| **No suspected outliers** | The LGU has no flagged school |
+| **Status needs these schools verified** | The status or a signal changes *only* because removing the flagged schools takes coverage below 90%. The rest of the data cannot confirm or rule out the pressure until those schools' figures are checked. That is not the same as less pressure |
+
+The outlier check never changes the review status. An LGU that depends on flagged schools keeps its published status, and the board should verify those schools before acting.
+
 ## Page 1: National Overview
 
 **Question:** *Where should the Local School Board review first?*
@@ -150,7 +200,7 @@ The result is the **national review order**, 1 to 1,642. It is an order for chec
 | **LGUs for priority review** (table) | The first ten LGUs in the review order, with affected learners | Top 10 by `priority_order` | The shortlist to open first |
 | **Review status by region** (100% bars) | Each region's LGUs split by status | Count per region and status / LGUs in region; regions with the most Priority 1 and 2 first | Which regions carry the most pressure |
 | **How review status is assigned?** (table) | Every combination of the two pressures, how many LGUs have it, how many also grow, and the status that results | Count per (classroom signal, teacher signal), and count with growth | Why LGUs end up where they are; the rule in numbers |
-| **LGU review list** (table) | Every LGU in order: province, region, status, planning status, pressure signals, affected learners, data readiness | The full `lgu_priority_matrix` in `priority_order` | The complete queue, to find any LGU |
+| **LGU review list** (table) | Every LGU in order: province, region, status, planning status, pressure signals, affected learners, data readiness, **outlier check** | The full `lgu_priority_matrix` in `priority_order`; the outlier check from `lgu_priority_scenarios` | The complete queue, to find any LGU, and whether its result depends on suspected extreme schools |
 | **LGUs needing data review** (table) | The Data review LGUs and why | Published reasons, e.g. *Classroom learner coverage below 90%* | Which figures must be completed before the LGU can be judged |
 | **Review status by LGU type** (bars) | Status shares for cities and municipalities | Count per type and status / LGUs of that type | Whether cities and municipalities differ |
 | **Resident children and local enrollment by region** (paired bars) | Resident children aged 5–17 (2024) beside learners enrolled in local schools (SY 2024-25), per region | Sums over the LGUs in view; no gap is calculated | AP4 context: where children live versus where they enroll |
@@ -166,7 +216,7 @@ The result is the **national review order**, 1 to 1,642. It is an order for chec
 | Widget | What it shows | How it is calculated |
 |---|---|---|
 | **Selected city or municipality** | The LGU name | — |
-| **LGU details** | Type, province or region, national review order out of 1,642 (and within the current filters), data readiness | `priority_order`; data readiness is *Assessed*, *Partly assessed* (a measure or the trend could not be assessed) or *Insufficient data* |
+| **LGU details** | Type, province or region, national review order out of 1,642 (and within the current filters), data readiness, outlier check; *Shown without suspected outliers* when that view is chosen | `priority_order`; data readiness is *Assessed*, *Partly assessed* (a measure or the trend could not be assessed) or *Insufficient data* |
 | **Facts** | Public schools, reported rooms, reported teachers, public learners, SY 2023-24 | Sums over the LGU's public schools. Scale, not a KPI |
 | **Schools above room reference** (KPI) | e.g. `18 of 21` | Schools at or above 50 learners per room / schools with a usable room count (AP2) |
 | **Levels above teacher reference** (KPI) | e.g. `3 of 3` | Levels above their comparison point / levels assessed (AP3) |
@@ -226,8 +276,9 @@ Verification items, in the order shown:
 | 4 | Teacher count | No teacher count for an offered level | Confirm teachers by level with the SDO |
 | 5 | Teacher count | 0 teachers at an offered level | Confirm teachers by level with the SDO |
 | 6 | Classroom pressure | Learners per room at or above 50 | Confirm rooms in use and enrollment with the school before planning |
+| 7 | Suspected extreme figure | The school's room or teacher ratio is past the outer fence ([suspected outliers](#suspected-outliers-does-the-result-hold-without-extreme-schools)) | Confirm rooms, teachers and enrollment with the Schools Division Office |
 
-A school with none of these shows **No verification flag**.
+A school with none of these shows **No verification flag**. A flagged school stays in the validation list in both views of the **Suspected outliers** filter.
 
 ### Widgets
 
@@ -241,7 +292,7 @@ A school with none of these shows **No verification flag**.
 | **Figures to verify** (KPI) | Number of verification items | How much to confirm |
 | **Classroom and teacher figures against their references** (bullet bars) | Learners per room and learners per teacher at each level, as a share of their reference; the line is the reference | Which figures are past their reference, on one scale |
 | **What needs to be verified?** (table) | One row per verification item with why and the next step | The to-do list for this school |
-| **Classroom and teacher pressure among schools in this LGU** (scatter) | Every school offering the chosen level: learners per room (x) against learners per teacher (y), sized by learners, coloured by the pressure it shows (both, classroom only, teacher only, neither); the selected school is drawn on top | Whether the school is an outlier or part of a town-wide pattern |
+| **Classroom and teacher pressure among schools in this LGU** (scatter) | Every school offering the chosen level: learners per room (x) against learners per teacher (y), sized by learners, coloured by the pressure it shows (both, classroom only, teacher only, neither); the selected school is drawn on top. *Without suspected outliers* leaves the flagged schools out, except the selected one | Whether the school stands apart or is part of a town-wide pattern |
 | **Nearby public schools** (map) | The selected school and public schools within about 3 km, coloured by type (elementary only, secondary only, integrated), sized by learners | Whether nearby schools could share the load. Straight-line distance, not travel time |
 | **How has enrollment changed in this school?** (line) | Total and per-level enrollment by school year | Whether the pressure is new or long-standing |
 | **Reported rooms and teachers** (table) | Learners and teachers by level, rooms for the whole school, temporary or makeshift rooms, locally funded teachers | The raw figures behind the ratios |
@@ -274,6 +325,7 @@ A school with none of these shows **No verification flag**.
 | Filter | Where | Effect |
 |---|---|---|
 | Region, Province, LGU type | Every page | Narrow the LGUs in view. Province options follow Region |
+| Suspected outliers | Every page | *All schools (published result)* by default. *Without suspected outliers* switches every LGU figure (status, order, signals, affected learners, ratios, coverage, KPIs) to the result without flagged schools |
 | Review status, Data readiness | National Overview | Every widget on that page |
 | City or municipality | LGU Profile, School Action (separately) | Defaults to the top of the queue in the filters |
 | Barangay | LGU Profile | The school map and the barangay table only |
@@ -281,7 +333,7 @@ A school with none of these shows **No verification flag**.
 | School status, Barangay | School Action | The validation list only |
 | Measure | Data & Method | The coverage and data-review reason charts only |
 
-Filters only narrow what is shown. The status and the national review order never change with a filter. LGU Profile also shows the LGU's order within the current filters.
+Filters only narrow what is shown. The status and the national review order never change with a filter, with one exception: **Suspected outliers** switches to a second, published result, and the LGU Profile says when that result is shown. LGU Profile also shows the LGU's order within the current filters.
 
 ## Comparison points and where they come from
 
@@ -350,7 +402,7 @@ From the dashboard on 22 October 2026, all LGUs in view.
 
 Top ten in the review order, all Priority 1 with classroom and teacher pressure: City of Davao (171,855 affected learners), City of Antipolo (154,188), City of Zamboanga (106,930), City of Valenzuela (92,509), City of San Jose Del Monte (85,979), City of Calamba (75,346), Tanza (74,952), City of General Trias (74,604), City of Cebu (62,075), City of Pasig (58,523).
 
-These figures change when the pipeline runs on new data. Read the live dashboard for current values.
+These figures are the published result (all schools) and change when the pipeline runs on new data. Read the live dashboard for current values, and switch **Suspected outliers** to see how many LGUs change without the flagged schools.
 
 ## What the dashboard cannot tell you
 
@@ -369,7 +421,11 @@ flowchart LR
     src[DepEd enrollment, facilities, personnel<br/>PSA population, PSGC, HDX boundaries] --> gold[(05-gold<br/>facts and dimensions)]
     gold --> ap[(06-analytics<br/>AP1 to AP4)]
     ap --> matrix[(lgu_priority_matrix<br/>D-061 status and order)]
+    gold --> flags[(school_outlier_flags<br/>D-065 fences)]
+    flags --> scen[(lgu_priority_scenarios<br/>with and without outliers)]
+    matrix --> scen
     matrix --> dash[reached_planner dashboard]
+    scen --> dash
     gold --> dash
     refs[config/analytics_benchmarks.json] --> dash
 ```
@@ -378,10 +434,11 @@ flowchart LR
 |---|---|
 | Status and order | `` edu_access.`06-analytics`.lgu_priority_matrix ``, built by [`etl/06_analytics/05_build_priority_matrix.sql`](../etl/06_analytics/README.md) and published only after its validation gate passes |
 | AP measures | `ap1_school_provision`, `ap2_classroom_pressure`, `ap3_teacher_pressure`, `ap4_enrollment_trend` ([analytics outputs](../docs/data/analytics-outputs.md)) |
+| Suspected outliers | `school_outlier_flags` (every school ratio with its quartiles, fences and flag), `lgu_priority_sensitivity` (both scenarios and the outlier check per LGU), and `lgu_priority_scenarios` (both scenarios in the published tables' column names, which the dashboard reads), built by `06_flag_school_outliers.sql`, `07_build_priority_sensitivity.sql` and `08_build_priority_scenarios.sql`, each behind its own validation gate |
 | School pages | Gold facts and dimensions, including `dim_school_location` for the maps |
 | Dashboard | Generated by [`src/dashboard/planner.py`](../src/dashboard/planner.py) into `reached_planner.lvdash.json`. Do not edit the JSON by hand: carry editor changes into the generator |
 | Formulas | [Metric specification](../docs/business/metric-specification.md) |
-| Decisions | D-061 (priority rule), D-047 (levels, annexes, teacher fields) in [decisions](../docs/governance/decisions.md) |
+| Decisions | D-061 (priority rule), D-065 (outlier sensitivity), D-047 (levels, annexes, teacher fields) in [decisions](../docs/governance/decisions.md) |
 
 ## Glossary
 
@@ -396,6 +453,8 @@ flowchart LR
 | **Affected learners** | The larger of classroom-affected learners (in schools at or above 50 per room) and teacher-affected learners (in levels above their comparison point) |
 | **Learner coverage** | The share of an LGU's public learners whose school reports a usable room or teacher count. Below 90%, a measure is not assessed |
 | **Data readiness** | Assessed, Partly assessed, or Insufficient data |
+| **Suspected outlier** | A school whose room or teacher ratio is past Tukey's outer fence (3 × IQR) among comparable schools. Flagged for checking, never removed from the published result |
+| **Outlier check** | What removing an LGU's suspected outliers does to its result, from *Result holds without them* to *Review status changes* |
 | **SDO** | Schools Division Office |
 | **LSB / SEF** | Local School Board / Special Education Fund |
 | **NSBI** | The DepEd system behind the School Facilities data |
